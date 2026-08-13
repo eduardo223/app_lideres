@@ -264,7 +264,7 @@ def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo)
             max-height: 300px;
             margin-bottom: 22px;
         }}
-        80% {{
+        85% {{
             opacity: 1;
             transform: translateY(0);
             max-height: 300px;
@@ -288,12 +288,12 @@ def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo)
             visibility: hidden;
         }}
     }}
-    .banner-animado-6s {{
-        animation: desaparecerBanner 6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+    .banner-animado-10s {{
+        animation: desaparecerBanner 10s cubic-bezier(0.4, 0, 0.2, 1) forwards;
         overflow: hidden;
     }}
     </style>
-    <div class="banner-animado-6s" style="
+    <div class="banner-animado-10s" style="
         background: {gradient};
         border: 1px solid {border_color};
         border-radius: 16px;
