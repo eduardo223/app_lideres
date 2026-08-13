@@ -1,0 +1,12 @@
+# Archivos temporales de Python
+__pycache__/
+*.pyc
+
+# Archivos de entorno virtual
+.venv/
+env/
+venv/
+
+# Archivos temporales o de configuración personal
+.DS_Store
+*.log
