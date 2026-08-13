@@ -17,6 +17,9 @@ from procesador import (
     color_situacion,
     color_deuda_mora,
     actualizar_situacion_comercial_desde_mi_grupo,
+    autenticar_usuario,
+    cargar_usuarios,
+    registrar_o_actualizar_usuario,
     MATRIZ_GANANCIA,
     ETIQUETAS_ACTIVAS,
     ETIQUETAS_FACTURACION,
@@ -93,24 +96,80 @@ def load_and_process_data(ruta_o_buffer='Base para el como vamos.xlsx'):
         df_uploaded = pd.read_excel(ruta_o_buffer, sheet_name="Base para el como vamos")
         return calcular_metas_ciclo(df_uploaded)
 
-# 3. BARRA LATERAL (Carga, Rotación y Filtros dinámicos)
-st.sidebar.header("🔄 Rotación de Ciclo (Nuevo)")
-st.sidebar.caption("Sube el Excel del nuevo ciclo para convertir el ciclo actual en el 'Como vamos anterior' automáticamente.")
+# --- CONTROL DE SESIÓN Y LOGIN ---
+if 'user' not in st.session_state:
+    st.session_state['user'] = None
 
-nuevo_ciclo_file = st.sidebar.file_uploader("Cargar Nuevo Ciclo ('Cómo Vamos')", type=["xlsx"], key="uploader_nuevo_ciclo")
-if nuevo_ciclo_file is not None:
-    if st.sidebar.button("🚀 Rotar Ciclo y Actualizar Histórico"):
-        try:
-            with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
-                rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
-                st.cache_data.clear()
-                st.sidebar.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
-                st.rerun()
-        except PermissionError as pe:
-            st.error("⚠️ **Archivo en uso**: El archivo `Base para el como vamos.xlsx` está actualmente abierto en Excel.")
-            st.info("💡 **Solución**: Por favor, **cierra el archivo en Microsoft Excel** y vuelve a presionar el botón '🚀 Rotar Ciclo y Actualizar Histórico'.")
-        except Exception as ex:
-            st.error(f"❌ Ocurrió un error al rotar el ciclo: {ex}")
+if st.session_state['user'] is None:
+    st.markdown("<h2 style='text-align: center; color: #1E293B; margin-top: 1rem;'>🔑 Iniciar Sesión - Dashboard Liderazgo</h2>", unsafe_allow_html=True)
+    st.markdown("<p style='text-align: center; color: #64748B;'>Ingresa tus credenciales para acceder a la información de tu perfil y equipo.</p>", unsafe_allow_html=True)
+    
+    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
+    with col_l2:
+        with st.form("form_login"):
+            input_user = st.text_input("👤 Usuario", value="", placeholder="ej. gerente, lider8425, lider7841, asesor")
+            input_pass = st.text_input("🔒 Contraseña", type="password", value="")
+            btn_login = st.form_submit_button("🚀 Ingresar al Dashboard", type="primary", use_container_width=True)
+            
+            if btn_login:
+                user_auth = autenticar_usuario(input_user, input_pass)
+                if user_auth:
+                    st.session_state['user'] = user_auth
+                    st.success(f"¡Bienvenido(a) {user_auth['nombre']}!")
+                    st.rerun()
+                else:
+                    st.error("❌ Usuario o contraseña incorrectos.")
+                    
+        st.markdown("---")
+        with st.expander("💡 Credenciales de Prueba (Demostración por Perfil)", expanded=True):
+            st.markdown("""
+            - 👑 **Gerente / Admin**: usuario `gerente` / clave `admin123` *(Acceso Total + Admin Usuarios)*
+            - 👩‍💼 **Líder (Luz Dary Chacon - Grupo 8425)**: usuario `lider8425` / clave `lider123` *(Exclusivo Grupo 8425)*
+            - 👩‍💼 **Líder (Carmenza Roncancio - Grupo 7841)**: usuario `lider7841` / clave `lider123` *(Exclusivo Grupo 7841)*
+            - 👤 **Asesora / Consulta**: usuario `asesor` / clave `asesor123` *(Solo Lectura Facturación)*
+            """)
+    st.stop()
+
+# Usuario logueado activo
+current_user = st.session_state.get('user') or {}
+user_nombre = current_user.get('nombre', 'Usuario')
+user_rol = current_user.get('rol', 'asesor')
+user_grupo = str(current_user.get('codigo_grupo', '')).strip() if current_user.get('codigo_grupo') else ""
+
+# 3. BARRA LATERAL (Perfil de Usuario, Logout y Opciones según Rol)
+st.sidebar.markdown(f"### 👤 {user_nombre}")
+if user_rol == 'gerente':
+    st.sidebar.caption("👑 **Rol**: Gerente / Administrador (Acceso Total)")
+elif user_rol == 'lider':
+    st.sidebar.caption(f"👩‍💼 **Rol**: Líder de Negocio (Grupo `{user_grupo}`)")
+else:
+    st.sidebar.caption("👤 **Rol**: Asesora / Consulta de Facturación")
+
+if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
+    st.session_state['user'] = None
+    st.rerun()
+
+st.sidebar.markdown("---")
+
+# Opciones de administración solo visibles para Gerente
+if user_rol == 'gerente':
+    st.sidebar.header("🔄 Rotación de Ciclo (Nuevo)")
+    st.sidebar.caption("Sube el Excel del nuevo ciclo para convertir el ciclo actual en el 'Como vamos anterior' automáticamente.")
+    
+    nuevo_ciclo_file = st.sidebar.file_uploader("Cargar Nuevo Ciclo ('Cómo Vamos')", type=["xlsx"], key="uploader_nuevo_ciclo")
+    if nuevo_ciclo_file is not None:
+        if st.sidebar.button("🚀 Rotar Ciclo y Actualizar Histórico"):
+            try:
+                with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
+                    rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
+                    st.cache_data.clear()
+                    st.sidebar.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
+                    st.rerun()
+            except PermissionError as pe:
+                st.error("⚠️ **Archivo en uso**: El archivo `Base para el como vamos.xlsx` está actualmente abierto en Excel.")
+                st.info("💡 **Solución**: Por favor, **cierra el archivo en Microsoft Excel** y vuelve a presionar el botón '🚀 Rotar Ciclo y Actualizar Histórico'.")
+            except Exception as ex:
+                st.error(f"❌ Ocurrió un error al rotar el ciclo: {ex}")
 
 st.sidebar.markdown("---")
 st.sidebar.header("📊 Actualizar Base Tableau Cam")
@@ -257,6 +316,8 @@ ganancia_total = float(df_filtrado['Ganancia estimada'].sum()) if 'Ganancia esti
 inicios_totales = float(df_filtrado['Inicios'].sum()) if 'Inicios' in df_filtrado.columns else 0.0
 reinicios_totales = float(df_filtrado['Reinicios'].sum()) if 'Reinicios' in df_filtrado.columns else 0.0
 
+kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+
 with kpi1:
     st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
 
@@ -290,15 +351,27 @@ with kpi5:
 st.markdown("---")
 
 # 5. CONTENIDO CON PESTAÑAS (TABS)
-tab_tableau, tab_resumen, tab_ganancia, tab_diagnostico, tab_metas, tab_detalle, tab_exportar = st.tabs([
-    "📊 Informe Tableau Cam",
-    "📊 Resumen & KPIs",
-    "💵 Simulador de Ganancia",
-    "🔎 Diagnóstico 'Cómo Vamos'",
-    "🎯 Metas de Crecimiento (Procesador)",
-    "👥 Detalle Completo",
-    "📤 Exportar Datos"
-])
+if user_rol == 'gerente':
+    tab_tableau, tab_resumen, tab_ganancia, tab_diagnostico, tab_metas, tab_detalle, tab_exportar, tab_usuarios = st.tabs([
+        "📊 Informe Tableau Cam",
+        "📊 Resumen & KPIs",
+        "💵 Simulador de Ganancia",
+        "🔎 Diagnóstico 'Cómo Vamos'",
+        "🎯 Metas de Crecimiento (Procesador)",
+        "👥 Detalle Completo",
+        "📤 Exportar Datos",
+        "🔑 Gestión de Usuarios & Roles"
+    ])
+else:
+    tab_tableau, tab_resumen, tab_ganancia, tab_diagnostico, tab_metas, tab_detalle, tab_exportar = st.tabs([
+        "📊 Informe Tableau Cam",
+        "📊 Resumen & KPIs",
+        "💵 Simulador de Ganancia",
+        "🔎 Diagnóstico 'Cómo Vamos'",
+        "🎯 Metas de Crecimiento (Procesador)",
+        "👥 Detalle Completo",
+        "📤 Exportar Datos"
+    ])
 
 # --- TAB 0: INFORME TABLEAU MANAGER ("INFORME TABLEAU CAM") ---
 with tab_tableau:
@@ -308,50 +381,62 @@ with tab_tableau:
     # 1. Cargar la base de Tableau
     df_tableau = procesar_base_tableau_manager('Base de Datos.xlsx')
     
-    # Subidor de administración en expansor
-    with st.expander("⚙️ Opciones de Administración (Actualizar Base Tableau & Sit. Comercial desde mi_grupo)", expanded=False):
-        col_adm1, col_adm2 = st.columns(2)
-        with col_adm1:
-            st.markdown("###### 📁 1. Actualizar Base Completa Tableau (`Base de Datos.xlsx`)")
-            archivo_tableau = st.file_uploader("Selecciona `Base de Datos.xlsx`", type=["xlsx"], key="tableau_uploader")
-            if archivo_tableau is not None:
-                try:
-                    with open("Base de Datos.xlsx", "wb") as f:
-                        f.write(archivo_tableau.getbuffer())
-                    st.success("✅ ¡Base de Datos.xlsx actualizada exitosamente!")
-                    st.rerun()
-                except Exception as e_up:
-                    st.error(f"Error al actualizar la base: {e_up}")
-
-        with col_adm2:
-            st.markdown("###### 🔄 2. Actualizar Sit. Comercial desde `mi_grupo.xls`")
-            st.caption("Vincula por Código CB y actualiza la Situación Comercial de cada consultora.")
-            file_mg = st.file_uploader("Selecciona `mi_grupo.xls`", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
-            
-            # Botón directo si ya existe mi_grupo.xls en la carpeta local
-            if os.path.exists("mi_grupo.xls"):
-                if st.button("⚡ Actualizar Sit. Comercial desde 'mi_grupo.xls' local", type="secondary"):
-                    res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
-                    if res_mg.get('exito'):
-                        st.success(f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.")
-                        if res_mg['cambios'] > 0 and res_mg.get('detalles'):
-                            st.markdown("##### 📋 Resumen de Asesoras que cambiaron de Estado Comercial:")
-                            st.dataframe(pd.DataFrame(res_mg['detalles']), use_container_width=True)
+    # Filtrar por rol de Líder en la base de Tableau
+    if df_tableau is not None and not df_tableau.empty and user_rol == 'lider' and user_grupo:
+        mask_tg = pd.Series(False, index=df_tableau.index)
+        if 'Grupo' in df_tableau.columns:
+            mask_tg = mask_tg | df_tableau['Grupo'].astype(str).str.contains(user_grupo, case=False, na=False)
+        if 'Sector' in df_tableau.columns:
+            mask_tg = mask_tg | df_tableau['Sector'].astype(str).str.contains(user_grupo, case=False, na=False)
+        if 'Nombre' in df_tableau.columns:
+            mask_tg = mask_tg | (df_tableau['Nombre'].astype(str).str.strip().str.lower() == current_user['nombre'].strip().lower())
+        df_tableau = df_tableau[mask_tg].copy()
+    
+    # Subidor de administración solo visible para Gerente
+    if user_rol == 'gerente':
+        with st.expander("⚙️ Opciones de Administración (Actualizar Base Tableau & Sit. Comercial desde mi_grupo)", expanded=False):
+            col_adm1, col_adm2 = st.columns(2)
+            with col_adm1:
+                st.markdown("###### 📁 1. Actualizar Base Completa Tableau (`Base de Datos.xlsx`)")
+                archivo_tableau = st.file_uploader("Selecciona `Base de Datos.xlsx`", type=["xlsx"], key="tableau_uploader")
+                if archivo_tableau is not None:
+                    try:
+                        with open("Base de Datos.xlsx", "wb") as f:
+                            f.write(archivo_tableau.getbuffer())
+                        st.success("✅ ¡Base de Datos.xlsx actualizada exitosamente!")
                         st.rerun()
-                    else:
-                        st.error(f"Error: {res_mg.get('error')}")
+                    except Exception as e_up:
+                        st.error(f"Error al actualizar la base: {e_up}")
 
-            if file_mg is not None:
-                if st.button("🚀 Actualizar Sit. Comercial desde archivo subido", type="primary"):
-                    res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
-                    if res_mg.get('exito'):
-                        st.success(f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.")
-                        if res_mg['cambios'] > 0 and res_mg.get('detalles'):
-                            st.markdown("##### 📋 Resumen de Asesoras que cambiaron de Estado Comercial:")
-                            st.dataframe(pd.DataFrame(res_mg['detalles']), use_container_width=True)
-                        st.rerun()
-                    else:
-                        st.error(f"Error: {res_mg.get('error')}")
+            with col_adm2:
+                st.markdown("###### 🔄 2. Actualizar Sit. Comercial desde `mi_grupo.xls`")
+                st.caption("Vincula por Código CB y actualiza la Situación Comercial de cada consultora.")
+                file_mg = st.file_uploader("Selecciona `mi_grupo.xls`", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
+                
+                # Botón directo si ya existe mi_grupo.xls en la carpeta local
+                if os.path.exists("mi_grupo.xls"):
+                    if st.button("⚡ Actualizar Sit. Comercial desde 'mi_grupo.xls' local", type="secondary"):
+                        res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
+                        if res_mg.get('exito'):
+                            st.success(f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.")
+                            if res_mg['cambios'] > 0 and res_mg.get('detalles'):
+                                st.markdown("##### 📋 Resumen de Asesoras que cambiaron de Estado Comercial:")
+                                st.dataframe(pd.DataFrame(res_mg['detalles']), use_container_width=True)
+                            st.rerun()
+                        else:
+                            st.error(f"Error: {res_mg.get('error')}")
+
+                if file_mg is not None:
+                    if st.button("🚀 Actualizar Sit. Comercial desde archivo subido", type="primary"):
+                        res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
+                        if res_mg.get('exito'):
+                            st.success(f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.")
+                            if res_mg['cambios'] > 0 and res_mg.get('detalles'):
+                                st.markdown("##### 📋 Resumen de Asesoras que cambiaron de Estado Comercial:")
+                                st.dataframe(pd.DataFrame(res_mg['detalles']), use_container_width=True)
+                            st.rerun()
+                        else:
+                            st.error(f"Error: {res_mg.get('error')}")
 
     if df_tableau is None or df_tableau.empty:
         st.warning("⚠️ No se encontró la base de datos `Base de Datos.xlsx`. Por favor, sube el archivo desde la barra lateral o el panel de administración superior.")
@@ -1134,6 +1219,47 @@ with tab_exportar:
             file_name="Resultado_Metas_Procesadas_Filtrado.csv",
             mime="text/csv"
         )
+
+# --- TAB 6: GESTIÓN DE USUARIOS (SOLO GERENTE) ---
+if user_rol == 'gerente':
+    with tab_usuarios:
+        st.subheader("🔑 Gestión de Usuarios y Permisos (Solo Gerente)")
+        st.markdown("Administra las credenciales de acceso, asigna roles y vincula el **Código de grupo** a cada Líder de Negocio.")
+
+        col_u1, col_u2 = st.columns([1.2, 1])
+
+        with col_u1:
+            st.markdown("##### 👥 Usuarios Registrados Actuales")
+            users_dict = cargar_usuarios()
+            list_u = []
+            for uname, udata in users_dict.items():
+                list_u.append({
+                    "Usuario": uname,
+                    "Nombre": udata.get("nombre", ""),
+                    "Rol": udata.get("rol", ""),
+                    "Código de Grupo": udata.get("codigo_grupo") or "N/A"
+                })
+            st.dataframe(pd.DataFrame(list_u), use_container_width=True)
+
+        with col_u2:
+            st.markdown("##### ➕ Crear / Editar Usuario de Líder o Asesora")
+            with st.form("form_nuevo_usuario"):
+                nu_username = st.text_input("Usuario (Login)", placeholder="ej. lider9334")
+                nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Angela Mireya Montenegro")
+                nu_pass = st.text_input("Contraseña", type="password", placeholder="Dejar vacío para mantener contraseña actual")
+                nu_rol = st.selectbox("Rol de Acceso", options=["lider", "gerente", "asesor"])
+                nu_grupo = st.text_input("Código de Grupo (Para Líderes)", placeholder="ej. 9334")
+                
+                btn_save_u = st.form_submit_button("💾 Guardar / Actualizar Usuario", type="primary", use_container_width=True)
+                if btn_save_u:
+                    ok_u, msg_u = registrar_o_actualizar_usuario(
+                        nu_username, nu_nombre, nu_pass, nu_rol, nu_grupo
+                    )
+                    if ok_u:
+                        st.success(f"✅ {msg_u}")
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg_u}")
 
 # Footer
 st.markdown("---")

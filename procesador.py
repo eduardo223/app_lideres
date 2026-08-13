@@ -1015,6 +1015,111 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
     except Exception as e:
         return {'exito': False, 'error': f"Error al guardar '{ruta_base}': {e}"}
 
+# --- MÓDULO DE AUTENTICACIÓN Y GESTIÓN DE USUARIOS POR ROL ---
+RUTA_USUARIOS = 'usuarios.json'
+
+def hashlib_sha256(texto):
+    import hashlib
+    return hashlib.sha256(str(texto).encode('utf-8')).hexdigest()
+
+def cargar_usuarios():
+    """
+    Carga el diccionario de usuarios desde usuarios.json.
+    Si no existe, crea usuarios predeterminados:
+    - gerente (pass: admin123, rol: gerente)
+    - lider8425 (pass: lider123, rol: lider, codigo_grupo: 8425)
+    - lider7841 (pass: lider123, rol: lider, codigo_grupo: 7841)
+    - asesor (pass: asesor123, rol: asesor)
+    """
+    if os.path.exists(RUTA_USUARIOS):
+        try:
+            with open(RUTA_USUARIOS, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+
+    # Usuarios predeterminados si el archivo no existe
+    def_pass_admin = hashlib_sha256("admin123")
+    def_pass_lider = hashlib_sha256("lider123")
+    def_pass_asesor = hashlib_sha256("asesor123")
+
+    usuarios_default = {
+        "gerente": {
+            "nombre": "Gerencia General",
+            "password_hash": def_pass_admin,
+            "rol": "gerente",
+            "codigo_grupo": None
+        },
+        "lider8425": {
+            "nombre": "Luz Dary Chacon Gaitan",
+            "password_hash": def_pass_lider,
+            "rol": "lider",
+            "codigo_grupo": "8425"
+        },
+        "lider7841": {
+            "nombre": "Carmenza Roncancio Gachancipa",
+            "password_hash": def_pass_lider,
+            "rol": "lider",
+            "codigo_grupo": "7841"
+        },
+        "asesor": {
+            "nombre": "Usuario Consulta Facturación",
+            "password_hash": def_pass_asesor,
+            "rol": "asesor",
+            "codigo_grupo": None
+        }
+    }
+    guardar_usuarios(usuarios_default)
+    return usuarios_default
+
+def guardar_usuarios(dict_usuarios):
+    """
+    Guarda el diccionario de usuarios en usuarios.json.
+    """
+    try:
+        with open(RUTA_USUARIOS, 'w', encoding='utf-8') as f:
+            json.dump(dict_usuarios, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error al guardar usuarios: {e}")
+        return False
+
+def autenticar_usuario(username, password):
+    """
+    Valida credenciales. Retorna el diccionario del usuario si es correcto o None.
+    """
+    u_clean = str(username).strip().lower()
+    usuarios = cargar_usuarios()
+    if u_clean in usuarios:
+        user_info = usuarios[u_clean]
+        p_hash = hashlib_sha256(password)
+        if user_info.get("password_hash") == p_hash:
+            user_copy = user_info.copy()
+            user_copy["username"] = u_clean
+            return user_copy
+    return None
+
+def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo=None):
+    """
+    Permite al Gerente crear un usuario de Líder o Asesora o actualizar su contraseña.
+    """
+    u_clean = str(username).strip().lower()
+    if not u_clean:
+        return False, "El nombre de usuario no puede estar vacío."
+    
+    usuarios = cargar_usuarios()
+    p_hash = hashlib_sha256(password) if password else (usuarios.get(u_clean, {}).get("password_hash", hashlib_sha256("123456")))
+    
+    usuarios[u_clean] = {
+        "nombre": nombre,
+        "password_hash": p_hash,
+        "rol": rol,
+        "codigo_grupo": str(codigo_grupo).strip() if codigo_grupo else None
+    }
+    if guardar_usuarios(usuarios):
+        return True, f"Usuario '{u_clean}' guardado exitosamente."
+    return False, "Error al guardar el archivo de usuarios."
+
 # Ejecutamos la función si se invoca el script directamente
 if __name__ == "__main__":
     df_resultado = calcular_metas_ciclo()

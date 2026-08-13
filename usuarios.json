@@ -1,0 +1,26 @@
+{
+  "gerente": {
+    "nombre": "Gerencia General",
+    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "rol": "gerente",
+    "codigo_grupo": null
+  },
+  "lider8425": {
+    "nombre": "Luz Dary Chacon Gaitan",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "8425"
+  },
+  "lider7841": {
+    "nombre": "Carmenza Roncancio Gachancipa",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "7841"
+  },
+  "asesor": {
+    "nombre": "Usuario Consulta Facturación",
+    "password_hash": "2ac668df8973cd2b3c6e4dc7816eab15c3bba28dd98766d37860639be3816df9",
+    "rol": "asesor",
+    "codigo_grupo": null
+  }
+}
