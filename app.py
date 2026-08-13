@@ -220,12 +220,77 @@ def formato_cop(val):
     num = limpiar_numero(val, 0.0)
     return f"${num:,.0f}".replace(",", ".")
 
+from frases import obtener_frase_motivacional_diaria
+
 def formato_cop_signo(val):
     num = limpiar_numero(val, 0.0)
     if num == 0:
         return "$0"
     signo = "-" if num < 0 else ""
     return f"{signo}${abs(num):,.0f}".replace(",", ".")
+
+def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo):
+    info = obtener_frase_motivacional_diaria(cumplimiento_pct, nombre_lider, codigo_grupo)
+    frase_txt = info['frase']
+    autor_txt = info['autor']
+    subtitulo = info['subtitulo']
+    cat = info['categoria']
+    
+    if cat == 'excelencia':
+        gradient = "linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
+        border_color = "rgba(16, 185, 129, 0.4)"
+        badge_bg = "rgba(16, 185, 129, 0.2)"
+        badge_color = "#34D399"
+        badge_txt = f"🌟 LIDERAZGO IMPARABLE • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
+    elif cat == 'aceleracion':
+        gradient = "linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
+        border_color = "rgba(245, 158, 11, 0.4)"
+        badge_bg = "rgba(245, 158, 11, 0.2)"
+        badge_color = "#FBBF24"
+        badge_txt = f"🎯 ZONA DE ACELERACIÓN • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
+    else:
+        gradient = "linear-gradient(135deg, rgba(139, 92, 246, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
+        border_color = "rgba(139, 92, 246, 0.4)"
+        badge_bg = "rgba(139, 92, 246, 0.2)"
+        badge_color = "#C084FC"
+        badge_txt = f"💪 TRANSFORMANDO CAMPAÑA • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
+        
+    st.markdown(f"""
+    <div style="
+        background: {gradient};
+        border: 1px solid {border_color};
+        border-radius: 16px;
+        padding: 20px 24px;
+        margin-bottom: 22px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+    ">
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+            <span style="
+                background: {badge_bg};
+                color: {badge_color};
+                border: 1px solid {border_color};
+                font-size: 0.75rem;
+                font-weight: 700;
+                padding: 4px 14px;
+                border-radius: 9999px;
+                letter-spacing: 0.05em;
+            ">{badge_txt}</span>
+            <span style="color: #94A3B8; font-size: 0.82rem; font-weight: 500;">✨ Inspiración Diaria para {nombre_lider}</span>
+        </div>
+        <div style="font-size: 1.15rem; font-weight: 600; color: #F8FAFC; line-height: 1.5; font-style: italic; margin-bottom: 8px;">
+            "{frase_txt}"
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div style="color: #CBD5E1; font-size: 0.88rem; font-weight: 700;">
+                — {autor_txt}
+            </div>
+            <div style="color: #94A3B8; font-size: 0.83rem; font-weight: 500;">
+                {subtitulo}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 # --- COMPONENTES GRÁFICOS INTERACTIVOS (LA JOYA DEL PASTEL) ---
 def crear_tacometro_360(titulo, valor_pct, meta_val, real_val):
@@ -674,7 +739,8 @@ ganancia_total = float(df_filtrado['Ganancia estimada'].sum()) if 'Ganancia esti
 
 # Inicios y Reinicios
 inicios_totales = float(df_filtrado['Inicios'].sum()) if 'Inicios' in df_filtrado.columns else 0.0
-reinicios_totales = float(df_filtrado['Reinicios'].sum()) if 'Reinicios' in df_filtrado.columns else 0.0
+# Renderizar Banner Motivacional Diario Adaptativo por Desempeño
+renderizar_banner_motivacional(cump_fact, user_nombre, user_grupo)
 
 kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
