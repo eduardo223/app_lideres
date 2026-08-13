@@ -1217,6 +1217,8 @@ def inicializar_db_sqlite():
         credito_total REAL,
         credito_disponible REAL,
         pedidos_pendientes INTEGER,
+        pedidos_mora INTEGER,
+        facturacion_total REAL,
         notas_lider TEXT
     )
     """)
@@ -1331,8 +1333,8 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         INSERT OR REPLACE INTO consultoras_tableau (
             codigo_cb, nombre, gerencia, sector, grupo, ciclo, color, sit_comercial,
             pts_natura, pts_avon, pts_acum, pts_mant, pts_asc,
-            deuda_total, deuda_mora, credito_total, credito_disponible, pedidos_pendientes, notas_lider
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            deuda_total, deuda_mora, credito_total, credito_disponible, pedidos_pendientes, pedidos_mora, facturacion_total, notas_lider
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             cb,
             nom,
@@ -1352,6 +1354,8 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             float(limpiar_numero(row.get('Credito Total', 0.0))),
             float(limpiar_numero(row.get('Credito Disponible', 0.0))),
             int(limpiar_numero(row.get('Ped. Pendientes', 0))),
+            int(limpiar_numero(row.get('Ped. Mora', 0))),
+            float(limpiar_numero(row.get('Fact. Total', 0.0))),
             str(row.get('Notas / Comentarios Líder', ''))
         ))
     
@@ -1441,6 +1445,8 @@ def consultar_tableau_sql(grupo=None):
         credito_total AS 'Credito Total',
         credito_disponible AS 'Credito Disponible',
         pedidos_pendientes AS 'Ped. Pendientes',
+        pedidos_mora AS 'Ped. Mora',
+        facturacion_total AS 'Fact. Total',
         notas_lider AS 'Notas / Comentarios Líder'
     FROM consultoras_tableau
     """
@@ -1451,6 +1457,17 @@ def consultar_tableau_sql(grupo=None):
     
     df = pd.read_sql_query(query, conn, params=params)
     conn.close()
+
+    # Añadir alias de columnas para máxima compatibilidad con las pestañas de app.py
+    if 'Código CB' in df.columns:
+        df['Codigo CB'] = df['Código CB']
+    if 'Asesora / Consultora' in df.columns:
+        df['Nombre'] = df['Asesora / Consultora']
+    if 'Nivel / Color' in df.columns:
+        df['Color'] = df['Nivel / Color']
+    if 'Notas / Comentarios Líder' in df.columns:
+        df['Comentarios_Lider'] = df['Notas / Comentarios Líder']
+
     return df
 
 # Ejecutamos la función si se invoca el script directamente
