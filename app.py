@@ -52,31 +52,70 @@ st.set_page_config(
 # Estilos CSS personalizados para mejorar el diseño estético
 st.markdown("""
 <style>
+    /* Theme-Adaptive & Dark Mode Glassmorphism System */
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
+    
+    html, body, [class*="css"] {
+        font-family: 'Outfit', sans-serif;
+    }
+
     .main-header {
         font-size: 2.2rem;
-        font-weight: 700;
-        color: #1E293B;
+        font-weight: 800;
+        background: linear-gradient(135deg, #60A5FA 0%, #A78BFA 50%, #F472B6 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
         margin-bottom: 0.2rem;
+        letter-spacing: -0.02em;
     }
     .sub-header {
-        font-size: 1rem;
-        color: #64748B;
+        font-size: 1.05rem;
+        color: #94A3B8;
         margin-bottom: 1.5rem;
+        font-weight: 500;
     }
-    .stMetric {
-        background-color: #F8FAFC;
-        border: 1px solid #E2E8F0;
-        border-radius: 8px;
-        padding: 12px 15px;
+
+    /* Target metric cards in Streamlit for Dark & Light Mode */
+    [data-testid="stMetric"] {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
+        border: 1px solid rgba(255, 255, 255, 0.15) !important;
+        border-radius: 16px !important;
+        padding: 18px 20px !important;
+        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35) !important;
+        backdrop-filter: blur(12px) !important;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .metric-box {
-        background-color: #F1F5F9;
-        border-left: 4px solid #3B82F6;
-        padding: 12px;
-        border-radius: 6px;
-        margin-bottom: 12px;
+
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 15px 30px -5px rgba(59, 130, 246, 0.3) !important;
+        border-color: rgba(96, 165, 250, 0.5) !important;
     }
-    
+
+    [data-testid="stMetricLabel"] p {
+        color: #94A3B8 !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+    }
+
+    [data-testid="stMetricValue"] div {
+        color: #F8FAFC !important;
+        font-size: 1.8rem !important;
+        font-weight: 800 !important;
+    }
+
+    [data-testid="stMetricDelta"] svg, [data-testid="stMetricDelta"] div {
+        font-weight: 700 !important;
+    }
+
+    /* Expanders in Dark Mode */
+    [data-testid="stExpander"] {
+        background: rgba(30, 41, 59, 0.6) !important;
+        border: 1px solid rgba(255, 255, 255, 0.12) !important;
+        border-radius: 14px !important;
+        overflow: hidden;
+    }
+
     /* Modern Glassmorphism & Enterprise Executive Login Styling */
     .login-container {
         max-width: 1000px;
@@ -136,26 +175,27 @@ st.markdown("""
     }
 
     .login-form-card {
-        background: #FFFFFF;
+        background: rgba(30, 41, 59, 0.8);
         border-radius: 18px;
         padding: 28px;
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.04);
-        border: 1px solid #E2E8F0;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        backdrop-filter: blur(10px);
     }
 
     .demo-credentials-card {
-        background: #F8FAFC;
+        background: rgba(30, 41, 59, 0.6);
         border-radius: 18px;
         padding: 24px;
-        border: 1px solid #E2E8F0;
+        border: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .role-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: #FFFFFF;
-        border: 1px solid #E2E8F0;
+        background: rgba(15, 23, 42, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.1);
         padding: 12px 16px;
         border-radius: 12px;
         margin-bottom: 10px;
@@ -164,12 +204,12 @@ st.markdown("""
 
     .role-item:hover {
         border-color: #3B82F6;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
     }
 
-    .role-tag-gerente { background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
-    .role-tag-lider { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
-    .role-tag-asesor { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+    .role-tag-gerente { background: rgba(99, 102, 241, 0.2); color: #818CF8; border: 1px solid rgba(129, 140, 248, 0.3); font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+    .role-tag-lider { background: rgba(245, 158, 11, 0.2); color: #FBBF24; border: 1px solid rgba(251, 191, 36, 0.3); font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+    .role-tag-asesor { background: rgba(148, 163, 184, 0.2); color: #CBD5E1; border: 1px solid rgba(203, 213, 225, 0.3); font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
