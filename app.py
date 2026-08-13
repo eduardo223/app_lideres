@@ -256,7 +256,44 @@ def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo)
         badge_txt = f"💪 TRANSFORMANDO CAMPAÑA • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
         
     st.markdown(f"""
-    <div style="
+    <style>
+    @keyframes desaparecerBanner {{
+        0% {{
+            opacity: 1;
+            transform: translateY(0);
+            max-height: 300px;
+            margin-bottom: 22px;
+        }}
+        80% {{
+            opacity: 1;
+            transform: translateY(0);
+            max-height: 300px;
+            margin-bottom: 22px;
+        }}
+        98% {{
+            opacity: 0;
+            transform: translateY(-15px);
+            max-height: 300px;
+            margin-bottom: 22px;
+        }}
+        100% {{
+            opacity: 0;
+            transform: translateY(-20px);
+            max-height: 0px;
+            margin-bottom: 0px;
+            padding-top: 0px;
+            padding-bottom: 0px;
+            border: none;
+            overflow: hidden;
+            visibility: hidden;
+        }}
+    }}
+    .banner-animado-6s {{
+        animation: desaparecerBanner 6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+        overflow: hidden;
+    }}
+    </style>
+    <div class="banner-animado-6s" style="
         background: {gradient};
         border: 1px solid {border_color};
         border-radius: 16px;
@@ -739,7 +776,9 @@ ganancia_total = float(df_filtrado['Ganancia estimada'].sum()) if 'Ganancia esti
 
 # Inicios y Reinicios
 inicios_totales = float(df_filtrado['Inicios'].sum()) if 'Inicios' in df_filtrado.columns else 0.0
-# Renderizar Banner Motivacional Diario Adaptativo por Desempeño
+reinicios_totales = float(df_filtrado['Reinicios'].sum()) if 'Reinicios' in df_filtrado.columns else 0.0
+
+# Renderizar Banner Motivacional Diario Adaptativo por Desempeño (Desaparece suavemente a los 6s)
 renderizar_banner_motivacional(cump_fact, user_nombre, user_grupo)
 
 kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
