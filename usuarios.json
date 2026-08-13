@@ -28,5 +28,11 @@
     "password_hash": "2ac668df8973cd2b3c6e4dc7816eab15c3bba28dd98766d37860639be3816df9",
     "rol": "asesor",
     "codigo_grupo": null
+  },
+  "lider9400": {
+    "nombre": "MARIA CRISTINA RUBIO",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9400"
   }
 }

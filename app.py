@@ -710,6 +710,14 @@ gerencia_seleccionada = st.sidebar.selectbox(
 )
 
 df_filtrado = df.copy()
+
+# Segmentación Privada por Rol (Preservando el código madre intacto)
+# Si ingresa una Líder de Negocio, sus tarjetas superiores, tacómetros y reportes se restringen automáticamente a su Grupo
+if user_rol == 'lider' and user_grupo:
+    col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
+    if col_grp_ref and col_grp_ref in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(user_grupo).strip()]
+
 if gerencia_seleccionada != "Todas":
     df_filtrado = df_filtrado[df_filtrado[col_gerencia] == gerencia_seleccionada]
 
