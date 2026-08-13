@@ -686,6 +686,13 @@ if df_raw is None:
 # Copia de trabajo
 df = df_raw.copy()
 
+# Omitir filas 'None', 'NaN' o vacías que dañan la presentación visual de las tablas
+col_lider_check = 'Nombre de consultora' if 'Nombre de consultora' in df.columns else df.columns[0]
+if col_lider_check in df.columns:
+    mask_valida_df = df[col_lider_check].notna() & \
+                      (~df[col_lider_check].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
+    df = df[mask_valida_df]
+
 # Header Principal
 st.markdown("<div class='main-header'>📈 Panel de Control - Estado de Ciclo Matices</div>", unsafe_allow_html=True)
 st.markdown("<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento</div>", unsafe_allow_html=True)
@@ -1496,6 +1503,12 @@ with tab_diagnostico:
         df_fact_formatted['GANANCIA ESTIMADA TOTAL'] = df_fact_formatted['GANANCIA ESTIMADA TOTAL'].apply(formato_cop)
     if 'PEDIDOS' in df_fact_formatted.columns:
         df_fact_formatted['PEDIDOS'] = df_fact_formatted['PEDIDOS'].apply(lambda v: f"{int(limpiar_numero(v))}")
+
+    # Filtrar filas 'None' de la tabla de facturación
+    if 'LÍDER DE NEGOCIOS' in df_fact_formatted.columns:
+        mask_clean = df_fact_formatted['LÍDER DE NEGOCIOS'].notna() & \
+                     (~df_fact_formatted['LÍDER DE NEGOCIOS'].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
+        df_fact_formatted = df_fact_formatted[mask_clean]
 
     # Renderizar con semáforo de colores según comportamiento
     st.dataframe(

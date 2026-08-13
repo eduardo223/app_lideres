@@ -86,6 +86,12 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
         df = pd.read_excel(origen, sheet_name="Base para el como vamos")
         df = normalizar_columnas(df)
         
+        # Eliminar filas 'None', 'nan' o totalmente nulas que dañen la presentación de tablas
+        col_nom_ref = 'Nombre de consultora' if 'Nombre de consultora' in df.columns else df.columns[0]
+        if col_nom_ref in df.columns:
+            mask_valida_df = df[col_nom_ref].notna() & (~df[col_nom_ref].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
+            df = df[mask_valida_df]
+        
         # Verificar si existe la hoja 'Como vamos anterior' para calcular el Avance %
         try:
             xl = pd.ExcelFile(origen)
