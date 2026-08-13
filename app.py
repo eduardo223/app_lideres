@@ -373,41 +373,6 @@ if puede_subir_archivos:
                     st.error(f"❌ Ocurrió un error al rotar el ciclo: {ex}")
 
         st.sidebar.markdown("---")
-
-    st.sidebar.header("📊 Actualizar Base Tableau Cam")
-    st.sidebar.caption("Sube la sábana de datos exportada de Tableau (`Base de Datos.xlsx`) para actualizar la base maestra conservando las notas de la Líder.")
-
-    base_tableau_file = st.sidebar.file_uploader("Cargar Base Tableau (.xlsx)", type=["xlsx"], key="uploader_base_tableau_sidebar")
-    if base_tableau_file is not None:
-        if st.sidebar.button("💾 Guardar y Actualizar Base Tableau"):
-            try:
-                with open("Base de Datos.xlsx", "wb") as f:
-                    f.write(base_tableau_file.getbuffer())
-                sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
-                st.cache_data.clear()
-                st.sidebar.success("✅ ¡Base de Tableau actualizada y convertida a SQL exitosamente!")
-                st.rerun()
-            except PermissionError:
-                st.sidebar.error("⚠️ El archivo `Base de Datos.xlsx` está abierto en Excel. Ciérralo y vuelve a presionar el botón.")
-            except Exception as e_tb:
-                st.sidebar.error(f"❌ Error al guardar la base: {e_tb}")
-
-    st.sidebar.markdown("---")
-    st.sidebar.header("🔄 Actualizar Sit. Comercial (`mi_grupo.xls`)")
-    st.sidebar.caption("Sube `mi_grupo.xls` para actualizar la Situación Comercial de cada consultora en la Base de Datos vinculando por Código CB.")
-
-    mi_grupo_file = st.sidebar.file_uploader("Cargar mi_grupo (.xls / .xlsx)", type=["xls", "xlsx"], key="uploader_mi_grupo_sidebar")
-    if mi_grupo_file is not None:
-        if st.sidebar.button("⚡ Actualizar Sit. Comercial desde mi_grupo"):
-            with st.spinner("Actualizando Situación Comercial y sincronizando SQL..."):
-                res_up = actualizar_situacion_comercial_desde_mi_grupo(mi_grupo_file)
-                if res_up.get('exito'):
-                    sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
-                    st.cache_data.clear()
-                    st.sidebar.success(f"✅ ¡Actualizado y sincronizado en SQL! {res_up['coincidencias']} coincidencia(s), {res_up['cambios']} cambio(s) de estado.")
-                    st.rerun()
-                else:
-                    st.sidebar.error(f"❌ Error: {res_up.get('error')}")
 else:
     st.sidebar.info("🔒 **Carga restringida**: La opción de subida de archivos está desactivada por la Gerencia General para tu perfil.")
 
