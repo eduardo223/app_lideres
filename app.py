@@ -1450,10 +1450,15 @@ with tab_ganancia:
 # --- TAB 3: DIAGNÓSTICO 'CÓMO VAMOS' ---
 with tab_diagnostico:
     st.subheader("🔎 Tablas Dinámicas 'Cómo Vamos'")
-    st.markdown("Generación de tablas dinámicas automatizadas según los requerimientos del negocio.")
+    st.markdown("Generación de tablas dinámicas automatizadas para medición y comparación comparativa entre todas las Líderes de Negocio.")
     
-    diag = generar_analisis_como_vamos(df_filtrado)
-    col_lider = 'Nombre de consultora' if 'Nombre de consultora' in df_filtrado.columns else df_filtrado.columns[0]
+    # Utilizar el conjunto de datos completo (df) para permitir la medición comparativa entre Líderes
+    df_diag = df.copy()
+    if gerencia_seleccionada != "Todas":
+        df_diag = df_diag[df_diag[col_gerencia] == gerencia_seleccionada]
+        
+    diag = generar_analisis_como_vamos(df_diag)
+    col_lider = 'Nombre de consultora' if 'Nombre de consultora' in df_diag.columns else df_diag.columns[0]
 
     # --- 1. TABLA DE FACTURACIÓN (Formato exacto Clery Cuellar + Ganancia Estimada Total) ---
     st.markdown("#### 💰 1. Tabla de Facturación y Cumplimiento (Ordenadas de Mayor a Menor Cumplimiento)")
@@ -1462,13 +1467,13 @@ with tab_diagnostico:
         col_lider, 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación',
         'Avance % Facturación', 'Productividad', 'Falta para el 100%', 'Falta para el 110%', 'Real Activas', 'Ganancia estimada'
     ]
-    cols_presentes = [c for c in cols_fact_exactas if c in df_filtrado.columns]
+    cols_presentes = [c for c in cols_fact_exactas if c in df_diag.columns]
     
     # Ordenar por Cumplimiento de Facturación (Top arriba, menos top abajo)
-    if 'Cumplimiento Facturación' in df_filtrado.columns:
-        df_fact_sorted = df_filtrado.sort_values(by='Cumplimiento Facturación', ascending=False)
+    if 'Cumplimiento Facturación' in df_diag.columns:
+        df_fact_sorted = df_diag.sort_values(by='Cumplimiento Facturación', ascending=False)
     else:
-        df_fact_sorted = df_filtrado
+        df_fact_sorted = df_diag
         
     df_fact_view = df_fact_sorted[cols_presentes].copy()
     
@@ -1530,12 +1535,12 @@ with tab_diagnostico:
 
     # --- 2. TABLA DE ACTIVAS EN ORDEN DE MAYOR A MENOR ---
     st.markdown("#### 👥 2. Tabla de Activas (Ordenadas de Mayor a Menor Desempeño)")
-    cols_act = [c for c in [col_lider, 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_filtrado.columns]
+    cols_act = [c for c in [col_lider, 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_diag.columns]
     
-    if 'Cumplimiento Activas' in df_filtrado.columns:
-        df_act_sorted = df_filtrado.sort_values(by='Cumplimiento Activas', ascending=False)
+    if 'Cumplimiento Activas' in df_diag.columns:
+        df_act_sorted = df_diag.sort_values(by='Cumplimiento Activas', ascending=False)
     else:
-        df_act_sorted = df_filtrado.sort_values(by='Real Activas', ascending=False)
+        df_act_sorted = df_diag.sort_values(by='Real Activas', ascending=False)
         
     df_activas_order = df_act_sorted[cols_act].copy()
     
@@ -1559,13 +1564,13 @@ with tab_diagnostico:
 
     # --- 3. TABLA DE SALDO Y POTENCIALIZADORES ---
     st.markdown("#### ⚠️ 3. Tabla de Saldos y Potencializadores (Ordenadas por Ganancia Estimada)")
-    cols_saldo = [c for c in [col_lider, 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia_Matriz_COP', 'Potencializador_COP', 'Ganancia estimada'] if c in df_filtrado.columns]
+    cols_saldo = [c for c in [col_lider, 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia_Matriz_COP', 'Potencializador_COP', 'Ganancia estimada'] if c in df_diag.columns]
     
     # Ordenar por Ganancia Estimada de mayor a menor (Top ganadoras arriba)
-    if 'Ganancia estimada' in df_filtrado.columns:
-        df_saldo_sorted = df_filtrado.sort_values(by='Ganancia estimada', ascending=False)
+    if 'Ganancia estimada' in df_diag.columns:
+        df_saldo_sorted = df_diag.sort_values(by='Ganancia estimada', ascending=False)
     else:
-        df_saldo_sorted = df_filtrado.sort_values(by='Saldo', ascending=True)
+        df_saldo_sorted = df_diag.sort_values(by='Saldo', ascending=True)
         
     df_saldo_view = df_saldo_sorted[cols_saldo].copy()
     
@@ -1589,8 +1594,8 @@ with tab_diagnostico:
 
     # --- 4. TABLA DE DISPONIBLES Y ENTRADAS ---
     st.markdown("#### 🎯 4. Tabla de Disponibles y Entradas")
-    cols_disp = [c for c in [col_lider, 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3'] if c in df_filtrado.columns]
-    df_disp_view = df_filtrado[cols_disp].sort_values(by='Disponibles', ascending=False).copy()
+    cols_disp = [c for c in [col_lider, 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3'] if c in df_diag.columns]
+    df_disp_view = df_diag[cols_disp].sort_values(by='Disponibles', ascending=False).copy()
     
     for c_int in ['Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3']:
         if c_int in df_disp_view.columns:
