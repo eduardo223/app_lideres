@@ -70,6 +70,100 @@ st.markdown("""
         border-radius: 6px;
         margin-bottom: 12px;
     }
+    
+    /* Modern Glassmorphism & Enterprise Executive Login Styling */
+    .login-container {
+        max-width: 1000px;
+        margin: 0.5rem auto 1.5rem auto;
+    }
+    
+    .login-hero-card {
+        background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
+        border-radius: 20px;
+        padding: 32px 35px;
+        color: #FFFFFF;
+        box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.35);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        margin-bottom: 25px;
+        position: relative;
+        overflow: hidden;
+    }
+    
+    .login-hero-card::before {
+        content: "";
+        position: absolute;
+        top: -40%;
+        right: -5%;
+        width: 350px;
+        height: 350px;
+        background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(255,255,255,0) 70%);
+        pointer-events: none;
+    }
+
+    .login-badge {
+        display: inline-block;
+        background: rgba(59, 130, 246, 0.18);
+        border: 1px solid rgba(147, 197, 253, 0.3);
+        color: #93C5FD;
+        font-size: 0.78rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        padding: 6px 16px;
+        border-radius: 9999px;
+        margin-bottom: 14px;
+    }
+
+    .login-title {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: #FFFFFF;
+        margin: 0 0 8px 0;
+        letter-spacing: -0.02em;
+    }
+
+    .login-subtitle {
+        font-size: 1rem;
+        color: #94A3B8;
+        margin: 0;
+        line-height: 1.5;
+    }
+
+    .login-form-card {
+        background: #FFFFFF;
+        border-radius: 18px;
+        padding: 28px;
+        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.06), 0 8px 10px -6px rgba(0,0,0,0.04);
+        border: 1px solid #E2E8F0;
+    }
+
+    .demo-credentials-card {
+        background: #F8FAFC;
+        border-radius: 18px;
+        padding: 24px;
+        border: 1px solid #E2E8F0;
+    }
+
+    .role-item {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: #FFFFFF;
+        border: 1px solid #E2E8F0;
+        padding: 12px 16px;
+        border-radius: 12px;
+        margin-bottom: 10px;
+        transition: all 0.2s ease;
+    }
+
+    .role-item:hover {
+        border-color: #3B82F6;
+        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.08);
+    }
+
+    .role-tag-gerente { background: #EEF2FF; color: #4338CA; border: 1px solid #C7D2FE; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+    .role-tag-lider { background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+    .role-tag-asesor { background: #F1F5F9; color: #475569; border: 1px solid #CBD5E1; font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -101,33 +195,79 @@ if 'user' not in st.session_state:
     st.session_state['user'] = None
 
 if st.session_state['user'] is None:
-    st.markdown("<h2 style='text-align: center; color: #1E293B; margin-top: 1rem;'>🔑 Iniciar Sesión - Dashboard Liderazgo</h2>", unsafe_allow_html=True)
-    st.markdown("<p style='text-align: center; color: #64748B;'>Ingresa tus credenciales para acceder a la información de tu perfil y equipo.</p>", unsafe_allow_html=True)
+    st.markdown("""
+    <div class="login-container">
+        <div class="login-hero-card">
+            <div class="login-badge">✨ SISTEMA DE LIDERAZGO EMPRESARIAL MATICES</div>
+            <h1 class="login-title">Portal de Acceso Corporativo</h1>
+            <p class="login-subtitle">Gestión estratégica de metas de ciclo, indicadores de facturación y seguimiento privado por Líder de Negocio.</p>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
     
-    col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
-    with col_l2:
-        with st.form("form_login"):
+    col_l1, col_l2 = st.columns([1, 1.05], gap="large")
+    
+    with col_l1:
+        st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
+        st.markdown("#### 🔑 Iniciar Sesión")
+        st.markdown("<p style='color: #64748B; font-size: 0.88rem; margin-bottom: 20px;'>Ingresa tus credenciales institucionales para continuar.</p>", unsafe_allow_html=True)
+        
+        with st.form("form_login_modern"):
             input_user = st.text_input("👤 Usuario", value="", placeholder="ej. gerente, lider8425, lider7841, asesor")
-            input_pass = st.text_input("🔒 Contraseña", type="password", value="")
-            btn_login = st.form_submit_button("🚀 Ingresar al Dashboard", type="primary", use_container_width=True)
+            input_pass = st.text_input("🔒 Contraseña", type="password", value="", placeholder="••••••••")
+            btn_login = st.form_submit_button("🚀 Entrar al Sistema", type="primary", use_container_width=True)
             
             if btn_login:
                 user_auth = autenticar_usuario(input_user, input_pass)
                 if user_auth:
                     st.session_state['user'] = user_auth
-                    st.success(f"¡Bienvenido(a) {user_auth['nombre']}!")
+                    st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
                     st.rerun()
                 else:
-                    st.error("❌ Usuario o contraseña incorrectos.")
-                    
-        st.markdown("---")
-        with st.expander("💡 Credenciales de Prueba (Demostración por Perfil)", expanded=True):
-            st.markdown("""
-            - 👑 **Gerente / Admin**: usuario `gerente` / clave `admin123` *(Acceso Total + Admin Usuarios)*
-            - 👩‍💼 **Líder (Luz Dary Chacon - Grupo 8425)**: usuario `lider8425` / clave `lider123` *(Exclusivo Grupo 8425)*
-            - 👩‍💼 **Líder (Carmenza Roncancio - Grupo 7841)**: usuario `lider7841` / clave `lider123` *(Exclusivo Grupo 7841)*
-            - 👤 **Asesora / Consulta**: usuario `asesor` / clave `asesor123` *(Solo Lectura Facturación)*
-            """)
+                    st.error("❌ Credenciales incorrectas. Verifica tu usuario y contraseña.")
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+    with col_l2:
+        st.markdown("""
+        <div class="demo-credentials-card">
+            <h4 style="margin-top:0; color:#0F172A; font-size:1.1rem; display:flex; align-items:center; gap:8px;">
+                <span>🛡️ Perfiles & Credenciales de Demostración</span>
+            </h4>
+            <p style="color:#64748B; font-size:0.85rem; margin-bottom:15px;">Ingresa con los siguientes usuarios según el perfil de acceso a evaluar:</p>
+            
+            <div class="role-item">
+                <div>
+                    <strong style="color:#1E293B; font-size:0.92rem;">👑 Gerencia General</strong><br>
+                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">gerente</code> | Clave: <code>admin123</code></span>
+                </div>
+                <span class="role-tag-gerente">ACCESO TOTAL</span>
+            </div>
+
+            <div class="role-item">
+                <div>
+                    <strong style="color:#1E293B; font-size:0.92rem;">👩‍💼 Líder (Luz Dary Chacón)</strong><br>
+                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">lider8425</code> | Clave: <code>lider123</code></span>
+                </div>
+                <span class="role-tag-lider">GRUPO 8425</span>
+            </div>
+
+            <div class="role-item">
+                <div>
+                    <strong style="color:#1E293B; font-size:0.92rem;">👩‍💼 Líder (Carmenza Roncancio)</strong><br>
+                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">lider7841</code> | Clave: <code>lider123</code></span>
+                </div>
+                <span class="role-tag-lider">GRUPO 7841</span>
+            </div>
+
+            <div class="role-item">
+                <div>
+                    <strong style="color:#1E293B; font-size:0.92rem;">👤 Asesora / Consultora</strong><br>
+                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">asesor</code> | Clave: <code>asesor123</code></span>
+                </div>
+                <span class="role-tag-asesor">SOLO LECTURA</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     st.stop()
 
 # Usuario logueado activo
