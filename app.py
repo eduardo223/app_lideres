@@ -22,6 +22,10 @@ from procesador import (
     registrar_o_actualizar_usuario,
     cargar_configuracion,
     guardar_configuracion,
+    inicializar_db_sqlite,
+    consultar_tableau_sql,
+    sincronizar_excel_tableau_a_sqlite,
+    sincronizar_excel_metas_a_sqlite,
     MATRIZ_GANANCIA,
     ETIQUETAS_ACTIVAS,
     ETIQUETAS_FACTURACION,
@@ -339,8 +343,9 @@ if puede_subir_archivos:
             try:
                 with open("Base de Datos.xlsx", "wb") as f:
                     f.write(base_tableau_file.getbuffer())
+                sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
                 st.cache_data.clear()
-                st.sidebar.success("✅ ¡Base de Tableau actualizada exitosamente!")
+                st.sidebar.success("✅ ¡Base de Tableau actualizada y convertida a SQL exitosamente!")
                 st.rerun()
             except PermissionError:
                 st.sidebar.error("⚠️ El archivo `Base de Datos.xlsx` está abierto en Excel. Ciérralo y vuelve a presionar el botón.")
@@ -354,11 +359,12 @@ if puede_subir_archivos:
     mi_grupo_file = st.sidebar.file_uploader("Cargar mi_grupo (.xls / .xlsx)", type=["xls", "xlsx"], key="uploader_mi_grupo_sidebar")
     if mi_grupo_file is not None:
         if st.sidebar.button("⚡ Actualizar Sit. Comercial desde mi_grupo"):
-            with st.spinner("Actualizando Situación Comercial..."):
+            with st.spinner("Actualizando Situación Comercial y sincronizando SQL..."):
                 res_up = actualizar_situacion_comercial_desde_mi_grupo(mi_grupo_file)
                 if res_up.get('exito'):
+                    sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
                     st.cache_data.clear()
-                    st.sidebar.success(f"✅ ¡Actualizado! {res_up['coincidencias']} coincidencia(s), {res_up['cambios']} cambio(s) de estado.")
+                    st.sidebar.success(f"✅ ¡Actualizado y sincronizado en SQL! {res_up['coincidencias']} coincidencia(s), {res_up['cambios']} cambio(s) de estado.")
                     st.rerun()
                 else:
                     st.sidebar.error(f"❌ Error: {res_up.get('error')}")
@@ -538,19 +544,8 @@ with tab_tableau:
     st.subheader("📊 Informe Tableau Manager ('Informe Tableau Cam')")
     st.markdown("Automatización de la Base Maestra de Tableau: Carga única, segmentación privada por Líder/Gerencia, seguimiento de Puntos/Deuda/Crédito y notas persistentes.")
 
-    # 1. Cargar la base de Tableau
-    df_tableau = procesar_base_tableau_manager('Base de Datos.xlsx')
-    
-    # Filtrar por rol de Líder en la base de Tableau
-    if df_tableau is not None and not df_tableau.empty and user_rol == 'lider' and user_grupo:
-        mask_tg = pd.Series(False, index=df_tableau.index)
-        if 'Grupo' in df_tableau.columns:
-            mask_tg = mask_tg | df_tableau['Grupo'].astype(str).str.contains(user_grupo, case=False, na=False)
-        if 'Sector' in df_tableau.columns:
-            mask_tg = mask_tg | df_tableau['Sector'].astype(str).str.contains(user_grupo, case=False, na=False)
-        if 'Nombre' in df_tableau.columns:
-            mask_tg = mask_tg | (df_tableau['Nombre'].astype(str).str.strip().str.lower() == current_user['nombre'].strip().lower())
-        df_tableau = df_tableau[mask_tg].copy()
+    # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada)
+    df_tableau = consultar_tableau_sql(user_grupo if (user_rol == 'lider' and user_grupo) else None)
     
     # Subidor de administración visible para Gerencia y Super Admin
     if user_rol in ['gerente', 'superadmin']:
@@ -563,7 +558,9 @@ with tab_tableau:
                     try:
                         with open("Base de Datos.xlsx", "wb") as f:
                             f.write(archivo_tableau.getbuffer())
-                        st.success("✅ ¡Base de Datos.xlsx actualizada exitosamente!")
+                        sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
+                        st.cache_data.clear()
+                        st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
                         st.rerun()
                     except Exception as e_up:
                         st.error(f"Error al actualizar la base: {e_up}")

@@ -1159,6 +1159,300 @@ def guardar_configuracion(dict_config):
         print(f"Error al guardar configuración: {e}")
         return False
 
+# --- MOTOR DE BASE DE DATOS RELACIONAL SQLITE (base_matices.db) ---
+import sqlite3
+
+RUTA_DB_SQLITE = 'base_matices.db'
+
+def obtener_conexion_db():
+    conn = sqlite3.connect(RUTA_DB_SQLITE)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+def inicializar_db_sqlite():
+    """
+    Inicializa la base de datos relacional SQLite 'base_matices.db' y crea las tablas indexadas.
+    Sincroniza automáticamente los datos de Excel y JSON si la base se crea por primera vez.
+    """
+    conn = obtener_conexion_db()
+    cursor = conn.cursor()
+
+    # 1. Tabla de Usuarios
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS usuarios (
+        username TEXT PRIMARY KEY,
+        nombre TEXT,
+        password_hash TEXT,
+        rol TEXT,
+        codigo_grupo TEXT
+    )
+    """)
+
+    # 2. Tabla de Configuración
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS configuracion (
+        clave TEXT PRIMARY KEY,
+        valor TEXT
+    )
+    """)
+
+    # 3. Tabla de Consultoras Tableau
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS consultoras_tableau (
+        codigo_cb TEXT PRIMARY KEY,
+        nombre TEXT,
+        gerencia TEXT,
+        sector TEXT,
+        grupo TEXT,
+        ciclo INTEGER,
+        color TEXT,
+        sit_comercial TEXT,
+        pts_natura INTEGER,
+        pts_avon INTEGER,
+        pts_acum INTEGER,
+        pts_mant INTEGER,
+        pts_asc INTEGER,
+        deuda_total REAL,
+        deuda_mora REAL,
+        credito_total REAL,
+        credito_disponible REAL,
+        pedidos_pendientes INTEGER,
+        notas_lider TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_grupo ON consultoras_tableau (grupo)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_sector ON consultoras_tableau (sector)")
+
+    # 4. Tabla de Metas "Cómo Vamos"
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS metas_como_vamos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        codigo_cb TEXT,
+        nombre_consultora TEXT,
+        nombre_gerencia TEXT,
+        nombre_sector TEXT,
+        codigo_grupo TEXT,
+        color TEXT,
+        obj_facturacion REAL,
+        real_facturacion REAL,
+        cump_facturacion REAL,
+        obj_activas REAL,
+        real_activas REAL,
+        cump_activas REAL,
+        saldo REAL,
+        disponibles INTEGER,
+        inicios INTEGER,
+        reinicios INTEGER,
+        recuperos INTEGER,
+        ganancia_estimada REAL
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_metas_grupo ON metas_como_vamos (codigo_grupo)")
+
+    conn.commit()
+
+    # Sincronización inicial
+    sincronizar_usuarios_a_sqlite(conn)
+    sincronizar_configuracion_a_sqlite(conn)
+    
+    # Si la tabla consultoras_tableau está vacía y existe Base de Datos.xlsx, convertir automáticamente
+    cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
+    if cursor.fetchone()[0] == 0 and os.path.exists('Base de Datos.xlsx'):
+        sincronizar_excel_tableau_a_sqlite('Base de Datos.xlsx', conn)
+
+    # Si la tabla metas_como_vamos está vacía y existe Base para el como vamos.xlsx, convertir automáticamente
+    cursor.execute("SELECT COUNT(*) FROM metas_como_vamos")
+    if cursor.fetchone()[0] == 0 and os.path.exists('Base para el como vamos.xlsx'):
+        df_m = calcular_metas_ciclo('Base para el como vamos.xlsx')
+        if df_m is not None and not df_m.empty:
+            sincronizar_excel_metas_a_sqlite(df_m, conn)
+
+    conn.close()
+
+def sincronizar_usuarios_a_sqlite(conn=None):
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db()
+        close_at_end = True
+    
+    usuarios = cargar_usuarios()
+    cursor = conn.cursor()
+    for uname, uinfo in usuarios.items():
+        cursor.execute("""
+        INSERT OR REPLACE INTO usuarios (username, nombre, password_hash, rol, codigo_grupo)
+        VALUES (?, ?, ?, ?, ?)
+        """, (uname, uinfo.get("nombre"), uinfo.get("password_hash"), uinfo.get("rol"), uinfo.get("codigo_grupo")))
+    conn.commit()
+    if close_at_end:
+        conn.close()
+
+def sincronizar_configuracion_a_sqlite(conn=None):
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db()
+        close_at_end = True
+    
+    cfg = cargar_configuracion()
+    cursor = conn.cursor()
+    for k, v in cfg.items():
+        cursor.execute("""
+        INSERT OR REPLACE INTO configuracion (clave, valor)
+        VALUES (?, ?)
+        """, (str(k), json.dumps(v)))
+    conn.commit()
+    if close_at_end:
+        conn.close()
+
+def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=None):
+    """
+    Convierte y vuelca el archivo Excel de Tableau hacia la tabla consultoras_tableau en SQLite.
+    """
+    df = procesar_base_tableau_manager(ruta_excel)
+    if df is None or df.empty:
+        return False
+    
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db()
+        close_at_end = True
+    
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM consultoras_tableau")
+    
+    for _, row in df.iterrows():
+        cb = str(row.get('Codigo CB') if 'Codigo CB' in df.columns else row.get('Código CB', '')).strip()
+        if not cb or cb.lower() == 'nan':
+            continue
+        
+        nom = str(row.get('Asesora / Consultora') if 'Asesora / Consultora' in df.columns else row.get('Nombre', ''))
+        col = str(row.get('Nivel / Color') if 'Nivel / Color' in df.columns else row.get('Color', ''))
+        
+        cursor.execute("""
+        INSERT OR REPLACE INTO consultoras_tableau (
+            codigo_cb, nombre, gerencia, sector, grupo, ciclo, color, sit_comercial,
+            pts_natura, pts_avon, pts_acum, pts_mant, pts_asc,
+            deuda_total, deuda_mora, credito_total, credito_disponible, pedidos_pendientes, notas_lider
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            cb,
+            nom,
+            str(row.get('Gerencia', '')),
+            str(row.get('Sector', '')),
+            str(int(limpiar_numero(row.get('Grupo', 0)))) if limpiar_numero(row.get('Grupo', 0)) > 0 else str(row.get('Grupo', '')),
+            int(limpiar_numero(row.get('Ciclo', 0))),
+            col,
+            str(row.get('Sit. Comercial', '')),
+            int(limpiar_numero(row.get('Pts Natura', 0))),
+            int(limpiar_numero(row.get('Pts AVON', 0))),
+            int(limpiar_numero(row.get('Pts Acum', 0))),
+            int(limpiar_numero(row.get('Pts Mant', 0))),
+            int(limpiar_numero(row.get('Pts Asc', 0))),
+            float(limpiar_numero(row.get('Deuda Total', 0.0))),
+            float(limpiar_numero(row.get('Deuda Mora', 0.0))),
+            float(limpiar_numero(row.get('Credito Total', 0.0))),
+            float(limpiar_numero(row.get('Credito Disponible', 0.0))),
+            int(limpiar_numero(row.get('Ped. Pendientes', 0))),
+            str(row.get('Notas / Comentarios Líder', ''))
+        ))
+    
+    conn.commit()
+    if close_at_end:
+        conn.close()
+    return True
+
+def sincronizar_excel_metas_a_sqlite(df_metas, conn=None):
+    """
+    Convierte y vuelca el DataFrame de metas hacia la tabla metas_como_vamos en SQLite.
+    """
+    if df_metas is None or df_metas.empty:
+        return False
+    
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db()
+        close_at_end = True
+    
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM metas_como_vamos")
+    
+    col_cb = 'Código de consultora' if 'Código de consultora' in df_metas.columns else 'Cd Consultora'
+    col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else 'Nombre Consultora'
+    col_ger = 'Nombre Gerencia' if 'Nombre Gerencia' in df_metas.columns else 'Gerencia'
+    col_sec = 'Nombre Setor' if 'Nombre Setor' in df_metas.columns else 'Sector'
+    col_grp = 'Código de grupo' if 'Código de grupo' in df_metas.columns else 'Cód. Grupo'
+    
+    for _, row in df_metas.iterrows():
+        cb = str(row.get(col_cb, '')).strip()
+        cursor.execute("""
+        INSERT INTO metas_como_vamos (
+            codigo_cb, nombre_consultora, nombre_gerencia, nombre_sector, codigo_grupo, color,
+            obj_facturacion, real_facturacion, cump_facturacion, obj_activas, real_activas, cump_activas,
+            saldo, disponibles, inicios, reinicios, recuperos, ganancia_estimada
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            cb,
+            str(row.get(col_nom, '')),
+            str(row.get(col_ger, '')),
+            str(row.get(col_sec, '')),
+            str(int(limpiar_numero(row.get(col_grp, 0)))) if limpiar_numero(row.get(col_grp, 0)) > 0 else str(row.get(col_grp, '')),
+            str(row.get('Color', '')),
+            float(limpiar_numero(row.get('Objetivo Facturación', 0.0))),
+            float(limpiar_numero(row.get('Real Facturación', 0.0))),
+            float(limpiar_numero(row.get('Cumplimiento Facturación', 0.0))),
+            float(limpiar_numero(row.get('Objetivo Activas', 0.0))),
+            float(limpiar_numero(row.get('Real Activas', 0.0))),
+            float(limpiar_numero(row.get('Cumplimiento Activas', 0.0))),
+            float(limpiar_numero(row.get('Saldo', 0.0))),
+            int(limpiar_numero(row.get('Disponibles', 0))),
+            int(limpiar_numero(row.get('Inicios', 0))),
+            int(limpiar_numero(row.get('Reinicios', 0))),
+            int(limpiar_numero(row.get('Recuperos', 0))),
+            float(limpiar_numero(row.get('Ganancia estimada', 0.0)))
+        ))
+        
+    conn.commit()
+    if close_at_end:
+        conn.close()
+    return True
+
+def consultar_tableau_sql(grupo=None):
+    """
+    Ejecuta consulta SQL ultra-rápida indexada sobre consultoras_tableau en base_matices.db.
+    """
+    inicializar_db_sqlite()
+    conn = obtener_conexion_db()
+    query = """
+    SELECT 
+        codigo_cb AS 'Código CB',
+        nombre AS 'Asesora / Consultora',
+        gerencia AS 'Gerencia',
+        sector AS 'Sector',
+        grupo AS 'Grupo',
+        ciclo AS 'Ciclo',
+        color AS 'Nivel / Color',
+        sit_comercial AS 'Sit. Comercial',
+        pts_natura AS 'Pts Natura',
+        pts_avon AS 'Pts AVON',
+        pts_acum AS 'Pts Acum',
+        pts_mant AS 'Pts Mant',
+        pts_asc AS 'Pts Asc',
+        deuda_total AS 'Deuda Total',
+        deuda_mora AS 'Deuda Mora',
+        credito_total AS 'Credito Total',
+        credito_disponible AS 'Credito Disponible',
+        pedidos_pendientes AS 'Ped. Pendientes',
+        notas_lider AS 'Notas / Comentarios Líder'
+    FROM consultoras_tableau
+    """
+    params = []
+    if grupo:
+        query += " WHERE grupo LIKE ? OR sector LIKE ?"
+        params = [f"%{grupo}%", f"%{grupo}%"]
+    
+    df = pd.read_sql_query(query, conn, params=params)
+    conn.close()
+    return df
+
 # Ejecutamos la función si se invoca el script directamente
 if __name__ == "__main__":
     df_resultado = calcular_metas_ciclo()
