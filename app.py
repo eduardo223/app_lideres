@@ -733,7 +733,8 @@ with tab_tableau:
             # Excluir columnas duplicadas o redundantes (ej: 'Situación' vs 'Sit. Comercial', 'Pts Acumulados' vs 'Pts Acum')
             cols_desactivar_duplicadas = {
                 'Situación', 'Situacion', 'Pts Acumulados', 'Pts Para Mantener',
-                'Pts para Ascender ', 'Deuda Mora ', 'Código CB', 'Codigo_CB_key', 'Unnamed: 55'
+                'Pts para Ascender ', 'Deuda Mora ', 'Código CB', 'Codigo_CB_key', 'Unnamed: 55',
+                'Asesora / Consultora', 'Nivel / Color', 'Notas / Comentarios Líder'
             }
             cols_adicionales = [
                 c for c in df_tab_filt.columns
@@ -762,6 +763,9 @@ with tab_tableau:
                 'Comentarios_Lider': 'Notas / Comentarios Líder'
             }
             df_edit_view = df_edit_view.rename(columns=nombres_header_exactos)
+            
+            # Garantizar que todos los nombres de columnas sean 100% únicos para st.data_editor
+            df_edit_view = df_edit_view.loc[:, ~df_edit_view.columns.duplicated()].copy()
 
             # Limpiar cualquier flotante residual en todo el DataFrame para eliminar decimales (.000000)
             for c in df_edit_view.columns:

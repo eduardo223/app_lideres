@@ -1459,13 +1459,13 @@ def consultar_tableau_sql(grupo=None):
     conn.close()
 
     # Añadir alias de columnas para máxima compatibilidad con las pestañas de app.py
-    if 'Código CB' in df.columns:
+    if 'Código CB' in df.columns and 'Codigo CB' not in df.columns:
         df['Codigo CB'] = df['Código CB']
-    if 'Asesora / Consultora' in df.columns:
+    if 'Asesora / Consultora' in df.columns and 'Nombre' not in df.columns:
         df['Nombre'] = df['Asesora / Consultora']
-    if 'Nivel / Color' in df.columns:
+    if 'Nivel / Color' in df.columns and 'Color' not in df.columns:
         df['Color'] = df['Nivel / Color']
-    if 'Notas / Comentarios Líder' in df.columns:
+    if 'Notas / Comentarios Líder' in df.columns and 'Comentarios_Lider' not in df.columns:
         df['Comentarios_Lider'] = df['Notas / Comentarios Líder']
 
     return df
