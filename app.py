@@ -542,15 +542,15 @@ if st.session_state['user'] is None:
     </div>
     """, unsafe_allow_html=True)
     
-    col_l1, col_l2 = st.columns([1, 1.05], gap="large")
+    col_pad1, col_center, col_pad2 = st.columns([0.5, 2, 0.5])
     
-    with col_l1:
+    with col_center:
         st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
         st.markdown("#### 🔑 Iniciar Sesión")
-        st.markdown("<p style='color: #64748B; font-size: 0.88rem; margin-bottom: 20px;'>Ingresa tus credenciales institucionales para continuar.</p>", unsafe_allow_html=True)
+        st.markdown("<p style='color: #94A3B8; font-size: 0.88rem; margin-bottom: 20px;'>Ingresa tus credenciales institucionales para continuar.</p>", unsafe_allow_html=True)
         
         with st.form("form_login_modern"):
-            input_user = st.text_input("👤 Usuario", value="", placeholder="ej. gerente, lider8425, lider7841, asesor")
+            input_user = st.text_input("👤 Usuario", value="", placeholder="Ingresa tu usuario...")
             input_pass = st.text_input("🔒 Contraseña", type="password", value="", placeholder="••••••••")
             btn_login = st.form_submit_button("🚀 Entrar al Sistema", type="primary", use_container_width=True)
             
@@ -563,56 +563,6 @@ if st.session_state['user'] is None:
                 else:
                     st.error("❌ Credenciales incorrectas. Verifica tu usuario y contraseña.")
         st.markdown('</div>', unsafe_allow_html=True)
-        
-    with col_l2:
-        st.markdown("""
-        <div class="demo-credentials-card">
-            <h4 style="margin-top:0; color:#0F172A; font-size:1.1rem; display:flex; align-items:center; gap:8px;">
-                <span>🛡️ Perfiles & Credenciales de Demostración</span>
-            </h4>
-            <p style="color:#64748B; font-size:0.85rem; margin-bottom:15px;">Ingresa con los siguientes usuarios según el perfil de acceso a evaluar:</p>
-            
-            <div class="role-item">
-                <div>
-                    <strong style="color:#1E293B; font-size:0.92rem;">🛠️ Super Administrador (Tú)</strong><br>
-                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">admin</code> | Clave: <code>admin123</code></span>
-                </div>
-                <span class="role-tag-gerente" style="background:#F0FDF4; color:#166534; border-color:#BBF7D0;">SUPER ADMIN</span>
-            </div>
-
-            <div class="role-item">
-                <div>
-                    <strong style="color:#1E293B; font-size:0.92rem;">👑 Gerencia General</strong><br>
-                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">gerente</code> | Clave: <code>admin123</code></span>
-                </div>
-                <span class="role-tag-gerente">OPERACIÓN NEGOCIO</span>
-            </div>
-
-            <div class="role-item">
-                <div>
-                    <strong style="color:#1E293B; font-size:0.92rem;">👩‍💼 Líder (Luz Dary Chacón)</strong><br>
-                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">lider8425</code> | Clave: <code>lider123</code></span>
-                </div>
-                <span class="role-tag-lider">GRUPO 8425</span>
-            </div>
-
-            <div class="role-item">
-                <div>
-                    <strong style="color:#1E293B; font-size:0.92rem;">👩‍💼 Líder (Carmenza Roncancio)</strong><br>
-                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">lider7841</code> | Clave: <code>lider123</code></span>
-                </div>
-                <span class="role-tag-lider">GRUPO 7841</span>
-            </div>
-
-            <div class="role-item">
-                <div>
-                    <strong style="color:#1E293B; font-size:0.92rem;">👤 Asesora / Consultora</strong><br>
-                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">asesor</code> | Clave: <code>asesor123</code></span>
-                </div>
-                <span class="role-tag-asesor">SOLO LECTURA</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
     st.stop()
 
 # Usuario logueado activo
