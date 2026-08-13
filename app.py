@@ -1,5 +1,7 @@
 import streamlit as st
 import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 import io
 import os
 import importlib
@@ -224,6 +226,193 @@ def formato_cop_signo(val):
         return "$0"
     signo = "-" if num < 0 else ""
     return f"{signo}${abs(num):,.0f}".replace(",", ".")
+
+# --- COMPONENTES GRÁFICOS INTERACTIVOS (LA JOYA DEL PASTEL) ---
+def crear_tacometro_360(titulo, valor_pct, meta_val, real_val):
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=min(float(valor_pct), 150.0),
+        number={'suffix': '%', 'font': {'color': '#F8FAFC', 'size': 32}},
+        title={'text': f"<b>{titulo}</b><br><span style='font-size:0.8em;color:#94A3B8'>Real: {real_val} | Obj: {meta_val}</span>", 'font': {'color': '#F8FAFC', 'size': 14}},
+        gauge={
+            'axis': {'range': [0, 150], 'tickwidth': 1, 'tickcolor': "#475569"},
+            'bar': {'color': "#3B82F6", 'thickness': 0.25},
+            'bgcolor': "rgba(15, 23, 42, 0.5)",
+            'borderwidth': 1,
+            'bordercolor': "rgba(255, 255, 255, 0.1)",
+            'steps': [
+                {'range': [0, 85], 'color': 'rgba(239, 68, 68, 0.3)'},
+                {'range': [85, 99.9], 'color': 'rgba(245, 158, 11, 0.3)'},
+                {'range': [99.9, 150], 'color': 'rgba(16, 185, 129, 0.3)'}
+            ],
+            'threshold': {
+                'line': {'color': "#10B981", 'width': 4},
+                'thickness': 0.75,
+                'value': 100
+            }
+        }
+    ))
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        height=230,
+        margin=dict(l=20, r=20, t=50, b=20)
+    )
+    return fig
+
+def crear_ranking_lideres_fig(df_metas):
+    if df_metas is None or df_metas.empty:
+        return None
+    col_grp = 'Código de grupo' if 'Código de grupo' in df_metas.columns else 'Cód. Grupo'
+    col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else 'Nombre Consultora'
+    col_cump = 'Cumplimiento Facturación' if 'Cumplimiento Facturación' in df_metas.columns else 'cump_facturacion'
+    
+    df_rank = df_metas.copy()
+    if col_cump not in df_rank.columns:
+        return None
+    
+    df_rank['Cumplimiento_Pct'] = df_rank[col_cump].apply(lambda v: limpiar_numero(v, 0.0))
+    df_rank['Etiqueta_Lider'] = df_rank.apply(lambda r: f"Grupo {r.get(col_grp, '')} - {str(r.get(col_nom, ''))[:18]}", axis=1)
+    df_rank = df_rank.sort_values(by='Cumplimiento_Pct', ascending=True).tail(12)
+    
+    fig = px.bar(
+        df_rank,
+        x='Cumplimiento_Pct',
+        y='Etiqueta_Lider',
+        orientation='h',
+        title="<b>🏆 Ranking de Cumplimiento de Facturación por Grupo/Líder</b>",
+        labels={'Cumplimiento_Pct': '% Cumplimiento', 'Etiqueta_Lider': 'Líder / Grupo'},
+        color='Cumplimiento_Pct',
+        color_continuous_scale=[
+            [0.0, '#EF4444'],
+            [0.70, '#F59E0B'],
+            [1.0, '#10B981']
+        ]
+    )
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#F8FAFC', family='Outfit'),
+        height=360,
+        margin=dict(l=10, r=20, t=40, b=30),
+        coloraxis_showscale=False
+    )
+    fig.update_traces(hovertemplate="<b>%{y}</b><br>Cumplimiento: %{x:.1f}%<extra></extra>")
+    return fig
+
+def crear_dona_cartera_fig(df_tableau):
+    if df_tableau is None or df_tableau.empty or 'Deuda Mora' not in df_tableau.columns:
+        return None
+    
+    mora_0 = len(df_tableau[df_tableau['Deuda Mora'] <= 0])
+    mora_leve = len(df_tableau[(df_tableau['Deuda Mora'] > 0) & (df_tableau['Deuda Mora'] <= 200000)])
+    mora_media = len(df_tableau[(df_tableau['Deuda Mora'] > 200000) & (df_tableau['Deuda Mora'] <= 500000)])
+    mora_critica = len(df_tableau[df_tableau['Deuda Mora'] > 500000])
+    
+    df_pie = pd.DataFrame([
+        {'Tramo': '🟢 Al Día ($0)', 'Consultoras': mora_0},
+        {'Tramo': '🟡 Mora Leve ($1 - $200k)', 'Consultoras': mora_leve},
+        {'Tramo': '🟠 Mora Media ($200k - $500k)', 'Consultoras': mora_media},
+        {'Tramo': '🔴 Mora Crítica (> $500k)', 'Consultoras': mora_critica}
+    ])
+    df_pie = df_pie[df_pie['Consultoras'] > 0]
+    
+    fig = px.pie(
+        df_pie,
+        values='Consultoras',
+        names='Tramo',
+        hole=0.55,
+        title="<b>⚠️ Distribución de Cartera & Semáforo de Mora</b>",
+        color='Tramo',
+        color_discrete_map={
+            '🟢 Al Día ($0)': '#10B981',
+            '🟡 Mora Leve ($1 - $200k)': '#F59E0B',
+            '🟠 Mora Media ($200k - $500k)': '#F97316',
+            '🔴 Mora Crítica (> $500k)': '#EF4444'
+        }
+    )
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#F8FAFC', family='Outfit'),
+        height=360,
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    return fig
+
+def crear_embudo_red_fig(disponibles, inicios, reinicios, activas):
+    fig = go.Figure(go.Funnel(
+        y=['Disponibles Totales', 'Inicios Nuevos', 'Reinicios', 'Consultoras Activas'],
+        x=[disponibles, inicios, reinicios, activas],
+        textinfo="value+percent initial",
+        marker={"color": ["#3B82F6", "#8B5CF6", "#EC4899", "#10B981"]}
+    ))
+    fig.update_layout(
+        title="<b>🚀 Embudo de Conversión & Retención de Red</b>",
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#F8FAFC', family='Outfit'),
+        height=360,
+        margin=dict(l=20, r=20, t=40, b=20)
+    )
+    return fig
+
+def crear_treemap_red_fig(df_tableau):
+    if df_tableau is None or df_tableau.empty or 'Color' not in df_tableau.columns:
+        return None
+    
+    df_tree = df_tableau.copy()
+    col_color = 'Color' if 'Color' in df_tree.columns else 'Nivel / Color'
+    col_sit = 'Sit. Comercial' if 'Sit. Comercial' in df_tree.columns else 'Situación'
+    
+    fig = px.treemap(
+        df_tree,
+        path=[col_color, col_sit],
+        values='Pts Acum' if 'Pts Acum' in df_tree.columns else None,
+        title="<b>💎 Mapa Térmico de Red por Nivel de Crecimiento & Estado</b>",
+        color=col_color,
+        color_discrete_map={
+            'Bronce': '#D97706',
+            'Plata': '#94A3B8',
+            'Oro': '#EAB308',
+            'Platino': '#38BDF8',
+            'Zafiro': '#3B82F6',
+            'Diamante': '#A855F7'
+        }
+    )
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#F8FAFC', family='Outfit'),
+        height=380,
+        margin=dict(l=10, r=10, t=40, b=10)
+    )
+    return fig
+
+def crear_scatter_atencion_fig(df_tableau):
+    if df_tableau is None or df_tableau.empty or 'Deuda Mora' not in df_tableau.columns:
+        return None
+    
+    df_scat = df_tableau.copy()
+    fig = px.scatter(
+        df_scat,
+        x='Pts Acum' if 'Pts Acum' in df_scat.columns else 'Pts Natura',
+        y='Deuda Mora',
+        color='Sit. Comercial' if 'Sit. Comercial' in df_scat.columns else None,
+        hover_name='Nombre' if 'Nombre' in df_scat.columns else 'Código CB',
+        size='Deuda Total' if 'Deuda Total' in df_scat.columns else None,
+        title="<b>📲 Matriz de Atención Prioritaria (Puntos vs Deuda Mora)</b>",
+        labels={'Pts Acum': 'Puntos Acumulados', 'Deuda Mora': 'Deuda Mora ($)'}
+    )
+    fig.update_layout(
+        paper_bgcolor='rgba(0,0,0,0)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        font=dict(color='#F8FAFC', family='Outfit'),
+        height=380,
+        margin=dict(l=10, r=10, t=40, b=10)
+    )
+    return fig
 
 # 2. Función para cargar y procesar los datos con cache de Streamlit
 @st.cache_data
@@ -913,12 +1102,94 @@ st.markdown("---")
 
 # --- TAB 1: RESUMEN Y KPIS ---
 with tab_resumen:
-    st.subheader("📊 Análisis General del Estado del Ciclo")
-    
+    st.subheader("💎 Tablero Estadístico Interactivo & Métricas de Rendimiento")
+    st.markdown("Visualizaciones ejecutivas dinámicas para el seguimiento del ciclo en tiempo real.")
+
+    # 1. Tacómetros de Cumplimiento Global (Gauge Charts 360°)
+    st.markdown("##### ⏱️ Tacómetros de Cumplimiento Global del Ciclo")
+    cg1, cg2 = st.columns(2)
+    with cg1:
+        fig_g1 = crear_tacometro_360(
+            "Cumplimiento Facturación",
+            cump_fact,
+            formato_cop(obj_fact),
+            formato_cop(real_fact)
+        )
+        st.plotly_chart(fig_g1, use_container_width=True)
+        
+    with cg2:
+        fig_g2 = crear_tacometro_360(
+            "Cumplimiento Consultoras Activas",
+            cump_activas,
+            f"{int(obj_activas)} pers.",
+            f"{int(real_activas)} pers."
+        )
+        st.plotly_chart(fig_g2, use_container_width=True)
+
+    st.markdown("---")
+
+    # 2. Fila de Gráficos Principales (Diferenciados por Perfil)
+    if user_rol in ['superadmin', 'gerente']:
+        col_g1, col_g2 = st.columns(2)
+        with col_g1:
+            fig_rank = crear_ranking_lideres_fig(df_raw)
+            if fig_rank:
+                st.plotly_chart(fig_rank, use_container_width=True)
+            else:
+                st.info("No hay suficiente información para generar el ranking.")
+                
+        with col_g2:
+            fig_dona = crear_dona_cartera_fig(df_tableau)
+            if fig_dona:
+                st.plotly_chart(fig_dona, use_container_width=True)
+            else:
+                st.info("No hay datos de cartera disponibles.")
+
+        st.markdown("---")
+        col_fun1, col_fun2 = st.columns(2)
+        with col_fun1:
+            disp_tot = int(df_filtrado['Disponibles'].sum()) if 'Disponibles' in df_filtrado.columns else 0
+            fig_fun = crear_embudo_red_fig(disp_tot, inicios_totales, reinicios_totales, real_activas)
+            st.plotly_chart(fig_fun, use_container_width=True)
+            
+        with col_fun2:
+            fig_tree = crear_treemap_red_fig(df_tableau)
+            if fig_tree:
+                st.plotly_chart(fig_tree, use_container_width=True)
+
+    else: # Vista para Líderes de Negocio
+        col_l1, col_l2 = st.columns(2)
+        with col_l1:
+            fig_tree = crear_treemap_red_fig(df_tableau)
+            if fig_tree:
+                st.plotly_chart(fig_tree, use_container_width=True)
+            else:
+                st.info("No hay datos de niveles disponibles para tu equipo.")
+                
+        with col_l2:
+            fig_scat = crear_scatter_atencion_fig(df_tableau)
+            if fig_scat:
+                st.plotly_chart(fig_scat, use_container_width=True)
+            else:
+                st.info("No hay datos de cartera para la matriz de atención.")
+
+        st.markdown("---")
+        col_lf1, col_lf2 = st.columns(2)
+        with col_lf1:
+            disp_tot = int(df_filtrado['Disponibles'].sum()) if 'Disponibles' in df_filtrado.columns else 0
+            fig_fun = crear_embudo_red_fig(disp_tot, inicios_totales, reinicios_totales, real_activas)
+            st.plotly_chart(fig_fun, use_container_width=True)
+            
+        with col_lf2:
+            fig_dona = crear_dona_cartera_fig(df_tableau)
+            if fig_dona:
+                st.plotly_chart(fig_dona, use_container_width=True)
+
+    st.markdown("---")
+    st.markdown("##### 📍 Desempeño Resumido por Sector y Clasificación")
     col_left, col_right = st.columns([1, 1])
-    
     with col_left:
-        st.markdown("##### 📍 Desempeño por Sector")
+        st.markdown("###### 📍 Desempeño por Sector")
         if 'Nombre Setor' in df_filtrado.columns:
             agg_dict = {}
             if 'Código de consultora' in df_filtrado.columns:
@@ -941,7 +1212,7 @@ with tab_resumen:
                 st.write(df_filtrado[['Nombre Setor']].drop_duplicates())
             
     with col_right:
-        st.markdown("##### 🎨 Distribución por Clasificación / Color")
+        st.markdown("###### 🎨 Distribución por Clasificación / Color")
         if 'Color' in df_filtrado.columns:
             agg_color = {'Cantidad': ('Color', 'count')}
             if 'Real Activas' in df_filtrado.columns:
