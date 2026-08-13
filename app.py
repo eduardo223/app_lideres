@@ -239,10 +239,18 @@ if st.session_state['user'] is None:
             
             <div class="role-item">
                 <div>
+                    <strong style="color:#1E293B; font-size:0.92rem;">🛠️ Super Administrador (Tú)</strong><br>
+                    <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">admin</code> | Clave: <code>admin123</code></span>
+                </div>
+                <span class="role-tag-gerente" style="background:#F0FDF4; color:#166534; border-color:#BBF7D0;">SUPER ADMIN</span>
+            </div>
+
+            <div class="role-item">
+                <div>
                     <strong style="color:#1E293B; font-size:0.92rem;">👑 Gerencia General</strong><br>
                     <span style="color:#64748B; font-size:0.8rem;">Usuario: <code style="color:#2563EB;">gerente</code> | Clave: <code>admin123</code></span>
                 </div>
-                <span class="role-tag-gerente">ACCESO TOTAL</span>
+                <span class="role-tag-gerente">OPERACIÓN NEGOCIO</span>
             </div>
 
             <div class="role-item">
@@ -280,8 +288,10 @@ user_grupo = str(current_user.get('codigo_grupo', '')).strip() if current_user.g
 
 # 3. BARRA LATERAL (Perfil de Usuario, Logout y Opciones según Rol)
 st.sidebar.markdown(f"### 👤 {user_nombre}")
-if user_rol == 'gerente':
-    st.sidebar.caption("👑 **Rol**: Gerente / Administrador (Acceso Total)")
+if user_rol == 'superadmin':
+    st.sidebar.caption("🛠️ **Rol**: Super Administrador del Sistema (Control Total & Roles)")
+elif user_rol == 'gerente':
+    st.sidebar.caption("👑 **Rol**: Gerencia General (Operación y Métricas de Negocio)")
 elif user_rol == 'lider':
     st.sidebar.caption(f"👩‍💼 **Rol**: Líder de Negocio (Grupo `{user_grupo}`)")
 else:
@@ -295,11 +305,11 @@ st.sidebar.markdown("---")
 
 # Cargar configuración global de permisos
 app_config = cargar_configuracion()
-puede_subir_archivos = (user_rol == 'gerente') or app_config.get('permitir_carga_lideres', False)
+puede_subir_archivos = (user_rol in ['gerente', 'superadmin']) or app_config.get('permitir_carga_lideres', False)
 
 # Opciones de subida y administración de archivos
 if puede_subir_archivos:
-    if user_rol == 'gerente':
+    if user_rol in ['gerente', 'superadmin']:
         st.sidebar.header("🔄 Rotación de Ciclo (Nuevo)")
         st.sidebar.caption("Sube el Excel del nuevo ciclo para convertir el ciclo actual en el 'Como vamos anterior' automáticamente.")
         
@@ -501,7 +511,7 @@ with kpi5:
 st.markdown("---")
 
 # 5. CONTENIDO CON PESTAÑAS (TABS)
-if user_rol == 'gerente':
+if user_rol == 'superadmin':
     tab_tableau, tab_resumen, tab_ganancia, tab_diagnostico, tab_metas, tab_detalle, tab_exportar, tab_usuarios = st.tabs([
         "📊 Informe Tableau Cam",
         "📊 Resumen & KPIs",
@@ -510,7 +520,7 @@ if user_rol == 'gerente':
         "🎯 Metas de Crecimiento (Procesador)",
         "👥 Detalle Completo",
         "📤 Exportar Datos",
-        "🔑 Gestión de Usuarios & Roles"
+        "🔑 Gestión de Usuarios, Roles & Permisos"
     ])
 else:
     tab_tableau, tab_resumen, tab_ganancia, tab_diagnostico, tab_metas, tab_detalle, tab_exportar = st.tabs([
@@ -542,8 +552,8 @@ with tab_tableau:
             mask_tg = mask_tg | (df_tableau['Nombre'].astype(str).str.strip().str.lower() == current_user['nombre'].strip().lower())
         df_tableau = df_tableau[mask_tg].copy()
     
-    # Subidor de administración solo visible para Gerente
-    if user_rol == 'gerente':
+    # Subidor de administración visible para Gerencia y Super Admin
+    if user_rol in ['gerente', 'superadmin']:
         with st.expander("⚙️ Opciones de Administración (Actualizar Base Tableau & Sit. Comercial desde mi_grupo)", expanded=False):
             col_adm1, col_adm2 = st.columns(2)
             with col_adm1:
@@ -1370,11 +1380,11 @@ with tab_exportar:
             mime="text/csv"
         )
 
-# --- TAB 6: GESTIÓN DE USUARIOS (SOLO GERENTE) ---
-if user_rol == 'gerente':
+# --- TAB 6: GESTIÓN DE USUARIOS & ROLES (EXCLUSIVO SUPER ADMIN) ---
+if user_rol == 'superadmin':
     with tab_usuarios:
-        st.subheader("🔑 Gestión de Usuarios y Permisos (Solo Gerente)")
-        st.markdown("Administra las credenciales de acceso, asigna roles y vincula el **Código de grupo** a cada Líder de Negocio.")
+        st.subheader("🔑 Gestión de Usuarios, Roles & Permisos (Super Admin)")
+        st.markdown("Administra credenciales de acceso, asigna roles (*superadmin, gerente, lider, asesor*), restablece contraseñas y vincula el **Código de grupo** a cada Líder.")
 
         col_u1, col_u2 = st.columns([1.2, 1])
 
@@ -1397,7 +1407,7 @@ if user_rol == 'gerente':
                 nu_username = st.text_input("Usuario (Login)", placeholder="ej. lider9334")
                 nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Angela Mireya Montenegro")
                 nu_pass = st.text_input("Contraseña", type="password", placeholder="Dejar vacío para mantener contraseña actual")
-                nu_rol = st.selectbox("Rol de Acceso", options=["lider", "gerente", "asesor"])
+                nu_rol = st.selectbox("Rol de Acceso", options=["lider", "gerente", "superadmin", "asesor"])
                 nu_grupo = st.text_input("Código de Grupo (Para Líderes)", placeholder="ej. 9334")
                 
                 btn_save_u = st.form_submit_button("💾 Guardar / Actualizar Usuario", type="primary", use_container_width=True)

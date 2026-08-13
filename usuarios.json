@@ -1,4 +1,10 @@
 {
+  "admin": {
+    "nombre": "Super Administrador del Sistema",
+    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "rol": "superadmin",
+    "codigo_grupo": null
+  },
   "gerente": {
     "nombre": "Gerencia General",
     "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",

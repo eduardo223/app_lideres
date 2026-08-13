@@ -1039,11 +1039,18 @@ def cargar_usuarios():
             pass
 
     # Usuarios predeterminados si el archivo no existe
+    def_pass_super = hashlib_sha256("superadmin123")
     def_pass_admin = hashlib_sha256("admin123")
     def_pass_lider = hashlib_sha256("lider123")
     def_pass_asesor = hashlib_sha256("asesor123")
 
     usuarios_default = {
+        "admin": {
+            "nombre": "Super Administrador del Sistema",
+            "password_hash": def_pass_super,
+            "rol": "superadmin",
+            "codigo_grupo": None
+        },
         "gerente": {
             "nombre": "Gerencia General",
             "password_hash": def_pass_admin,
