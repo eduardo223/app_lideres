@@ -20,6 +20,8 @@ from procesador import (
     autenticar_usuario,
     cargar_usuarios,
     registrar_o_actualizar_usuario,
+    cargar_configuracion,
+    guardar_configuracion,
     MATRIZ_GANANCIA,
     ETIQUETAS_ACTIVAS,
     ETIQUETAS_FACTURACION,
@@ -291,59 +293,67 @@ if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
 
 st.sidebar.markdown("---")
 
-# Opciones de administración solo visibles para Gerente
-if user_rol == 'gerente':
-    st.sidebar.header("🔄 Rotación de Ciclo (Nuevo)")
-    st.sidebar.caption("Sube el Excel del nuevo ciclo para convertir el ciclo actual en el 'Como vamos anterior' automáticamente.")
-    
-    nuevo_ciclo_file = st.sidebar.file_uploader("Cargar Nuevo Ciclo ('Cómo Vamos')", type=["xlsx"], key="uploader_nuevo_ciclo")
-    if nuevo_ciclo_file is not None:
-        if st.sidebar.button("🚀 Rotar Ciclo y Actualizar Histórico"):
+# Cargar configuración global de permisos
+app_config = cargar_configuracion()
+puede_subir_archivos = (user_rol == 'gerente') or app_config.get('permitir_carga_lideres', False)
+
+# Opciones de subida y administración de archivos
+if puede_subir_archivos:
+    if user_rol == 'gerente':
+        st.sidebar.header("🔄 Rotación de Ciclo (Nuevo)")
+        st.sidebar.caption("Sube el Excel del nuevo ciclo para convertir el ciclo actual en el 'Como vamos anterior' automáticamente.")
+        
+        nuevo_ciclo_file = st.sidebar.file_uploader("Cargar Nuevo Ciclo ('Cómo Vamos')", type=["xlsx"], key="uploader_nuevo_ciclo")
+        if nuevo_ciclo_file is not None:
+            if st.sidebar.button("🚀 Rotar Ciclo y Actualizar Histórico"):
+                try:
+                    with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
+                        rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
+                        st.cache_data.clear()
+                        st.sidebar.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
+                        st.rerun()
+                except PermissionError as pe:
+                    st.error("⚠️ **Archivo en uso**: El archivo `Base para el como vamos.xlsx` está actualmente abierto en Excel.")
+                    st.info("💡 **Solución**: Por favor, **cierra el archivo en Microsoft Excel** y vuelve a presionar el botón '🚀 Rotar Ciclo y Actualizar Histórico'.")
+                except Exception as ex:
+                    st.error(f"❌ Ocurrió un error al rotar el ciclo: {ex}")
+
+        st.sidebar.markdown("---")
+
+    st.sidebar.header("📊 Actualizar Base Tableau Cam")
+    st.sidebar.caption("Sube la sábana de datos exportada de Tableau (`Base de Datos.xlsx`) para actualizar la base maestra conservando las notas de la Líder.")
+
+    base_tableau_file = st.sidebar.file_uploader("Cargar Base Tableau (.xlsx)", type=["xlsx"], key="uploader_base_tableau_sidebar")
+    if base_tableau_file is not None:
+        if st.sidebar.button("💾 Guardar y Actualizar Base Tableau"):
             try:
-                with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
-                    rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
-                    st.cache_data.clear()
-                    st.sidebar.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
-                    st.rerun()
-            except PermissionError as pe:
-                st.error("⚠️ **Archivo en uso**: El archivo `Base para el como vamos.xlsx` está actualmente abierto en Excel.")
-                st.info("💡 **Solución**: Por favor, **cierra el archivo en Microsoft Excel** y vuelve a presionar el botón '🚀 Rotar Ciclo y Actualizar Histórico'.")
-            except Exception as ex:
-                st.error(f"❌ Ocurrió un error al rotar el ciclo: {ex}")
-
-st.sidebar.markdown("---")
-st.sidebar.header("📊 Actualizar Base Tableau Cam")
-st.sidebar.caption("Sube la sábana de datos exportada de Tableau (`Base de Datos.xlsx`) para actualizar la base maestra conservando las notas de la Líder.")
-
-base_tableau_file = st.sidebar.file_uploader("Cargar Base Tableau (.xlsx)", type=["xlsx"], key="uploader_base_tableau_sidebar")
-if base_tableau_file is not None:
-    if st.sidebar.button("💾 Guardar y Actualizar Base Tableau"):
-        try:
-            with open("Base de Datos.xlsx", "wb") as f:
-                f.write(base_tableau_file.getbuffer())
-            st.cache_data.clear()
-            st.sidebar.success("✅ ¡Base de Tableau actualizada exitosamente!")
-            st.rerun()
-        except PermissionError:
-            st.sidebar.error("⚠️ El archivo `Base de Datos.xlsx` está abierto en Excel. Ciérralo y vuelve a presionar el botón.")
-        except Exception as e_tb:
-            st.sidebar.error(f"❌ Error al guardar la base: {e_tb}")
-
-st.sidebar.markdown("---")
-st.sidebar.header("🔄 Actualizar Sit. Comercial (`mi_grupo.xls`)")
-st.sidebar.caption("Sube `mi_grupo.xls` para actualizar la Situación Comercial de cada consultora en la Base de Datos vinculando por Código CB.")
-
-mi_grupo_file = st.sidebar.file_uploader("Cargar mi_grupo (.xls / .xlsx)", type=["xls", "xlsx"], key="uploader_mi_grupo_sidebar")
-if mi_grupo_file is not None:
-    if st.sidebar.button("⚡ Actualizar Sit. Comercial desde mi_grupo"):
-        with st.spinner("Actualizando Situación Comercial..."):
-            res_up = actualizar_situacion_comercial_desde_mi_grupo(mi_grupo_file)
-            if res_up.get('exito'):
+                with open("Base de Datos.xlsx", "wb") as f:
+                    f.write(base_tableau_file.getbuffer())
                 st.cache_data.clear()
-                st.sidebar.success(f"✅ ¡Actualizado! {res_up['coincidencias']} coincidencia(s), {res_up['cambios']} cambio(s) de estado.")
+                st.sidebar.success("✅ ¡Base de Tableau actualizada exitosamente!")
                 st.rerun()
-            else:
-                st.sidebar.error(f"❌ Error: {res_up.get('error')}")
+            except PermissionError:
+                st.sidebar.error("⚠️ El archivo `Base de Datos.xlsx` está abierto en Excel. Ciérralo y vuelve a presionar el botón.")
+            except Exception as e_tb:
+                st.sidebar.error(f"❌ Error al guardar la base: {e_tb}")
+
+    st.sidebar.markdown("---")
+    st.sidebar.header("🔄 Actualizar Sit. Comercial (`mi_grupo.xls`)")
+    st.sidebar.caption("Sube `mi_grupo.xls` para actualizar la Situación Comercial de cada consultora en la Base de Datos vinculando por Código CB.")
+
+    mi_grupo_file = st.sidebar.file_uploader("Cargar mi_grupo (.xls / .xlsx)", type=["xls", "xlsx"], key="uploader_mi_grupo_sidebar")
+    if mi_grupo_file is not None:
+        if st.sidebar.button("⚡ Actualizar Sit. Comercial desde mi_grupo"):
+            with st.spinner("Actualizando Situación Comercial..."):
+                res_up = actualizar_situacion_comercial_desde_mi_grupo(mi_grupo_file)
+                if res_up.get('exito'):
+                    st.cache_data.clear()
+                    st.sidebar.success(f"✅ ¡Actualizado! {res_up['coincidencias']} coincidencia(s), {res_up['cambios']} cambio(s) de estado.")
+                    st.rerun()
+                else:
+                    st.sidebar.error(f"❌ Error: {res_up.get('error')}")
+else:
+    st.sidebar.info("🔒 **Carga restringida**: La opción de subida de archivos está desactivada por la Gerencia General para tu perfil.")
 
 st.sidebar.markdown("---")
 if st.sidebar.button("🔄 Recargar Datos Actuales"):
@@ -1400,6 +1410,33 @@ if user_rol == 'gerente':
                         st.rerun()
                     else:
                         st.error(f"❌ {msg_u}")
+
+        st.markdown("---")
+        st.subheader("🎛️ Control Global de Permisos de Carga de Archivos")
+        st.markdown("Configura si las Líderes de Negocio pueden subir o actualizar archivos Excel en la plataforma, o si esta función permanece restringida a la Gerencia General.")
+        
+        config_actual = cargar_configuracion()
+        estado_permiso = config_actual.get("permitir_carga_lideres", False)
+        
+        col_p1, col_p2 = st.columns([1.5, 1])
+        with col_p1:
+            nuevo_permiso = st.toggle(
+                "🔓 Permitir a las Líderes de Negocio subir/actualizar archivos",
+                value=estado_permiso,
+                help="Si está activado, las Líderes podrán ver los botones para subir Base de Datos.xlsx y mi_grupo.xls en la barra lateral."
+            )
+            
+            if nuevo_permiso != estado_permiso:
+                config_actual["permitir_carga_lideres"] = nuevo_permiso
+                guardar_configuracion(config_actual)
+                st.success("✅ ¡Permisos de carga globales actualizados correctamente!")
+                st.rerun()
+        
+        with col_p2:
+            if estado_permiso:
+                st.warning("⚠️ **Permisos Abiertos**: Las Líderes tienen acceso a subir archivos.")
+            else:
+                st.info("🔒 **Modo Protegido (Predeterminado)**: Las Líderes y Asesoras tienen bloqueadas las opciones de subida de archivos.")
 
 # Footer
 st.markdown("---")

@@ -1120,6 +1120,38 @@ def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo
         return True, f"Usuario '{u_clean}' guardado exitosamente."
     return False, "Error al guardar el archivo de usuarios."
 
+# --- CONFIGURACIÓN DE PERMISOS GLOBALES DE CARGA ---
+RUTA_CONFIG = 'configuracion.json'
+
+def cargar_configuracion():
+    """
+    Carga la configuración global de la aplicación.
+    Por defecto, las Líderes y Asesoras tienen bloqueada la subida de archivos (permitir_carga_lideres = False).
+    """
+    if os.path.exists(RUTA_CONFIG):
+        try:
+            with open(RUTA_CONFIG, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    config_default = {
+        "permitir_carga_lideres": False
+    }
+    guardar_configuracion(config_default)
+    return config_default
+
+def guardar_configuracion(dict_config):
+    """
+    Guarda la configuración global en configuracion.json.
+    """
+    try:
+        with open(RUTA_CONFIG, 'w', encoding='utf-8') as f:
+            json.dump(dict_config, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error al guardar configuración: {e}")
+        return False
+
 # Ejecutamos la función si se invoca el script directamente
 if __name__ == "__main__":
     df_resultado = calcular_metas_ciclo()
