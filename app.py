@@ -56,83 +56,106 @@ st.set_page_config(
 # Estilos CSS personalizados para mejorar el diseño estético
 st.markdown("""
 <style>
-    /* Theme-Adaptive & Dark Mode Glassmorphism System */
-    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800&display=swap');
+    /* ----------------------------------------------------
+       NATURA & AVON BRAND DESIGN SYSTEM (LIGHT & DARK MODE)
+       Natura: Warm Vibrant Orange (#FF6B00 / #F58220)
+       Avon: Royal Fuchsia Magenta (#E3007B / #9B0053)
+       ---------------------------------------------------- */
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
     
     html, body, [class*="css"] {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
+    /* Gradient Brand Text Headers */
     .main-header {
-        font-size: 2.2rem;
+        font-size: 2.3rem;
         font-weight: 800;
-        background: linear-gradient(135deg, #60A5FA 0%, #A78BFA 50%, #F472B6 100%);
+        background: linear-gradient(135deg, #FF6B00 0%, #F58220 30%, #E3007B 70%, #9B0053 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.2rem;
         letter-spacing: -0.02em;
     }
+    
     .sub-header {
         font-size: 1.05rem;
-        color: #94A3B8;
+        opacity: 0.85;
         margin-bottom: 1.5rem;
         font-weight: 500;
     }
 
-    /* Target metric cards in Streamlit for Dark & Light Mode */
+    /* Streamlit Metric Cards - Natura & Avon Theme Adaptive (Light & Dark) */
     [data-testid="stMetric"] {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%) !important;
-        border: 1px solid rgba(255, 255, 255, 0.15) !important;
-        border-radius: 16px !important;
-        padding: 18px 20px !important;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35) !important;
-        backdrop-filter: blur(12px) !important;
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        background: linear-gradient(135deg, rgba(255, 107, 0, 0.07) 0%, rgba(227, 0, 123, 0.07) 100%) !important;
+        border: 1px solid rgba(227, 0, 123, 0.25) !important;
+        border-radius: 18px !important;
+        padding: 18px 22px !important;
+        box-shadow: 0 8px 20px -4px rgba(227, 0, 123, 0.12) !important;
+        backdrop-filter: blur(14px) !important;
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
     [data-testid="stMetric"]:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 15px 30px -5px rgba(59, 130, 246, 0.3) !important;
-        border-color: rgba(96, 165, 250, 0.5) !important;
+        transform: translateY(-3px);
+        box-shadow: 0 14px 28px -4px rgba(255, 107, 0, 0.25) !important;
+        border-color: rgba(255, 107, 0, 0.6) !important;
     }
 
     [data-testid="stMetricLabel"] p {
-        color: #94A3B8 !important;
-        font-size: 0.9rem !important;
-        font-weight: 600 !important;
+        font-size: 0.92rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.02em;
+        opacity: 0.9;
     }
 
     [data-testid="stMetricValue"] div {
-        color: #F8FAFC !important;
-        font-size: 1.8rem !important;
+        font-size: 1.9rem !important;
         font-weight: 800 !important;
+        background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
     }
 
-    [data-testid="stMetricDelta"] svg, [data-testid="stMetricDelta"] div {
-        font-weight: 700 !important;
-    }
-
-    /* Expanders in Dark Mode */
+    /* Expanders & Cards */
     [data-testid="stExpander"] {
-        background: rgba(30, 41, 59, 0.6) !important;
-        border: 1px solid rgba(255, 255, 255, 0.12) !important;
-        border-radius: 14px !important;
+        background: rgba(255, 107, 0, 0.03) !important;
+        border: 1px solid rgba(227, 0, 123, 0.2) !important;
+        border-radius: 16px !important;
         overflow: hidden;
     }
 
-    /* Modern Glassmorphism & Enterprise Executive Login Styling */
+    /* Primary Natura-Avon Gradient Buttons */
+    div.stButton > button[kind="primary"] {
+        background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%) !important;
+        color: #FFFFFF !important;
+        border: none !important;
+        border-radius: 12px !important;
+        font-weight: 700 !important;
+        padding: 0.55rem 1.4rem !important;
+        box-shadow: 0 6px 18px rgba(227, 0, 123, 0.25) !important;
+        transition: all 0.25s ease !important;
+    }
+
+    div.stButton > button[kind="primary"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 24px rgba(255, 107, 0, 0.35) !important;
+        background: linear-gradient(135deg, #F58220 0%, #9B0053 100%) !important;
+    }
+
+    /* Executive Login Card Styling (Natura & Avon Theme) */
     .login-container {
         max-width: 1000px;
         margin: 0.5rem auto 1.5rem auto;
     }
     
     .login-hero-card {
-        background: linear-gradient(135deg, #0F172A 0%, #1E293B 50%, #334155 100%);
-        border-radius: 20px;
-        padding: 32px 35px;
+        background: linear-gradient(135deg, #1C0A19 0%, #2D0F25 50%, #3B142F 100%);
+        border-radius: 24px;
+        padding: 35px 38px;
         color: #FFFFFF;
-        box-shadow: 0 20px 30px -10px rgba(15, 23, 42, 0.35);
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-shadow: 0 20px 40px -10px rgba(227, 0, 123, 0.3);
+        border: 1px solid rgba(255, 107, 0, 0.3);
         margin-bottom: 25px;
         position: relative;
         overflow: hidden;
@@ -141,30 +164,30 @@ st.markdown("""
     .login-hero-card::before {
         content: "";
         position: absolute;
-        top: -40%;
-        right: -5%;
-        width: 350px;
-        height: 350px;
-        background: radial-gradient(circle, rgba(59, 130, 246, 0.3) 0%, rgba(255,255,255,0) 70%);
+        top: -30%;
+        right: -10%;
+        width: 400px;
+        height: 400px;
+        background: radial-gradient(circle, rgba(255, 107, 0, 0.35) 0%, rgba(227, 0, 123, 0.2) 40%, rgba(0,0,0,0) 70%);
         pointer-events: none;
     }
 
     .login-badge {
         display: inline-block;
-        background: rgba(59, 130, 246, 0.18);
-        border: 1px solid rgba(147, 197, 253, 0.3);
-        color: #93C5FD;
-        font-size: 0.78rem;
-        font-weight: 700;
-        letter-spacing: 0.05em;
+        background: linear-gradient(135deg, rgba(255, 107, 0, 0.25) 0%, rgba(227, 0, 123, 0.25) 100%);
+        border: 1px solid rgba(255, 107, 0, 0.4);
+        color: #FFAA66;
+        font-size: 0.8rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
         text-transform: uppercase;
-        padding: 6px 16px;
+        padding: 7px 18px;
         border-radius: 9999px;
         margin-bottom: 14px;
     }
 
     .login-title {
-        font-size: 2.2rem;
+        font-size: 2.3rem;
         font-weight: 800;
         color: #FFFFFF;
         margin: 0 0 8px 0;
@@ -172,48 +195,72 @@ st.markdown("""
     }
 
     .login-subtitle {
-        font-size: 1rem;
-        color: #94A3B8;
+        font-size: 1.02rem;
+        color: #E2D4DF;
         margin: 0;
         line-height: 1.5;
     }
 
     .login-form-card {
-        background: rgba(30, 41, 59, 0.8);
-        border-radius: 18px;
-        padding: 28px;
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.2);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
+        background: rgba(45, 15, 37, 0.6);
+        border-radius: 20px;
+        padding: 30px;
+        box-shadow: 0 12px 30px -5px rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 107, 0, 0.2);
+        backdrop-filter: blur(12px);
     }
 
     .demo-credentials-card {
-        background: rgba(30, 41, 59, 0.6);
-        border-radius: 18px;
-        padding: 24px;
-        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(35, 12, 28, 0.5);
+        border-radius: 20px;
+        padding: 26px;
+        border: 1px solid rgba(227, 0, 123, 0.2);
     }
 
     .role-item {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        background: rgba(15, 23, 42, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        padding: 12px 16px;
-        border-radius: 12px;
-        margin-bottom: 10px;
+        background: rgba(20, 8, 17, 0.6);
+        border: 1px solid rgba(255, 107, 0, 0.15);
+        padding: 13px 18px;
+        border-radius: 14px;
+        margin-bottom: 11px;
         transition: all 0.2s ease;
     }
 
     .role-item:hover {
-        border-color: #3B82F6;
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        border-color: #FF6B00;
+        box-shadow: 0 4px 14px rgba(255, 107, 0, 0.25);
     }
 
-    .role-tag-gerente { background: rgba(99, 102, 241, 0.2); color: #818CF8; border: 1px solid rgba(129, 140, 248, 0.3); font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
-    .role-tag-lider { background: rgba(245, 158, 11, 0.2); color: #FBBF24; border: 1px solid rgba(251, 191, 36, 0.3); font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
-    .role-tag-asesor { background: rgba(148, 163, 184, 0.2); color: #CBD5E1; border: 1px solid rgba(203, 213, 225, 0.3); font-size: 0.72rem; font-weight: 700; padding: 3px 10px; border-radius: 6px; }
+    .role-tag-gerente { 
+        background: rgba(255, 107, 0, 0.2); 
+        color: #FF8833; 
+        border: 1px solid rgba(255, 107, 0, 0.4); 
+        font-size: 0.74rem; 
+        font-weight: 800; 
+        padding: 4px 12px; 
+        border-radius: 8px; 
+    }
+    .role-tag-lider { 
+        background: rgba(227, 0, 123, 0.2); 
+        color: #FF4D9E; 
+        border: 1px solid rgba(227, 0, 123, 0.4); 
+        font-size: 0.74rem; 
+        font-weight: 800; 
+        padding: 4px 12px; 
+        border-radius: 8px; 
+    }
+    .role-tag-asesor { 
+        background: rgba(245, 130, 32, 0.2); 
+        color: #FFB84D; 
+        border: 1px solid rgba(245, 130, 32, 0.4); 
+        font-size: 0.74rem; 
+        font-weight: 800; 
+        padding: 4px 12px; 
+        border-radius: 8px; 
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -572,6 +619,7 @@ current_user = st.session_state.get('user') or {}
 user_nombre = current_user.get('nombre', 'Usuario')
 user_rol = current_user.get('rol', 'asesor')
 user_grupo = str(current_user.get('codigo_grupo', '')).strip() if current_user.get('codigo_grupo') else ""
+user_sector = str(current_user.get('codigo_sector', '')).strip() if current_user.get('codigo_sector') else ""
 
 # 3. BARRA LATERAL (Perfil de Usuario, Logout y Opciones según Rol)
 st.sidebar.markdown(f"### 👤 {user_nombre}")
@@ -604,8 +652,7 @@ if puede_subir_archivos:
         if nuevo_ciclo_file is not None:
             if st.sidebar.button("🚀 Rotar Ciclo y Actualizar Histórico"):
                 try:
-                    user_sec = st.session_state.get('usuario', {}).get('codigo_sector')
-                    valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(nuevo_ciclo_file, user_sec)
+                    valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(nuevo_ciclo_file, user_sector)
                     if not valido:
                         st.sidebar.error(msg_val)
                     else:
@@ -654,17 +701,30 @@ if col_lider_check in df.columns:
                       (~df[col_lider_check].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
     df = df[mask_valida_df]
 
+# Aislamiento Multitenant de Gerencias: Filtrar df por el sector asignado a la Gerente
+if user_rol == 'gerente' and user_sector:
+    col_sec_found = None
+    for c in df.columns:
+        c_low = str(c).lower().replace('ó', 'o')
+        if 'setor' in c_low or 'sector' in c_low:
+            col_sec_found = c
+            break
+            
+    if col_sec_found:
+        s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
+        df = df[s_vals == str(user_sector).strip()]
+
 # Header Principal
 st.markdown("<div class='main-header'>📈 Panel de Control - Estado de Ciclo Matices</div>", unsafe_allow_html=True)
 st.markdown("<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento</div>", unsafe_allow_html=True)
 
-# Notificación de Cuentas de Líderes Auto-Generadas
+# Notificación de Cuentas de Nuevas Líderes Auto-Generadas
 if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_creadas_log']:
-    with st.expander("🔑 Cuentas de Líderes Creadas / Actualizadas Automáticamente", expanded=True):
-        st.success("🎉 **¡Automatización Completada!** El sistema detectó las líderes del sector en las bases de datos y generó sus accesos:")
+    with st.expander("✨ Cuentas de Nuevas Líderes Creadas Automáticamente", expanded=True):
+        st.success("🎉 **¡Automatización Completada!** El sistema detectó **nuevas líderes** en las bases de datos y generó sus accesos iniciales:")
         df_l_log = pd.DataFrame(st.session_state['lideres_creadas_log'])
         st.dataframe(df_l_log, use_container_width=True)
-        st.info("💡 **Nota para la Gerente**: Comparte con cada líder su usuario (correo/código) y contraseña temporal generada para que ingresen y la cambien.")
+        st.info("💡 **Nota para la Gerente**: Comparte con cada nueva líder su usuario (correo/código) y la contraseña temporal generada.")
         if st.button("Entendido / Cerrar Notificación"):
             del st.session_state['lideres_creadas_log']
             st.rerun()
@@ -830,8 +890,11 @@ with tab_tableau:
     st.subheader("📊 Informe Tableau Manager ('Informe Tableau Cam')")
     st.markdown("Automatización de la Base Maestra de Tableau: Carga única, segmentación privada por Líder/Gerencia, seguimiento de Puntos/Deuda/Crédito y notas persistentes.")
 
-    # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada)
-    df_tableau = consultar_tableau_sql(user_grupo if (user_rol == 'lider' and user_grupo) else None)
+    # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada aislada por sector/grupo)
+    df_tableau = consultar_tableau_sql(
+        grupo=(user_grupo if user_rol == 'lider' else None),
+        sector=(user_sector if user_rol == 'gerente' else None)
+    )
     
     # Subidor de administración visible para Gerencia y Super Admin
     if user_rol in ['gerente', 'superadmin']:
@@ -841,24 +904,33 @@ with tab_tableau:
                 st.markdown("###### 📁 1. Actualizar Base Completa Tableau (`Base de Datos.xlsx`)")
                 archivo_tableau = st.file_uploader("Selecciona `Base de Datos.xlsx`", type=["xlsx"], key="tableau_uploader")
                 if archivo_tableau is not None:
-                    user_sec = st.session_state.get('usuario', {}).get('codigo_sector')
-                    valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(archivo_tableau, user_sec)
-                    if not valido:
-                        st.error(msg_val)
+                    file_id = f"{archivo_tableau.name}_{archivo_tableau.size}"
+                    if st.session_state.get('last_processed_tableau') != file_id:
+                        valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(archivo_tableau, user_sector)
+                        if not valido:
+                            st.error(msg_val)
+                        else:
+                            try:
+                                with open("Base de Datos.xlsx", "wb") as f:
+                                    f.write(archivo_tableau.getbuffer())
+                                sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
+                                st.cache_data.clear()
+                                st.session_state['last_processed_tableau'] = file_id
+                                
+                                # Actualizar DataFrame de Tableau en vivo para la vista actual
+                                df_tableau = consultar_tableau_sql(
+                                    grupo=(user_grupo if user_rol == 'lider' else None),
+                                    sector=(user_sector if user_rol == 'gerente' else None)
+                                )
+                                
+                                lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
+                                if lideres_creadas:
+                                    st.session_state['lideres_creadas_log'] = lideres_creadas
+                                st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
+                            except Exception as e_up:
+                                st.error(f"Error al actualizar la base: {e_up}")
                     else:
-                        try:
-                            with open("Base de Datos.xlsx", "wb") as f:
-                                f.write(archivo_tableau.getbuffer())
-                            sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
-                            st.cache_data.clear()
-                            st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
-                            
-                            lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
-                            if lideres_creadas:
-                                st.session_state['lideres_creadas_log'] = lideres_creadas
-                            st.rerun()
-                        except Exception as e_up:
-                            st.error(f"Error al actualizar la base: {e_up}")
+                        st.success("✅ ¡Base de datos activa y cargada exitosamente!")
 
             with col_adm2:
                 st.markdown("###### 🔄 2. Actualizar Sit. Comercial desde `mi_grupo.xls`")
@@ -1233,7 +1305,7 @@ with tab_resumen:
     if user_rol in ['superadmin', 'gerente']:
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            fig_rank = crear_ranking_lideres_fig(df_raw)
+            fig_rank = crear_ranking_lideres_fig(df_filtrado)
             if fig_rank:
                 st.plotly_chart(fig_rank, use_container_width=True)
             else:
@@ -1373,7 +1445,7 @@ with tab_ganancia:
             val_inicios = int(df_filtrado['Inicios'].mean()) if 'Inicios' in df_filtrado.columns else 7
             val_saldo = int(df_filtrado['Saldo'].mean()) if 'Saldo' in df_filtrado.columns else 10
     else:
-        val_f_real, val_f_obj, val_a_real, val_a_obj, val_inicios, val_saldo = 51229798.0, 48994379.0, 150, 145, 7, 10
+        val_f_real, val_f_obj, val_a_real, val_a_obj, val_inicios, val_saldo = 0.0, 0.0, 0, 0, 0, 0
 
     # Crear identificador único basado en el primer líder o cantidad de registros para forzar actualización al cambiar de líder
     leader_key = str(df_filtrado.iloc[0].get('Nombre de consultora', 'all')) if len(df_filtrado) == 1 else f"all_{len(df_filtrado)}"

@@ -736,6 +736,15 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
     if df is None or df.empty:
         return None
 
+    # Detectar si la primera fila son celdas vacías o 'Unnamed' y promover la fila de cabecera real
+    if any('unnamed' in str(c).lower() for c in df.columns[:5]):
+        for r_idx in range(min(5, len(df))):
+            row_vals = [str(x) for x in df.iloc[r_idx].values]
+            if any('codigo' in x.lower() or 'código' in x.lower() or 'asesora' in x.lower() for x in row_vals):
+                df.columns = df.iloc[r_idx]
+                df = df.iloc[r_idx + 1:].reset_index(drop=True)
+                break
+
     # Normalización de caracteres en nombres de columnas
     cols_rename = {}
     for c in df.columns:
@@ -1172,13 +1181,22 @@ def validar_sector_archivo(origen_file, sector_esperado):
     if df_check is None or df_check.empty:
         return False, None, None, "El archivo está vacío o no tiene datos válidos."
 
+    # Detectar si la primera fila contiene 'Unnamed' y promover la cabecera real
+    if any('unnamed' in str(c).lower() for c in df_check.columns[:5]):
+        for r_idx in range(min(5, len(df_check))):
+            row_vals = [str(x) for x in df_check.iloc[r_idx].values]
+            if any('sector' in x.lower() or 'setor' in x.lower() for x in row_vals):
+                df_check.columns = df_check.iloc[r_idx]
+                df_check = df_check.iloc[r_idx + 1:].reset_index(drop=True)
+                break
+
     # Buscar columna de sector
     col_sec = None
     col_nom_sec = None
     for c in df_check.columns:
         c_clean = str(c).replace('\ufffd', 'ó').strip()
         c_low = c_clean.lower()
-        if 'cod' in c_low and ('sector' in c_low or 'setor' in c_low):
+        if ('cod' in c_low or 'cd' in c_low) and ('sector' in c_low or 'setor' in c_low):
             col_sec = c
         elif 'sector' in c_low or 'setor' in c_low:
             if not col_sec:
@@ -1200,7 +1218,12 @@ def validar_sector_archivo(origen_file, sector_esperado):
         nom_encontrado = str(df_check[col_nom_sec].dropna().iloc[0]).strip()
 
     if val_encontrado != sector_esp_str:
-        msg = f"❌ **Acceso Denegado / Error de Sector**: El archivo subido pertenece al Sector **{val_encontrado} {('(' + nom_encontrado + ')') if nom_encontrado else ''}**, pero tu usuario está asignado al Sector **{sector_esp_str}**. Se canceló la subida para evitar sobreescribir la información de otro sector."
+        msg = (
+            f"❌ **Acceso Denegado - Validación de Sector**\n\n"
+            f"El archivo subido pertenece a una Gerencia de otro Sector.\n\n"
+            f"Se canceló la carga para proteger y evitar sobreescribir la información de tu sector.\n\n"
+            f"📲 **¿Necesitas ayuda?** Por favor comunícate con el servicio de Soporte por WhatsApp al **3057939537**."
+        )
         return False, val_encontrado, nom_encontrado, msg
 
     return True, val_encontrado, nom_encontrado, "Validación de sector exitosa."
@@ -1238,6 +1261,7 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
             pass
 
     grupos_procesados = set()
+    usuarios_existentes = cargar_usuarios()
 
     for _, row in df_metas.iterrows():
         g_raw = row.get(col_grp)
@@ -1247,8 +1271,11 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
         if not g_str or g_str in grupos_procesados or g_str.lower() in ['nan', 'none', '0']:
             continue
 
+        nom_lider = str(row.get(col_nom, '')).strip()
+        if not nom_lider or nom_lider.lower() in ['nan', 'none', 'null', '0', '']:
+            continue
+
         grupos_procesados.add(g_str)
-        nom_lider = str(row.get(col_nom, f"Líder Grupo {g_str}")).strip()
 
         correo_lider = None
         if df_tab is not None:
@@ -1259,23 +1286,35 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
                     correo_lider = str(df_g['Correo'].iloc[0]).strip().lower()
 
         username = correo_lider if (correo_lider and '@' in correo_lider) else f"lider{g_str}"
-        pass_gen = generar_password_aleatoria()
+        ya_existe = (username in usuarios_existentes)
 
-        exito, msg = registrar_o_actualizar_usuario(
-            username=username,
-            nombre=nom_lider,
-            password=pass_gen,
-            rol="lider",
-            codigo_grupo=g_str
-        )
-
-        creados.append({
-            "Código Grupo": g_str,
-            "Nombre Líder": nom_lider,
-            "Usuario (Login / Correo)": username,
-            "Contraseña Generada": pass_gen,
-            "Resultado": "✅ Creado / Actualizado" if exito else "❌ Error"
-        })
+        if ya_existe:
+            # Líder existente: actualizar datos silenciosamente manteniendo clave activa
+            registrar_o_actualizar_usuario(
+                username=username,
+                nombre=nom_lider,
+                password=None,
+                rol="lider",
+                codigo_grupo=g_str
+            )
+        else:
+            # Líder nueva: crear cuenta y generar clave temporal
+            pass_gen = generar_password_aleatoria()
+            exito, msg = registrar_o_actualizar_usuario(
+                username=username,
+                nombre=nom_lider,
+                password=pass_gen,
+                rol="lider",
+                codigo_grupo=g_str
+            )
+            if exito:
+                creados.append({
+                    "Código Grupo": g_str,
+                    "Nombre Líder": nom_lider,
+                    "Usuario (Login / Correo)": username,
+                    "Contraseña Generada": pass_gen,
+                    "Resultado": "✨ Nueva Cuenta Creada"
+                })
 
     return creados
 
@@ -1659,9 +1698,10 @@ def sincronizar_excel_metas_a_sqlite(df_metas, conn=None):
         conn.close()
     return True
 
-def consultar_tableau_sql(grupo=None):
+def consultar_tableau_sql(grupo=None, sector=None):
     """
-    Ejecuta consulta SQL ultra-rápida indexada sobre consultoras_tableau en base_matices.db.
+    Ejecuta consulta SQL ultra-rápida indexada sobre consultoras_tableau en base_matices.db,
+    filtrando por grupo de líder o sector de gerencia.
     """
     inicializar_db_sqlite()
     conn = obtener_conexion_db()
@@ -1725,10 +1765,19 @@ def consultar_tableau_sql(grupo=None):
         notas_lider AS 'Notas / Comentarios Líder'
     FROM consultoras_tableau
     """
+    where_clauses = []
     params = []
+    
     if grupo:
-        query += " WHERE grupo LIKE ? OR sector LIKE ?"
-        params = [f"%{grupo}%", f"%{grupo}%"]
+        where_clauses.append("(grupo LIKE ? OR sector LIKE ?)")
+        params.extend([f"%{grupo}%", f"%{grupo}%"])
+        
+    if sector:
+        where_clauses.append("(cod_sector = ? OR sector LIKE ?)")
+        params.extend([str(sector).strip(), f"%{sector}%"])
+        
+    if where_clauses:
+        query += " WHERE " + " AND ".join(where_clauses)
     
     df = pd.read_sql_query(query, conn, params=params)
     conn.close()
