@@ -278,6 +278,39 @@ def formato_cop_signo(val):
     signo = "-" if num < 0 else ""
     return f"{signo}${abs(num):,.0f}".replace(",", ".")
 
+def formato_porcentaje(val):
+    num = limpiar_numero(val, 0.0)
+    return f"{num:.1f}%"
+
+def formato_saldo_entero(val):
+    num = int(limpiar_numero(val, 0.0))
+    return f"{num}"
+
+def estilo_cumplimiento_facturacion(val):
+    num = limpiar_numero(val, 0.0)
+    if num >= 100.0:
+        return 'background-color: #DCFCE7; color: #166534; font-weight: bold;'
+    elif num >= 80.0:
+        return 'background-color: #FEF9C3; color: #854D0E; font-weight: bold;'
+    else:
+        return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold;'
+
+def estilo_cumplimiento_activas(val):
+    num = limpiar_numero(val, 0.0)
+    if num >= 100.0:
+        return 'background-color: #DCFCE7; color: #166534; font-weight: bold;'
+    elif num >= 80.0:
+        return 'background-color: #FEF9C3; color: #854D0E; font-weight: bold;'
+    else:
+        return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold;'
+
+def aplicar_estilo_styler(styler, func, subset):
+    if hasattr(styler, 'map'):
+        return styler.map(func, subset=subset)
+    elif hasattr(styler, 'applymap'):
+        return styler.applymap(func, subset=subset)
+    return styler
+
 def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo):
     info = obtener_frase_motivacional_diaria(cumplimiento_pct, nombre_lider, codigo_grupo)
     frase_txt = info['frase']
@@ -580,6 +613,17 @@ def load_and_process_data(ruta_o_buffer='Base para el como vamos.xlsx'):
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 
+# Recuperación automática de sesión al refrescar la página (F5)
+if st.session_state['user'] is None:
+    session_user_param = st.query_params.get('user')
+    if session_user_param:
+        todos_usuarios = cargar_usuarios()
+        u_clean_param = str(session_user_param).strip().lower()
+        if u_clean_param in todos_usuarios:
+            user_info = todos_usuarios[u_clean_param].copy()
+            user_info['username'] = u_clean_param
+            st.session_state['user'] = user_info
+
 if st.session_state['user'] is None:
     st.markdown("""
     <div class="login-container">
@@ -607,6 +651,8 @@ if st.session_state['user'] is None:
                 user_auth = autenticar_usuario(input_user, input_pass)
                 if user_auth:
                     st.session_state['user'] = user_auth
+                    # Persistir sesión en query params para evitar logout al dar F5 / Actualizar
+                    st.query_params['user'] = user_auth.get('username', input_user)
                     st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
                     st.rerun()
                 else:
@@ -634,6 +680,8 @@ else:
 
 if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
     st.session_state['user'] = None
+    if 'user' in st.query_params:
+        del st.query_params['user']
     st.rerun()
 
 st.sidebar.markdown("---")
@@ -687,32 +735,28 @@ with st.spinner("Cargando y procesando la base de datos..."):
     df_raw = load_and_process_data('Base para el como vamos.xlsx')
 
 if df_raw is None:
-    st.error("⚠️ No se encontró el archivo 'Base para el como vamos.xlsx' en la carpeta actual.")
-    st.info("Por favor, asegúrate de colocar el archivo Excel 'Base para el como vamos.xlsx' en la carpeta o sube uno nuevo desde la barra lateral.")
-    st.stop()
+    df = pd.DataFrame()
+else:
+    df = df_raw.copy()
+    # Omitir filas 'None', 'NaN' o vacías que dañan la presentación visual de las tablas
+    col_lider_check = 'Nombre de consultora' if 'Nombre de consultora' in df.columns else df.columns[0]
+    if col_lider_check in df.columns:
+        mask_valida_df = df[col_lider_check].notna() & \
+                          (~df[col_lider_check].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
+        df = df[mask_valida_df]
 
-# Copia de trabajo
-df = df_raw.copy()
-
-# Omitir filas 'None', 'NaN' o vacías que dañan la presentación visual de las tablas
-col_lider_check = 'Nombre de consultora' if 'Nombre de consultora' in df.columns else df.columns[0]
-if col_lider_check in df.columns:
-    mask_valida_df = df[col_lider_check].notna() & \
-                      (~df[col_lider_check].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
-    df = df[mask_valida_df]
-
-# Aislamiento Multitenant de Gerencias: Filtrar df por el sector asignado a la Gerente
-if user_rol == 'gerente' and user_sector:
-    col_sec_found = None
-    for c in df.columns:
-        c_low = str(c).lower().replace('ó', 'o')
-        if 'setor' in c_low or 'sector' in c_low:
-            col_sec_found = c
-            break
-            
-    if col_sec_found:
-        s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
-        df = df[s_vals == str(user_sector).strip()]
+    # Aislamiento Multitenant de Gerencias: Filtrar df por el sector asignado a la Gerente
+    if user_rol == 'gerente' and user_sector:
+        col_sec_found = None
+        for c in df.columns:
+            c_low = str(c).lower().replace('ó', 'o')
+            if 'setor' in c_low or 'sector' in c_low:
+                col_sec_found = c
+                break
+                
+        if col_sec_found:
+            s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
+            df = df[s_vals == str(user_sector).strip()]
 
 # Header Principal
 st.markdown("<div class='main-header'>📈 Panel de Control - Estado de Ciclo Matices</div>", unsafe_allow_html=True)
@@ -733,8 +777,8 @@ if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_cread
 st.sidebar.header("🔐 Filtros de Control")
 
 # Filtro por Gerencia
-col_gerencia = 'Nombre Gerencia' if 'Nombre Gerencia' in df.columns else df.columns[0]
-gerencias_disponibles = sorted([str(g) for g in df[col_gerencia].dropna().unique()])
+col_gerencia = 'Nombre Gerencia' if 'Nombre Gerencia' in df.columns else (df.columns[0] if len(df.columns) > 0 else '')
+gerencias_disponibles = sorted([str(g) for g in df[col_gerencia].dropna().unique()]) if (col_gerencia and col_gerencia in df.columns) else []
 gerencia_seleccionada = st.sidebar.selectbox(
     "🏢 Selecciona la Gerencia",
     options=["Todas"] + gerencias_disponibles,
@@ -745,12 +789,12 @@ df_filtrado = df.copy()
 
 # Segmentación Privada por Rol (Preservando el código madre intacto)
 # Si ingresa una Líder de Negocio, sus tarjetas superiores, tacómetros y reportes se restringen automáticamente a su Grupo
-if user_rol == 'lider' and user_grupo:
+if user_rol == 'lider' and user_grupo and not df_filtrado.empty:
     col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
     if col_grp_ref and col_grp_ref in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(user_grupo).strip()]
 
-if gerencia_seleccionada != "Todas":
+if gerencia_seleccionada != "Todas" and col_gerencia and col_gerencia in df_filtrado.columns:
     df_filtrado = df_filtrado[df_filtrado[col_gerencia] == gerencia_seleccionada]
 
 # Filtro dinámico por Sector (según la Gerencia seleccionada)
@@ -764,6 +808,8 @@ if col_sector and col_sector in df_filtrado.columns:
     )
     if sector_seleccionado != "Todos":
         df_filtrado = df_filtrado[df_filtrado[col_sector] == sector_seleccionado]
+else:
+    sector_seleccionado = "Todos"
 
 # Filtro por Color / Clasificación
 if 'Color' in df_filtrado.columns:
@@ -1507,190 +1553,125 @@ with tab_diagnostico:
     
     # Utilizar el conjunto de datos completo (df) para permitir la medición comparativa entre Líderes
     df_diag = df.copy()
-    if gerencia_seleccionada != "Todas":
+    if gerencia_seleccionada != "Todas" and col_gerencia and col_gerencia in df_diag.columns:
         df_diag = df_diag[df_diag[col_gerencia] == gerencia_seleccionada]
         
-    diag = generar_analisis_como_vamos(df_diag)
-    col_lider = 'Nombre de consultora' if 'Nombre de consultora' in df_diag.columns else df_diag.columns[0]
+    col_lider = 'Nombre de consultora' if 'Nombre de consultora' in df_diag.columns else (df_diag.columns[0] if len(df_diag.columns) > 0 else '')
+    diag = generar_analisis_como_vamos(df_diag) if not df_diag.empty else None
 
-    # --- 1. TABLA DE FACTURACIÓN (Formato exacto Clery Cuellar + Ganancia Estimada Total) ---
-    st.markdown("#### 💰 1. Tabla de Facturación y Cumplimiento (Ordenadas de Mayor a Menor Cumplimiento)")
-    
-    cols_fact_exactas = [
-        col_lider, 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación',
-        'Avance % Facturación', 'Productividad', 'Falta para el 100%', 'Falta para el 110%', 'Real Activas', 'Ganancia estimada'
-    ]
-    cols_presentes = [c for c in cols_fact_exactas if c in df_diag.columns]
-    
-    # Ordenar por Cumplimiento de Facturación (Top arriba, menos top abajo)
-    if 'Cumplimiento Facturación' in df_diag.columns:
-        df_fact_sorted = df_diag.sort_values(by='Cumplimiento Facturación', ascending=False)
+    if df_diag.empty:
+        st.info("ℹ️ No hay datos de 'Cómo Vamos' cargados para mostrar las tablas dinámicas de diagnóstico. Sube un archivo desde 'Rotación de Ciclo' para comenzar.")
     else:
-        df_fact_sorted = df_diag
+
+        # --- 1. TABLA DE FACTURACIÓN (Formato exacto Clery Cuellar + Ganancia Estimada Total) ---
+        st.markdown("#### 💰 1. Tabla de Facturación y Cumplimiento (Ordenadas de Mayor a Menor Cumplimiento)")
         
-    df_fact_view = df_fact_sorted[cols_presentes].copy()
-    
-    # Renombrar exactamente como en la plantilla original de Clery (Screenshot 2)
-    nombres_clery = {
-        col_lider: 'LÍDER DE NEGOCIOS',
-        'Objetivo Facturación': 'DESAFÍO FACTURACIÓN',
-        'Real Facturación': 'FACTURACIÓN A HOY',
-        'Cumplimiento Facturación': 'CUMPLIMIENTO DE FACTURACIÓN',
-        'Avance % Facturación': 'AVANCE %',
-        'Productividad': 'PRODUCTIVIDAD',
-        'Falta para el 100%': 'FALTA PARA EL 100%',
-        'Falta para el 110%': 'CUÁNTO FALTA PARA EL 110%',
-        'Real Activas': 'PEDIDOS',
-        'Ganancia estimada': 'GANANCIA ESTIMADA TOTAL'
-    }
-    df_fact_view = df_fact_view.rename(columns=nombres_clery)
-    
-    # Formatear números para visualización impecable
-    df_fact_formatted = df_fact_view.copy()
-    if 'DESAFÍO FACTURACIÓN' in df_fact_formatted.columns:
-        df_fact_formatted['DESAFÍO FACTURACIÓN'] = df_fact_formatted['DESAFÍO FACTURACIÓN'].apply(formato_cop)
-    if 'FACTURACIÓN A HOY' in df_fact_formatted.columns:
-        df_fact_formatted['FACTURACIÓN A HOY'] = df_fact_formatted['FACTURACIÓN A HOY'].apply(formato_cop)
-    if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_formatted.columns:
-        df_fact_formatted['CUMPLIMIENTO DE FACTURACIÓN'] = df_fact_formatted['CUMPLIMIENTO DE FACTURACIÓN'].apply(
-            lambda v: f"➡️ {limpiar_numero(v):.2f}%" if pd.notna(v) and limpiar_numero(v) > 0 else "0.00%"
-        )
-    if 'AVANCE %' in df_fact_formatted.columns:
-        df_fact_formatted['AVANCE %'] = df_fact_formatted['AVANCE %'].apply(
-            lambda v: f"{limpiar_numero(v):+.1f}%" if pd.notna(v) else "0.0%"
-        )
-    if 'PRODUCTIVIDAD' in df_fact_formatted.columns:
-        df_fact_formatted['PRODUCTIVIDAD'] = df_fact_formatted['PRODUCTIVIDAD'].apply(formato_cop)
-    if 'FALTA PARA EL 100%' in df_fact_formatted.columns:
-        df_fact_formatted['FALTA PARA EL 100%'] = df_fact_formatted['FALTA PARA EL 100%'].apply(formato_cop_signo)
-    if 'CUÁNTO FALTA PARA EL 110%' in df_fact_formatted.columns:
-        df_fact_formatted['CUÁNTO FALTA PARA EL 110%'] = df_fact_formatted['CUÁNTO FALTA PARA EL 110%'].apply(formato_cop_signo)
-    if 'GANANCIA ESTIMADA TOTAL' in df_fact_formatted.columns:
-        df_fact_formatted['GANANCIA ESTIMADA TOTAL'] = df_fact_formatted['GANANCIA ESTIMADA TOTAL'].apply(formato_cop)
-    if 'PEDIDOS' in df_fact_formatted.columns:
-        df_fact_formatted['PEDIDOS'] = df_fact_formatted['PEDIDOS'].apply(lambda v: f"{int(limpiar_numero(v))}")
-
-    # Filtrar filas 'None' de la tabla de facturación
-    if 'LÍDER DE NEGOCIOS' in df_fact_formatted.columns:
-        mask_clean = df_fact_formatted['LÍDER DE NEGOCIOS'].notna() & \
-                     (~df_fact_formatted['LÍDER DE NEGOCIOS'].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
-        df_fact_formatted = df_fact_formatted[mask_clean]
-
-    # Renderizar con semáforo de colores según comportamiento
-    st.dataframe(
-        df_fact_formatted.style
-        .map(color_cumplimiento, subset=['CUMPLIMIENTO DE FACTURACIÓN'] if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_formatted.columns else [])
-        .map(color_avance, subset=['AVANCE %'] if 'AVANCE %' in df_fact_formatted.columns else []),
-        use_container_width=True
-    )
-
-    st.markdown("---")
-
-    # --- 2. TABLA DE ACTIVAS EN ORDEN DE MAYOR A MENOR ---
-    st.markdown("#### 👥 2. Tabla de Activas (Ordenadas de Mayor a Menor Desempeño)")
-    cols_act = [c for c in [col_lider, 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_diag.columns]
-    
-    if 'Cumplimiento Activas' in df_diag.columns:
-        df_act_sorted = df_diag.sort_values(by='Cumplimiento Activas', ascending=False)
-    else:
-        df_act_sorted = df_diag.sort_values(by='Real Activas', ascending=False)
+        cols_fact_exactas = [
+            col_lider, 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación',
+            'Avance % Facturación', 'Productividad', 'Falta para el 100%', 'Falta para el 110%', 'Real Activas', 'Ganancia estimada'
+        ]
+        cols_presentes = [c for c in cols_fact_exactas if c in df_diag.columns]
         
-    df_activas_order = df_act_sorted[cols_act].copy()
-    
-    if 'Real Activas' in df_activas_order.columns:
-        df_activas_order['Real Activas'] = df_activas_order['Real Activas'].apply(lambda v: f"{int(limpiar_numero(v))}")
-    if 'Objetivo Activas' in df_activas_order.columns:
-        df_activas_order['Objetivo Activas'] = df_activas_order['Objetivo Activas'].apply(lambda v: f"{int(limpiar_numero(v))}")
-        
-    # Calcular cumplimiento % real a partir de activas reales / objetivo
-    df_activas_order['Cumplimiento Activas'] = df_act_sorted.apply(
-        lambda r: f"{(limpiar_numero(r.get('Real Activas', 0)) / limpiar_numero(r.get('Objetivo Activas', 1)) * 100):.1f}%" if limpiar_numero(r.get('Objetivo Activas', 0)) > 0 else "0.0%",
-        axis=1
-    )
-    
-    st.dataframe(
-        df_activas_order.style.map(color_cumplimiento, subset=['Cumplimiento Activas'] if 'Cumplimiento Activas' in df_activas_order.columns else []),
-        use_container_width=True
-    )
-
-    st.markdown("---")
-
-    # --- 3. TABLA DE SALDO Y POTENCIALIZADORES ---
-    st.markdown("#### ⚠️ 3. Tabla de Saldos y Potencializadores (Ordenadas por Ganancia Estimada)")
-    cols_saldo = [c for c in [col_lider, 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia_Matriz_COP', 'Potencializador_COP', 'Ganancia estimada'] if c in df_diag.columns]
-    
-    # Ordenar por Ganancia Estimada de mayor a menor (Top ganadoras arriba)
-    if 'Ganancia estimada' in df_diag.columns:
-        df_saldo_sorted = df_diag.sort_values(by='Ganancia estimada', ascending=False)
-    else:
-        df_saldo_sorted = df_diag.sort_values(by='Saldo', ascending=True)
-        
-    df_saldo_view = df_saldo_sorted[cols_saldo].copy()
-    
-    if 'Saldo' in df_saldo_view.columns:
-        df_saldo_view['Saldo'] = df_saldo_view['Saldo'].apply(lambda v: f"{int(limpiar_numero(v))}")
-    if 'Potencializador_Pct' in df_saldo_view.columns:
-        df_saldo_view['Potencializador_Pct'] = df_saldo_view['Potencializador_Pct'].apply(lambda v: f"{limpiar_numero(v)*100:+.0f}%" if pd.notna(v) else "0%")
-    if 'Ganancia_Matriz_COP' in df_saldo_view.columns:
-        df_saldo_view['Ganancia_Matriz_COP'] = df_saldo_view['Ganancia_Matriz_COP'].apply(formato_cop)
-    if 'Potencializador_COP' in df_saldo_view.columns:
-        df_saldo_view['Potencializador_COP'] = df_saldo_view['Potencializador_COP'].apply(formato_cop_signo)
-    if 'Ganancia estimada' in df_saldo_view.columns:
-        df_saldo_view['Ganancia estimada'] = df_saldo_view['Ganancia estimada'].apply(formato_cop)
-        
-    st.dataframe(
-        df_saldo_view.style.map(color_saldo, subset=['Saldo'] if 'Saldo' in df_saldo_view.columns else []),
-        use_container_width=True
-    )
-
-    st.markdown("---")
-
-    # --- 4. TABLA DE DISPONIBLES Y ENTRADAS ---
-    st.markdown("#### 🎯 4. Tabla de Disponibles y Entradas")
-    cols_disp = [c for c in [col_lider, 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3'] if c in df_diag.columns]
-    df_disp_view = df_diag[cols_disp].sort_values(by='Disponibles', ascending=False).copy()
-    
-    for c_int in ['Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3']:
-        if c_int in df_disp_view.columns:
-            df_disp_view[c_int] = df_disp_view[c_int].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'Cumplimiento Facturación' in df_diag.columns:
+            df_fact_sorted = df_diag.sort_values(by='Cumplimiento Facturación', ascending=False)
+        else:
+            df_fact_sorted = df_diag
             
-    st.dataframe(df_disp_view, use_container_width=True)
+        df_fact_view = df_fact_sorted[cols_presentes].copy()
+        
+        nombres_clery = {
+            col_lider: 'LÍDER DE NEGOCIOS',
+            'Objetivo Facturación': 'DESAFÍO FACTURACIÓN',
+            'Real Facturación': 'FACTURACIÓN A HOY',
+            'Cumplimiento Facturación': 'CUMPLIMIENTO DE FACTURACIÓN',
+            'Avance % Facturación': 'AVANCE %',
+            'Productividad': 'PRODUCTIVIDAD',
+            'Falta para el 100%': 'FALTA PARA EL 100%',
+            'Falta para el 110%': 'CUÁNTO FALTA PARA EL 110%',
+            'Real Activas': 'PEDIDOS',
+            'Ganancia estimada': 'GANANCIA ESTIMADA TOTAL'
+        }
+        df_fact_view = df_fact_view.rename(columns=nombres_clery)
+        
+        df_fact_formatted = df_fact_view.copy()
+        if 'DESAFÍO FACTURACIÓN' in df_fact_formatted.columns:
+            df_fact_formatted['DESAFÍO FACTURACIÓN'] = df_fact_formatted['DESAFÍO FACTURACIÓN'].apply(formato_cop)
+        if 'FACTURACIÓN A HOY' in df_fact_formatted.columns:
+            df_fact_formatted['FACTURACIÓN A HOY'] = df_fact_formatted['FACTURACIÓN A HOY'].apply(formato_cop)
+        if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_formatted.columns:
+            df_fact_formatted['CUMPLIMIENTO DE FACTURACIÓN'] = df_fact_formatted['CUMPLIMIENTO DE FACTURACIÓN'].apply(formato_porcentaje)
+        if 'AVANCE %' in df_fact_formatted.columns:
+            df_fact_formatted['AVANCE %'] = df_fact_formatted['AVANCE %'].apply(formato_porcentaje)
+        if 'PRODUCTIVIDAD' in df_fact_formatted.columns:
+            df_fact_formatted['PRODUCTIVIDAD'] = df_fact_formatted['PRODUCTIVIDAD'].apply(formato_cop)
+        if 'FALTA PARA EL 100%' in df_fact_formatted.columns:
+            df_fact_formatted['FALTA PARA EL 100%'] = df_fact_formatted['FALTA PARA EL 100%'].apply(formato_cop)
+        if 'CUÁNTO FALTA PARA EL 110%' in df_fact_formatted.columns:
+            df_fact_formatted['CUÁNTO FALTA PARA EL 110%'] = df_fact_formatted['CUÁNTO FALTA PARA EL 110%'].apply(formato_cop)
+        if 'PEDIDOS' in df_fact_formatted.columns:
+            df_fact_formatted['PEDIDOS'] = df_fact_formatted['PEDIDOS'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'GANANCIA ESTIMADA TOTAL' in df_fact_formatted.columns:
+            df_fact_formatted['GANANCIA ESTIMADA TOTAL'] = df_fact_formatted['GANANCIA ESTIMADA TOTAL'].apply(formato_cop)
+            
+        if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_view.columns:
+            st.dataframe(aplicar_estilo_styler(df_fact_formatted.style, estilo_cumplimiento_facturacion, subset=['CUMPLIMIENTO DE FACTURACIÓN']), use_container_width=True)
+        else:
+            st.dataframe(df_fact_formatted, use_container_width=True)
 
-    st.markdown("---")
+        st.markdown("---")
 
-    # --- 5. TABLAS DE RETENCIÓN DE INACTIVAS ---
-    st.markdown("#### 🛡️ 5. Tablas de Retención de Inactivas (Límites Máximos de Fuga)")
-    st.info("💡 **Reglas de Retención**: Se calculan sobre las disponibles actuales. Muestran el límite máximo de consultoras que se pueden 'dejar ir' y la retención mínima requerida.")
-    
-    if diag and 'disponibles' in diag and 'retencion' in diag['disponibles']:
-        ret_data = diag['disponibles']['retencion']
-        df_ret_resumen = pd.DataFrame([
-            {
-                "Nivel Inactiva": "Inactiva 1",
-                "Total Actual": int(ret_data['inactiva_1']['total']),
-                "% Máx. Fuga Permitida": "12%",
-                "Máx. Fuga (Cant. Pers.)": f"{ret_data['inactiva_1']['max_fuga_cant']:.0f}",
-                "% Mín. Retención Requerida": "88%",
-                "Mín. Retención (Cant. Pers.)": f"{ret_data['inactiva_1']['min_retencion_cant']:.0f}"
-            },
-            {
-                "Nivel Inactiva": "Inactiva 2",
-                "Total Actual": int(ret_data['inactiva_2']['total']),
-                "% Máx. Fuga Permitida": "8%",
-                "Máx. Fuga (Cant. Pers.)": f"{ret_data['inactiva_2']['max_fuga_cant']:.0f}",
-                "% Mín. Retención Requerida": "92%",
-                "Mín. Retención (Cant. Pers.)": f"{ret_data['inactiva_2']['min_retencion_cant']:.0f}"
-            },
-            {
-                "Nivel Inactiva": "Inactiva 3",
-                "Total Actual": int(ret_data['inactiva_3']['total']),
-                "% Máx. Fuga Permitida": "6%",
-                "Máx. Fuga (Cant. Pers.)": f"{ret_data['inactiva_3']['max_fuga_cant']:.0f}",
-                "% Mín. Retención Requerida": "94%",
-                "Mín. Retención (Cant. Pers.)": f"{ret_data['inactiva_3']['min_retencion_cant']:.0f}"
-            }
-        ])
-        st.dataframe(df_ret_resumen, use_container_width=True)
+        # --- 2. TABLA DE ACTIVAS / PEDIDOS ---
+        st.markdown("#### 👥 2. Tabla de Activas / Pedidos (Ordenadas de Mayor a Menor Cumplimiento)")
+        cols_act_exactas = [
+            col_lider, 'Objetivo Activas', 'Real Activas', 'Cumplimiento Activas',
+            'Saldo', 'Disponibles', 'Inicios', 'Reinicios', 'Recuperos'
+        ]
+        cols_act_presentes = [c for c in cols_act_exactas if c in df_diag.columns]
+        
+        if 'Cumplimiento Activas' in df_diag.columns:
+            df_act_sorted = df_diag.sort_values(by='Cumplimiento Activas', ascending=False)
+        elif 'Real Activas' in df_diag.columns:
+            df_act_sorted = df_diag.sort_values(by='Real Activas', ascending=False)
+        else:
+            df_act_sorted = df_diag
+            
+        df_act_view = df_act_sorted[cols_act_presentes].copy()
+        nombres_clery_act = {
+            col_lider: 'LÍDER DE NEGOCIOS',
+            'Objetivo Activas': 'ACTIVAS METAS',
+            'Real Activas': 'ACTIVAS HOY (PEDIDOS)',
+            'Cumplimiento Activas': 'CUMPLIMIENTO ACTIVAS',
+            'Saldo': 'SALDO ACTIVAS',
+            'Disponibles': 'DISPONIBLES',
+            'Inicios': 'INICIOS HOY',
+            'Reinicios': 'REINICIOS HOY',
+            'Recuperos': 'RECUPEROS HOY'
+        }
+        df_act_view = df_act_view.rename(columns=nombres_clery_act)
+        
+        df_act_formatted = df_act_view.copy()
+        if 'ACTIVAS METAS' in df_act_formatted.columns:
+            df_act_formatted['ACTIVAS METAS'] = df_act_formatted['ACTIVAS METAS'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'ACTIVAS HOY (PEDIDOS)' in df_act_formatted.columns:
+            df_act_formatted['ACTIVAS HOY (PEDIDOS)'] = df_act_formatted['ACTIVAS HOY (PEDIDOS)'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'CUMPLIMIENTO ACTIVAS' in df_act_formatted.columns:
+            df_act_formatted['CUMPLIMIENTO ACTIVAS'] = df_act_formatted['CUMPLIMIENTO ACTIVAS'].apply(formato_porcentaje)
+        if 'SALDO ACTIVAS' in df_act_formatted.columns:
+            df_act_formatted['SALDO ACTIVAS'] = df_act_formatted['SALDO ACTIVAS'].apply(formato_saldo_entero)
+        if 'DISPONIBLES' in df_act_formatted.columns:
+            df_act_formatted['DISPONIBLES'] = df_act_formatted['DISPONIBLES'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'INICIOS HOY' in df_act_formatted.columns:
+            df_act_formatted['INICIOS HOY'] = df_act_formatted['INICIOS HOY'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'REINICIOS HOY' in df_act_formatted.columns:
+            df_act_formatted['REINICIOS HOY'] = df_act_formatted['REINICIOS HOY'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'RECUPEROS HOY' in df_act_formatted.columns:
+            df_act_formatted['RECUPEROS HOY'] = df_act_formatted['RECUPEROS HOY'].apply(lambda v: f"{int(limpiar_numero(v))}")
+
+        if 'CUMPLIMIENTO ACTIVAS' in df_act_view.columns:
+            st.dataframe(aplicar_estilo_styler(df_act_formatted.style, estilo_cumplimiento_activas, subset=['CUMPLIMIENTO ACTIVAS']), use_container_width=True)
+        else:
+            st.dataframe(df_act_formatted, use_container_width=True)
+        
 
     st.markdown("---")
 
@@ -1698,10 +1679,12 @@ with tab_diagnostico:
     st.markdown("#### 📲 6. Módulo para Compartir Resumen por WhatsApp")
     st.caption("Selecciona una Líder para generar su reporte en formato texto listo para copiar o enviar directamente por WhatsApp Web / Móvil.")
     
-    lista_lideres = sorted(df_filtrado[col_lider].dropna().astype(str).unique())
-    lider_sel = st.selectbox("👤 Selecciona la Líder para enviar reporte:", options=lista_lideres)
+    lider_sel = None
+    if col_lider and col_lider in df_filtrado.columns and not df_filtrado.empty:
+        lista_lideres = sorted(df_filtrado[col_lider].dropna().astype(str).unique())
+        lider_sel = st.sidebar.selectbox("👤 Selecciona la Líder para enviar reporte:", options=lista_lideres) if False else st.selectbox("👤 Selecciona la Líder para enviar reporte:", options=lista_lideres)
     
-    if lider_sel:
+    if lider_sel and col_lider and col_lider in df_filtrado.columns and not df_filtrado.empty:
         row_l = df_filtrado[df_filtrado[col_lider].astype(str) == lider_sel].iloc[0]
         
         r_fact = formato_cop(row_l.get('Real Facturación', 0))

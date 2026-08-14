@@ -5,109 +5,101 @@
     "rol": "superadmin",
     "codigo_grupo": null
   },
-  "gerente": {
-    "nombre": "Gerencia MATICES CLERY",
-    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
-    "rol": "gerente",
-    "codigo_grupo": null,
-    "codigo_sector": "700000459"
-  },
-  "lider8425": {
-    "nombre": "Luz Dary Chacon Gaitan",
-    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
-    "rol": "lider",
-    "codigo_grupo": "8425"
-  },
-  "lider7841": {
-    "nombre": "CARMENZA RONCANCIO GACHANCIPA",
-    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
-    "rol": "lider",
-    "codigo_grupo": "7841"
-  },
   "asesor": {
     "nombre": "Usuario Consulta Facturación",
     "password_hash": "2ac668df8973cd2b3c6e4dc7816eab15c3bba28dd98766d37860639be3816df9",
     "rol": "asesor",
     "codigo_grupo": null
   },
+  "gerente": {
+    "nombre": "Clery Cuellar",
+    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "rol": "gerente",
+    "codigo_grupo": null,
+    "codigo_sector": "700000459"
+  },
+  "lider9640": {
+    "nombre": "YENNY COROMOTO DIAZ PEREZ",
+    "password_hash": "c4772e92db5fbbb74e7f051dca2984e008bb5e59ec812cce232b83f4b4752b8f",
+    "rol": "lider",
+    "codigo_grupo": "9640"
+  },
   "lider9334": {
     "nombre": "ANGELA MIREYA MONTENEGRO ROMERO",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "945a2b02e0ba70eb02ab0dcd5608c45fc5cde2884dd0e04faad99d30cf37812c",
     "rol": "lider",
     "codigo_grupo": "9334"
   },
+  "lider7841": {
+    "nombre": "CARMENZA RONCANCIO GACHANCIPA",
+    "password_hash": "829049d8ee5b2108a4c5c3a2283db6cf10717e93643211d99cef7ce450e188ba",
+    "rol": "lider",
+    "codigo_grupo": "7841"
+  },
   "lider10168": {
     "nombre": "JESSICA ROCIO CORTES PERILLA",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "5f4fc1a5f47ef4b317e83b44ab3e8c0bf9e104c1dcff8b1f8fa0621ecdc1b85f",
     "rol": "lider",
     "codigo_grupo": "10168"
   },
   "lider9678": {
     "nombre": "MIGUEL ANGEL MORENO BAUTISTA",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "cef60c0360f42a2716cb4abff1168fb03d5a23128e13ebe9e53ef0a9a8a2225a",
     "rol": "lider",
     "codigo_grupo": "9678"
   },
   "lider9291": {
     "nombre": "LUZ MARY LUNA LEON",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "bb30dc1204624aae85a27a3e022936011eb99d0e1e6462fb1a8bac0f3f6a7930",
     "rol": "lider",
     "codigo_grupo": "9291"
   },
+  "lider8425": {
+    "nombre": "Luz Dary Chacon Gaitan",
+    "password_hash": "e54a53e90d6b7e1f1e3520c0fab51b2b4fd0157c17778144b1edae14ea62a70c",
+    "rol": "lider",
+    "codigo_grupo": "8425"
+  },
   "lider9948": {
     "nombre": "DORA INES BELTRAN GAMBA",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "d41898506e6887635002db08149df2886ec42e0547953869fabd38efbdcdc912",
     "rol": "lider",
     "codigo_grupo": "9948"
   },
   "lider9717": {
     "nombre": "LUZ NANCY ROJAS NEIRA",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "58cb5c439e79788af24ef9579bc97b66374d04171e7ac8022d9168465bafc9c5",
     "rol": "lider",
     "codigo_grupo": "9717"
   },
   "lider8481": {
     "nombre": "LUZ ADRIANA PAEZ VIGOYA",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "0c5d431e87beda555d811ded2ce4b657098c90565db446e2cf7a235ea50e83d4",
     "rol": "lider",
     "codigo_grupo": "8481"
   },
   "lider10223": {
     "nombre": "EVELYN GOMEZ LOZANO",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "29854b6b0633dc3134f57c45c96dd978d2e739a30e01ccdfc0ec952fa24fb90f",
     "rol": "lider",
     "codigo_grupo": "10223"
   },
   "lider10260": {
     "nombre": "DORIS ANGARITA",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "ba2f243f76415858b4a750d057215235644191a1da1def696362a91f2a75adb3",
     "rol": "lider",
     "codigo_grupo": "10260"
   },
   "lider9400": {
     "nombre": "MARIA CRISTINA RUBIO",
-    "password_hash": "8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92",
+    "password_hash": "8f83fc4d0ae8bb939d2abee80a994bf7a03a245b080593218fc5424dc719dcb7",
     "rol": "lider",
     "codigo_grupo": "9400"
   },
-  "lider9640": {
-    "nombre": "YENNY COROMOTO DIAZ PEREZ",
-    "password_hash": "28422e7ccaec5d7dc1587f8c144372a32ab563ec3c27855bebcf69934905bb95",
+  "lider9581": {
+    "nombre": "MARIA ELENA PATIÑO FALLA",
+    "password_hash": "7c66c91552a37c2e81c45967d02f028ca5c71f58d25e8cd19db89ac240759a59",
     "rol": "lider",
-    "codigo_grupo": "9640"
-  },
-  "gerente2": {
-    "nombre": "Gerencia EMOCIONES DOLLY",
-    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
-    "rol": "gerente",
-    "codigo_grupo": null,
-    "codigo_sector": "700000466"
-  },
-  "gerente3": {
-    "nombre": "Magola Lopez",
-    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
-    "rol": "gerente",
-    "codigo_grupo": null,
-    "codigo_sector": "700000499"
+    "codigo_grupo": "9581"
   }
 }

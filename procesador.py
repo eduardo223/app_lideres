@@ -1155,7 +1155,7 @@ def validar_sector_archivo(origen_file, sector_esperado):
     Retorna (valido: bool, sector_encontrado: str, nombre_sector: str, mensaje: str).
     """
     if not sector_esperado:
-        return True, None, None, "No hay sector de restricción configurado para el usuario."
+        return False, None, None, "⚠️ Tu perfil de Gerente no tiene un código de sector configurado en el sistema. Por favor solicita la asignación de tu código de sector."
     
     sector_esp_str = str(sector_esperado).strip()
     df_check = None
@@ -1356,8 +1356,12 @@ import sqlite3
 RUTA_DB_SQLITE = 'base_matices.db'
 
 def obtener_conexion_db():
-    conn = sqlite3.connect(RUTA_DB_SQLITE)
+    conn = sqlite3.connect(RUTA_DB_SQLITE, timeout=30.0)
     conn.row_factory = sqlite3.Row
+    try:
+        conn.execute("PRAGMA journal_mode=WAL;")
+    except Exception:
+        pass
     return conn
 
 def inicializar_db_sqlite():
@@ -1375,9 +1379,15 @@ def inicializar_db_sqlite():
         nombre TEXT,
         password_hash TEXT,
         rol TEXT,
-        codigo_grupo TEXT
+        codigo_grupo TEXT,
+        codigo_sector TEXT
     )
     """)
+    
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN codigo_sector TEXT")
+    except Exception:
+        pass
 
     # 2. Tabla de Configuración
     cursor.execute("""
@@ -1450,6 +1460,7 @@ def inicializar_db_sqlite():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_grupo ON consultoras_tableau (grupo)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_sector ON consultoras_tableau (sector)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_cod_sector ON consultoras_tableau (cod_sector)")
 
     # 4. Tabla de Metas "Cómo Vamos"
     cursor.execute("""
@@ -1476,24 +1487,13 @@ def inicializar_db_sqlite():
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_metas_grupo ON metas_como_vamos (codigo_grupo)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_metas_sector ON metas_como_vamos (nombre_sector)")
 
     conn.commit()
 
     # Sincronización inicial
     sincronizar_usuarios_a_sqlite(conn)
     sincronizar_configuracion_a_sqlite(conn)
-    
-    # Si la tabla consultoras_tableau está vacía y existe Base de Datos.xlsx, convertir automáticamente
-    cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
-    if cursor.fetchone()[0] == 0 and os.path.exists('Base de Datos.xlsx'):
-        sincronizar_excel_tableau_a_sqlite('Base de Datos.xlsx', conn)
-
-    # Si la tabla metas_como_vamos está vacía y existe Base para el como vamos.xlsx, convertir automáticamente
-    cursor.execute("SELECT COUNT(*) FROM metas_como_vamos")
-    if cursor.fetchone()[0] == 0 and os.path.exists('Base para el como vamos.xlsx'):
-        df_m = calcular_metas_ciclo('Base para el como vamos.xlsx')
-        if df_m is not None and not df_m.empty:
-            sincronizar_excel_metas_a_sqlite(df_m, conn)
 
     conn.close()
 
@@ -1505,11 +1505,17 @@ def sincronizar_usuarios_a_sqlite(conn=None):
     
     usuarios = cargar_usuarios()
     cursor = conn.cursor()
+    
+    try:
+        cursor.execute("ALTER TABLE usuarios ADD COLUMN codigo_sector TEXT")
+    except Exception:
+        pass
+
     for uname, uinfo in usuarios.items():
         cursor.execute("""
-        INSERT OR REPLACE INTO usuarios (username, nombre, password_hash, rol, codigo_grupo)
-        VALUES (?, ?, ?, ?, ?)
-        """, (uname, uinfo.get("nombre"), uinfo.get("password_hash"), uinfo.get("rol"), uinfo.get("codigo_grupo")))
+        INSERT OR REPLACE INTO usuarios (username, nombre, password_hash, rol, codigo_grupo, codigo_sector)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """, (uname, uinfo.get("nombre"), uinfo.get("password_hash"), uinfo.get("rol"), uinfo.get("codigo_grupo"), uinfo.get("codigo_sector")))
     conn.commit()
     if close_at_end:
         conn.close()
@@ -1545,7 +1551,22 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         close_at_end = True
     
     cursor = conn.cursor()
-    cursor.execute("DELETE FROM consultoras_tableau")
+    
+    # Extraer el código de sector del dataframe subido para borrar ÚNICAMENTE los registros de ese sector
+    col_sec_check = None
+    for c in df.columns:
+        c_low = str(c).lower().replace('ó', 'o')
+        if ('cod' in c_low or 'cd' in c_low) and ('sector' in c_low or 'setor' in c_low):
+            col_sec_check = c
+            break
+        elif 'sector' in c_low or 'setor' in c_low:
+            col_sec_check = c
+            
+    if col_sec_check and not df[col_sec_check].dropna().empty:
+        col_sec_found_val = str(df[col_sec_check].dropna().iloc[0]).strip().split('.')[0]
+        cursor.execute("DELETE FROM consultoras_tableau WHERE cod_sector = ? OR sector LIKE ?", (col_sec_found_val, f"%{col_sec_found_val}%"))
+    else:
+        cursor.execute("DELETE FROM consultoras_tableau")
     
     for _, row in df.iterrows():
         cb = str(row.get('Codigo CB') if 'Codigo CB' in df.columns else row.get('Código CB', '')).strip()
@@ -1655,13 +1676,16 @@ def sincronizar_excel_metas_a_sqlite(df_metas, conn=None):
         conn = obtener_conexion_db()
         close_at_end = True
     
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM metas_como_vamos")
+    col_sec = 'Nombre Setor' if 'Nombre Setor' in df_metas.columns else 'Sector'
+    if not df_metas[col_sec].dropna().empty:
+        sec_val = str(df_metas[col_sec].dropna().iloc[0]).strip()
+        cursor.execute("DELETE FROM metas_como_vamos WHERE nombre_sector = ? OR nombre_sector LIKE ?", (sec_val, f"%{sec_val}%"))
+    else:
+        cursor.execute("DELETE FROM metas_como_vamos")
     
     col_cb = 'Código de consultora' if 'Código de consultora' in df_metas.columns else 'Cd Consultora'
     col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else 'Nombre Consultora'
     col_ger = 'Nombre Gerencia' if 'Nombre Gerencia' in df_metas.columns else 'Gerencia'
-    col_sec = 'Nombre Setor' if 'Nombre Setor' in df_metas.columns else 'Sector'
     col_grp = 'Código de grupo' if 'Código de grupo' in df_metas.columns else 'Cód. Grupo'
     
     for _, row in df_metas.iterrows():
@@ -1703,7 +1727,6 @@ def consultar_tableau_sql(grupo=None, sector=None):
     Ejecuta consulta SQL ultra-rápida indexada sobre consultoras_tableau en base_matices.db,
     filtrando por grupo de líder o sector de gerencia.
     """
-    inicializar_db_sqlite()
     conn = obtener_conexion_db()
     query = """
     SELECT 
