@@ -40,7 +40,9 @@ from procesador import (
     color_avance,
     color_saldo,
     exportar_excel_con_colores,
-    limpiar_numero
+    limpiar_numero,
+    validar_sector_archivo,
+    auto_crear_usuarios_lideres_desde_bases
 )
 
 # 1. Configuración de la página
@@ -602,11 +604,20 @@ if puede_subir_archivos:
         if nuevo_ciclo_file is not None:
             if st.sidebar.button("🚀 Rotar Ciclo y Actualizar Histórico"):
                 try:
-                    with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
-                        rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
-                        st.cache_data.clear()
-                        st.sidebar.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
-                        st.rerun()
+                    user_sec = st.session_state.get('usuario', {}).get('codigo_sector')
+                    valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(nuevo_ciclo_file, user_sec)
+                    if not valido:
+                        st.sidebar.error(msg_val)
+                    else:
+                        with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
+                            rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
+                            st.cache_data.clear()
+                            st.sidebar.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
+                            
+                            lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
+                            if lideres_creadas:
+                                st.session_state['lideres_creadas_log'] = lideres_creadas
+                            st.rerun()
                 except PermissionError as pe:
                     st.error("⚠️ **Archivo en uso**: El archivo `Base para el como vamos.xlsx` está actualmente abierto en Excel.")
                     st.info("💡 **Solución**: Por favor, **cierra el archivo en Microsoft Excel** y vuelve a presionar el botón '🚀 Rotar Ciclo y Actualizar Histórico'.")
@@ -646,6 +657,17 @@ if col_lider_check in df.columns:
 # Header Principal
 st.markdown("<div class='main-header'>📈 Panel de Control - Estado de Ciclo Matices</div>", unsafe_allow_html=True)
 st.markdown("<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento</div>", unsafe_allow_html=True)
+
+# Notificación de Cuentas de Líderes Auto-Generadas
+if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_creadas_log']:
+    with st.expander("🔑 Cuentas de Líderes Creadas / Actualizadas Automáticamente", expanded=True):
+        st.success("🎉 **¡Automatización Completada!** El sistema detectó las líderes del sector en las bases de datos y generó sus accesos:")
+        df_l_log = pd.DataFrame(st.session_state['lideres_creadas_log'])
+        st.dataframe(df_l_log, use_container_width=True)
+        st.info("💡 **Nota para la Gerente**: Comparte con cada líder su usuario (correo/código) y contraseña temporal generada para que ingresen y la cambien.")
+        if st.button("Entendido / Cerrar Notificación"):
+            del st.session_state['lideres_creadas_log']
+            st.rerun()
 
 # 3. BARRA LATERAL (Filtros dinámicos)
 st.sidebar.header("🔐 Filtros de Control")
@@ -819,15 +841,24 @@ with tab_tableau:
                 st.markdown("###### 📁 1. Actualizar Base Completa Tableau (`Base de Datos.xlsx`)")
                 archivo_tableau = st.file_uploader("Selecciona `Base de Datos.xlsx`", type=["xlsx"], key="tableau_uploader")
                 if archivo_tableau is not None:
-                    try:
-                        with open("Base de Datos.xlsx", "wb") as f:
-                            f.write(archivo_tableau.getbuffer())
-                        sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
-                        st.cache_data.clear()
-                        st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
-                        st.rerun()
-                    except Exception as e_up:
-                        st.error(f"Error al actualizar la base: {e_up}")
+                    user_sec = st.session_state.get('usuario', {}).get('codigo_sector')
+                    valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(archivo_tableau, user_sec)
+                    if not valido:
+                        st.error(msg_val)
+                    else:
+                        try:
+                            with open("Base de Datos.xlsx", "wb") as f:
+                                f.write(archivo_tableau.getbuffer())
+                            sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
+                            st.cache_data.clear()
+                            st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
+                            
+                            lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
+                            if lideres_creadas:
+                                st.session_state['lideres_creadas_log'] = lideres_creadas
+                            st.rerun()
+                        except Exception as e_up:
+                            st.error(f"Error al actualizar la base: {e_up}")
 
             with col_adm2:
                 st.markdown("###### 🔄 2. Actualizar Sit. Comercial desde `mi_grupo.xls`")

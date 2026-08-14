@@ -1112,9 +1112,9 @@ def autenticar_usuario(username, password):
             return user_copy
     return None
 
-def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo=None):
+def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo=None, codigo_sector=None):
     """
-    Permite al Gerente crear un usuario de Líder o Asesora o actualizar su contraseña.
+    Permite al Gerente crear un usuario de Líder o Asesora o actualizar su contraseña y sector.
     """
     u_clean = str(username).strip().lower()
     if not u_clean:
@@ -1123,15 +1123,161 @@ def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo
     usuarios = cargar_usuarios()
     p_hash = hashlib_sha256(password) if password else (usuarios.get(u_clean, {}).get("password_hash", hashlib_sha256("123456")))
     
-    usuarios[u_clean] = {
+    usr_data = {
         "nombre": nombre,
         "password_hash": p_hash,
         "rol": rol,
         "codigo_grupo": str(codigo_grupo).strip() if codigo_grupo else None
     }
+    if codigo_sector:
+        usr_data["codigo_sector"] = str(codigo_sector).strip()
+    elif u_clean in usuarios and "codigo_sector" in usuarios[u_clean]:
+        usr_data["codigo_sector"] = usuarios[u_clean]["codigo_sector"]
+
+    usuarios[u_clean] = usr_data
     if guardar_usuarios(usuarios):
+        sincronizar_usuarios_a_sqlite()
         return True, f"Usuario '{u_clean}' guardado exitosamente."
     return False, "Error al guardar el archivo de usuarios."
+
+def validar_sector_archivo(origen_file, sector_esperado):
+    """
+    Inspecciona un archivo subido (o ruta) en memoria y verifica que el Cod. Sector coincida con el sector del usuario en sesión.
+    Retorna (valido: bool, sector_encontrado: str, nombre_sector: str, mensaje: str).
+    """
+    if not sector_esperado:
+        return True, None, None, "No hay sector de restricción configurado para el usuario."
+    
+    sector_esp_str = str(sector_esperado).strip()
+    df_check = None
+    
+    try:
+        if isinstance(origen_file, str):
+            df_check = pd.read_excel(origen_file, nrows=10)
+        elif hasattr(origen_file, 'read'):
+            try:
+                origen_file.seek(0)
+            except Exception:
+                pass
+            df_check = pd.read_excel(origen_file, nrows=10)
+            try:
+                origen_file.seek(0)
+            except Exception:
+                pass
+        elif isinstance(origen_file, pd.DataFrame):
+            df_check = origen_file.head(10)
+    except Exception as e:
+        return False, None, None, f"Error al leer la estructura del archivo para validación: {e}"
+        
+    if df_check is None or df_check.empty:
+        return False, None, None, "El archivo está vacío o no tiene datos válidos."
+
+    # Buscar columna de sector
+    col_sec = None
+    col_nom_sec = None
+    for c in df_check.columns:
+        c_clean = str(c).replace('\ufffd', 'ó').strip()
+        c_low = c_clean.lower()
+        if 'cod' in c_low and ('sector' in c_low or 'setor' in c_low):
+            col_sec = c
+        elif 'sector' in c_low or 'setor' in c_low:
+            if not col_sec:
+                col_sec = c
+            else:
+                col_nom_sec = c
+                
+    if not col_sec:
+        return True, None, None, "No se encontró columna explícita de sector para validar."
+
+    # Extraer el primer código de sector no nulo
+    s_val = df_check[col_sec].dropna().astype(str).str.strip()
+    if s_val.empty:
+        return True, None, None, "No se encontraron valores numéricos de sector en las primeras filas."
+
+    val_encontrado = s_val.iloc[0].split('.')[0]
+    nom_encontrado = ""
+    if col_nom_sec and not df_check[col_nom_sec].dropna().empty:
+        nom_encontrado = str(df_check[col_nom_sec].dropna().iloc[0]).strip()
+
+    if val_encontrado != sector_esp_str:
+        msg = f"❌ **Acceso Denegado / Error de Sector**: El archivo subido pertenece al Sector **{val_encontrado} {('(' + nom_encontrado + ')') if nom_encontrado else ''}**, pero tu usuario está asignado al Sector **{sector_esp_str}**. Se canceló la subida para evitar sobreescribir la información de otro sector."
+        return False, val_encontrado, nom_encontrado, msg
+
+    return True, val_encontrado, nom_encontrado, "Validación de sector exitosa."
+
+def generar_password_aleatoria(longitud=8):
+    import random, string
+    chars = string.ascii_letters + string.digits
+    return 'Lider' + ''.join(random.choice(chars) for _ in range(longitud))
+
+def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', ruta_como_vamos='Base para el como vamos.xlsx'):
+    """
+    Detecta automáticamente los grupos de líderes y crea o actualiza sus cuentas de usuario en el sistema.
+    """
+    creados = []
+    if not os.path.exists(ruta_como_vamos):
+        return creados
+
+    try:
+        df_metas = pd.read_excel(ruta_como_vamos, sheet_name=0)
+        df_metas = normalizar_columnas(df_metas)
+    except Exception:
+        return creados
+
+    col_grp = 'Código de grupo' if 'Código de grupo' in df_metas.columns else None
+    col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else None
+
+    if not col_grp:
+        return creados
+
+    df_tab = None
+    if os.path.exists(ruta_tableau):
+        try:
+            df_tab = pd.read_excel(ruta_tableau, sheet_name=0)
+        except Exception:
+            pass
+
+    grupos_procesados = set()
+
+    for _, row in df_metas.iterrows():
+        g_raw = row.get(col_grp)
+        if pd.isna(g_raw):
+            continue
+        g_str = str(int(limpiar_numero(g_raw))) if limpiar_numero(g_raw) > 0 else str(g_raw).strip()
+        if not g_str or g_str in grupos_procesados or g_str.lower() in ['nan', 'none', '0']:
+            continue
+
+        grupos_procesados.add(g_str)
+        nom_lider = str(row.get(col_nom, f"Líder Grupo {g_str}")).strip()
+
+        correo_lider = None
+        if df_tab is not None:
+            mask_g = (df_tab['Grupo'].astype(str).str.strip() == g_str) if 'Grupo' in df_tab.columns else pd.Series(False, index=df_tab.index)
+            if 'Correo' in df_tab.columns and mask_g.any():
+                df_g = df_tab[mask_g].dropna(subset=['Correo'])
+                if not df_g.empty:
+                    correo_lider = str(df_g['Correo'].iloc[0]).strip().lower()
+
+        username = correo_lider if (correo_lider and '@' in correo_lider) else f"lider{g_str}"
+        pass_gen = generar_password_aleatoria()
+
+        exito, msg = registrar_o_actualizar_usuario(
+            username=username,
+            nombre=nom_lider,
+            password=pass_gen,
+            rol="lider",
+            codigo_grupo=g_str
+        )
+
+        creados.append({
+            "Código Grupo": g_str,
+            "Nombre Líder": nom_lider,
+            "Usuario (Login / Correo)": username,
+            "Contraseña Generada": pass_gen,
+            "Resultado": "✅ Creado / Actualizado" if exito else "❌ Error"
+        })
+
+    return creados
 
 # --- CONFIGURACIÓN DE PERMISOS GLOBALES DE CARGA ---
 RUTA_CONFIG = 'configuracion.json'
@@ -1207,24 +1353,59 @@ def inicializar_db_sqlite():
     CREATE TABLE IF NOT EXISTS consultoras_tableau (
         codigo_cb TEXT PRIMARY KEY,
         nombre TEXT,
+        documento_gpp TEXT,
+        cod_gerencia TEXT,
         gerencia TEXT,
+        cod_sector TEXT,
         sector TEXT,
         grupo TEXT,
         ciclo INTEGER,
         color TEXT,
+        ascenso_cb TEXT,
+        situacion TEXT,
         sit_comercial TEXT,
+        ciclos_inactividad INTEGER,
+        actividad_convergencia TEXT,
+        inicios_completos TEXT,
+        fact_vol REAL,
+        fact_natura REAL,
+        fact_avon REAL,
+        fact_ce REAL,
+        facturacion_total REAL,
         pts_natura INTEGER,
         pts_avon INTEGER,
+        pts_total_vd INTEGER,
+        pts_vol INTEGER,
         pts_acum INTEGER,
         pts_mant INTEGER,
         pts_asc INTEGER,
+        tienda_online TEXT,
+        tienda_sf TEXT,
+        ciclo_primer_pedido INTEGER,
+        fecha_nacimiento TEXT,
+        mes_cumpleanos TEXT,
         deuda_total REAL,
         deuda_mora REAL,
         credito_total REAL,
         credito_disponible REAL,
         pedidos_pendientes INTEGER,
         pedidos_mora INTEGER,
-        facturacion_total REAL,
+        celular TEXT,
+        correo TEXT,
+        dpto_residencia TEXT,
+        ciudad_residencia TEXT,
+        barrio_residencia TEXT,
+        direccion_residencia TEXT,
+        complemento_residencia TEXT,
+        referencia_residencia TEXT,
+        dpto_entrega TEXT,
+        ciudad_entrega TEXT,
+        barrio_entrega TEXT,
+        direccion_entrega TEXT,
+        complemento_entrega TEXT,
+        referencia_entrega TEXT,
+        tiempo_casa INTEGER,
+        origen_cb TEXT,
         notas_lider TEXT
     )
     """)
@@ -1337,31 +1518,84 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         
         cursor.execute("""
         INSERT OR REPLACE INTO consultoras_tableau (
-            codigo_cb, nombre, gerencia, sector, grupo, ciclo, color, sit_comercial,
-            pts_natura, pts_avon, pts_acum, pts_mant, pts_asc,
-            deuda_total, deuda_mora, credito_total, credito_disponible, pedidos_pendientes, pedidos_mora, facturacion_total, notas_lider
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            codigo_cb, nombre, documento_gpp, cod_gerencia, gerencia, cod_sector, sector, grupo, ciclo, color,
+            ascenso_cb, situacion, sit_comercial, ciclos_inactividad, actividad_convergencia, inicios_completos,
+            fact_vol, fact_natura, fact_avon, fact_ce, facturacion_total,
+            pts_natura, pts_avon, pts_total_vd, pts_vol, pts_acum, pts_mant, pts_asc,
+            tienda_online, tienda_sf, ciclo_primer_pedido, fecha_nacimiento, mes_cumpleanos,
+            deuda_total, deuda_mora, credito_total, credito_disponible, pedidos_pendientes, pedidos_mora,
+            celular, correo,
+            dpto_residencia, ciudad_residencia, barrio_residencia, direccion_residencia, complemento_residencia, referencia_residencia,
+            dpto_entrega, ciudad_entrega, barrio_entrega, direccion_entrega, complemento_entrega, referencia_entrega,
+            tiempo_casa, origen_cb, notas_lider
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?, ?, ?,
+            ?, ?, ?
+        )
         """, (
             cb,
             nom,
+            str(row.get('DocumentoGPP', '')),
+            str(row.get('Cod. Gerencia', '')),
             str(row.get('Gerencia', '')),
+            str(row.get('Cod. Sector', '')),
             str(row.get('Sector', '')),
             str(int(limpiar_numero(row.get('Grupo', 0)))) if limpiar_numero(row.get('Grupo', 0)) > 0 else str(row.get('Grupo', '')),
             int(limpiar_numero(row.get('Ciclo', 0))),
             col,
+            str(row.get('Ascenso CB', '')),
+            str(row.get('Situación', '')),
             str(row.get('Sit. Comercial', '')),
+            int(limpiar_numero(row.get('Ciclos Inactividad', 0))),
+            str(row.get('Actividad Convergencia', '')),
+            str(row.get('Inicios Completos', '')),
+            float(limpiar_numero(row.get('Fact. VOL', 0.0))),
+            float(limpiar_numero(row.get('Fact. Natura', 0.0))),
+            float(limpiar_numero(row.get('Fact. AVON', 0.0))),
+            float(limpiar_numero(row.get('Fact. C&E', 0.0))),
+            float(limpiar_numero(row.get('Fact. Total', 0.0))),
             int(limpiar_numero(row.get('Pts Natura', 0))),
             int(limpiar_numero(row.get('Pts AVON', 0))),
+            int(limpiar_numero(row.get('Pts Total VD', 0))),
+            int(limpiar_numero(row.get('Pts VOL', 0))),
             int(limpiar_numero(row.get('Pts Acum', 0))),
             int(limpiar_numero(row.get('Pts Mant', 0))),
             int(limpiar_numero(row.get('Pts Asc', 0))),
+            str(row.get('Tienda Online', '')),
+            str(row.get('TiendaSF', '')),
+            int(limpiar_numero(row.get('Ciclo Primer Pedido', 0))),
+            str(row.get('Fecha De Nacimiento', '')),
+            str(row.get('Mes Cumpleaños', '')),
             float(limpiar_numero(row.get('Deuda Total', 0.0))),
             float(limpiar_numero(row.get('Deuda Mora', 0.0))),
             float(limpiar_numero(row.get('Credito Total', 0.0))),
             float(limpiar_numero(row.get('Credito Disponible', 0.0))),
             int(limpiar_numero(row.get('Ped. Pendientes', 0))),
             int(limpiar_numero(row.get('Ped. Mora', 0))),
-            float(limpiar_numero(row.get('Fact. Total', 0.0))),
+            str(row.get('celular', '')),
+            str(row.get('Correo', '')),
+            str(row.get('Dpto - Residencia', '')),
+            str(row.get('Ciudad - Residencia', '')),
+            str(row.get('Barrio - Residencia', '')),
+            str(row.get('Dirección - Residencia', '')),
+            str(row.get('Complemento - Residencia', '')),
+            str(row.get('Referencia - Residencia', '')),
+            str(row.get('Dpto - Entrega', '')),
+            str(row.get('Ciudad - Entrega', '')),
+            str(row.get('Barrio - Entrega', '')),
+            str(row.get('Dirección - Entrega', '')),
+            str(row.get('Complemento - Entrega', '')),
+            str(row.get('Referencia - Entrega', '')),
+            int(limpiar_numero(row.get('Tiempo de Casa (Ciclo)', 0))),
+            str(row.get('Origen CB', '')),
             str(row.get('Notas / Comentarios Líder', ''))
         ))
     
@@ -1435,24 +1669,59 @@ def consultar_tableau_sql(grupo=None):
     SELECT 
         codigo_cb AS 'Código CB',
         nombre AS 'Asesora / Consultora',
+        documento_gpp AS 'DocumentoGPP',
+        cod_gerencia AS 'Cod. Gerencia',
         gerencia AS 'Gerencia',
+        cod_sector AS 'Cod. Sector',
         sector AS 'Sector',
         grupo AS 'Grupo',
         ciclo AS 'Ciclo',
         color AS 'Nivel / Color',
+        ascenso_cb AS 'Ascenso CB',
+        situacion AS 'Situación',
         sit_comercial AS 'Sit. Comercial',
+        ciclos_inactividad AS 'Ciclos Inactividad',
+        actividad_convergencia AS 'Actividad Convergencia',
+        inicios_completos AS 'Inicios Completos',
+        fact_vol AS 'Fact. VOL',
+        fact_natura AS 'Fact. Natura',
+        fact_avon AS 'Fact. AVON',
+        fact_ce AS 'Fact. C&E',
+        facturacion_total AS 'Fact. Total',
         pts_natura AS 'Pts Natura',
         pts_avon AS 'Pts AVON',
+        pts_total_vd AS 'Pts Total VD',
+        pts_vol AS 'Pts VOL',
         pts_acum AS 'Pts Acum',
         pts_mant AS 'Pts Mant',
         pts_asc AS 'Pts Asc',
+        tienda_online AS 'Tienda Online',
+        tienda_sf AS 'TiendaSF',
+        ciclo_primer_pedido AS 'Ciclo Primer Pedido',
+        fecha_nacimiento AS 'Fecha De Nacimiento',
+        mes_cumpleanos AS 'Mes Cumpleaños',
         deuda_total AS 'Deuda Total',
         deuda_mora AS 'Deuda Mora',
         credito_total AS 'Credito Total',
         credito_disponible AS 'Credito Disponible',
         pedidos_pendientes AS 'Ped. Pendientes',
         pedidos_mora AS 'Ped. Mora',
-        facturacion_total AS 'Fact. Total',
+        celular AS 'celular',
+        correo AS 'Correo',
+        dpto_residencia AS 'Dpto - Residencia',
+        ciudad_residencia AS 'Ciudad - Residencia',
+        barrio_residencia AS 'Barrio - Residencia',
+        direccion_residencia AS 'Dirección - Residencia',
+        complemento_residencia AS 'Complemento - Residencia',
+        referencia_residencia AS 'Referencia - Residencia',
+        dpto_entrega AS 'Dpto - Entrega',
+        ciudad_entrega AS 'Ciudad - Entrega',
+        barrio_entrega AS 'Barrio - Entrega',
+        direccion_entrega AS 'Dirección - Entrega',
+        complemento_entrega AS 'Complemento - Entrega',
+        referencia_entrega AS 'Referencia - Entrega',
+        tiempo_casa AS 'Tiempo de Casa (Ciclo)',
+        origen_cb AS 'Origen CB',
         notas_lider AS 'Notas / Comentarios Líder'
     FROM consultoras_tableau
     """

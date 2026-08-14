@@ -1,15 +1,16 @@
 {
   "admin": {
     "nombre": "Super Administrador del Sistema",
-    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "password_hash": "e34f92a20532a873cb3184398070b4b82a8fa29cf48572c203dc5f0fa6158231",
     "rol": "superadmin",
     "codigo_grupo": null
   },
   "gerente": {
-    "nombre": "Gerencia General",
+    "nombre": "Gerencia General (Matices Clery)",
     "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
     "rol": "gerente",
-    "codigo_grupo": null
+    "codigo_grupo": null,
+    "codigo_sector": "700000459"
   },
   "lider8425": {
     "nombre": "Luz Dary Chacon Gaitan",
@@ -18,7 +19,7 @@
     "codigo_grupo": "8425"
   },
   "lider7841": {
-    "nombre": "Carmenza Roncancio Gachancipa",
+    "nombre": "CARMENZA RONCANCIO GACHANCIPA",
     "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "7841"
@@ -34,5 +35,114 @@
     "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9400"
+  },
+  "gerente2": {
+    "nombre": "Dolly (Emociones Dolly)",
+    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "rol": "gerente",
+    "codigo_grupo": "700000466",
+    "codigo_sector": "700000466"
+  },
+  "lider9175": {
+    "nombre": "nan",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9175"
+  },
+  "lider9640": {
+    "nombre": "YENNY COROMOTO DIAZ PEREZ",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9640"
+  },
+  "lider9334": {
+    "nombre": "ANGELA MIREYA MONTENEGRO ROMERO",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9334"
+  },
+  "lider10168": {
+    "nombre": "JESSICA ROCIO CORTES PERILLA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10168"
+  },
+  "lider9678": {
+    "nombre": "MIGUEL ANGEL MORENO BAUTISTA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9678"
+  },
+  "lider9718": {
+    "nombre": "nan",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9718"
+  },
+  "lider9291": {
+    "nombre": "LUZ MARY LUNA LEON",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9291"
+  },
+  "lider9948": {
+    "nombre": "DORA INES BELTRAN GAMBA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9948"
+  },
+  "lider8048": {
+    "nombre": "nan",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "8048"
+  },
+  "lider10261": {
+    "nombre": "nan",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10261"
+  },
+  "lider9581": {
+    "nombre": "nan",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9581"
+  },
+  "lider9376": {
+    "nombre": "nan",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9376"
+  },
+  "lider9717": {
+    "nombre": "LUZ NANCY ROJAS NEIRA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9717"
+  },
+  "lider8481": {
+    "nombre": "LUZ ADRIANA PAEZ VIGOYA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "8481"
+  },
+  "lider10255": {
+    "nombre": "nan",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10255"
+  },
+  "lider10223": {
+    "nombre": "EVELYN GOMEZ LOZANO",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10223"
+  },
+  "lider10260": {
+    "nombre": "DORIS ANGARITA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10260"
   }
 }
