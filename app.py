@@ -887,64 +887,264 @@ for col in columnas_numericas_clave:
     if col in df_filtrado.columns:
         df_filtrado[col] = df_filtrado[col].apply(lambda v: limpiar_numero(v, 0.0))
 
-# 4. TARJETAS DE KPIS SUPERIORES
-kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sector, is_dark_theme):
+    if is_dark_theme:
+        css_theme = """
+        <style>
+        .stApp { background-color: #0b0f19 !important; color: #f8fafc !important; }
+        .app-card-hero {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9));
+            border: 1px solid rgba(56, 189, 248, 0.3);
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+        .hero-title { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .hero-val { font-size: 26px; font-weight: 800; color: #38bdf8; margin: 4px 0; }
+        .hero-sub { font-size: 12px; color: #10b981; font-weight: 600; }
+        </style>
+        """
+    else:
+        css_theme = """
+        <style>
+        .stApp { background-color: #f8fafc !important; color: #0f172a !important; }
+        .app-card-hero {
+            background: linear-gradient(135deg, #ffffff, #f1f5f9);
+            border: 1px solid #cbd5e1;
+            border-radius: 16px;
+            padding: 16px;
+            text-align: center;
+            box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.06);
+        }
+        .hero-title { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .hero-val { font-size: 26px; font-weight: 800; color: #0284c7; margin: 4px 0; }
+        .hero-sub { font-size: 12px; color: #059669; font-weight: 600; }
+        </style>
+        """
+    st.markdown(css_theme, unsafe_allow_html=True)
 
+    df_tab_app = consultar_tableau_sql(
+        grupo=(user_grupo if user_rol == 'lider' else None),
+        sector=(user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
+    )
+
+    r_act = float(df_filtrado['Real Activas'].sum()) if 'Real Activas' in df_filtrado.columns else 0.0
+    o_act = float(df_filtrado['Objetivo Activas'].sum()) if 'Objetivo Activas' in df_filtrado.columns else 0.0
+    c_act = (r_act / o_act * 100.0) if o_act > 0 else 0.0
+
+    r_fact = float(df_filtrado['Real Facturación'].sum()) if 'Real Facturación' in df_filtrado.columns else 0.0
+    o_fact = float(df_filtrado['Objetivo Facturación'].sum()) if 'Objetivo Facturación' in df_filtrado.columns else 0.0
+    c_fact = (r_fact / o_fact * 100.0) if o_fact > 0 else 0.0
+
+    gan_tot = float(df_filtrado['Ganancia estimada'].sum()) if 'Ganancia estimada' in df_filtrado.columns else 0.0
+
+    pts_tot = 0
+    deuda_tot = 0.0
+    if not df_tab_app.empty:
+        if 'Pts Acum' in df_tab_app.columns:
+            pts_tot = int(df_tab_app['Pts Acum'].apply(lambda x: limpiar_numero(x, 0)).sum())
+        if 'Deuda Mora' in df_tab_app.columns:
+            deuda_tot = float(df_tab_app['Deuda Mora'].apply(lambda x: limpiar_numero(x, 0)).sum())
+
+    h1, h2, h3, h4 = st.columns(4)
+    with h1:
+        st.markdown(f"""
+        <div class="app-card-hero">
+            <div class="hero-title">💰 Facturación Total</div>
+            <div class="hero-val">${r_fact/1e6:.1f}M COP</div>
+            <div class="hero-sub">↑ {c_fact:.1f}% Cumplimiento</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with h2:
+        st.markdown(f"""
+        <div class="app-card-hero">
+            <div class="hero-title">👥 Activas Reales</div>
+            <div class="hero-val">{int(r_act)}</div>
+            <div class="hero-sub">↑ {c_act:.1f}% Cumplimiento</div>
+        </div>
+        """, unsafe_allow_html=True)
+    with h3:
+        st.markdown(f"""
+        <div class="app-card-hero">
+            <div class="hero-title">💵 Ganancia Estimada</div>
+            <div class="hero-val">${gan_tot:,.0f}</div>
+            <div class="hero-sub">✨ Proyección LN</div>
+        </div>
+        """.replace(",", "."), unsafe_allow_html=True)
+    with h4:
+        st.markdown(f"""
+        <div class="app-card-hero">
+            <div class="hero-title">⭐ Puntos / Deuda Mora</div>
+            <div class="hero-val">{pts_tot:,} pts</div>
+            <div class="hero-sub" style="color: #ef4444;">⚠️ Mora: ${deuda_tot/1e6:.1f}M</div>
+        </div>
+        """.replace(",", "."), unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    tab_app1, tab_app2, tab_app3 = st.tabs([
+        "📱 1. Puntos & Listado Consultoras",
+        "⚡ 2. KPIs & Tacómetros 360°",
+        "📈 3. Tabla Facturación 'Cómo Vamos'"
+    ])
+
+    with tab_app1:
+        st.subheader("📊 Listado Minimalista de Consultoras & Puntos")
+        if df_tab_app.empty:
+            st.info("No se encontraron registros de consultoras para esta vista.")
+        else:
+            cols_show = [c for c in ['Código CB', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial', 'Pts Acum', 'Deuda Mora', 'Ped. Pendientes', 'Notas / Comentarios'] if c in df_tab_app.columns]
+            st.dataframe(
+                df_tab_app[cols_show] if cols_show else df_tab_app,
+                use_container_width=True,
+                height=450
+            )
+
+    with tab_app2:
+        st.subheader("⏱️ Tacómetros de Cumplimiento Global 360°")
+        tcol1, tcol2 = st.columns(2)
+        with tcol1:
+            fig_g_fact = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=c_fact,
+                number={'suffix': '%'},
+                title={'text': "Cumplimiento Facturación ($ COP)"},
+                gauge={
+                    'axis': {'range': [0, 150]},
+                    'bar': {'color': "#38bdf8"},
+                    'steps': [
+                        {'range': [0, 95], 'color': "#fee2e2"},
+                        {'range': [95, 100], 'color': "#fef3c7"},
+                        {'range': [100, 150], 'color': "#dcfce7"}
+                    ]
+                }
+            ))
+            fig_g_fact.update_layout(height=280, margin=dict(l=10, r=10, t=40, b=10))
+            st.plotly_chart(fig_g_fact, use_container_width=True)
+            
+        with tcol2:
+            fig_g_act = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=c_act,
+                number={'suffix': '%'},
+                title={'text': "Cumplimiento Activas"},
+                gauge={
+                    'axis': {'range': [0, 150]},
+                    'bar': {'color': "#10b981"},
+                    'steps': [
+                        {'range': [0, 95], 'color': "#fee2e2"},
+                        {'range': [95, 100], 'color': "#fef3c7"},
+                        {'range': [100, 150], 'color': "#dcfce7"}
+                    ]
+                }
+            ))
+            fig_g_act.update_layout(height=280, margin=dict(l=10, r=10, t=40, b=10))
+            st.plotly_chart(fig_g_act, use_container_width=True)
+
+    with tab_app3:
+        st.subheader("📈 Tabla de Facturación y Cumplimiento (Mayor a Menor Desempeño)")
+        if df_filtrado.empty:
+            st.info("No hay datos disponibles para mostrar la tabla de facturación.")
+        else:
+            df_fact_ordenado = df_filtrado.sort_values(by='Cumplimiento Facturación', ascending=False) if 'Cumplimiento Facturación' in df_filtrado.columns else df_filtrado
+            cols_fact = [c for c in ['Nombre de consultora', 'Nombre Setor', 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación', 'Falta para el 100%', 'Ganancia estimada'] if c in df_fact_ordenado.columns]
+            
+            df_fact_view = df_fact_ordenado[cols_fact].copy()
+            if 'Cumplimiento Facturación' in df_fact_view.columns:
+                df_fact_view['Cumplimiento Facturación'] = df_fact_view['Cumplimiento Facturación'].apply(lambda x: f"{x:.1f}%")
+            if 'Real Facturación' in df_fact_view.columns:
+                df_fact_view['Real Facturación'] = df_fact_view['Real Facturación'].apply(formato_cop)
+            if 'Objetivo Facturación' in df_fact_view.columns:
+                df_fact_view['Objetivo Facturación'] = df_fact_view['Objetivo Facturación'].apply(formato_cop)
+            if 'Ganancia estimada' in df_fact_view.columns:
+                df_fact_view['Ganancia estimada'] = df_fact_view['Ganancia estimada'].apply(formato_cop)
+
+            st.dataframe(df_fact_view, use_container_width=True, height=450)
+
+# Cálculo general de métricas clave del dataset filtrado
 total_consultoras = len(df_filtrado)
 
-# Activas Reales vs Objetivo
 obj_activas = float(df_filtrado['Objetivo Activas'].sum()) if 'Objetivo Activas' in df_filtrado.columns else 0.0
 real_activas = float(df_filtrado['Real Activas'].sum()) if 'Real Activas' in df_filtrado.columns else 0.0
 cump_activas = (real_activas / obj_activas * 100.0) if obj_activas > 0 else 0.0
 
-# Facturación Real vs Objetivo
 obj_fact = float(df_filtrado['Objetivo Facturación'].sum()) if 'Objetivo Facturación' in df_filtrado.columns else 0.0
 real_fact = float(df_filtrado['Real Facturación'].sum()) if 'Real Facturación' in df_filtrado.columns else 0.0
 cump_fact = (real_fact / obj_fact * 100.0) if obj_fact > 0 else 0.0
 
-# Ganancia Estimada Total LN
 ganancia_total = float(df_filtrado['Ganancia estimada'].sum()) if 'Ganancia estimada' in df_filtrado.columns else 0.0
 
-# Inicios y Reinicios
 inicios_totales = float(df_filtrado['Inicios'].sum()) if 'Inicios' in df_filtrado.columns else 0.0
 reinicios_totales = float(df_filtrado['Reinicios'].sum()) if 'Reinicios' in df_filtrado.columns else 0.0
 
-# Renderizar Banner Motivacional Diario Adaptativo por Desempeño (Desaparece suavemente a los 6s)
-renderizar_banner_motivacional(cump_fact, user_nombre, user_grupo)
+# Comprobación de parámetro URL ?app=matices o ?app=mobile para Streamlit Cloud
+param_app = str(st.query_params.get("app", "")).lower()
+param_vista = str(st.query_params.get("vista", "")).lower()
+is_mobile_url = (param_app in ["matices", "mobile", "movil", "app"] or param_vista in ["movil", "app"])
 
-kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+idx_default_vista = 1 if is_mobile_url else 0
 
-with kpi1:
-    st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
-
-with kpi2:
-    st.metric(
-        "👥 Activas (Real / Obj)",
-        f"{int(real_activas)}",
-        f"↑ {cump_activas:.1f}% Cumplimiento" if obj_activas > 0 else "0.0%"
+# Selector Superior de Modo de Vista & Tema
+col_ctrl1, col_ctrl2 = st.columns([2.2, 1.8])
+with col_ctrl1:
+    modo_vista = st.radio(
+        "📱 Modo de Experiencia",
+        options=["🖥️ Vista Tablero Completo (Tradicional)", "📱 Modo App Minimalista"],
+        index=idx_default_vista,
+        horizontal=True,
+        key="app_view_mode_selector"
+    )
+with col_ctrl2:
+    modo_tema = st.radio(
+        "🎨 Tema Visual",
+        options=["🌙 Oscuro Neón", "☀️ Modo Claro"],
+        index=0,
+        horizontal=True,
+        key="app_theme_mode_selector"
     )
 
-with kpi3:
-    st.metric(
-        "💰 Facturación Total",
-        f"${real_fact/1e6:.1f}M COP",
-        f"↑ {cump_fact:.1f}% Cumplimiento" if obj_fact > 0 else "0.0%"
-    )
+is_dark_theme = (modo_tema == "🌙 Oscuro Neón")
 
-with kpi4:
-    st.metric(
-        "💵 Ganancia Estimada Total LN",
-        f"${ganancia_total:,.0f}".replace(",", ".")
-    )
+if modo_vista == "📱 Modo App Minimalista":
+    renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sector, is_dark_theme)
+else:
+    # 4. TARJETAS DE KPIS SUPERIORES (VISTA COMPLETA)
+    kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
-with kpi5:
-    st.metric(
-        "🚀 Inicios / Reinicios",
-        f"{int(inicios_totales + reinicios_totales)}",
-        f"↑ {inicios_totales:.1f} Inicios | {reinicios_totales:.1f} Reinicios"
-    )
+    renderizar_banner_motivacional(cump_fact, user_nombre, user_grupo)
 
-st.markdown("---")
+    with kpi1:
+        st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
+
+    with kpi2:
+        st.metric(
+            "👥 Activas (Real / Obj)",
+            f"{int(real_activas)}",
+            f"↑ {cump_activas:.1f}% Cumplimiento" if obj_activas > 0 else "0.0%"
+        )
+
+    with kpi3:
+        st.metric(
+            "💰 Facturación Total",
+            f"${real_fact/1e6:.1f}M COP",
+            f"↑ {cump_fact:.1f}% Cumplimiento" if obj_fact > 0 else "0.0%"
+        )
+
+    with kpi4:
+        st.metric(
+            "💵 Ganancia Estimada Total LN",
+            f"${ganancia_total:,.0f}".replace(",", ".")
+        )
+
+    with kpi5:
+        st.metric(
+            "🚀 Inicios / Reinicios",
+            f"{int(inicios_totales + reinicios_totales)}",
+            f"↑ {inicios_totales:.1f} Inicios | {reinicios_totales:.1f} Reinicios"
+        )
+
+    st.markdown("---")
 
 # 5. CONTENIDO CON PESTAÑAS (TABS)
 permisos_tab_config = app_config.get("permisos_pestanas", DEFAULT_PERMISOS_PESTANAS)
