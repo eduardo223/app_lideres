@@ -1121,22 +1121,45 @@ def autenticar_usuario(username, password):
             return user_copy
     return None
 
-def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo=None, codigo_sector=None):
+def cambiar_password_usuario(username, nueva_password):
     """
-    Permite al Gerente crear un usuario de Líder o Asesora o actualizar su contraseña y sector.
+    Actualiza la contraseña de un usuario y remueve la bandera de cambio obligatorio.
+    """
+    u_clean = str(username).strip().lower()
+    usuarios = cargar_usuarios()
+    if u_clean in usuarios:
+        usuarios[u_clean]["password_hash"] = hashlib_sha256(nueva_password)
+        usuarios[u_clean]["debe_cambiar_password"] = False
+        if guardar_usuarios(usuarios):
+            sincronizar_usuarios_a_sqlite()
+            return True, "¡Contraseña actualizada exitosamente! Ya puedes navegar por el sistema."
+    return False, "Error al guardar la nueva contraseña."
+
+def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo=None, codigo_sector=None, debe_cambiar_password=None):
+    """
+    Permite al Gerente o Superadmin crear o actualizar un usuario.
+    Si se proporciona una contraseña (usuario nuevo o reseteo), debe_cambiar_password se establece en True por defecto.
     """
     u_clean = str(username).strip().lower()
     if not u_clean:
         return False, "El nombre de usuario no puede estar vacío."
     
     usuarios = cargar_usuarios()
-    p_hash = hashlib_sha256(password) if password else (usuarios.get(u_clean, {}).get("password_hash", hashlib_sha256("123456")))
+    usuario_previo = usuarios.get(u_clean, {})
     
+    if password:
+        p_hash = hashlib_sha256(password)
+        req_cambio = True if debe_cambiar_password is None else debe_cambiar_password
+    else:
+        p_hash = usuario_previo.get("password_hash", hashlib_sha256("123456"))
+        req_cambio = usuario_previo.get("debe_cambiar_password", False) if debe_cambiar_password is None else debe_cambiar_password
+
     usr_data = {
         "nombre": nombre,
         "password_hash": p_hash,
         "rol": rol,
-        "codigo_grupo": str(codigo_grupo).strip() if codigo_grupo else None
+        "codigo_grupo": str(codigo_grupo).strip() if codigo_grupo else None,
+        "debe_cambiar_password": req_cambio
     }
     if codigo_sector:
         usr_data["codigo_sector"] = str(codigo_sector).strip()

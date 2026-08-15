@@ -23,6 +23,7 @@ from procesador import (
     autenticar_usuario,
     cargar_usuarios,
     registrar_o_actualizar_usuario,
+    cambiar_password_usuario,
     cargar_configuracion,
     guardar_configuracion,
     DEFAULT_PERMISOS_PESTANAS,
@@ -668,6 +669,35 @@ user_nombre = current_user.get('nombre', 'Usuario')
 user_rol = current_user.get('rol', 'asesor')
 user_grupo = str(current_user.get('codigo_grupo', '')).strip() if current_user.get('codigo_grupo') else ""
 user_sector = str(current_user.get('codigo_sector', '')).strip() if current_user.get('codigo_sector') else ""
+
+# Control de cambio obligatorio de contraseña inicial
+if current_user.get('debe_cambiar_password', False):
+    col_pwd1, col_pwd2, col_pwd3 = st.columns([1, 2, 1])
+    with col_pwd2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.warning("🔒 **Cambio Obligatorio de Contraseña Inicial**")
+        st.info("👋 **Bienvenido/a al Sistema.** Estás ingresando con una contraseña inicial o temporal. Por tu seguridad, **debes definir una nueva contraseña personal** para continuar.")
+        
+        with st.form("form_cambio_password_obligatorio", clear_on_submit=False):
+            pass_nueva = st.text_input("🔑 Nueva Contraseña Personal", type="password", help="Ingresa una contraseña segura de al menos 4 caracteres")
+            pass_confirm = st.text_input("🔑 Confirmar Nueva Contraseña", type="password", help="Reescribe exactamente la misma contraseña")
+            btn_cambiar_pass = st.form_submit_button("💾 Guardar Nueva Contraseña y Continuar", use_container_width=True)
+            
+            if btn_cambiar_pass:
+                if not pass_nueva or len(pass_nueva.strip()) < 4:
+                    st.error("❌ La nueva contraseña debe tener al menos 4 caracteres.")
+                elif pass_nueva != pass_confirm:
+                    st.error("❌ Las contraseñas no coinciden. Por favor reescríbelas.")
+                else:
+                    ok_p, msg_p = cambiar_password_usuario(current_user['username'], pass_nueva)
+                    if ok_p:
+                        current_user['debe_cambiar_password'] = False
+                        st.session_state['user'] = current_user
+                        st.success("✅ " + msg_p)
+                        st.rerun()
+                    else:
+                        st.error("❌ " + msg_p)
+    st.stop()
 
 # 3. BARRA LATERAL (Perfil de Usuario, Logout y Opciones según Rol)
 st.sidebar.markdown(f"### 👤 {user_nombre}")
