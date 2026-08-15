@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import io
 import os
 import importlib
+import contextlib
 import procesador
 
 # Recargamos dinámicamente procesador para garantizar que cualquier cambio en procesador.py se aplique sin reiniciar el servidor
@@ -24,6 +25,7 @@ from procesador import (
     registrar_o_actualizar_usuario,
     cargar_configuracion,
     guardar_configuracion,
+    DEFAULT_PERMISOS_PESTANAS,
     inicializar_db_sqlite,
     consultar_tableau_sql,
     sincronizar_excel_tableau_a_sqlite,
@@ -746,17 +748,23 @@ else:
         df = df[mask_valida_df]
 
     # Aislamiento Multitenant de Gerencias: Filtrar df por el sector asignado a la Gerente
-    if user_rol == 'gerente' and user_sector:
-        col_sec_found = None
-        for c in df.columns:
-            c_low = str(c).lower().replace('ó', 'o')
-            if 'setor' in c_low or 'sector' in c_low:
-                col_sec_found = c
-                break
-                
-        if col_sec_found:
-            s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
-            df = df[s_vals == str(user_sector).strip()]
+    if user_rol == 'gerente':
+        if user_sector:
+            col_sec_found = None
+            for c in df.columns:
+                c_low = str(c).lower().replace('ó', 'o')
+                if 'setor' in c_low or 'sector' in c_low:
+                    col_sec_found = c
+                    break
+                    
+            if col_sec_found:
+                s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
+                df = df[s_vals == str(user_sector).strip()]
+            else:
+                df = df.iloc[0:0]
+        else:
+            # Si la gerente NO tiene sector asignado en usuarios.json, mostrar vista limpia de 0 filas
+            df = df.iloc[0:0]
 
 # Header Principal
 st.markdown("<div class='main-header'>📈 Panel de Control - Estado de Ciclo Matices</div>", unsafe_allow_html=True)
@@ -909,37 +917,55 @@ with kpi5:
 st.markdown("---")
 
 # 5. CONTENIDO CON PESTAÑAS (TABS)
+permisos_tab_config = app_config.get("permisos_pestanas", DEFAULT_PERMISOS_PESTANAS)
+
+tabs_definidas = [
+    ("tab_tableau", "📊 Informe Tableau Cam"),
+    ("tab_resumen", "📊 Resumen & KPIs"),
+    ("tab_ganancia", "💵 Simulador de Ganancia"),
+    ("tab_diagnostico", "🔎 Diagnóstico 'Cómo Vamos'"),
+    ("tab_metas", "🎯 Metas de Crecimiento (Procesador)"),
+    ("tab_detalle", "👥 Detalle Completo"),
+    ("tab_exportar", "📤 Exportar Datos")
+]
+
 if user_rol == 'superadmin':
-    tab_tableau, tab_resumen, tab_ganancia, tab_diagnostico, tab_metas, tab_detalle, tab_exportar, tab_usuarios = st.tabs([
-        "📊 Informe Tableau Cam",
-        "📊 Resumen & KPIs",
-        "💵 Simulador de Ganancia",
-        "🔎 Diagnóstico 'Cómo Vamos'",
-        "🎯 Metas de Crecimiento (Procesador)",
-        "👥 Detalle Completo",
-        "📤 Exportar Datos",
-        "🔑 Gestión de Usuarios, Roles & Permisos"
-    ])
+    tabs_definidas.append(("tab_usuarios", "🔑 Gestión de Usuarios, Roles & Permisos"))
+
+tabs_permitidas = []
+for key_tab, label_tab in tabs_definidas:
+    if user_rol == 'superadmin':
+        tabs_permitidas.append((key_tab, label_tab))
+    else:
+        perm_rol = permisos_tab_config.get(key_tab, {}).get(user_rol, True)
+        if perm_rol:
+            tabs_permitidas.append((key_tab, label_tab))
+
+if not tabs_permitidas:
+    st.warning("🔒 No tienes acceso habilitado a ningún apartado actualmente. Contacta al administrador del sistema.")
 else:
-    tab_tableau, tab_resumen, tab_ganancia, tab_diagnostico, tab_metas, tab_detalle, tab_exportar = st.tabs([
-        "📊 Informe Tableau Cam",
-        "📊 Resumen & KPIs",
-        "💵 Simulador de Ganancia",
-        "🔎 Diagnóstico 'Cómo Vamos'",
-        "🎯 Metas de Crecimiento (Procesador)",
-        "👥 Detalle Completo",
-        "📤 Exportar Datos"
-    ])
+    list_tab_objects = st.tabs([label for _, label in tabs_permitidas])
+    tab_objs = {key: obj for (key, _), obj in zip(tabs_permitidas, list_tab_objects)}
+    
+    tab_tableau = tab_objs.get("tab_tableau")
+    tab_resumen = tab_objs.get("tab_resumen")
+    tab_ganancia = tab_objs.get("tab_ganancia")
+    tab_diagnostico = tab_objs.get("tab_diagnostico")
+    tab_metas = tab_objs.get("tab_metas")
+    tab_detalle = tab_objs.get("tab_detalle")
+    tab_exportar = tab_objs.get("tab_exportar")
+    tab_usuarios = tab_objs.get("tab_usuarios")
 
 # --- TAB 0: INFORME TABLEAU MANAGER ("INFORME TABLEAU CAM") ---
-with tab_tableau:
-    st.subheader("📊 Informe Tableau Manager ('Informe Tableau Cam')")
+with (tab_tableau if tab_tableau is not None else contextlib.nullcontext()):
+    if tab_tableau is not None:
+        st.subheader("📊 Informe Tableau Manager ('Informe Tableau Cam')")
     st.markdown("Automatización de la Base Maestra de Tableau: Carga única, segmentación privada por Líder/Gerencia, seguimiento de Puntos/Deuda/Crédito y notas persistentes.")
 
     # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada aislada por sector/grupo)
     df_tableau = consultar_tableau_sql(
         grupo=(user_grupo if user_rol == 'lider' else None),
-        sector=(user_sector if user_rol == 'gerente' else None)
+        sector=(user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
     )
     
     # Subidor de administración visible para Gerencia y Super Admin
@@ -1320,8 +1346,9 @@ with tab_tableau:
 st.markdown("---")
 
 # --- TAB 1: RESUMEN Y KPIS ---
-with tab_resumen:
-    st.subheader("💎 Tablero Estadístico Interactivo & Métricas de Rendimiento")
+with (tab_resumen if tab_resumen is not None else contextlib.nullcontext()):
+    if tab_resumen is not None:
+        st.subheader("💎 Tablero Estadístico Interactivo & Métricas de Rendimiento")
     st.markdown("Visualizaciones ejecutivas dinámicas para el seguimiento del ciclo en tiempo real.")
 
     # 1. Tacómetros de Cumplimiento Global (Gauge Charts 360°)
@@ -1446,8 +1473,9 @@ with tab_resumen:
             st.dataframe(resumen_color, use_container_width=True)
 
 # --- TAB 2: SIMULADOR DE GANANCIA ---
-with tab_ganancia:
-    st.subheader("💵 Matriz y Simulador de Ganancia Estimada")
+with (tab_ganancia if tab_ganancia is not None else contextlib.nullcontext()):
+    if tab_ganancia is not None:
+        st.subheader("💵 Matriz y Simulador de Ganancia Estimada")
     st.markdown("Cálculo interactivo según las reglas oficiales de la hoja `#Ganancia#` del simulador LN.")
     
     col_mat, col_pot = st.columns([3, 2])
@@ -1547,8 +1575,9 @@ with tab_ganancia:
         )
 
 # --- TAB 3: DIAGNÓSTICO 'CÓMO VAMOS' ---
-with tab_diagnostico:
-    st.subheader("🔎 Tablas Dinámicas 'Cómo Vamos'")
+with (tab_diagnostico if tab_diagnostico is not None else contextlib.nullcontext()):
+    if tab_diagnostico is not None:
+        st.subheader("🔎 Tablas Dinámicas 'Cómo Vamos'")
     st.markdown("Generación de tablas dinámicas automatizadas para medición y comparación comparativa entre todas las Líderes de Negocio.")
     
     # Utilizar el conjunto de datos completo (df) para permitir la medición comparativa entre Líderes
@@ -1722,8 +1751,9 @@ with tab_diagnostico:
 
 
 # --- TAB 3: METAS DE CRECIMIENTO ---
-with tab_metas:
-    st.subheader("🎯 Metas de Crecimiento Integradas (Procesador)")
+with (tab_metas if tab_metas is not None else contextlib.nullcontext()):
+    if tab_metas is not None:
+        st.subheader("🎯 Metas de Crecimiento Integradas (Procesador)")
     st.info("💡 **Reglas de Cálculo**: Las metas representan las activas necesarias para alcanzar cada tramo de incentivo (+1, +3, +5, +7, +9 sobre tus Activas Reales actuales).")
     
     cols_metas = [
@@ -1755,78 +1785,80 @@ with tab_metas:
     )
 
 # --- TAB 4: DETALLE COMPLETO ---
-with tab_detalle:
-    st.subheader("👥 Tabla Completa de Líderes / Consultoras")
-    
-    # Selector de columnas para personalizar la vista
-    columnas_disponibles = list(df_filtrado.columns)
-    columnas_predeterminadas = [
-        c for c in ['Nombre Gerencia', 'Nombre Setor', 'Código de consultora', 'Nombre de consultora', 'Color', 'Real Activas', 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación', 'Falta para el 100%', 'Avance % Facturación', 'Ganancia estimada']
-        if c in columnas_disponibles
-    ]
-    
-    cols_seleccionadas = st.multiselect(
-        "Selecciona las columnas que deseas visualizar:",
-        options=columnas_disponibles,
-        default=columnas_predeterminadas
-    )
-    
-    if cols_seleccionadas:
-        st.dataframe(df_filtrado[cols_seleccionadas], use_container_width=True)
-    else:
-        st.warning("Selecciona al menos una columna para mostrar.")
+with (tab_detalle if tab_detalle is not None else contextlib.nullcontext()):
+    if tab_detalle is not None:
+        st.subheader("👥 Tabla Completa de Líderes / Consultoras")
+        
+        # Selector de columnas para personalizar la vista
+        columnas_disponibles = list(df_filtrado.columns)
+        columnas_predeterminadas = [
+            c for c in ['Nombre Gerencia', 'Nombre Setor', 'Código de consultora', 'Nombre de consultora', 'Color', 'Real Activas', 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación', 'Falta para el 100%', 'Avance % Facturación', 'Ganancia estimada']
+            if c in columnas_disponibles
+        ]
+        
+        cols_seleccionadas = st.multiselect(
+            "Selecciona las columnas que deseas visualizar:",
+            options=columnas_disponibles,
+            default=columnas_predeterminadas
+        )
+        
+        if cols_seleccionadas:
+            st.dataframe(df_filtrado[cols_seleccionadas], use_container_width=True)
+        else:
+            st.warning("Selecciona al menos una columna para mostrar.")
 
 # --- TAB 5: EXPORTAR DATOS ---
-with tab_exportar:
-    st.subheader("📥 Exportar Resultados Procesados")
-    st.write("Descarga la base de datos con los filtros actuales o exporta los reportes visuales a colores listos para compartir con las líderes.")
-    
-    col_exp1, col_exp2, col_exp3 = st.columns(3)
-    
-    with col_exp1:
-        # Excel estándar completo
-        output_excel = io.BytesIO()
-        with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-            df_filtrado.to_excel(writer, index=False, sheet_name='Metas_Procesadas')
-        excel_data = output_excel.getvalue()
+with (tab_exportar if tab_exportar is not None else contextlib.nullcontext()):
+    if tab_exportar is not None:
+        st.subheader("📥 Exportar Resultados Procesados")
+        st.write("Descarga la base de datos con los filtros actuales o exporta los reportes visuales a colores listos para compartir con las líderes.")
         
-        st.download_button(
-            label="📄 Descargar Excel Completo (.xlsx)",
-            data=excel_data,
-            file_name="Resultado_Metas_Procesadas_Filtrado.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        col_exp1, col_exp2, col_exp3 = st.columns(3)
         
-    with col_exp2:
-        # Reporte Excel a Colores para Líderes
-        excel_colores_bytes = exportar_excel_con_colores({
-            'Activas': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_filtrado.columns]],
-            'Facturacion': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Real Facturación', 'Objetivo Facturación', 'Cumplimiento Facturación', 'Falta para el 100%'] if c in df_filtrado.columns]],
-            'Saldos': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia estimada'] if c in df_filtrado.columns]],
-            'Disponibles': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos'] if c in df_filtrado.columns]]
-        })
-        
-        st.download_button(
-            label="🎨 Descargar Reporte A COLORES (.xlsx)",
-            data=excel_colores_bytes,
-            file_name="Reporte_Lideres_Formato_Colores.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-    with col_exp3:
-        # Generar CSV en memoria
-        csv_data = df_filtrado.to_csv(index=False).encode('utf-8-sig')
-        
-        st.download_button(
-            label="📊 Descargar CSV (.csv)",
-            data=csv_data,
-            file_name="Resultado_Metas_Procesadas_Filtrado.csv",
-            mime="text/csv"
-        )
+        with col_exp1:
+            # Excel estándar completo
+            output_excel = io.BytesIO()
+            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+                df_filtrado.to_excel(writer, index=False, sheet_name='Metas_Procesadas')
+            excel_data = output_excel.getvalue()
+            
+            st.download_button(
+                label="📄 Descargar Excel Completo (.xlsx)",
+                data=excel_data,
+                file_name="Resultado_Metas_Procesadas_Filtrado.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            
+        with col_exp2:
+            # Reporte Excel a Colores para Líderes
+            excel_colores_bytes = exportar_excel_con_colores({
+                'Activas': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_filtrado.columns]],
+                'Facturacion': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Real Facturación', 'Objetivo Facturación', 'Cumplimiento Facturación', 'Falta para el 100%'] if c in df_filtrado.columns]],
+                'Saldos': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia estimada'] if c in df_filtrado.columns]],
+                'Disponibles': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos'] if c in df_filtrado.columns]]
+            })
+            
+            st.download_button(
+                label="🎨 Descargar Reporte A COLORES (.xlsx)",
+                data=excel_colores_bytes,
+                file_name="Reporte_Lideres_Formato_Colores.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+            
+        with col_exp3:
+            # Generar CSV en memoria
+            csv_data = df_filtrado.to_csv(index=False).encode('utf-8-sig')
+            
+            st.download_button(
+                label="📊 Descargar CSV (.csv)",
+                data=csv_data,
+                file_name="Resultado_Metas_Procesadas_Filtrado.csv",
+                mime="text/csv"
+            )
 
 # --- TAB 6: GESTIÓN DE USUARIOS & ROLES (EXCLUSIVO SUPER ADMIN) ---
-if user_rol == 'superadmin':
-    with tab_usuarios:
+with (tab_usuarios if tab_usuarios is not None else contextlib.nullcontext()):
+    if tab_usuarios is not None:
         st.subheader("🔑 Gestión de Usuarios, Roles & Permisos (Super Admin)")
         st.markdown("Administra credenciales de acceso, asigna roles (*superadmin, gerente, lider, asesor*), restablece contraseñas y vincula el **Código de grupo** a cada Líder.")
 
@@ -1841,23 +1873,25 @@ if user_rol == 'superadmin':
                     "Usuario": uname,
                     "Nombre": udata.get("nombre", ""),
                     "Rol": udata.get("rol", ""),
-                    "Código de Grupo": udata.get("codigo_grupo") or "N/A"
+                    "Código de Grupo": udata.get("codigo_grupo") or "N/A",
+                    "Código de Sector": udata.get("codigo_sector") or "N/A"
                 })
             st.dataframe(pd.DataFrame(list_u), use_container_width=True)
 
         with col_u2:
-            st.markdown("##### ➕ Crear / Editar Usuario de Líder o Asesora")
+            st.markdown("##### ➕ Crear / Editar Usuario de Gerente, Líder o Asesora")
             with st.form("form_nuevo_usuario"):
-                nu_username = st.text_input("Usuario (Login)", placeholder="ej. lider9334")
-                nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Angela Mireya Montenegro")
+                nu_username = st.text_input("Usuario (Login)", placeholder="ej. gerente3 o lider9334")
+                nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Magola Lopez")
                 nu_pass = st.text_input("Contraseña", type="password", placeholder="Dejar vacío para mantener contraseña actual")
-                nu_rol = st.selectbox("Rol de Acceso", options=["lider", "gerente", "superadmin", "asesor"])
+                nu_rol = st.selectbox("Rol de Acceso", options=["gerente", "lider", "superadmin", "asesor"])
                 nu_grupo = st.text_input("Código de Grupo (Para Líderes)", placeholder="ej. 9334")
+                nu_sector = st.text_input("Código de Sector (Para Gerentes)", placeholder="ej. 700000499")
                 
                 btn_save_u = st.form_submit_button("💾 Guardar / Actualizar Usuario", type="primary", use_container_width=True)
                 if btn_save_u:
                     ok_u, msg_u = registrar_o_actualizar_usuario(
-                        nu_username, nu_nombre, nu_pass, nu_rol, nu_grupo
+                        nu_username, nu_nombre, nu_pass, nu_rol, nu_grupo, nu_sector
                     )
                     if ok_u:
                         st.success(f"✅ {msg_u}")
@@ -1891,6 +1925,53 @@ if user_rol == 'superadmin':
                 st.warning("⚠️ **Permisos Abiertos**: Las Líderes tienen acceso a subir archivos.")
             else:
                 st.info("🔒 **Modo Protegido (Predeterminado)**: Las Líderes y Asesoras tienen bloqueadas las opciones de subida de archivos.")
+
+        st.markdown("---")
+        st.subheader("🎛️ Control de Visibilidad y Accesos por Pestaña / Módulo")
+        st.markdown("Configura de manera independiente qué pestañas y módulos son visibles para cada rol (**Gerentes**, **Líderes de Negocio** y **Asesoras**).")
+
+        permisos_dict = config_actual.get("permisos_pestanas", DEFAULT_PERMISOS_PESTANAS)
+        cambio_permisos = False
+
+        c_th_name, c_th_ger, c_th_lid, c_th_ase = st.columns([2.5, 1, 1, 1])
+        with c_th_name:
+            st.markdown("##### 📌 Pestaña / Módulo")
+        with c_th_ger:
+            st.markdown("##### 👑 Gerentes")
+        with c_th_lid:
+            st.markdown("##### 👩‍💼 Líderes")
+        with c_th_ase:
+            st.markdown("##### 👤 Asesoras")
+
+        st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
+
+        for t_key, t_info in permisos_dict.items():
+            t_nombre = t_info.get("nombre", t_key)
+            val_ger = bool(t_info.get("gerente", True))
+            val_lid = bool(t_info.get("lider", True))
+            val_ase = bool(t_info.get("asesor", True))
+            
+            c1, c2, c3, c4 = st.columns([2.5, 1, 1, 1])
+            with c1:
+                st.markdown(f"**{t_nombre}**")
+            with c2:
+                new_ger = st.toggle("Gerente", value=val_ger, key=f"t_{t_key}_ger", label_visibility="collapsed")
+            with c3:
+                new_lid = st.toggle("Líder", value=val_lid, key=f"t_{t_key}_lid", label_visibility="collapsed")
+            with c4:
+                new_ase = st.toggle("Asesora", value=val_ase, key=f"t_{t_key}_ase", label_visibility="collapsed")
+                
+            if new_ger != val_ger or new_lid != val_lid or new_ase != val_ase:
+                permisos_dict[t_key]["gerente"] = new_ger
+                permisos_dict[t_key]["lider"] = new_lid
+                permisos_dict[t_key]["asesor"] = new_ase
+                cambio_permisos = True
+
+        if cambio_permisos:
+            config_actual["permisos_pestanas"] = permisos_dict
+            guardar_configuracion(config_actual)
+            st.success("✅ ¡Permisos de visibilidad por pestaña actualizados exitosamente!")
+            st.rerun()
 
 # Footer
 st.markdown("---")

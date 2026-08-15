@@ -1,3 +1,47 @@
 {
-  "permitir_carga_lideres": false
+  "permitir_carga_lideres": false,
+  "permisos_pestanas": {
+    "tab_tableau": {
+      "nombre": "📊 Informe Tableau Cam",
+      "gerente": true,
+      "lider": true,
+      "asesor": false
+    },
+    "tab_resumen": {
+      "nombre": "📊 Resumen & KPIs",
+      "gerente": true,
+      "lider": true,
+      "asesor": false
+    },
+    "tab_ganancia": {
+      "nombre": "💵 Simulador de Ganancia",
+      "gerente": true,
+      "lider": false,
+      "asesor": false
+    },
+    "tab_diagnostico": {
+      "nombre": "🔎 Diagnóstico 'Cómo Vamos'",
+      "gerente": true,
+      "lider": true,
+      "asesor": true
+    },
+    "tab_metas": {
+      "nombre": "🎯 Metas de Crecimiento",
+      "gerente": true,
+      "lider": true,
+      "asesor": false
+    },
+    "tab_detalle": {
+      "nombre": "👥 Detalle Completo",
+      "gerente": true,
+      "lider": true,
+      "asesor": false
+    },
+    "tab_exportar": {
+      "nombre": "📤 Exportar Datos",
+      "gerente": true,
+      "lider": true,
+      "asesor": false
+    }
+  }
 }

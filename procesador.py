@@ -1321,22 +1321,45 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
 # --- CONFIGURACIÓN DE PERMISOS GLOBALES DE CARGA ---
 RUTA_CONFIG = 'configuracion.json'
 
+DEFAULT_PERMISOS_PESTANAS = {
+    "tab_tableau": {"nombre": "📊 Informe Tableau Cam", "gerente": True, "lider": True, "asesor": True},
+    "tab_resumen": {"nombre": "📊 Resumen & KPIs", "gerente": True, "lider": True, "asesor": True},
+    "tab_ganancia": {"nombre": "💵 Simulador de Ganancia", "gerente": True, "lider": True, "asesor": True},
+    "tab_diagnostico": {"nombre": "🔎 Diagnóstico 'Cómo Vamos'", "gerente": True, "lider": True, "asesor": True},
+    "tab_metas": {"nombre": "🎯 Metas de Crecimiento", "gerente": True, "lider": True, "asesor": True},
+    "tab_detalle": {"nombre": "👥 Detalle Completo", "gerente": True, "lider": True, "asesor": True},
+    "tab_exportar": {"nombre": "📤 Exportar Datos", "gerente": True, "lider": True, "asesor": True}
+}
+
 def cargar_configuracion():
     """
     Carga la configuración global de la aplicación.
-    Por defecto, las Líderes y Asesoras tienen bloqueada la subida de archivos (permitir_carga_lideres = False).
+    Por defecto, incluye los permisos de visibilidad por pestaña y la subida de archivos.
     """
+    config = {
+        "permitir_carga_lideres": False,
+        "permisos_pestanas": DEFAULT_PERMISOS_PESTANAS.copy()
+    }
+    
     if os.path.exists(RUTA_CONFIG):
         try:
             with open(RUTA_CONFIG, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            pass
-    config_default = {
-        "permitir_carga_lideres": False
-    }
-    guardar_configuracion(config_default)
-    return config_default
+                loaded = json.load(f)
+                if isinstance(loaded, dict):
+                    if "permitir_carga_lideres" in loaded:
+                        config["permitir_carga_lideres"] = loaded["permitir_carga_lideres"]
+                    if "permisos_pestanas" in loaded and isinstance(loaded["permisos_pestanas"], dict):
+                        for tab_key, tab_val in DEFAULT_PERMISOS_PESTANAS.items():
+                            if tab_key in loaded["permisos_pestanas"]:
+                                # Combinar claves existentes preservando estructura
+                                for r_key in ["gerente", "lider", "asesor"]:
+                                    if r_key in loaded["permisos_pestanas"][tab_key]:
+                                        config["permisos_pestanas"][tab_key][r_key] = bool(loaded["permisos_pestanas"][tab_key][r_key])
+        except Exception as e:
+            print(f"Nota al cargar configuración: {e}")
+            
+    guardar_configuracion(config)
+    return config
 
 def guardar_configuracion(dict_config):
     """
@@ -1795,9 +1818,10 @@ def consultar_tableau_sql(grupo=None, sector=None):
         where_clauses.append("(grupo LIKE ? OR sector LIKE ?)")
         params.extend([f"%{grupo}%", f"%{grupo}%"])
         
-    if sector:
+    if sector and str(sector).strip():
+        sec_str = str(sector).strip()
         where_clauses.append("(cod_sector = ? OR sector LIKE ?)")
-        params.extend([str(sector).strip(), f"%{sector}%"])
+        params.extend([sec_str, f"%{sec_str}%"])
         
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
