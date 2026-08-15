@@ -945,21 +945,30 @@ if not tabs_permitidas:
     st.warning("🔒 No tienes acceso habilitado a ningún apartado actualmente. Contacta al administrador del sistema.")
 else:
     list_tab_objects = st.tabs([label for _, label in tabs_permitidas])
+    class HiddenTab:
+        def __enter__(self):
+            self.ph = st.empty()
+            self.container = self.ph.container()
+            return self.container.__enter__()
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            res = self.container.__exit__(exc_type, exc_val, exc_tb)
+            self.ph.empty()
+            return res
+
     tab_objs = {key: obj for (key, _), obj in zip(tabs_permitidas, list_tab_objects)}
     
-    tab_tableau = tab_objs.get("tab_tableau")
-    tab_resumen = tab_objs.get("tab_resumen")
-    tab_ganancia = tab_objs.get("tab_ganancia")
-    tab_diagnostico = tab_objs.get("tab_diagnostico")
-    tab_metas = tab_objs.get("tab_metas")
-    tab_detalle = tab_objs.get("tab_detalle")
-    tab_exportar = tab_objs.get("tab_exportar")
-    tab_usuarios = tab_objs.get("tab_usuarios")
+    tab_tableau = tab_objs.get("tab_tableau") or HiddenTab()
+    tab_resumen = tab_objs.get("tab_resumen") or HiddenTab()
+    tab_ganancia = tab_objs.get("tab_ganancia") or HiddenTab()
+    tab_diagnostico = tab_objs.get("tab_diagnostico") or HiddenTab()
+    tab_metas = tab_objs.get("tab_metas") or HiddenTab()
+    tab_detalle = tab_objs.get("tab_detalle") or HiddenTab()
+    tab_exportar = tab_objs.get("tab_exportar") or HiddenTab()
+    tab_usuarios = tab_objs.get("tab_usuarios") or HiddenTab()
 
 # --- TAB 0: INFORME TABLEAU MANAGER ("INFORME TABLEAU CAM") ---
-with (tab_tableau if tab_tableau is not None else contextlib.nullcontext()):
-    if tab_tableau is not None:
-        st.subheader("📊 Informe Tableau Manager ('Informe Tableau Cam')")
+with tab_tableau:
+    st.subheader("📊 Informe Tableau Manager ('Informe Tableau Cam')")
     st.markdown("Automatización de la Base Maestra de Tableau: Carga única, segmentación privada por Líder/Gerencia, seguimiento de Puntos/Deuda/Crédito y notas persistentes.")
 
     # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada aislada por sector/grupo)
@@ -1346,9 +1355,8 @@ with (tab_tableau if tab_tableau is not None else contextlib.nullcontext()):
 st.markdown("---")
 
 # --- TAB 1: RESUMEN Y KPIS ---
-with (tab_resumen if tab_resumen is not None else contextlib.nullcontext()):
-    if tab_resumen is not None:
-        st.subheader("💎 Tablero Estadístico Interactivo & Métricas de Rendimiento")
+with tab_resumen:
+    st.subheader("💎 Tablero Estadístico Interactivo & Métricas de Rendimiento")
     st.markdown("Visualizaciones ejecutivas dinámicas para el seguimiento del ciclo en tiempo real.")
 
     # 1. Tacómetros de Cumplimiento Global (Gauge Charts 360°)
@@ -1473,9 +1481,8 @@ with (tab_resumen if tab_resumen is not None else contextlib.nullcontext()):
             st.dataframe(resumen_color, use_container_width=True)
 
 # --- TAB 2: SIMULADOR DE GANANCIA ---
-with (tab_ganancia if tab_ganancia is not None else contextlib.nullcontext()):
-    if tab_ganancia is not None:
-        st.subheader("💵 Matriz y Simulador de Ganancia Estimada")
+with tab_ganancia:
+    st.subheader("💵 Matriz y Simulador de Ganancia Estimada")
     st.markdown("Cálculo interactivo según las reglas oficiales de la hoja `#Ganancia#` del simulador LN.")
     
     col_mat, col_pot = st.columns([3, 2])
@@ -1575,9 +1582,8 @@ with (tab_ganancia if tab_ganancia is not None else contextlib.nullcontext()):
         )
 
 # --- TAB 3: DIAGNÓSTICO 'CÓMO VAMOS' ---
-with (tab_diagnostico if tab_diagnostico is not None else contextlib.nullcontext()):
-    if tab_diagnostico is not None:
-        st.subheader("🔎 Tablas Dinámicas 'Cómo Vamos'")
+with tab_diagnostico:
+    st.subheader("🔎 Tablas Dinámicas 'Cómo Vamos'")
     st.markdown("Generación de tablas dinámicas automatizadas para medición y comparación comparativa entre todas las Líderes de Negocio.")
     
     # Utilizar el conjunto de datos completo (df) para permitir la medición comparativa entre Líderes
@@ -1751,9 +1757,8 @@ with (tab_diagnostico if tab_diagnostico is not None else contextlib.nullcontext
 
 
 # --- TAB 3: METAS DE CRECIMIENTO ---
-with (tab_metas if tab_metas is not None else contextlib.nullcontext()):
-    if tab_metas is not None:
-        st.subheader("🎯 Metas de Crecimiento Integradas (Procesador)")
+with tab_metas:
+    st.subheader("🎯 Metas de Crecimiento Integradas (Procesador)")
     st.info("💡 **Reglas de Cálculo**: Las metas representan las activas necesarias para alcanzar cada tramo de incentivo (+1, +3, +5, +7, +9 sobre tus Activas Reales actuales).")
     
     cols_metas = [
@@ -1785,80 +1790,77 @@ with (tab_metas if tab_metas is not None else contextlib.nullcontext()):
     )
 
 # --- TAB 4: DETALLE COMPLETO ---
-with (tab_detalle if tab_detalle is not None else contextlib.nullcontext()):
-    if tab_detalle is not None:
-        st.subheader("👥 Tabla Completa de Líderes / Consultoras")
-        
-        # Selector de columnas para personalizar la vista
-        columnas_disponibles = list(df_filtrado.columns)
-        columnas_predeterminadas = [
-            c for c in ['Nombre Gerencia', 'Nombre Setor', 'Código de consultora', 'Nombre de consultora', 'Color', 'Real Activas', 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación', 'Falta para el 100%', 'Avance % Facturación', 'Ganancia estimada']
-            if c in columnas_disponibles
-        ]
-        
-        cols_seleccionadas = st.multiselect(
-            "Selecciona las columnas que deseas visualizar:",
-            options=columnas_disponibles,
-            default=columnas_predeterminadas
-        )
-        
-        if cols_seleccionadas:
-            st.dataframe(df_filtrado[cols_seleccionadas], use_container_width=True)
-        else:
-            st.warning("Selecciona al menos una columna para mostrar.")
+with tab_detalle:
+    st.subheader("👥 Tabla Completa de Líderes / Consultoras")
+    
+    # Selector de columnas para personalizar la vista
+    columnas_disponibles = list(df_filtrado.columns)
+    columnas_predeterminadas = [
+        c for c in ['Nombre Gerencia', 'Nombre Setor', 'Código de consultora', 'Nombre de consultora', 'Color', 'Real Activas', 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación', 'Falta para el 100%', 'Avance % Facturación', 'Ganancia estimada']
+        if c in columnas_disponibles
+    ]
+    
+    cols_seleccionadas = st.multiselect(
+        "Selecciona las columnas que deseas visualizar:",
+        options=columnas_disponibles,
+        default=columnas_predeterminadas
+    )
+    
+    if cols_seleccionadas:
+        st.dataframe(df_filtrado[cols_seleccionadas], use_container_width=True)
+    else:
+        st.warning("Selecciona al menos una columna para mostrar.")
 
 # --- TAB 5: EXPORTAR DATOS ---
-with (tab_exportar if tab_exportar is not None else contextlib.nullcontext()):
-    if tab_exportar is not None:
-        st.subheader("📥 Exportar Resultados Procesados")
-        st.write("Descarga la base de datos con los filtros actuales o exporta los reportes visuales a colores listos para compartir con las líderes.")
+with tab_exportar:
+    st.subheader("📥 Exportar Resultados Procesados")
+    st.write("Descarga la base de datos con los filtros actuales o exporta los reportes visuales a colores listos para compartir con las líderes.")
+    
+    col_exp1, col_exp2, col_exp3 = st.columns(3)
+    
+    with col_exp1:
+        # Excel estándar completo
+        output_excel = io.BytesIO()
+        with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
+            df_filtrado.to_excel(writer, index=False, sheet_name='Metas_Procesadas')
+        excel_data = output_excel.getvalue()
         
-        col_exp1, col_exp2, col_exp3 = st.columns(3)
+        st.download_button(
+            label="📄 Descargar Excel Completo (.xlsx)",
+            data=excel_data,
+            file_name="Resultado_Metas_Procesadas_Filtrado.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
         
-        with col_exp1:
-            # Excel estándar completo
-            output_excel = io.BytesIO()
-            with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-                df_filtrado.to_excel(writer, index=False, sheet_name='Metas_Procesadas')
-            excel_data = output_excel.getvalue()
-            
-            st.download_button(
-                label="📄 Descargar Excel Completo (.xlsx)",
-                data=excel_data,
-                file_name="Resultado_Metas_Procesadas_Filtrado.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            
-        with col_exp2:
-            # Reporte Excel a Colores para Líderes
-            excel_colores_bytes = exportar_excel_con_colores({
-                'Activas': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_filtrado.columns]],
-                'Facturacion': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Real Facturación', 'Objetivo Facturación', 'Cumplimiento Facturación', 'Falta para el 100%'] if c in df_filtrado.columns]],
-                'Saldos': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia estimada'] if c in df_filtrado.columns]],
-                'Disponibles': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos'] if c in df_filtrado.columns]]
-            })
-            
-            st.download_button(
-                label="🎨 Descargar Reporte A COLORES (.xlsx)",
-                data=excel_colores_bytes,
-                file_name="Reporte_Lideres_Formato_Colores.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
-            
-        with col_exp3:
-            # Generar CSV en memoria
-            csv_data = df_filtrado.to_csv(index=False).encode('utf-8-sig')
-            
-            st.download_button(
-                label="📊 Descargar CSV (.csv)",
-                data=csv_data,
-                file_name="Resultado_Metas_Procesadas_Filtrado.csv",
-                mime="text/csv"
-            )
+    with col_exp2:
+        # Reporte Excel a Colores para Líderes
+        excel_colores_bytes = exportar_excel_con_colores({
+            'Activas': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_filtrado.columns]],
+            'Facturacion': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Real Facturación', 'Objetivo Facturación', 'Cumplimiento Facturación', 'Falta para el 100%'] if c in df_filtrado.columns]],
+            'Saldos': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia estimada'] if c in df_filtrado.columns]],
+            'Disponibles': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos'] if c in df_filtrado.columns]]
+        })
+        
+        st.download_button(
+            label="🎨 Descargar Reporte A COLORES (.xlsx)",
+            data=excel_colores_bytes,
+            file_name="Reporte_Lideres_Formato_Colores.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+        
+    with col_exp3:
+        # Generar CSV en memoria
+        csv_data = df_filtrado.to_csv(index=False).encode('utf-8-sig')
+        
+        st.download_button(
+            label="📊 Descargar CSV (.csv)",
+            data=csv_data,
+            file_name="Resultado_Metas_Procesadas_Filtrado.csv",
+            mime="text/csv"
+        )
 
 # --- TAB 6: GESTIÓN DE USUARIOS & ROLES (EXCLUSIVO SUPER ADMIN) ---
-with (tab_usuarios if tab_usuarios is not None else contextlib.nullcontext()):
-    if tab_usuarios is not None:
+with tab_usuarios:
         st.subheader("🔑 Gestión de Usuarios, Roles & Permisos (Super Admin)")
         st.markdown("Administra credenciales de acceso, asigna roles (*superadmin, gerente, lider, asesor*), restablece contraseñas y vincula el **Código de grupo** a cada Líder.")
 
