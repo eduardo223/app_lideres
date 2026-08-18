@@ -803,6 +803,20 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
     else:
         df['Comentarios_Lider'] = ''
 
+    # Sincronización consistente de estado Activa entre Situación y Sit. Comercial
+    if 'Sit. Comercial' in df.columns:
+        mask_activa_cycle = pd.Series(False, index=df.index)
+        if 'Pts Total VD' in df.columns:
+            mask_activa_cycle = mask_activa_cycle | (df['Pts Total VD'] > 0)
+        if 'Fact. Total' in df.columns:
+            mask_activa_cycle = mask_activa_cycle | (df['Fact. Total'] > 0)
+        if 'Situación' in df.columns:
+            mask_activa_cycle = mask_activa_cycle | (df['Situación'].astype(str).str.strip().str.lower() == 'activa')
+        
+        df.loc[mask_activa_cycle, 'Sit. Comercial'] = 'Activa'
+        if 'Situación' in df.columns:
+            df.loc[mask_activa_cycle, 'Situación'] = 'Activa'
+
     return df
 
 def color_nivel(val):
@@ -984,14 +998,12 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
     if not col_code_base:
         col_code_base = df_base.columns[0]
 
-    col_sit_base = None
-    for c in df_base.columns:
-        if 'Sit. Comercial' in str(c) or 'Situación' in str(c):
-            col_sit_base = c
-            break
-    if not col_sit_base:
-        col_sit_base = 'Sit. Comercial'
-        df_base[col_sit_base] = ''
+    col_sit_comercial = next((c for c in df_base.columns if 'sit. comercial' in str(c).lower() or 'sit comercial' in str(c).lower()), None)
+    col_situacion_macro = next((c for c in df_base.columns if str(c).strip().lower() in ['situación', 'situacion']), None)
+
+    if not col_sit_comercial:
+        col_sit_comercial = 'Sit. Comercial'
+        df_base[col_sit_comercial] = ''
 
     df_base['cb_clean'] = df_base[col_code_base].astype(str).str.strip()
 
@@ -1004,7 +1016,7 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
         if cb in mapa_estados:
             coincidencias += 1
             nuevo_estado = mapa_estados[cb]
-            estado_actual = str(df_base.at[idx, col_sit_base]).strip()
+            estado_actual = str(df_base.at[idx, col_sit_comercial]).strip() if pd.notna(df_base.at[idx, col_sit_comercial]) else ''
             if nuevo_estado and nuevo_estado != estado_actual:
                 nombre = str(df_base.at[idx, 'Nombre'] if 'Nombre' in df_base.columns else cb)
                 detalles_cambios.append({
@@ -1013,7 +1025,15 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
                     'Estado Anterior': estado_actual,
                     'Nuevo Estado (mi_grupo)': nuevo_estado
                 })
-                df_base.at[idx, col_sit_base] = nuevo_estado
+                df_base.at[idx, col_sit_comercial] = nuevo_estado
+                if col_situacion_macro:
+                    if nuevo_estado == 'Activa':
+                        df_base.at[idx, col_situacion_macro] = 'Activa'
+                    elif 'inactiva' in nuevo_estado.lower():
+                        if any(k in nuevo_estado.lower() for k in ['1', '2', '3']):
+                            df_base.at[idx, col_situacion_macro] = 'Disponible'
+                        elif any(k in nuevo_estado.lower() for k in ['4', '5', '6']):
+                            df_base.at[idx, col_situacion_macro] = 'Indisponible'
                 cambios += 1
 
     df_base = df_base.drop(columns=['cb_clean'], errors='ignore')
@@ -1204,14 +1224,12 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
     if not col_code_base:
         col_code_base = df_base.columns[0]
 
-    col_sit_base = None
-    for c in df_base.columns:
-        if 'Sit. Comercial' in str(c) or 'Situación' in str(c):
-            col_sit_base = c
-            break
-    if not col_sit_base:
-        col_sit_base = 'Sit. Comercial'
-        df_base[col_sit_base] = ''
+    col_sit_comercial = next((c for c in df_base.columns if 'sit. comercial' in str(c).lower() or 'sit comercial' in str(c).lower()), None)
+    col_situacion_macro = next((c for c in df_base.columns if str(c).strip().lower() in ['situación', 'situacion']), None)
+
+    if not col_sit_comercial:
+        col_sit_comercial = 'Sit. Comercial'
+        df_base[col_sit_comercial] = ''
 
     df_base['cb_clean'] = df_base[col_code_base].apply(_limpiar_cb_str)
 
@@ -1231,16 +1249,24 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
         if cb in mapa_estados:
             coincidencias += 1
             nuevo_est = mapa_estados[cb]
-            est_actual = str(df_base.at[idx, col_sit_base]).strip() if pd.notna(df_base.at[idx, col_sit_base]) else ''
+            est_actual = str(df_base.at[idx, col_sit_comercial]).strip() if pd.notna(df_base.at[idx, col_sit_comercial]) else ''
             
             campos_modificados = []
             
-            if nuevo_est and nuevo_est != est_actual:
-                df_base.at[idx, col_sit_base] = nuevo_est
-                if 'Situación' in df_base.columns and df_base.columns.get_loc('Situación') != df_base.columns.get_loc(col_sit_base):
-                    df_base.at[idx, 'Situación'] = nuevo_est
-                cambios_estado += 1
-                campos_modificados.append(f"Estado: {est_actual or 'N/D'} ➔ {nuevo_est}")
+            if nuevo_est:
+                df_base.at[idx, col_sit_comercial] = nuevo_est
+                if col_situacion_macro:
+                    if nuevo_est == 'Activa':
+                        df_base.at[idx, col_situacion_macro] = 'Activa'
+                    elif 'inactiva' in nuevo_est.lower():
+                        if any(k in nuevo_est.lower() for k in ['1', '2', '3']):
+                            df_base.at[idx, col_situacion_macro] = 'Disponible'
+                        elif any(k in nuevo_est.lower() for k in ['4', '5', '6']):
+                            df_base.at[idx, col_situacion_macro] = 'Indisponible'
+                
+                if nuevo_est != est_actual:
+                    cambios_estado += 1
+                    campos_modificados.append(f"Estado: {est_actual or 'N/D'} ➔ {nuevo_est}")
 
             # Actualizar Facturación si viene en activas
             if cb in mapa_fact and col_fact_base:
