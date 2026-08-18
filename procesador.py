@@ -717,7 +717,7 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
     """
     Carga y procesa la sábana de datos de Tableau (Base de Datos.xlsx).
     - Normaliza nombres de columnas y tipos numéricos.
-    - Excluye consultoras en 'Sit. Comercial' == 'Inactiva 6' (o Ciclos Inactividad == 6).
+    - Incluye todos los estados de actividad comercial (Activas, Inactivas 1 a 6).
     - Integra comentarios persistentes por Código CB.
     """
     df = None
@@ -768,12 +768,6 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
         'Pts Acumulados': 'Pts Acum'
     }
     df = df.rename(columns=renombres_clave)
-
-    # Filtrar automáticamente 'Inactiva 6' (Estado No 6)
-    if 'Sit. Comercial' in df.columns:
-        df = df[df['Sit. Comercial'].astype(str).str.strip().str.lower() != 'inactiva 6'].copy()
-    if 'Ciclos Inactividad' in df.columns:
-        df = df[pd.to_numeric(df['Ciclos Inactividad'], errors='coerce').fillna(0) != 6].copy()
 
     # Columnas numéricas a limpiar
     cols_num = [
