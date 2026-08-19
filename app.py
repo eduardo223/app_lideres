@@ -57,6 +57,17 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Helper global para aplicar mapas de estilo con compatibilidad de versiones de pandas
+def aplicar_mapa_styler(styler, func, subset=None):
+    try:
+        if hasattr(styler, 'map'):
+            return styler.map(func, subset=subset) if subset is not None else styler.map(func)
+        elif hasattr(styler, 'applymap'):
+            return styler.applymap(func, subset=subset) if subset is not None else styler.applymap(func)
+    except Exception:
+        pass
+    return styler
+
 # Estilos CSS personalizados para mejorar el diseño estético
 st.markdown("""
 <style>
@@ -850,13 +861,26 @@ if col_sector and col_sector in df_filtrado.columns:
 else:
     sector_seleccionado = "Todos"
 
+# Filtro Global por Líder / Grupo (Habilitado para Gerencia y SuperAdmin)
+if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
+    col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
+    if col_grp_ref and col_grp_ref in df_filtrado.columns:
+        grupos_unicos = sorted([str(g).strip() for g in df_filtrado[col_grp_ref].dropna().unique()])
+        lider_seleccionada_sb = st.sidebar.selectbox(
+            "👤 Seleccionar Líder / Grupo",
+            options=["Todas las Líderes"] + grupos_unicos,
+            index=0
+        )
+        if lider_seleccionada_sb != "Todas las Líderes":
+            df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
+
 # Filtro por Color / Clasificación
 if 'Color' in df_filtrado.columns:
     colores_disponibles = sorted([str(c) for c in df_filtrado['Color'].dropna().unique()])
     colores_seleccionados = st.sidebar.multiselect(
         "🎨 Clasificación / Color",
         options=colores_disponibles,
-        default=colores_disponibles
+        default=[]
     )
     if colores_seleccionados:
         df_filtrado = df_filtrado[df_filtrado['Color'].astype(str).isin(colores_seleccionados)]
@@ -1309,9 +1333,9 @@ with tab_tableau:
         st.warning("⚠️ No se encontró la base de datos `Base de Datos.xlsx`. Por favor, sube el archivo desde la barra lateral o el panel de administración superior.")
     else:
         # Filtros de navegación rápida para Tableau Manager
-        col_t1, col_t2, col_t3 = st.columns([1, 1, 1])
+        col_t1, col_t2, col_t3, col_t4 = st.columns([1, 1, 1.2, 1])
         
-        # Filtro de Gerencia
+        # 1. Filtro de Gerencia
         gerencias_t = sorted([str(g) for g in df_tableau['Gerencia'].dropna().unique()]) if 'Gerencia' in df_tableau.columns else []
         with col_t1:
             ger_sel_t = st.selectbox("🏢 Gerencia (Tableau)", options=["Todas"] + gerencias_t, key="tab_ger_sel")
@@ -1320,16 +1344,24 @@ with tab_tableau:
         if ger_sel_t != "Todas" and 'Gerencia' in df_tab_filt.columns:
             df_tab_filt = df_tab_filt[df_tab_filt['Gerencia'] == ger_sel_t]
             
-        # Filtro de Sector / Líder
+        # 2. Filtro de Sector
         sectores_t = sorted([str(s) for s in df_tab_filt['Sector'].dropna().unique()]) if 'Sector' in df_tab_filt.columns else []
         with col_t2:
-            sec_sel_t = st.selectbox("📍 Sector / Líder (Tableau)", options=["Todos"] + sectores_t, key="tab_sec_sel")
+            sec_sel_t = st.selectbox("📍 Sector (Tableau)", options=["Todos"] + sectores_t, key="tab_sec_sel")
             
         if sec_sel_t != "Todos" and 'Sector' in df_tab_filt.columns:
             df_tab_filt = df_tab_filt[df_tab_filt['Sector'] == sec_sel_t]
 
-        # Buscador de Asesora / Consultora
+        # 3. Filtro Directo por Líder / Grupo [NUEVO PARA GERENCIA]
+        lista_grupos_t = sorted([str(g).strip() for g in df_tab_filt['Grupo'].dropna().unique()]) if 'Grupo' in df_tab_filt.columns else []
         with col_t3:
+            lider_sel_t = st.selectbox("👤 Selección de Líder / Grupo", options=["Todas las Líderes (Consolidado Zona)"] + lista_grupos_t, key="tab_lider_grp_sel")
+
+        if lider_sel_t != "Todas las Líderes (Consolidado Zona)" and 'Grupo' in df_tab_filt.columns:
+            df_tab_filt = df_tab_filt[df_tab_filt['Grupo'].astype(str).str.strip() == str(lider_sel_t).strip()]
+
+        # 4. Buscador de Asesora / Consultora
+        with col_t4:
             busq_t = st.text_input("🔍 Buscar Asesora (Nombre / Código)", "", key="tab_busq")
             
         if busq_t.strip():
@@ -1398,6 +1430,8 @@ with tab_tableau:
                     df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() != ""]
                 elif f_notas_opt == "Sin Notas":
                     df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() == ""]
+
+
 
         # Subpestañas internas dentro de Informe Tableau Cam
         tab_tab_main, tab_tab_pago, tab_tab_niveles = st.tabs([
@@ -1865,7 +1899,7 @@ with tab_diagnostico:
         
         cols_fact_exactas = [
             col_lider, 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación',
-            'Avance % Facturación', 'Productividad', 'Falta para el 100%', 'Falta para el 110%', 'Real Activas', 'Ganancia estimada'
+            'Avance % Facturación', 'Productividad', 'Falta para el 100%', 'Falta para el 110%', 'Ganancia estimada'
         ]
         cols_presentes = [c for c in cols_fact_exactas if c in df_diag.columns]
         
@@ -1885,7 +1919,6 @@ with tab_diagnostico:
             'Productividad': 'PRODUCTIVIDAD',
             'Falta para el 100%': 'FALTA PARA EL 100%',
             'Falta para el 110%': 'CUÁNTO FALTA PARA EL 110%',
-            'Real Activas': 'PEDIDOS',
             'Ganancia estimada': 'GANANCIA ESTIMADA TOTAL'
         }
         df_fact_view = df_fact_view.rename(columns=nombres_clery)
@@ -1905,15 +1938,67 @@ with tab_diagnostico:
             df_fact_formatted['FALTA PARA EL 100%'] = df_fact_formatted['FALTA PARA EL 100%'].apply(formato_cop)
         if 'CUÁNTO FALTA PARA EL 110%' in df_fact_formatted.columns:
             df_fact_formatted['CUÁNTO FALTA PARA EL 110%'] = df_fact_formatted['CUÁNTO FALTA PARA EL 110%'].apply(formato_cop)
-        if 'PEDIDOS' in df_fact_formatted.columns:
-            df_fact_formatted['PEDIDOS'] = df_fact_formatted['PEDIDOS'].apply(lambda v: f"{int(limpiar_numero(v))}")
         if 'GANANCIA ESTIMADA TOTAL' in df_fact_formatted.columns:
             df_fact_formatted['GANANCIA ESTIMADA TOTAL'] = df_fact_formatted['GANANCIA ESTIMADA TOTAL'].apply(formato_cop)
             
-        if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_view.columns:
-            st.dataframe(aplicar_estilo_styler(df_fact_formatted.style, estilo_cumplimiento_facturacion, subset=['CUMPLIMIENTO DE FACTURACIÓN']), use_container_width=True)
-        else:
-            st.dataframe(df_fact_formatted, use_container_width=True)
+        # Aplicar paleta de colores condicionales a Tabla 1
+        styler_fact = df_fact_formatted.style
+
+        def _estilo_cump_fact(val_str):
+            try:
+                num = float(str(val_str).replace('%', '').strip())
+                if num >= 100.0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                elif num >= 90.0:
+                    return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_avance_pct_fact(val_str):
+            try:
+                num = float(str(val_str).replace('%', '').strip())
+                if num >= 90.0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                elif num >= 80.0:
+                    return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_falta_dinero(val_str):
+            try:
+                s = str(val_str)
+                if '-' in s or '$0' in s:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_ganancia_total(val_str):
+            try:
+                s = str(val_str)
+                if s and '$0' not in s and '$' in s:
+                    return 'background-color: #e0f2fe; color: #0369a1; font-weight: bold;'
+                return ''
+            except Exception:
+                return ''
+
+        if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_cump_fact, subset=['CUMPLIMIENTO DE FACTURACIÓN'])
+        if 'AVANCE %' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_avance_pct_fact, subset=['AVANCE %'])
+        if 'FALTA PARA EL 100%' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_falta_dinero, subset=['FALTA PARA EL 100%'])
+        if 'CUÁNTO FALTA PARA EL 110%' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_falta_dinero, subset=['CUÁNTO FALTA PARA EL 110%'])
+        if 'GANANCIA ESTIMADA TOTAL' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_ganancia_total, subset=['GANANCIA ESTIMADA TOTAL'])
+
+        st.dataframe(styler_fact, use_container_width=True)
 
         st.markdown("---")
 
@@ -1964,11 +2049,234 @@ with tab_diagnostico:
         if 'RECUPEROS HOY' in df_act_formatted.columns:
             df_act_formatted['RECUPEROS HOY'] = df_act_formatted['RECUPEROS HOY'].apply(lambda v: f"{int(limpiar_numero(v))}")
 
-        if 'CUMPLIMIENTO ACTIVAS' in df_act_view.columns:
-            st.dataframe(aplicar_estilo_styler(df_act_formatted.style, estilo_cumplimiento_activas, subset=['CUMPLIMIENTO ACTIVAS']), use_container_width=True)
-        else:
-            st.dataframe(df_act_formatted, use_container_width=True)
-        
+        # Aplicar paleta de colores condicionales a Tabla 2
+        styler_act = df_act_formatted.style
+
+        def _estilo_cump_act(val_str):
+            try:
+                num = float(str(val_str).replace('%', '').strip())
+                if num >= 100.0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                elif num >= 90.0:
+                    return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_saldo_act(val_str):
+            try:
+                num = float(limpiar_numero(val_str, 0))
+                if num <= 0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_ingresos_act(val_str):
+            try:
+                num = int(limpiar_numero(val_str, 0))
+                if num > 0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                return ''
+            except Exception:
+                return ''
+
+        if 'CUMPLIMIENTO ACTIVAS' in df_act_formatted.columns:
+            styler_act = aplicar_mapa_styler(styler_act, _estilo_cump_act, subset=['CUMPLIMIENTO ACTIVAS'])
+        if 'SALDO ACTIVAS' in df_act_formatted.columns:
+            styler_act = aplicar_mapa_styler(styler_act, _estilo_saldo_act, subset=['SALDO ACTIVAS'])
+        for col_ing_sub in ['INICIOS HOY', 'REINICIOS HOY', 'RECUPEROS HOY']:
+            if col_ing_sub in df_act_formatted.columns:
+                styler_act = aplicar_mapa_styler(styler_act, _estilo_ingresos_act, subset=[col_ing_sub])
+
+        st.dataframe(styler_act, use_container_width=True)
+
+        # --- 3. CUADRO RESUMEN DE DISPONIBLES (Desafío esperadas, Día XX, % Cump LN, falta) ---
+        st.markdown("---")
+        col_hdr_disp, col_num_dia = st.columns([3.2, 1.8])
+        with col_hdr_disp:
+            st.markdown("#### 📋 3. Cuadro Resumen de Disponibles (Desafío vs. Avance por Día)")
+            st.caption("Fórmulas del modelo 'Cómo Vamos C12': `% Cump LN = (Día / Desafío) * 100` y `falta = Desafío - Día`.")
+        with col_num_dia:
+            dia_corte = st.number_input("📅 Día de Avance (Editable):", min_value=1, max_value=21, value=14, step=1, key="dia_avance_corte_14_key")
+
+        nombre_col_dia = f"Dia {dia_corte}"
+
+        if col_lider and col_lider in df_diag.columns:
+            df_disp_prep = df_diag.copy()
+            col_desafio = 'Objetivo Activas' if 'Objetivo Activas' in df_disp_prep.columns else ('Disponibles' if 'Disponibles' in df_disp_prep.columns else None)
+            col_real = 'Real Activas' if 'Real Activas' in df_disp_prep.columns else None
+
+            if col_desafio and col_real:
+                df_disp_calc = pd.DataFrame()
+                df_disp_calc['LÍDER DE NEGOCIOS'] = df_disp_prep[col_lider].astype(str)
+                df_disp_calc['Desafío esperadas'] = df_disp_prep[col_desafio].apply(lambda v: int(limpiar_numero(v, 0)))
+                df_disp_calc[nombre_col_dia] = df_disp_prep[col_real].apply(lambda v: int(limpiar_numero(v, 0)))
+                
+                # Fórmulas del Cuadro
+                df_disp_calc['% Cump LN'] = df_disp_calc.apply(
+                    lambda r: (r[nombre_col_dia] / r['Desafío esperadas'] * 100.0) if r['Desafío esperadas'] > 0 else 0.0,
+                    axis=1
+                )
+                df_disp_calc['falta'] = df_disp_calc.apply(
+                    lambda r: max(0, r['Desafío esperadas'] - r[nombre_col_dia]),
+                    axis=1
+                )
+
+                # Ordenar por Cumplimiento Descendente
+                df_disp_calc = df_disp_calc.sort_values(by='% Cump LN', ascending=False).reset_index(drop=True)
+
+                # Fila de Totales
+                tot_desafios = int(df_disp_calc['Desafío esperadas'].sum())
+                tot_dia = int(df_disp_calc[nombre_col_dia].sum())
+                tot_cump = (tot_dia / tot_desafios * 100.0) if tot_desafios > 0 else 0.0
+                tot_falta = max(0, tot_desafios - tot_dia)
+
+                row_total = pd.DataFrame([{
+                    'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                    'Desafío esperadas': tot_desafios,
+                    nombre_col_dia: tot_dia,
+                    '% Cump LN': tot_cump,
+                    'falta': tot_falta
+                }])
+                df_disp_final = pd.concat([df_disp_calc, row_total], ignore_index=True)
+
+                # Formatear valores para visualización limpiando ceros e incluyendo %
+                df_disp_formatted = df_disp_final.copy()
+                df_disp_formatted['Desafío esperadas'] = df_disp_formatted['Desafío esperadas'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_disp_formatted[nombre_col_dia] = df_disp_formatted[nombre_col_dia].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_disp_formatted['% Cump LN'] = df_disp_formatted['% Cump LN'].apply(lambda v: f"{v:.1f}%")
+                df_disp_formatted['falta'] = df_disp_formatted['falta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+                # Funciones de estilo condicional de semáforo armónico
+                def _estilo_cump_val(val_str):
+                    try:
+                        num = float(str(val_str).replace('%', '').strip())
+                        if num >= 95.0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num >= 90.0:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                def _estilo_falta_val(val_str):
+                    try:
+                        num = int(str(val_str).replace('.', '').strip())
+                        if num == 0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num <= 10:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                # Aplicar Styler con compatibilidad
+                styler_disp = df_disp_formatted.style
+                if hasattr(styler_disp, 'map'):
+                    styler_disp = styler_disp.map(_estilo_cump_val, subset=['% Cump LN']).map(_estilo_falta_val, subset=['falta'])
+                elif hasattr(styler_disp, 'applymap'):
+                    styler_disp = styler_disp.applymap(_estilo_cump_val, subset=['% Cump LN']).applymap(_estilo_falta_val, subset=['falta'])
+
+                # Validar si el día possède información de avance
+                if tot_dia > 0:
+                    st.dataframe(styler_disp, use_container_width=True)
+                elif tot_desafios > 0:
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, rgba(255, 107, 0, 0.1), rgba(227, 0, 123, 0.1)); border: 1px solid rgba(255, 107, 0, 0.3); border-radius: 14px; padding: 20px; text-align: center; margin: 12px 0;">
+                        <div style="font-size: 2rem; margin-bottom: 6px;">📅</div>
+                        <h5 style="margin: 0 0 6px 0; color: #FF8833; font-weight: 800; font-size: 1.1rem;">Sin Información Registrada para el {nombre_col_dia}</h5>
+                        <p style="margin: 0; font-size: 0.93rem; opacity: 0.88; line-height: 1.4;">
+                            Actualmente no se registran pedidos o activas acumuladas para el <b>Día {dia_corte}</b> en el corte seleccionado.<br>
+                            <span style="font-size: 0.85rem; opacity: 0.75;">(Prueba ajustando el número del día o subiendo un archivo de corte actualizado).</span>
+                        </p>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.info(f"ℹ️ No hay datos cargados para generar el resumen de disponibles para el {nombre_col_dia}.")
+
+        # --- 4. CUADRO RESUMEN DE INICIOS + REINICIOS (Meta, Hoy, Avance, para activar!) ---
+        st.markdown("---")
+        st.markdown("#### 🚀 4. Cuadro Resumen de Inicios + Reinicios (Meta vs. Ingresos del Ciclo)")
+        st.caption("Fórmulas del modelo: `Hoy = Inicios + Reinicios`, `Avance = (Hoy / Meta) * 100`, `para activar! = Meta - Hoy`.")
+
+        if col_lider and col_lider in df_diag.columns:
+            df_ing_prep = df_diag.copy()
+            col_inicios = 'Inicios' if 'Inicios' in df_ing_prep.columns else None
+            col_reinicios = 'Reinicios' if 'Reinicios' in df_ing_prep.columns else None
+            
+            col_meta_ing = next((c for c in df_ing_prep.columns if any(k in str(c).lower() for k in ['meta inicio', 'meta_inicio', 'meta ingreso', 'meta_ingreso'])), None)
+
+            df_ing_calc = pd.DataFrame()
+            df_ing_calc['LÍDER DE NEGOCIOS'] = df_ing_prep[col_lider].astype(str)
+
+            val_inicios = df_ing_prep[col_inicios].apply(lambda v: limpiar_numero(v, 0)) if col_inicios else 0
+            val_reinicios = df_ing_prep[col_reinicios].apply(lambda v: limpiar_numero(v, 0)) if col_reinicios else 0
+            df_ing_calc['Hoy'] = (val_inicios + val_reinicios).astype(int)
+
+            if col_meta_ing:
+                df_ing_calc['Meta'] = df_ing_prep[col_meta_ing].apply(lambda v: int(limpiar_numero(v, 5)))
+            else:
+                df_ing_calc['Meta'] = df_ing_calc['Hoy'].apply(lambda h: max(5, int(h + 3)))
+
+            df_ing_calc['Avance'] = df_ing_calc.apply(
+                lambda r: (r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0,
+                axis=1
+            )
+            df_ing_calc['para activar!'] = df_ing_calc.apply(
+                lambda r: max(0, r['Meta'] - r['Hoy']),
+                axis=1
+            )
+
+            # Ordenar por Porcentaje de Avance Descendente (de mayor a menor)
+            df_ing_calc = df_ing_calc.sort_values(by='Avance', ascending=False).reset_index(drop=True)
+
+            tot_meta_ing = int(df_ing_calc['Meta'].sum())
+            tot_hoy_ing = int(df_ing_calc['Hoy'].sum())
+            tot_av_ing = (tot_hoy_ing / tot_meta_ing * 100.0) if tot_meta_ing > 0 else 0.0
+            tot_act_ing = max(0, tot_meta_ing - tot_hoy_ing)
+
+            row_total_ing = pd.DataFrame([{
+                'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                'Meta': tot_meta_ing,
+                'Hoy': tot_hoy_ing,
+                'Avance': tot_av_ing,
+                'para activar!': tot_act_ing
+            }])
+            df_ing_final = pd.concat([df_ing_calc, row_total_ing], ignore_index=True)
+
+            df_ing_formatted = df_ing_final.copy()
+            df_ing_formatted['Meta'] = df_ing_formatted['Meta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_ing_formatted['Hoy'] = df_ing_formatted['Hoy'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_ing_formatted['Avance'] = df_ing_formatted['Avance'].apply(lambda v: f"{v:.1f}%")
+            df_ing_formatted['para activar!'] = df_ing_formatted['para activar!'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+            def _estilo_avance_magenta(val_str):
+                return 'background-color: #e3007b; color: #ffffff; font-weight: bold;'
+
+            def _estilo_para_activar(val_str):
+                try:
+                    num = int(str(val_str).replace('.', '').strip())
+                    if num <= 3:
+                        return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                    elif num <= 6:
+                        return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                    else:
+                        return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                except Exception:
+                    return ''
+
+            styler_ing = df_ing_formatted.style
+            if hasattr(styler_ing, 'map'):
+                styler_ing = styler_ing.map(_estilo_avance_magenta, subset=['Avance']).map(_estilo_para_activar, subset=['para activar!'])
+            elif hasattr(styler_ing, 'applymap'):
+                styler_ing = styler_ing.applymap(_estilo_avance_magenta, subset=['Avance']).applymap(_estilo_para_activar, subset=['para activar!'])
+
+            st.dataframe(styler_ing, use_container_width=True)
 
     st.markdown("---")
 
@@ -2031,25 +2339,96 @@ with tab_metas:
     
     cols_existentes_metas = [c for c in cols_metas if c in df_filtrado.columns]
     
-    df_metas_view = df_filtrado[cols_existentes_metas].copy()
+    # Ordenar de mayor a menor por Real Activas para mantener consistencia
+    if 'Real Activas' in df_filtrado.columns:
+        df_metas_sorted = df_filtrado.sort_values(by='Real Activas', ascending=False)
+    else:
+        df_metas_sorted = df_filtrado
+        
+    df_metas_view = df_metas_sorted[cols_existentes_metas].copy()
+
+    # Formatear números enteros (Real Activas y Tramos de Meta) sin decimales (.000000)
+    cols_enteras = ['Real Activas', 'Meta_Crecer_1plus_150k', 'Meta_Crecer_3plus_200k', 'Meta_Crecer_5plus_300k', 'Meta_Crecer_7plus_500k', 'Meta_Crecer_9plus_750k']
+    for col_e in cols_enteras:
+        if col_e in df_metas_view.columns:
+            df_metas_view[col_e] = df_metas_view[col_e].apply(lambda v: f"{int(limpiar_numero(v, 0))}")
+
+    # Formatear avance % limpiamente
+    def _formato_avance_clean(v):
+        if pd.isna(v):
+            return "N/A"
+        try:
+            num = float(v)
+            if abs(num) > 1.5:
+                return f"{num:+.2f}%"
+            else:
+                return f"{num * 100.0:+.2f}%"
+        except Exception:
+            return str(v)
+
     if 'Avance % Facturación' in df_metas_view.columns:
-        df_metas_view['Avance % Facturación'] = df_metas_view['Avance % Facturación'].apply(
-            lambda v: f"{v*100:+.2f}%" if pd.notna(v) else "N/A"
-        )
+        df_metas_view['Avance % Facturación'] = df_metas_view['Avance % Facturación'].apply(_formato_avance_clean)
+
     if 'Falta para el 100%' in df_metas_view.columns:
         df_metas_view['Falta para el 100%'] = df_metas_view['Falta para el 100%'].apply(formato_cop_signo)
-        
-    st.dataframe(
-        df_metas_view.rename(columns={
-            'Meta_Crecer_1plus_150k': 'Meta 1+ (+150k)',
-            'Meta_Crecer_3plus_200k': 'Meta 3+ (+200k)',
-            'Meta_Crecer_5plus_300k': 'Meta 5+ (+300k)',
-            'Meta_Crecer_7plus_500k': 'Meta 7+ (+500k)',
-            'Meta_Crecer_9plus_750k': 'Meta 9+ (+750k)',
-            'Avance % Facturación': 'Avance % vs Ant.'
-        }),
-        use_container_width=True
-    )
+
+    df_metas_renamed = df_metas_view.rename(columns={
+        'Meta_Crecer_1plus_150k': 'Meta 1+ (+150k)',
+        'Meta_Crecer_3plus_200k': 'Meta 3+ (+200k)',
+        'Meta_Crecer_5plus_300k': 'Meta 5+ (+300k)',
+        'Meta_Crecer_7plus_500k': 'Meta 7+ (+500k)',
+        'Meta_Crecer_9plus_750k': 'Meta 9+ (+750k)',
+        'Avance % Facturación': 'Avance % vs Ant.'
+    })
+
+    # Funciones de estilo condicional para Metas de Crecimiento
+    def _estilo_avance_vs_ant(val_str):
+        try:
+            val_clean = str(val_str).replace('%', '').replace('+', '').strip()
+            num = float(val_clean)
+            if num > 0:
+                return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+            elif num == 0:
+                return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+            else:
+                return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+        except Exception:
+            return ''
+
+    def _estilo_falta_100_metas(val_str):
+        try:
+            s = str(val_str)
+            if '-' in s or '$0' in s:
+                return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+            else:
+                return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+        except Exception:
+            return ''
+
+    def _estilo_tramos_meta(val):
+        return 'background-color: #e0f2fe; color: #0369a1; font-weight: bold;'
+
+    styler_metas = df_metas_renamed.style
+    if 'Avance % vs Ant.' in df_metas_renamed.columns:
+        if hasattr(styler_metas, 'map'):
+            styler_metas = styler_metas.map(_estilo_avance_vs_ant, subset=['Avance % vs Ant.'])
+        elif hasattr(styler_metas, 'applymap'):
+            styler_metas = styler_metas.applymap(_estilo_avance_vs_ant, subset=['Avance % vs Ant.'])
+
+    if 'Falta para el 100%' in df_metas_renamed.columns:
+        if hasattr(styler_metas, 'map'):
+            styler_metas = styler_metas.map(_estilo_falta_100_metas, subset=['Falta para el 100%'])
+        elif hasattr(styler_metas, 'applymap'):
+            styler_metas = styler_metas.applymap(_estilo_falta_100_metas, subset=['Falta para el 100%'])
+
+    tramos_presentes = [c for c in ['Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)'] if c in df_metas_renamed.columns]
+    if tramos_presentes:
+        if hasattr(styler_metas, 'map'):
+            styler_metas = styler_metas.map(_estilo_tramos_meta, subset=tramos_presentes)
+        elif hasattr(styler_metas, 'applymap'):
+            styler_metas = styler_metas.applymap(_estilo_tramos_meta, subset=tramos_presentes)
+
+    st.dataframe(styler_metas, use_container_width=True)
 
 # --- TAB 4: DETALLE COMPLETO ---
 with tab_detalle:
