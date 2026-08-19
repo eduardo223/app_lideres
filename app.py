@@ -1251,20 +1251,25 @@ with tab_tableau:
                             try:
                                 with open("Base de Datos.xlsx", "wb") as f:
                                     f.write(archivo_tableau.getbuffer())
-                                sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
-                                st.cache_data.clear()
-                                st.session_state['last_processed_tableau'] = file_id
+                                ok_sync = sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
                                 
-                                # Actualizar DataFrame de Tableau en vivo para la vista actual
-                                df_tableau = consultar_tableau_sql(
-                                    grupo=(user_grupo if user_rol == 'lider' else None),
-                                    sector=(user_sector if user_rol == 'gerente' else None)
-                                )
-                                
-                                lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
-                                if lideres_creadas:
-                                    st.session_state['lideres_creadas_log'] = lideres_creadas
-                                st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
+                                if ok_sync:
+                                    st.cache_data.clear()
+                                    st.session_state['last_processed_tableau'] = file_id
+                                    
+                                    # Actualizar DataFrame de Tableau en vivo para la vista actual
+                                    df_tableau = consultar_tableau_sql(
+                                        grupo=(user_grupo if user_rol == 'lider' else None),
+                                        sector=(user_sector if user_rol == 'gerente' else None)
+                                    )
+                                    
+                                    lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
+                                    if lideres_creadas:
+                                        st.session_state['lideres_creadas_log'] = lideres_creadas
+                                    st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
+                                    st.rerun()
+                                else:
+                                    st.error("⚠️ El archivo subido no corresponde a la Base Maestra de Tableau ('Base de Datos.xlsx'). Si deseas actualizar las metas de ciclo, súbelo en la barra lateral izquierda en '🔄 Rotación de Ciclo (Nuevo)'.")
                             except Exception as e_up:
                                 st.error(f"Error al actualizar la base: {e_up}")
                     else:
