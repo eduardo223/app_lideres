@@ -2600,15 +2600,16 @@ with tab_usuarios:
             # Opción 2: Vaciar Base de Datos Completa
             with col_b2:
                 st.markdown("##### 🚨 2. Vaciar Base de Datos Completa")
-                st.caption("Reinicia todas las tablas SQLite para iniciar un ciclo nuevo desde cero.")
+                st.caption("Reinicia todas las tablas SQLite y limpia los archivos Excel locales para iniciar un ciclo nuevo desde cero.")
                 
+                check_elim_excel = st.checkbox("Eliminar archivos Excel locales ('Cómo Vamos' y Tableau)", value=True, key="chk_elim_excel")
                 check_vaciar_usuarios = st.checkbox("También eliminar cuentas de usuarios Líderes", value=False, key="chk_vaciar_users")
                 confirmacion_seguridad = st.checkbox("🔒 Confirmo que deseo vaciar la Base de Datos completa", value=False, key="chk_conf_seg")
                 
                 if confirmacion_seguridad:
                     if st.button("🚨 VACIAR BASE DE DATOS COMPLETA AHORA", type="primary", key="btn_vaciar_db_all"):
-                        res_vac = vaciar_base_datos_completa(vaciar_usuarios=check_vaciar_usuarios)
-                        st.success(f"✅ ¡Base de datos vaciada exitosamente! Resumen: {res_vac}")
+                        res_vac = vaciar_base_datos_completa(vaciar_usuarios=check_vaciar_usuarios, eliminar_archivos_excel=check_elim_excel)
+                        st.success(f"✅ ¡Base de datos y archivos vaciados exitosamente! Resumen: {res_vac}")
                         st.cache_data.clear()
                         st.rerun()
                 else:

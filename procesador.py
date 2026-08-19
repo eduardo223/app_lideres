@@ -2152,7 +2152,8 @@ def consultar_tableau_sql(grupo=None, sector=None):
 def eliminar_datos_por_grupo_o_usuario(codigo_grupo, eliminar_cuenta=False):
     """
     Elimina todos los registros asociados a un código de grupo en las tablas SQLite
-    (consultoras_tableau, metas_como_vamos, comentarios_lideres) y opcionalmente su usuario en usuarios.json.
+    (consultoras_tableau, metas_como_vamos, comentarios_lideres), en los archivos Excel locales
+    (Base para el como vamos.xlsx) y opcionalmente su usuario en usuarios.json.
     """
     conn = obtener_conexion_db()
     cursor = conn.cursor()
@@ -2201,11 +2202,32 @@ def eliminar_datos_por_grupo_o_usuario(codigo_grupo, eliminar_cuenta=False):
 
     conn.commit()
     conn.close()
+
+    # 5. Filtrar y actualizar el archivo Excel físico 'Base para el como vamos.xlsx'
+    try:
+        if os.path.exists("Base para el como vamos.xlsx"):
+            xl = pd.ExcelFile("Base para el como vamos.xlsx")
+            with pd.ExcelWriter("Base para el como vamos.xlsx", engine="openpyxl") as writer:
+                for sheet_name in xl.sheet_names:
+                    df_s = pd.read_excel("Base para el como vamos.xlsx", sheet_name=sheet_name)
+                    col_g = None
+                    for c in df_s.columns:
+                        if 'grupo' in str(c).lower() or 'codigo_grupo' in str(c).lower():
+                            col_g = c
+                            break
+                    if col_g:
+                        df_s = df_s[df_s[col_g].astype(str).str.strip() != grp_str]
+                    df_s.to_excel(writer, sheet_name=sheet_name, index=False)
+            borrados['excel_como_vamos'] = "Actualizado"
+    except Exception as e_xl:
+        borrados['excel_como_vamos'] = f"Nota: {e_xl}"
+
     return borrados
 
-def vaciar_base_datos_completa(vaciar_usuarios=False):
+def vaciar_base_datos_completa(vaciar_usuarios=False, eliminar_archivos_excel=True):
     """
-    Elimina todos los datos cargados de consultoras_tableau, metas_como_vamos y comentarios_lideres.
+    Elimina todos los datos cargados de consultoras_tableau, metas_como_vamos, comentarios_lideres
+    y los archivos Excel locales (Base para el como vamos.xlsx, Base de Datos.xlsx, etc.).
     Si vaciar_usuarios=True, resetea la lista de usuarios conservando solo las cuentas principales (superadmin/gerente).
     """
     conn = obtener_conexion_db()
@@ -2242,6 +2264,26 @@ def vaciar_base_datos_completa(vaciar_usuarios=False):
 
     conn.commit()
     conn.close()
+
+    # Eliminar archivos Excel locales para que no queden datos viejos en 'Cómo Vamos'
+    if eliminar_archivos_excel:
+        archivos_a_limpiar = [
+            "Base para el como vamos.xlsx",
+            "Base de Datos.xlsx",
+            "Resultado_Metas_Procesadas.xlsx",
+            "mi_grupo.xls",
+            "activas.xlsx"
+        ]
+        borrados_archivos = []
+        for arch in archivos_a_limpiar:
+            if os.path.exists(arch):
+                try:
+                    os.remove(arch)
+                    borrados_archivos.append(arch)
+                except Exception:
+                    pass
+        res['archivos_excel_eliminados'] = borrados_archivos
+
     return res
 
 # Ejecutamos la función si se invoca el script directamente
