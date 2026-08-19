@@ -40,6 +40,8 @@ from procesador import (
     obtener_indice_activas,
     obtener_indice_facturacion,
     rotar_y_guardar_nuevo_ciclo,
+    eliminar_datos_por_grupo_o_usuario,
+    vaciar_base_datos_completa,
     color_cumplimiento,
     color_avance,
     color_saldo,
