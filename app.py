@@ -2570,6 +2570,49 @@ with tab_usuarios:
                 st.info("🔒 **Modo Protegido (Predeterminado)**: Las Líderes y Asesoras tienen bloqueadas las opciones de subida de archivos.")
 
         st.markdown("---")
+        st.subheader("🧹 Mantenimiento & Limpieza de Base de Datos")
+        st.markdown("Herramientas de administración para eliminar los datos de un grupo en específico o reiniciar la base de datos completa para un nuevo ciclo.")
+
+        with st.expander("⚠️ Opciones Avanzadas de Borrado (Líder Específico / Base Completa)", expanded=False):
+            col_b1, col_b2 = st.columns(2)
+
+            # Opción 1: Borrado por Líder o Grupo Específico
+            with col_b1:
+                st.markdown("##### 👤 1. Borrar Datos de un Grupo / Líder Específico")
+                st.caption("Elimina de SQLite las asesoras, facturación y comentarios de una líder determinada.")
+                
+                df_grupos_b = consultar_tableau_sql()
+                lista_grupos_borrar = sorted([str(g).strip() for g in df_grupos_b['Grupo'].dropna().unique()]) if (df_grupos_b is not None and not df_grupos_b.empty and 'Grupo' in df_grupos_b.columns) else []
+                
+                grp_a_borrar = st.selectbox("Selecciona el Grupo / Líder a eliminar:", options=["-- Seleccionar --"] + lista_grupos_borrar, key="sel_grp_borrar")
+                check_elim_cuenta = st.checkbox("También eliminar la cuenta de usuario (login)", value=False, key="chk_elim_cuenta")
+                
+                if grp_a_borrar != "-- Seleccionar --":
+                    st.warning(f"⚠️ Estás a punto de borrar los datos del **Grupo {grp_a_borrar}**.")
+                    if st.button("🗑️ Confirmar y Borrar Datos de este Grupo", type="secondary", key="btn_borrar_grp"):
+                        res_del = eliminar_datos_por_grupo_o_usuario(grp_a_borrar, eliminar_cuenta=check_elim_cuenta)
+                        st.success(f"✅ ¡Datos eliminados para el Grupo {grp_a_borrar}! Registros removidos: {res_del}")
+                        st.cache_data.clear()
+                        st.rerun()
+
+            # Opción 2: Vaciar Base de Datos Completa
+            with col_b2:
+                st.markdown("##### 🚨 2. Vaciar Base de Datos Completa")
+                st.caption("Reinicia todas las tablas SQLite para iniciar un ciclo nuevo desde cero.")
+                
+                check_vaciar_usuarios = st.checkbox("También eliminar cuentas de usuarios Líderes", value=False, key="chk_vaciar_users")
+                confirmacion_seguridad = st.checkbox("🔒 Confirmo que deseo vaciar la Base de Datos completa", value=False, key="chk_conf_seg")
+                
+                if confirmacion_seguridad:
+                    if st.button("🚨 VACIAR BASE DE DATOS COMPLETA AHORA", type="primary", key="btn_vaciar_db_all"):
+                        res_vac = vaciar_base_datos_completa(vaciar_usuarios=check_vaciar_usuarios)
+                        st.success(f"✅ ¡Base de datos vaciada exitosamente! Resumen: {res_vac}")
+                        st.cache_data.clear()
+                        st.rerun()
+                else:
+                    st.info("Marca la casilla de confirmación para habilitar el botón de vaciado.")
+
+        st.markdown("---")
         st.subheader("🎛️ Control de Visibilidad y Accesos por Pestaña / Módulo")
         st.markdown("Configura de manera independiente qué pestañas y módulos son visibles para cada rol (**Gerentes**, **Líderes de Negocio** y **Asesoras**).")
 

@@ -2149,7 +2149,100 @@ def consultar_tableau_sql(grupo=None, sector=None):
     if 'Notas / Comentarios Líder' in df.columns and 'Comentarios_Lider' not in df.columns:
         df['Comentarios_Lider'] = df['Notas / Comentarios Líder']
 
-    return df
+def eliminar_datos_por_grupo_o_usuario(codigo_grupo, eliminar_cuenta=False):
+    """
+    Elimina todos los registros asociados a un código de grupo en las tablas SQLite
+    (consultoras_tableau, metas_como_vamos, comentarios_lideres) y opcionalmente su usuario en usuarios.json.
+    """
+    conn = obtener_conexion_db()
+    cursor = conn.cursor()
+    grp_str = str(codigo_grupo).strip()
+
+    borrados = {}
+
+    # 1. Borrar en consultoras_tableau
+    try:
+        cursor.execute("DELETE FROM consultoras_tableau WHERE TRIM(grupo) = ?", (grp_str,))
+        borrados['consultoras_tableau'] = cursor.rowcount
+    except Exception:
+        borrados['consultoras_tableau'] = 0
+
+    # 2. Borrar en metas_como_vamos
+    try:
+        cursor.execute("DELETE FROM metas_como_vamos WHERE TRIM(codigo_grupo) = ?", (grp_str,))
+        borrados['metas_como_vamos'] = cursor.rowcount
+    except Exception:
+        borrados['metas_como_vamos'] = 0
+
+    # 3. Borrar en comentarios_lideres
+    try:
+        cursor.execute("DELETE FROM comentarios_lideres WHERE TRIM(grupo) = ? OR TRIM(username) = ?", (grp_str, grp_str))
+        borrados['comentarios_lideres'] = cursor.rowcount
+    except Exception:
+        borrados['comentarios_lideres'] = 0
+
+    # 4. Borrar en usuarios (SQLite y usuarios.json)
+    if eliminar_cuenta:
+        try:
+            cursor.execute("DELETE FROM usuarios WHERE TRIM(codigo_grupo) = ? OR TRIM(username) = ?", (grp_str, grp_str))
+            borrados['usuarios_sqlite'] = cursor.rowcount
+        except Exception:
+            borrados['usuarios_sqlite'] = 0
+        
+        try:
+            usuarios = cargar_usuarios()
+            a_eliminar = [u for u, info in usuarios.items() if str(info.get('codigo_grupo')).strip() == grp_str or str(u).strip() == grp_str]
+            for u in a_eliminar:
+                del usuarios[u]
+            guardar_usuarios(usuarios)
+            borrados['usuarios_json'] = len(a_eliminar)
+        except Exception:
+            borrados['usuarios_json'] = 0
+
+    conn.commit()
+    conn.close()
+    return borrados
+
+def vaciar_base_datos_completa(vaciar_usuarios=False):
+    """
+    Elimina todos los datos cargados de consultoras_tableau, metas_como_vamos y comentarios_lideres.
+    Si vaciar_usuarios=True, resetea la lista de usuarios conservando solo las cuentas principales (superadmin/gerente).
+    """
+    conn = obtener_conexion_db()
+    cursor = conn.cursor()
+
+    res = {}
+    try:
+        cursor.execute("DELETE FROM consultoras_tableau")
+        res['consultoras_tableau'] = cursor.rowcount
+    except Exception:
+        res['consultoras_tableau'] = 0
+
+    try:
+        cursor.execute("DELETE FROM metas_como_vamos")
+        res['metas_como_vamos'] = cursor.rowcount
+    except Exception:
+        res['metas_como_vamos'] = 0
+
+    try:
+        cursor.execute("DELETE FROM comentarios_lideres")
+        res['comentarios_lideres'] = cursor.rowcount
+    except Exception:
+        res['comentarios_lideres'] = 0
+
+    if vaciar_usuarios:
+        try:
+            usuarios = cargar_usuarios()
+            usuarios_filtrados = {u: info for u, info in usuarios.items() if info.get('rol') in ['superadmin', 'gerente']}
+            guardar_usuarios(usuarios_filtrados)
+            cursor.execute("DELETE FROM usuarios WHERE rol = 'lider'")
+            res['usuarios_lideres_borrados'] = cursor.rowcount
+        except Exception:
+            res['usuarios_lideres_borrados'] = 0
+
+    conn.commit()
+    conn.close()
+    return res
 
 # Ejecutamos la función si se invoca el script directamente
 if __name__ == "__main__":
