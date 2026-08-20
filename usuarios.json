@@ -3,202 +3,24 @@
     "nombre": "Super Administrador del Sistema",
     "password_hash": "e34f92a20532a873cb3184398070b4b82a8fa29cf48572c203dc5f0fa6158231",
     "rol": "superadmin",
-    "codigo_grupo": "000001"
+    "codigo_grupo": "000001",
+    "nombre_sector": "Gestión Corporativa Global"
   },
   "gerente": {
     "nombre": "Clery Cuellar",
     "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
     "rol": "gerente",
     "codigo_grupo": null,
-    "codigo_sector": "700000459"
+    "codigo_sector": "700000459",
+    "nombre_sector": "MATICES CLERY"
   },
-  "gerente2": {
-    "nombre": "Dolly",
-    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+  "dolly@gmail.com": {
+    "nombre": "DOLLY Salgara",
+    "password_hash": "082ae2a9fb01a5d5f034a3415d2bbc9dba9482dc9d97c704f1015f929d7431bb",
     "rol": "gerente",
     "codigo_grupo": null,
-    "codigo_sector": "700000466"
-  },
-  "lider9948": {
-    "nombre": "DORA INES BELTRAN GAMBA",
-    "password_hash": "c09500e1cc698d55c8020af0c29f248449ffecf38c294edf936fc9da43690aa4",
-    "rol": "lider",
-    "codigo_grupo": "9948",
-    "debe_cambiar_password": true
-  },
-  "lider8425": {
-    "nombre": "Luz Dary Chacon Gaitan",
-    "password_hash": "79e0a65b6ee2f544420b1aefaf63e0998df2dfbaffb25a37c1a30bb7342c3685",
-    "rol": "lider",
-    "codigo_grupo": "8425",
-    "debe_cambiar_password": true
-  },
-  "lider9717": {
-    "nombre": "LUZ NANCY ROJAS NEIRA",
-    "password_hash": "5d41784f784137391a09e3c0ca7ab9f6e2545176df55372fbfeb7f1c061d9110",
-    "rol": "lider",
-    "codigo_grupo": "9717",
-    "debe_cambiar_password": true
-  },
-  "lider9400": {
-    "nombre": "MARIA CRISTINA RUBIO",
-    "password_hash": "2a166013925f44bd2ceb3b5acf74104f1399230b65b08a454c8a0e2137281aa0",
-    "rol": "lider",
-    "codigo_grupo": "9400",
-    "debe_cambiar_password": true
-  },
-  "lider9581": {
-    "nombre": "MARIA ELENA PATIÑO FALLA",
-    "password_hash": "2e53edef4dcc1af9d0d350ba81cbbe9e0d227e61e2837c925fa7a130e1b8a9c6",
-    "rol": "lider",
-    "codigo_grupo": "9581",
-    "debe_cambiar_password": true
-  },
-  "lider10223": {
-    "nombre": "EVELYN GOMEZ LOZANO",
-    "password_hash": "d969eeecda75cfd25857606f38e9b515ce119c73854c32266b748f6c50889bda",
-    "rol": "lider",
-    "codigo_grupo": "10223",
-    "debe_cambiar_password": true
-  },
-  "lider8481": {
-    "nombre": "LUZ ADRIANA PAEZ VIGOYA",
-    "password_hash": "13653034f7646bfc219f7a098bdbb73882536d9b01b959d2ef2a9cf97ed6d482",
-    "rol": "lider",
-    "codigo_grupo": "8481",
-    "debe_cambiar_password": true
-  },
-  "lider10168": {
-    "nombre": "JESSICA ROCIO CORTES PERILLA",
-    "password_hash": "4c51cdd889e75ed8bc48db24e32f47e874862f00dfcc4a948ab4ded07be92637",
-    "rol": "lider",
-    "codigo_grupo": "10168",
-    "debe_cambiar_password": true
-  },
-  "lider9334": {
-    "nombre": "ANGELA MIREYA MONTENEGRO ROMERO",
-    "password_hash": "022ccb409fe285a15e2527994ce07d1255b8916c4b048a56dc9d76208ee8fe33",
-    "rol": "lider",
-    "codigo_grupo": "9334",
-    "debe_cambiar_password": true
-  },
-  "lider7841": {
-    "nombre": "CARMENZA RONCANCIO GACHANCIPA",
-    "password_hash": "7e10a7c4e3e42c86663105feeda278536b2814da48401a39811e425fc2c77c54",
-    "rol": "lider",
-    "codigo_grupo": "7841",
-    "debe_cambiar_password": true
-  },
-  "lider9640": {
-    "nombre": "YENNY COROMOTO DIAZ PEREZ",
-    "password_hash": "9f4a62df9824730c2a1d913b725b60b456729c263d1727ec059074329ab49283",
-    "rol": "lider",
-    "codigo_grupo": "9640",
-    "debe_cambiar_password": true
-  },
-  "lider9678": {
-    "nombre": "MIGUEL ANGEL MORENO BAUTISTA",
-    "password_hash": "06384f30d74b3e991423d2ca0127a823cc857008f516702129fbfa1064f2cd50",
-    "rol": "lider",
-    "codigo_grupo": "9678",
-    "debe_cambiar_password": true
-  },
-  "lider9291": {
-    "nombre": "LUZ MARY LUNA LEON",
-    "password_hash": "858a0ee89ae7df87711c4afab394200c56e7f1246964da16e74ae032afb0d796",
-    "rol": "lider",
-    "codigo_grupo": "9291",
-    "debe_cambiar_password": true
-  },
-  "smclopera10@hotmail.com": {
-    "nombre": "DORA INES BELTRAN GAMBA",
-    "password_hash": "43b9c6706025aeaef5f36cab155954068d1549711a891ae033a19093f6e78f01",
-    "rol": "lider",
-    "codigo_grupo": "9948",
-    "debe_cambiar_password": true
-  },
-  "luzolivia23@gmail.com": {
-    "nombre": "Luz Dary Chacon Gaitan",
-    "password_hash": "a3529f135b3661056aabc9f7520c9758f019be62d3d93fb33e1897b22845bd85",
-    "rol": "lider",
-    "codigo_grupo": "8425",
-    "debe_cambiar_password": true
-  },
-  "rojasneiraluznancy@gmail.com": {
-    "nombre": "LUZ NANCY ROJAS NEIRA",
-    "password_hash": "39e51096575e146e3fd454f233b86b232dbd78f07b40108a4bf4d02016424065",
-    "rol": "lider",
-    "codigo_grupo": "9717",
-    "debe_cambiar_password": true
-  },
-  "alejandrabarajas.valcarcel@gmaol.com": {
-    "nombre": "MARIA CRISTINA RUBIO",
-    "password_hash": "a60693b7b4b6129151f287b77428ed9ed7cd00589d655f0c1e0f11b4c0f0b5c1",
-    "rol": "lider",
-    "codigo_grupo": "9400",
-    "debe_cambiar_password": true
-  },
-  "becerraalbarracin1966@gmail.com": {
-    "nombre": "MARIA ELENA PATIÑO FALLA",
-    "password_hash": "78b6334ab520812225c2cb850dcae9141e3b577ae7a6c5b16570eb20dba23cf2",
-    "rol": "lider",
-    "codigo_grupo": "9581",
-    "debe_cambiar_password": true
-  },
-  "marce1231silva@gmail.com": {
-    "nombre": "EVELYN GOMEZ LOZANO",
-    "password_hash": "43755f3e83ff431352f7748f4aac93a3b7ae314684b94cf03847c23210b7077b",
-    "rol": "lider",
-    "codigo_grupo": "10223",
-    "debe_cambiar_password": true
-  },
-  "mariaclievano@hotmail.com": {
-    "nombre": "LUZ ADRIANA PAEZ VIGOYA",
-    "password_hash": "47502a7d9f3a7dfc9096f8ddd387595e53b7b82e77d5f5e747e4473c6c7f6115",
-    "rol": "lider",
-    "codigo_grupo": "8481",
-    "debe_cambiar_password": true
-  },
-  "florcarmenzamahechauseche@gmail.com": {
-    "nombre": "JESSICA ROCIO CORTES PERILLA",
-    "password_hash": "48dfbeaac08ba8facf4a9df058d04581a48e453a9fdaa4eb9bce25bde7a9291b",
-    "rol": "lider",
-    "codigo_grupo": "10168",
-    "debe_cambiar_password": true
-  },
-  "rosaposada2005@hormail.com": {
-    "nombre": "ANGELA MIREYA MONTENEGRO ROMERO",
-    "password_hash": "f80cf44639dbee95c67a2defa9c03796b09b2a875621cbac2f5c2a2e003c13a2",
-    "rol": "lider",
-    "codigo_grupo": "9334",
-    "debe_cambiar_password": true
-  },
-  "mnd0427@hotmail.com": {
-    "nombre": "CARMENZA RONCANCIO GACHANCIPA",
-    "password_hash": "80f684c9d16540203d6fecdd7a487df2288a6d556278a238114a56cb3919d484",
-    "rol": "lider",
-    "codigo_grupo": "7841",
-    "debe_cambiar_password": true
-  },
-  "analuzblanquicetgaravito@gmail.com": {
-    "nombre": "YENNY COROMOTO DIAZ PEREZ",
-    "password_hash": "96541eb6115011c257e1e560562fe75264cb29032fa39e61a2f45e706d170c38",
-    "rol": "lider",
-    "codigo_grupo": "9640",
-    "debe_cambiar_password": true
-  },
-  "danibarrios387@gmail.com": {
-    "nombre": "MIGUEL ANGEL MORENO BAUTISTA",
-    "password_hash": "f92eb336262596e8b21c7ab60a848281d7364043c770883aaa82775c58f97d04",
-    "rol": "lider",
-    "codigo_grupo": "9678",
-    "debe_cambiar_password": true
-  },
-  "frfranciscojose021973@hotmail.com": {
-    "nombre": "LUZ MARY LUNA LEON",
-    "password_hash": "b7c72b4185585c83dd063afdaea5bf64f472c4923624c6a3f98ff2787ee5d2db",
-    "rol": "lider",
-    "codigo_grupo": "9291",
-    "debe_cambiar_password": true
+    "debe_cambiar_password": false,
+    "codigo_sector": "700000466",
+    "nombre_sector": "EMOCIONES DOLLY"
   }
 }

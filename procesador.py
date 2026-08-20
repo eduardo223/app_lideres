@@ -852,12 +852,12 @@ def exportar_tableau_excel_con_colores(df, nombre_hoja="Base_Consultoras", buffe
     """
     Genera un archivo Excel profesional (.xlsx) con los colores exactos de la consulta,
     manteniendo estrictamente el orden y todas las columnas originales de la base de datos.
+    Optimizado para alta velocidad (bulk append y pre-indexación de columnas).
     """
     import openpyxl
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
     from openpyxl.utils import get_column_letter
 
-    # Evitar duplicados exactos en nombres de columnas conservando el orden completo
     df = df.loc[:, ~df.columns.duplicated()].copy()
 
     wb = openpyxl.Workbook()
@@ -899,112 +899,91 @@ def exportar_tableau_excel_con_colores(df, nombre_hoja="Base_Consultoras", buffe
     fill_header = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
     font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
 
-    thin_border = Border(
-        left=Side(style='thin', color='E2E8F0'),
-        right=Side(style='thin', color='E2E8F0'),
-        top=Side(style='thin', color='E2E8F0'),
-        bottom=Side(style='thin', color='E2E8F0')
-    )
-
     headers = list(df.columns)
     ws.append(headers)
 
-    for col_num, h in enumerate(headers, 1):
+    col_nivel_indices = []
+    col_sit_indices = []
+    col_mora_indices = []
+    col_money_indices = []
+    col_int_indices = []
+
+    for col_idx, col_name in enumerate(headers, 1):
+        c_low = str(col_name).lower()
+        if c_low in ['color', 'nivel', 'nivel / color']:
+            col_nivel_indices.append(col_idx)
+        elif any(k in c_low for k in ['sit. comercial', 'sit comercial', 'situacion', 'situación']):
+            col_sit_indices.append(col_idx)
+        elif 'deuda mora' in c_low or c_low.startswith('mora'):
+            col_mora_indices.append(col_idx)
+        elif any(k in c_low for k in ['deuda', 'credito', 'crédito', 'fact']):
+            col_money_indices.append(col_idx)
+        elif any(k in c_low for k in ['pts', 'puntos', 'pedidos', 'ped.', 'ciclos']):
+            col_int_indices.append(col_idx)
+
+    for col_num in range(1, len(headers) + 1):
         cell = ws.cell(row=1, column=col_num)
         cell.fill = fill_header
         cell.font = font_header
         cell.alignment = Alignment(horizontal="center", vertical="center")
 
-    for _, row in df.iterrows():
-        row_vals = [row[c] for c in headers]
-        ws.append(row_vals)
-        r_idx = ws.max_row
+    for row_vals in df.itertuples(index=False):
+        ws.append(list(row_vals))
 
-        for col_idx, col_name in enumerate(headers, 1):
+    num_filas = len(df)
+    for r_idx in range(2, num_filas + 2):
+        for col_idx in col_nivel_indices:
             cell = ws.cell(row=r_idx, column=col_idx)
-            cell.border = thin_border
-            cell.alignment = Alignment(vertical="center")
+            v_str = str(cell.value or '').strip().lower()
+            if 'bronce' in v_str:
+                cell.fill, cell.font = fill_bronce, font_bronce
+            elif 'plata' in v_str:
+                cell.fill, cell.font = fill_plata, font_plata
+            elif 'oro' in v_str:
+                cell.fill, cell.font = fill_oro, font_oro
+            elif 'platino' in v_str:
+                cell.fill, cell.font = fill_platino, font_platino
+            elif 'zafiro' in v_str:
+                cell.fill, cell.font = fill_zafiro, font_zafiro
+            elif 'diamante' in v_str:
+                cell.fill, cell.font = fill_diamante, font_diamante
 
-            val = row[col_name]
-            col_lower = str(col_name).lower()
+        for col_idx in col_sit_indices:
+            cell = ws.cell(row=r_idx, column=col_idx)
+            v_str = str(cell.value or '').strip().lower()
+            if 'activa' in v_str or 'inicio' in v_str or 'reinicio' in v_str or 'recupero' in v_str:
+                cell.fill, cell.font = fill_activa, font_activa
+            elif any(x in v_str for x in ['inactiva 1', 'inactiva 2', 'inactiva 3', 'inactiva1', 'inactiva2', 'inactiva3']):
+                cell.fill, cell.font = fill_inactiva_leve, font_inactiva_leve
+            elif any(x in v_str for x in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'indisponible', 'inactiva4', 'inactiva5', 'inactiva6']):
+                cell.fill, cell.font = fill_inactiva_critica, font_inactiva_critica
+            elif 'fuga' in v_str:
+                cell.fill, cell.font = fill_mora_media, font_mora_media
 
-            # 1. Nivel / Color
-            if 'color' in col_lower or 'nivel' in col_lower:
-                v_str = str(val).strip().lower()
-                if 'bronce' in v_str:
-                    cell.fill = fill_bronce
-                    cell.font = font_bronce
-                elif 'plata' in v_str:
-                    cell.fill = fill_plata
-                    cell.font = font_plata
-                elif 'oro' in v_str:
-                    cell.fill = fill_oro
-                    cell.font = font_oro
-                elif 'platino' in v_str:
-                    cell.fill = fill_platino
-                    cell.font = font_platino
-                elif 'zafiro' in v_str:
-                    cell.fill = fill_zafiro
-                    cell.font = font_zafiro
-                elif 'diamante' in v_str:
-                    cell.fill = fill_diamante
-                    cell.font = font_diamante
+        for col_idx in col_mora_indices:
+            cell = ws.cell(row=r_idx, column=col_idx)
+            num = limpiar_numero(cell.value, 0.0)
+            if num <= 0:
+                cell.fill, cell.font = fill_activa, font_activa
+            elif num <= 200000:
+                cell.fill, cell.font = fill_inactiva_leve, font_inactiva_leve
+            elif num <= 500000:
+                cell.fill, cell.font = fill_mora_media, font_mora_media
+            else:
+                cell.fill, cell.font = fill_inactiva_critica, font_inactiva_critica
+            cell.number_format = '$#,##0'
 
-            # 2. Situación Comercial
-            elif 'sit. comercial' in col_lower or 'sit comercial' in col_lower or 'situacion' in col_lower or 'situación' in col_lower:
-                v_str = str(val).strip().lower()
-                if 'activa' in v_str or 'inicio' in v_str or 'reinicio' in v_str or 'recupero' in v_str:
-                    cell.fill = fill_activa
-                    cell.font = font_activa
-                elif any(x in v_str for x in ['inactiva 1', 'inactiva 2', 'inactiva 3', 'inactiva1', 'inactiva2', 'inactiva3']):
-                    cell.fill = fill_inactiva_leve
-                    cell.font = font_inactiva_leve
-                elif any(x in v_str for x in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'indisponible', 'inactiva4', 'inactiva5', 'inactiva6']):
-                    cell.fill = fill_inactiva_critica
-                    cell.font = font_inactiva_critica
-                elif 'fuga' in v_str:
-                    cell.fill = fill_mora_media
-                    cell.font = font_mora_media
+        for col_idx in col_money_indices:
+            cell = ws.cell(row=r_idx, column=col_idx)
+            cell.number_format = '$#,##0'
 
-            # 3. Deuda Mora
-            elif 'deuda mora' in col_lower or 'mora' in col_lower:
-                num = limpiar_numero(val, 0.0)
-                if num <= 0:
-                    cell.fill = fill_activa
-                    cell.font = font_activa
-                elif num <= 200000:
-                    cell.fill = fill_inactiva_leve
-                    cell.font = font_inactiva_leve
-                elif num <= 500000:
-                    cell.fill = fill_mora_media
-                    cell.font = font_mora_media
-                else:
-                    cell.fill = fill_inactiva_critica
-                    cell.font = font_inactiva_critica
-                cell.number_format = '$#,##0'
-
-            # 4. Formatear números de dinero
-            elif any(k in col_lower for k in ['deuda', 'credito', 'crédito', 'fact', 'facturacion', 'facturación']):
-                try:
-                    num = limpiar_numero(val, 0.0)
-                    cell.value = num
-                    cell.number_format = '$#,##0'
-                except Exception:
-                    pass
-
-            # 5. Formatear puntos o cantidades
-            elif any(k in col_lower for k in ['pts', 'puntos', 'pedidos', 'ped.', 'inactividad']):
-                try:
-                    num = int(limpiar_numero(val, 0))
-                    cell.value = num
-                    cell.number_format = '#,##0'
-                except Exception:
-                    pass
+        for col_idx in col_int_indices:
+            cell = ws.cell(row=r_idx, column=col_idx)
+            cell.number_format = '#,##0'
 
     for col in ws.columns:
-        max_len = max(len(str(cell.value or '')) for cell in col)
         col_letter = get_column_letter(col[0].column)
-        ws.column_dimensions[col_letter].width = min(max(max_len + 4, 12), 45)
+        ws.column_dimensions[col_letter].width = 16
 
     if buffer_salida is not None:
         wb.save(buffer_salida)
@@ -1922,6 +1901,399 @@ def guardar_usuarios(dict_usuarios):
         print(f"Error al guardar usuarios: {e}")
         return False
 
+# --- MÓDULO DE SUSCRIPCIONES, PRUEBAS GRATIS (15 DÍAS) Y CONTROL ANTI-FRAUDE ---
+RUTA_HISTORICO_SECTORES = 'sectores_historico.json'
+RUTA_MARCA_AGUA_TIEMPO = 'marca_agua_sistema.json'
+
+def cargar_historico_sectores():
+    """
+    Carga el historial de sectores registrados para el control de pruebas únicas de 15 días.
+    """
+    if os.path.exists(RUTA_HISTORICO_SECTORES):
+        try:
+            with open(RUTA_HISTORICO_SECTORES, 'r', encoding='utf-8') as f:
+                return json.load(f)
+        except Exception:
+            pass
+    
+    sectores_init = {
+        "700000459": {
+            "codigo_sector": "700000459",
+            "nombre_sector": "MATICES CLERY",
+            "primera_prueba_fecha": "2026-01-01T00:00:00",
+            "ha_consumido_prueba": True,
+            "ha_pagado": True,
+            "estado": "activo",
+            "fecha_vencimiento": None,
+            "correo_gerente": "gerente",
+            "telefono_gerente": "3057939537"
+        },
+        "700000466": {
+            "codigo_sector": "700000466",
+            "nombre_sector": "DOLLY",
+            "primera_prueba_fecha": "2026-01-01T00:00:00",
+            "ha_consumido_prueba": True,
+            "ha_pagado": True,
+            "estado": "activo",
+            "fecha_vencimiento": None,
+            "correo_gerente": "gerente2",
+            "telefono_gerente": ""
+        }
+    }
+    guardar_historico_sectores(sectores_init)
+    return sectores_init
+
+def guardar_historico_sectores(dict_sectores):
+    """
+    Persiste el histórico de sectores en sectores_historico.json.
+    """
+    try:
+        with open(RUTA_HISTORICO_SECTORES, 'w', encoding='utf-8') as f:
+            json.dump(dict_sectores, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        safe_print(f"Error al guardar histórico de sectores: {e}")
+def obtener_nombre_sector_usuario(user_info):
+    """
+    Retorna el nombre del sector del usuario de forma dinámica.
+    Prioridad:
+    1. Campo 'nombre_sector' en el perfil del usuario.
+    2. Lookup en sectores_historico.json mediante 'codigo_sector'.
+    3. Si es superadmin -> 'Gestión Corporativa Global'
+    4. Fallback -> 'Sector {codigo_sector}' o 'Liderazgo Empresarial'.
+    """
+    if not user_info or not isinstance(user_info, dict):
+        return "Liderazgo Empresarial"
+        
+    rol = user_info.get("rol", "")
+    if rol == "superadmin":
+        return "Gestión Corporativa Global"
+        
+    nom_sec = user_info.get("nombre_sector")
+    if nom_sec and str(nom_sec).strip() and str(nom_sec).lower() not in ["none", "nan", "null", ""]:
+        return str(nom_sec).strip()
+        
+    cod_sec = str(user_info.get("codigo_sector") or "").strip()
+    if cod_sec and cod_sec.lower() not in ["none", "nan", "null", ""]:
+        historico = cargar_historico_sectores()
+        if cod_sec in historico:
+            nom_hist = historico[cod_sec].get("nombre_sector")
+            if nom_hist and str(nom_hist).strip() and str(nom_hist).lower() not in ["none", "nan", "null", ""]:
+                return str(nom_hist).strip()
+        return f"Sector {cod_sec}"
+        
+    return "Liderazgo Empresarial"
+
+def verificar_estado_suscripcion(user_info_o_sector):
+    """
+    Determina si un usuario o sector tiene acceso permitido al sistema.
+    Retorna un diccionario con:
+    - permitido: bool
+    - estado: 'superadmin' | 'activo' | 'prueba' | 'vencido' | 'bloqueado'
+    - dias_restantes: int
+    - fecha_vencimiento_str: str
+    - motivo: str
+    """
+    from datetime import datetime
+
+    if isinstance(user_info_o_sector, dict):
+        rol = user_info_o_sector.get("rol", "")
+        if rol == "superadmin":
+            return {
+                "permitido": True,
+                "estado": "superadmin",
+                "dias_restantes": 9999,
+                "fecha_vencimiento_str": "Permanente (Super Administrador)",
+                "motivo": "Acceso Total Super Administrador"
+            }
+        cod_sector = str(user_info_o_sector.get("codigo_sector") or "").strip()
+        user_estado = user_info_o_sector.get("estado_suscripcion")
+        user_vence = user_info_o_sector.get("fecha_vencimiento")
+    else:
+        cod_sector = str(user_info_o_sector or "").strip()
+        user_estado = None
+        user_vence = None
+
+    if not cod_sector:
+        return {
+            "permitido": True,
+            "estado": "activo",
+            "dias_restantes": 9999,
+            "fecha_vencimiento_str": "Activo",
+            "motivo": "Cuenta activa"
+        }
+
+    historico = cargar_historico_sectores()
+    sec_info = historico.get(cod_sector, {})
+    
+    estado = sec_info.get("estado", user_estado or "activo")
+    vence_iso = sec_info.get("fecha_vencimiento", user_vence)
+    
+    # 1. Si está bloqueado explícitamente por el Administrador
+    if estado == "bloqueado":
+        return {
+            "permitido": False,
+            "estado": "bloqueado",
+            "dias_restantes": 0,
+            "fecha_vencimiento_str": "Bloqueado",
+            "motivo": "El acceso para este sector ha sido suspendido por el Administrador."
+        }
+
+    # 2. Si no tiene fecha de vencimiento (acceso permanente / cliente activo)
+    if not vence_iso:
+        return {
+            "permitido": True,
+            "estado": "activo",
+            "dias_restantes": 9999,
+            "fecha_vencimiento_str": "Suscripción Activa (Permanente)",
+            "motivo": "Suscripción activa y vigente"
+        }
+
+    # 3. Evaluar fecha de vencimiento
+    try:
+        dt_vence = datetime.fromisoformat(vence_iso)
+        dt_now = datetime.now()
+        
+        diff = (dt_vence - dt_now).total_seconds()
+        dias_restantes = max(0, int(diff // 86400) + 1)
+        fecha_str = dt_vence.strftime("%d/%m/%Y a las %H:%M")
+
+        if diff >= 0:
+            return {
+                "permitido": True,
+                "estado": estado,
+                "dias_restantes": dias_restantes,
+                "fecha_vencimiento_str": fecha_str,
+                "motivo": f"Vigente hasta el {fecha_str}"
+            }
+        else:
+            return {
+                "permitido": False,
+                "estado": "vencido",
+                "dias_restantes": 0,
+                "fecha_vencimiento_str": fecha_str,
+                "motivo": f"Tu periodo de {'prueba de 15 días' if estado == 'prueba' else 'suscripción'} ha finalizado el {fecha_str}."
+            }
+    except Exception as e:
+        return {
+            "permitido": True,
+            "estado": "activo",
+            "dias_restantes": 9999,
+            "fecha_vencimiento_str": "Activo",
+            "motivo": f"Vigente ({e})"
+        }
+
+def registrar_nueva_gerente(nombre, correo, password, telefono, cod_sector, nombre_sector=""):
+    """
+    Registra a una nueva Gerente de forma autónoma con 15 días de prueba gratis.
+    Valida que el correo no exista y que el código de sector no haya usado ya la prueba gratuita.
+    """
+    from datetime import datetime, timedelta
+    
+    u_clean = str(correo).strip().lower()
+    sec_clean = str(cod_sector).strip()
+    nom_clean = str(nombre).strip()
+    tel_clean = str(telefono).strip()
+    sec_nom_clean = str(nombre_sector).strip() or f"Sector {sec_clean}"
+
+    if not nom_clean:
+        return False, "Por favor ingresa tu nombre completo.", None
+    if not u_clean or '@' not in u_clean or '.' not in u_clean:
+        return False, "Por favor ingresa un correo electrónico válido (ej. tu_correo@gmail.com).", None
+    if not password or len(str(password).strip()) < 6:
+        return False, "La contraseña debe tener mínimo 6 caracteres.", None
+    if not sec_clean or len(sec_clean) < 3:
+        return False, "Por favor ingresa un Código de Sector válido (ej. 700000459).", None
+
+    usuarios = cargar_usuarios()
+    if u_clean in usuarios:
+        return False, f"El correo '{u_clean}' ya está registrado. Por favor inicia sesión o recupera tu contraseña.", None
+
+    # Candado Anti-Fraude: Verificar si el sector ya disfrutó de su prueba gratis
+    historico = cargar_historico_sectores()
+    if sec_clean in historico:
+        sec_reg = historico[sec_clean]
+        if sec_reg.get("ha_consumido_prueba", False) and not sec_reg.get("ha_pagado", False):
+            return False, (
+                f"⚠️ **El Código de Sector {sec_clean} ({sec_reg.get('nombre_sector', '')}) ya utilizó su periodo de prueba gratuita de 15 días.**\n\n"
+                f"Para activar la suscripción de este sector y habilitar a todo tu equipo de líderes, "
+                f"comunícate con Soporte Administrativo al WhatsApp **3057939537**."
+            ), None
+
+    now = datetime.now()
+    vencimiento = now + timedelta(days=15)
+    
+    nuevo_usuario = {
+        "nombre": nom_clean,
+        "password_hash": hashlib_sha256(password),
+        "rol": "gerente",
+        "codigo_grupo": None,
+        "codigo_sector": sec_clean,
+        "nombre_sector": sec_nom_clean,
+        "telefono": tel_clean,
+        "fecha_registro": now.isoformat(),
+        "fecha_vencimiento": vencimiento.isoformat(),
+        "estado_suscripcion": "prueba",
+        "debe_cambiar_password": False
+    }
+
+    usuarios[u_clean] = nuevo_usuario
+    guardar_usuarios(usuarios)
+
+    # Actualizar histórico de sectores
+    historico[sec_clean] = {
+        "codigo_sector": sec_clean,
+        "nombre_sector": sec_nom_clean,
+        "primera_prueba_fecha": now.isoformat(),
+        "ha_consumido_prueba": True,
+        "ha_pagado": False,
+        "estado": "prueba",
+        "fecha_vencimiento": vencimiento.isoformat(),
+        "correo_gerente": u_clean,
+        "telefono_gerente": tel_clean
+    }
+    guardar_historico_sectores(historico)
+
+    user_session_info = nuevo_usuario.copy()
+    user_session_info["username"] = u_clean
+
+    return True, f"¡Bienvenida {nom_clean}! Tu cuenta de Gerente y tu prueba gratis de 15 días han sido activadas exitosamente.", user_session_info
+
+def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es_pago=False):
+    """
+    Permite al Super Administrador:
+    - Activar plan pagado (+30, +90, +365 días o permanente)
+    - Dar prórroga de prueba (+5 días)
+    - Suspender o desbloquear un sector
+    Aplica el cambio en cascada a la Gerente y a todas sus Líderes en usuarios.json y sectores_historico.json.
+    """
+    from datetime import datetime, timedelta
+
+    sec_clean = str(cod_sector).strip()
+    historico = cargar_historico_sectores()
+    usuarios = cargar_usuarios()
+
+    now = datetime.now()
+
+    if sec_clean not in historico:
+        historico[sec_clean] = {
+            "codigo_sector": sec_clean,
+            "nombre_sector": f"Sector {sec_clean}",
+            "primera_prueba_fecha": now.isoformat(),
+            "ha_consumido_prueba": True,
+            "ha_pagado": es_pago,
+            "estado": nuevo_estado
+        }
+
+    vence_iso = None
+    if dias_extension > 0:
+        dt_base = now
+        curr_vence = historico[sec_clean].get("fecha_vencimiento")
+        if curr_vence:
+            try:
+                dt_curr = datetime.fromisoformat(curr_vence)
+                if dt_curr > now:
+                    dt_base = dt_curr
+            except Exception:
+                pass
+        vence_iso = (dt_base + timedelta(days=dias_extension)).isoformat()
+    elif dias_extension == -1:
+        vence_iso = None
+    else:
+        vence_iso = historico[sec_clean].get("fecha_vencimiento")
+
+    historico[sec_clean]["estado"] = nuevo_estado
+    historico[sec_clean]["fecha_vencimiento"] = vence_iso
+    if es_pago:
+        historico[sec_clean]["ha_pagado"] = True
+    guardar_historico_sectores(historico)
+
+    cambiados = 0
+    for u_k, u_v in usuarios.items():
+        if str(u_v.get("codigo_sector") or "").strip() == sec_clean:
+            u_v["estado_suscripcion"] = nuevo_estado
+            u_v["fecha_vencimiento"] = vence_iso
+            cambiados += 1
+
+    guardar_usuarios(usuarios)
+    return True, f"Sector {sec_clean} actualizado a '{nuevo_estado}'. {cambiados} cuentas asociadas actualizadas."
+
+def obtener_resumen_suscripciones():
+    """
+    Retorna un DataFrame con todos los sectores registrados y el estado de sus suscripciones para el panel de Super Admin.
+    """
+    from datetime import datetime
+    historico = cargar_historico_sectores()
+    usuarios = cargar_usuarios()
+
+    filas = []
+    now = datetime.now()
+
+    for sec_id, info in historico.items():
+        nom_sec = info.get("nombre_sector", f"Sector {sec_id}")
+        estado = info.get("estado", "activo")
+        vence_iso = info.get("fecha_vencimiento")
+        correo_g = info.get("correo_gerente", "")
+        tel_g = info.get("telefono_gerente", "")
+        ha_pagado = info.get("ha_pagado", False)
+
+        nom_gerente = ""
+        total_lideres = 0
+        for u_id, u_data in usuarios.items():
+            if str(u_data.get("codigo_sector") or "").strip() == str(sec_id).strip():
+                if u_data.get("rol") == "gerente":
+                    nom_gerente = u_data.get("nombre", "")
+                    if not correo_g:
+                        correo_g = u_id
+                    if not tel_g:
+                        tel_g = u_data.get("telefono", "")
+                elif u_data.get("rol") == "lider":
+                    total_lideres += 1
+
+        dias_rest = "Indefinido"
+        vence_str = "Permanente"
+        estado_label = "🟢 Activo (Pagado)" if ha_pagado else "🟢 Activo"
+
+        if vence_iso:
+            try:
+                dt_vence = datetime.fromisoformat(vence_iso)
+                diff = (dt_vence - now).total_seconds()
+                dias_num = max(0, int(diff // 86400) + 1)
+                vence_str = dt_vence.strftime("%d/%m/%Y")
+                
+                if estado == "bloqueado":
+                    estado_label = "⛔ Suspendido / Bloqueado"
+                    dias_rest = "0 días"
+                elif diff < 0:
+                    estado_label = "🔴 Vencido (Requiere Pago)"
+                    dias_rest = "0 días (Expirado)"
+                elif estado == "prueba":
+                    estado_label = f"⏳ En Prueba ({dias_num} días)"
+                    dias_rest = f"{dias_num} días restantes"
+                else:
+                    estado_label = f"🟢 Activo ({dias_num} días)"
+                    dias_rest = f"{dias_num} días restantes"
+            except Exception:
+                pass
+        elif estado == "bloqueado":
+            estado_label = "⛔ Suspendido / Bloqueado"
+            dias_rest = "0 días"
+
+        filas.append({
+            "Código Sector": sec_id,
+            "Nombre Sector": nom_sec,
+            "Gerente Responsable": nom_gerente or correo_g or "N/D",
+            "Contacto (WhatsApp)": tel_g or "N/D",
+            "Líderes Activas": total_lideres,
+            "Estado": estado_label,
+            "Vence el": vence_str,
+            "Tiempo Restante": dias_rest,
+            "_raw_estado": estado,
+            "_raw_sector": sec_id
+        })
+
+    return pd.DataFrame(filas)
+
 def autenticar_usuario(username, password):
     """
     Valida credenciales. Retorna el diccionario del usuario si es correcto o None.
@@ -1951,7 +2323,7 @@ def cambiar_password_usuario(username, nueva_password):
             return True, "¡Contraseña actualizada exitosamente! Ya puedes navegar por el sistema."
     return False, "Error al guardar la nueva contraseña."
 
-def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo=None, codigo_sector=None, debe_cambiar_password=None):
+def registrar_o_actualizar_usuario(username, nombre, password=None, rol="lider", codigo_grupo=None, codigo_sector=None, debe_cambiar_password=None, nombre_sector=None):
     """
     Permite al Gerente o Superadmin crear o actualizar un usuario.
     Si se proporciona una contraseña (usuario nuevo o reseteo), debe_cambiar_password se establece en True por defecto.
@@ -1977,16 +2349,81 @@ def registrar_o_actualizar_usuario(username, nombre, password, rol, codigo_grupo
         "codigo_grupo": str(codigo_grupo).strip() if codigo_grupo else None,
         "debe_cambiar_password": req_cambio
     }
+    
+    sec_id = None
     if codigo_sector:
-        usr_data["codigo_sector"] = str(codigo_sector).strip()
+        sec_id = str(codigo_sector).strip()
+        usr_data["codigo_sector"] = sec_id
     elif u_clean in usuarios and "codigo_sector" in usuarios[u_clean]:
-        usr_data["codigo_sector"] = usuarios[u_clean]["codigo_sector"]
+        sec_id = str(usuarios[u_clean]["codigo_sector"]).strip()
+        usr_data["codigo_sector"] = sec_id
+
+    # Asignar o heredar nombre del sector
+    if nombre_sector:
+        usr_data["nombre_sector"] = str(nombre_sector).strip()
+    elif u_clean in usuarios and "nombre_sector" in usuarios[u_clean]:
+        usr_data["nombre_sector"] = usuarios[u_clean]["nombre_sector"]
+
+    # Si pertenece a un sector, heredar estado de suscripción, fecha de vencimiento y nombre de sector si no lo tiene
+    if sec_id:
+        historico = cargar_historico_sectores()
+        if sec_id in historico:
+            usr_data["estado_suscripcion"] = historico[sec_id].get("estado", "activo")
+            usr_data["fecha_vencimiento"] = historico[sec_id].get("fecha_vencimiento")
+            if "nombre_sector" not in usr_data or not usr_data["nombre_sector"]:
+                usr_data["nombre_sector"] = historico[sec_id].get("nombre_sector", f"Sector {sec_id}")
+        elif nombre_sector:
+            # Registrar nuevo sector en el histórico si no existía
+            from datetime import datetime
+            historico[sec_id] = {
+                "codigo_sector": sec_id,
+                "nombre_sector": str(nombre_sector).strip(),
+                "primera_prueba_fecha": datetime.now().isoformat(),
+                "ha_consumido_prueba": True,
+                "ha_pagado": True,
+                "estado": "activo"
+            }
+            guardar_historico_sectores(historico)
 
     usuarios[u_clean] = usr_data
     if guardar_usuarios(usuarios):
         sincronizar_usuarios_a_sqlite()
         return True, f"Usuario '{u_clean}' guardado exitosamente."
     return False, "Error al guardar el archivo de usuarios."
+
+def eliminar_usuario_perfil(username, eliminar_sector_asociado=False):
+    """
+    Elimina la cuenta de un usuario de usuarios.json y sincroniza con SQLite.
+    Protege la cuenta 'admin' para evitar auto-bloqueo.
+    Si eliminar_sector_asociado es True, también limpia el sector de sectores_historico.json.
+    """
+    u_clean = str(username).strip().lower()
+    if not u_clean:
+        return False, "Nombre de usuario no válido."
+
+    if u_clean == "admin":
+        return False, "⚠️ No se puede eliminar la cuenta principal del Super Administrador ('admin')."
+
+    usuarios = cargar_usuarios()
+    if u_clean not in usuarios:
+        return False, f"El usuario '{u_clean}' no existe en el sistema."
+
+    u_data = usuarios[u_clean]
+    sec_id = u_data.get("codigo_sector")
+    rol = u_data.get("rol")
+
+    del usuarios[u_clean]
+    guardar_usuarios(usuarios)
+    sincronizar_usuarios_a_sqlite()
+
+    # Si se solicitó eliminar el registro del sector en el histórico
+    if eliminar_sector_asociado and sec_id and rol == "gerente":
+        historico = cargar_historico_sectores()
+        if str(sec_id) in historico:
+            del historico[str(sec_id)]
+            guardar_historico_sectores(historico)
+
+    return True, f"¡Perfil de usuario '{u_clean}' eliminado exitosamente!"
 
 def validar_sector_archivo(origen_file, sector_esperado):
     """
@@ -2074,7 +2511,8 @@ def generar_password_aleatoria(longitud=8):
 
 def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', ruta_como_vamos='Base para el como vamos.xlsx'):
     """
-    Detecta automáticamente los grupos de líderes y crea o actualiza sus cuentas de usuario en el sistema.
+    Detecta automáticamente los grupos de líderes y crea o actualiza sus cuentas de usuario en el sistema,
+    vinculándolas al código de sector correspondiente.
     """
     creados = []
     if not os.path.exists(ruta_como_vamos):
@@ -2099,6 +2537,15 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
         except Exception:
             pass
 
+    # Extraer código de sector si existe en los archivos
+    sec_detectado = None
+    if df_tab is not None:
+        col_s_tab = next((c for c in ['Cod. Sector', 'cod_sector', 'Codigo Sector'] if c in df_tab.columns), None)
+        if col_s_tab and not df_tab[col_s_tab].dropna().empty:
+            sec_detectado = str(df_tab[col_s_tab].dropna().iloc[0]).split('.')[0].strip()
+    if not sec_detectado and 'Cod. Sector' in df_metas.columns and not df_metas['Cod. Sector'].dropna().empty:
+        sec_detectado = str(df_metas['Cod. Sector'].dropna().iloc[0]).split('.')[0].strip()
+
     grupos_procesados = set()
     usuarios_existentes = cargar_usuarios()
 
@@ -2117,34 +2564,38 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
         grupos_procesados.add(g_str)
 
         correo_lider = None
+        sec_lider = sec_detectado
         if df_tab is not None:
             mask_g = (df_tab['Grupo'].astype(str).str.strip() == g_str) if 'Grupo' in df_tab.columns else pd.Series(False, index=df_tab.index)
-            if 'Correo' in df_tab.columns and mask_g.any():
-                df_g = df_tab[mask_g].dropna(subset=['Correo'])
-                if not df_g.empty:
-                    correo_lider = str(df_g['Correo'].iloc[0]).strip().lower()
+            if mask_g.any():
+                df_g = df_tab[mask_g]
+                if 'Correo' in df_g.columns and not df_g.dropna(subset=['Correo']).empty:
+                    correo_lider = str(df_g['Correo'].dropna().iloc[0]).strip().lower()
+                col_s_g = next((c for c in ['Cod. Sector', 'cod_sector'] if c in df_g.columns), None)
+                if col_s_g and not df_g[col_s_g].dropna().empty:
+                    sec_lider = str(df_g[col_s_g].dropna().iloc[0]).split('.')[0].strip()
 
         username = correo_lider if (correo_lider and '@' in correo_lider) else f"lider{g_str}"
         ya_existe = (username in usuarios_existentes)
 
         if ya_existe:
-            # Líder existente: actualizar datos silenciosamente manteniendo clave activa
             registrar_o_actualizar_usuario(
                 username=username,
                 nombre=nom_lider,
                 password=None,
                 rol="lider",
-                codigo_grupo=g_str
+                codigo_grupo=g_str,
+                codigo_sector=sec_lider
             )
         else:
-            # Líder nueva: crear cuenta y generar clave temporal
             pass_gen = generar_password_aleatoria()
             exito, msg = registrar_o_actualizar_usuario(
                 username=username,
                 nombre=nom_lider,
                 password=pass_gen,
                 rol="lider",
-                codigo_grupo=g_str
+                codigo_grupo=g_str,
+                codigo_sector=sec_lider
             )
             if exito:
                 creados.append({

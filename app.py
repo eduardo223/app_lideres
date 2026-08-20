@@ -47,14 +47,20 @@ from procesador import (
     color_saldo,
     exportar_excel_con_colores,
     exportar_tableau_excel_con_colores,
-    exportar_tabla_ods,
-    exportar_tabla_pdf,
     limpiar_y_ordenar_columnas_tableau,
     obtener_base_tableau_completa_original,
     limpiar_numero,
     validar_sector_archivo,
     auto_crear_usuarios_lideres_desde_bases,
-    obtener_mapa_lideres
+    obtener_mapa_lideres,
+    cargar_historico_sectores,
+    guardar_historico_sectores,
+    verificar_estado_suscripcion,
+    registrar_nueva_gerente,
+    actualizar_suscripcion_sector,
+    obtener_resumen_suscripciones,
+    eliminar_usuario_perfil,
+    obtener_nombre_sector_usuario
 )
 
 # 1. Configuración de la página
@@ -75,6 +81,15 @@ def aplicar_mapa_styler(styler, func, subset=None):
     except Exception:
         pass
     return styler
+
+# Wrappers con caché de alto rendimiento para descargas instantáneas
+@st.cache_data(show_spinner=False)
+def cached_export_excel_tableau(df):
+    return exportar_tableau_excel_con_colores(df, nombre_hoja="Base_Consultoras")
+
+@st.cache_data(show_spinner=False)
+def cached_export_csv(df):
+    return df.to_csv(index=False).encode('utf-8-sig')
 
 # Estilos CSS personalizados para mejorar el diseño estético
 st.markdown("""
@@ -651,7 +666,7 @@ if st.session_state['user'] is None:
     st.markdown("""
     <div class="login-container">
         <div class="login-hero-card">
-            <div class="login-badge">✨ SISTEMA DE LIDERAZGO EMPRESARIAL MATICES</div>
+            <div class="login-badge">✨ SISTEMA DE GESTIÓN Y LIDERAZGO EMPRESARIAL</div>
             <h1 class="login-title">Portal de Acceso Corporativo</h1>
             <p class="login-subtitle">Gestión estratégica de metas de ciclo, indicadores de facturación y seguimiento privado por Líder de Negocio.</p>
         </div>
@@ -661,26 +676,62 @@ if st.session_state['user'] is None:
     col_pad1, col_center, col_pad2 = st.columns([0.5, 2, 0.5])
     
     with col_center:
-        st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
-        st.markdown("#### 🔑 Iniciar Sesión")
-        st.markdown("<p style='color: #94A3B8; font-size: 0.88rem; margin-bottom: 20px;'>Ingresa tus credenciales institucionales para continuar.</p>", unsafe_allow_html=True)
+        tab_login_tab, tab_registro_tab = st.tabs(["🔑 Iniciar Sesión", "🚀 Probar Gratis (15 Días)"])
         
-        with st.form("form_login_modern"):
-            input_user = st.text_input("👤 Usuario", value="", placeholder="Ingresa tu usuario...")
-            input_pass = st.text_input("🔒 Contraseña", type="password", value="", placeholder="••••••••")
-            btn_login = st.form_submit_button("🚀 Entrar al Sistema", type="primary", use_container_width=True)
+        with tab_login_tab:
+            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
+            st.markdown("#### 🔑 Ingreso al Sistema")
+            st.caption("Ingresa con tu correo o usuario institucional.")
             
-            if btn_login:
-                user_auth = autenticar_usuario(input_user, input_pass)
-                if user_auth:
-                    st.session_state['user'] = user_auth
-                    # Persistir sesión en query params para evitar logout al dar F5 / Actualizar
-                    st.query_params['user'] = user_auth.get('username', input_user)
-                    st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
-                    st.rerun()
-                else:
-                    st.error("❌ Credenciales incorrectas. Verifica tu usuario y contraseña.")
-        st.markdown('</div>', unsafe_allow_html=True)
+            with st.form("form_login_modern"):
+                input_user = st.text_input("👤 Usuario o Correo", value="", placeholder="Ingresa tu correo o usuario...")
+                input_pass = st.text_input("🔒 Contraseña", type="password", value="", placeholder="••••••••")
+                btn_login = st.form_submit_button("🚀 Entrar al Sistema", type="primary", use_container_width=True)
+                
+                if btn_login:
+                    user_auth = autenticar_usuario(input_user, input_pass)
+                    if user_auth:
+                        st.session_state['user'] = user_auth
+                        st.query_params['user'] = user_auth.get('username', input_user)
+                        st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
+                        st.rerun()
+                    else:
+                        st.error("❌ Credenciales incorrectas. Verifica tu usuario y contraseña.")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        with tab_registro_tab:
+            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
+            st.markdown("#### 🚀 Registro para Gerentes de Sector")
+            st.caption("Activa tu prueba gratuita de 15 días con acceso total para ti y todo tu equipo de líderes.")
+            
+            with st.form("form_registro_gerente"):
+                reg_nombre = st.text_input("👩‍💼 Nombre Completo", placeholder="Ej: Dolly Salgara o Clery Cuellar")
+                reg_correo = st.text_input("✉️ Correo Electrónico (Será tu usuario de acceso)", placeholder="ejemplo@gmail.com")
+                reg_pass = st.text_input("🔒 Contraseña Segura", type="password", placeholder="Mínimo 6 caracteres")
+                reg_tel = st.text_input("📲 Celular / WhatsApp de Contacto", placeholder="Ej: 3113201145")
+                reg_sec_cod = st.text_input("🏷️ Código Oficial de Sector (Natura / Avon)", placeholder="Ej: 700000466", help="Código único de sector que viene en tus reportes")
+                reg_sec_nom = st.text_input("🏢 Nombre del Sector", placeholder="Ej: EMOCIONES DOLLY o MATICES CLERY")
+                
+                btn_registro = st.form_submit_button("🎉 Comenzar Mi Prueba Gratis de 15 Días", type="primary", use_container_width=True)
+                
+                if btn_registro:
+                    ok_reg, msg_reg, u_data = registrar_nueva_gerente(
+                        nombre=reg_nombre,
+                        correo=reg_correo,
+                        password=reg_pass,
+                        telefono=reg_tel,
+                        cod_sector=reg_sec_cod,
+                        nombre_sector=reg_sec_nom
+                    )
+                    if ok_reg:
+                        st.session_state['user'] = u_data
+                        st.query_params['user'] = u_data.get('username', reg_correo)
+                        st.success("✅ " + msg_reg)
+                        st.rerun()
+                    else:
+                        st.error(msg_reg)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
     st.stop()
 
 # Usuario logueado activo
@@ -689,6 +740,46 @@ user_nombre = current_user.get('nombre', 'Usuario')
 user_rol = current_user.get('rol', 'asesor')
 user_grupo = str(current_user.get('codigo_grupo', '')).strip() if current_user.get('codigo_grupo') else ""
 user_sector = str(current_user.get('codigo_sector', '')).strip() if current_user.get('codigo_sector') else ""
+user_sector_nombre = obtener_nombre_sector_usuario(current_user)
+
+# Verificación de Suscripción / Modo Prueba / Bloqueo
+info_suscripcion = verificar_estado_suscripcion(current_user)
+
+if not info_suscripcion.get("permitido", True):
+    col_bl1, col_bl_center, col_bl2 = st.columns([0.5, 2, 0.5])
+    with col_bl_center:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div style="background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(15, 23, 42, 0.95) 100%);
+                    border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 20px; padding: 32px; text-align: center;
+                    box-shadow: 0 20px 40px -10px rgba(0,0,0,0.5);">
+            <div style="font-size: 3.5rem; margin-bottom: 12px;">🔒</div>
+            <h2 style="color: #F8FAFC; margin-bottom: 8px;">Periodo de Prueba Finalizado</h2>
+            <p style="color: #CBD5E1; font-size: 1.05rem; line-height: 1.6; margin-bottom: 20px;">
+                {info_suscripcion.get("motivo", "Tu acceso temporal de prueba de 15 días ha concluido.")}
+            </p>
+            <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 18px; margin-bottom: 24px; text-align: left;">
+                <p style="color: #10B981; font-weight: 700; margin-bottom: 6px;">🛡️ Tu información y notas están 100% a salvo</p>
+                <p style="color: #94A3B8; font-size: 0.88rem; margin-bottom: 0;">
+                    Toda la base de datos de consultoras, metas de ciclo y notas de gestión registradas por tus líderes se encuentran guardadas y protegidas. Al activar tu suscripción, recuperarás acceso inmediato a todo tu historial sin necesidad de volver a cargar ni reconfigurar nada.
+                </p>
+            </div>
+            <p style="color: #F8FAFC; font-weight: 600; margin-bottom: 16px;">Para activar tu suscripción y desbloquear el acceso para ti y tu equipo:</p>
+            <a href="https://wa.me/573057939537?text=Hola,%20deseo%20activar%20mi%20suscripción%20para%20el%20Sector%20{user_sector}" target="_blank" style="text-decoration: none;">
+                <button style="background: linear-gradient(135deg, #25D366 0%, #128C7E 100%); color: white; border: none; padding: 14px 28px; border-radius: 12px; font-size: 1.05rem; font-weight: 700; cursor: pointer; width: 100%;">
+                    💬 Contactar por WhatsApp al 3057939537
+                </button>
+            </a>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚪 Cerrar Sesión", key="btn_logout_bloqueo", use_container_width=True):
+            st.session_state['user'] = None
+            if 'user' in st.query_params:
+                del st.query_params['user']
+            st.rerun()
+    st.stop()
 
 # Control de cambio obligatorio de contraseña inicial
 if current_user.get('debe_cambiar_password', False):
@@ -724,11 +815,14 @@ st.sidebar.markdown(f"### 👤 {user_nombre}")
 if user_rol == 'superadmin':
     st.sidebar.caption("🛠️ **Rol**: Super Administrador del Sistema (Control Total & Roles)")
 elif user_rol == 'gerente':
-    st.sidebar.caption("👑 **Rol**: Gerencia General (Operación y Métricas de Negocio)")
+    st.sidebar.caption(f"👑 **Gerencia**: {user_sector_nombre} (Sector `{user_sector}`)")
 elif user_rol == 'lider':
-    st.sidebar.caption(f"👩‍💼 **Rol**: Líder de Negocio (Grupo `{user_grupo}`)")
+    st.sidebar.caption(f"👩‍💼 **Rol**: Líder de Negocio (Grupo `{user_grupo}` • {user_sector_nombre})")
 else:
-    st.sidebar.caption("👤 **Rol**: Asesora / Consulta de Facturación")
+    st.sidebar.caption(f"👤 **Rol**: Asesora / Consulta de Facturación ({user_sector_nombre})")
+
+if info_suscripcion.get("estado") == "prueba":
+    st.sidebar.info(f"⏳ **Modo Prueba**: Te quedan **{info_suscripcion['dias_restantes']} días** de prueba gratuita (Vence el {info_suscripcion['fecha_vencimiento_str']}).")
 
 if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
     st.session_state['user'] = None
@@ -816,9 +910,9 @@ else:
             # Si la gerente NO tiene sector asignado en usuarios.json, mostrar vista limpia de 0 filas
             df = df.iloc[0:0]
 
-# Header Principal
-st.markdown("<div class='main-header'>📈 Panel de Control - Estado de Ciclo Matices</div>", unsafe_allow_html=True)
-st.markdown("<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento</div>", unsafe_allow_html=True)
+# Header Principal Dinámico según el Sector del Usuario
+st.markdown(f"<div class='main-header'>📈 Panel de Control - Estado de Ciclo {user_sector_nombre}</div>", unsafe_allow_html=True)
+st.markdown(f"<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento • {user_sector_nombre}</div>", unsafe_allow_html=True)
 
 # Notificación de Cuentas de Nuevas Líderes Auto-Generadas
 if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_creadas_log']:
@@ -1563,10 +1657,10 @@ with tab_tableau:
             cbs_visibles = set(df_edit_view['Código CB'].astype(str)) if 'Código CB' in df_edit_view.columns else None
             df_export_tab = obtener_base_tableau_completa_original(cbs_filtrados=cbs_visibles)
 
-            cdown1, cdown2, cdown3, cdown4 = st.columns(4)
+            cdown1, cdown2 = st.columns(2)
 
             with cdown1:
-                excel_colores_bytes = exportar_tableau_excel_con_colores(df_export_tab, nombre_hoja="Base_Consultoras")
+                excel_colores_bytes = cached_export_excel_tableau(df_export_tab)
                 st.download_button(
                     label="📗 Excel a Colores (.xlsx)",
                     data=excel_colores_bytes,
@@ -1576,31 +1670,7 @@ with tab_tableau:
                 )
 
             with cdown2:
-                ods_tab_bytes = exportar_tabla_ods(df_export_tab)
-                st.download_button(
-                    label="📄 OpenDocument (.ods)",
-                    data=ods_tab_bytes,
-                    file_name="Base_Consultoras.ods",
-                    mime="application/vnd.oasis.opendocument.spreadsheet",
-                    use_container_width=True
-                )
-
-            with cdown3:
-                pdf_tab_bytes = exportar_tabla_pdf(
-                    df_export_tab,
-                    titulo="Informe de Consultoras - Panel Matices",
-                    subtitulo=f"Registros filtrados: {len(df_export_tab)} | Sector: {user_sector or 'General'} | Fecha: {pd.Timestamp.now().strftime('%d/%m/%Y')}"
-                )
-                st.download_button(
-                    label="📕 Reporte PDF (.pdf)",
-                    data=pdf_tab_bytes,
-                    file_name="Informe_Consultoras_Matices.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
-
-            with cdown4:
-                csv_tab_bytes = df_export_tab.to_csv(index=False).encode('utf-8-sig')
+                csv_tab_bytes = cached_export_csv(df_export_tab)
                 st.download_button(
                     label="📊 Archivo CSV (.csv)",
                     data=csv_tab_bytes,
@@ -2494,8 +2564,8 @@ with tab_detalle:
 
 # --- TAB 5: EXPORTAR DATOS ---
 with tab_exportar:
-    st.subheader("📥 Centro de Descargas & Exportación Multiformato")
-    st.markdown("Genera y descarga reportes en **Excel (.xlsx)** con colores reales de semáforo, **OpenDocument (.ods)**, **PDF profesional (.pdf)** o **CSV (.csv)**.")
+    st.subheader("📥 Centro de Descargas & Exportación")
+    st.markdown("Genera y descarga reportes en **Excel (.xlsx)** con colores reales de semáforo o **CSV (.csv)**.")
 
     st.markdown("#### 📊 1. Base Maestra de Tableau (Consultoras, Puntos & Cartera)")
     df_tab_exp = obtener_base_tableau_completa_original(
@@ -2503,9 +2573,9 @@ with tab_exportar:
         sector=(user_sector if (user_rol == 'gerente' and user_sector) else None)
     )
     if df_tab_exp is not None and not df_tab_exp.empty:
-        c_te1, c_te2, c_te3, c_te4 = st.columns(4)
+        c_te1, c_te2 = st.columns(2)
         with c_te1:
-            xl_t_bytes = exportar_tableau_excel_con_colores(df_tab_exp, nombre_hoja="Base_Consultoras")
+            xl_t_bytes = cached_export_excel_tableau(df_tab_exp)
             st.download_button(
                 label="📗 Descargar Excel a Colores (.xlsx)",
                 data=xl_t_bytes,
@@ -2514,29 +2584,7 @@ with tab_exportar:
                 use_container_width=True
             )
         with c_te2:
-            ods_t_bytes = exportar_tabla_ods(df_tab_exp)
-            st.download_button(
-                label="📄 Descargar OpenDocument (.ods)",
-                data=ods_t_bytes,
-                file_name="Base_Consultoras_Tableau.ods",
-                mime="application/vnd.oasis.opendocument.spreadsheet",
-                use_container_width=True
-            )
-        with c_te3:
-            pdf_t_bytes = exportar_tabla_pdf(
-                df_tab_exp,
-                titulo="Informe Base Maestra Tableau - Panel Matices",
-                subtitulo=f"Total Registros: {len(df_tab_exp)} | Sector: {user_sector or 'Todos'} | Fecha: {pd.Timestamp.now().strftime('%d/%m/%Y')}"
-            )
-            st.download_button(
-                label="📕 Descargar Reporte PDF (.pdf)",
-                data=pdf_t_bytes,
-                file_name="Informe_Tableau_Consultoras.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-        with c_te4:
-            csv_t_bytes = df_tab_exp.to_csv(index=False).encode('utf-8-sig')
+            csv_t_bytes = cached_export_csv(df_tab_exp)
             st.download_button(
                 label="📊 Descargar Archivo CSV (.csv)",
                 data=csv_t_bytes,
@@ -2550,7 +2598,7 @@ with tab_exportar:
     st.markdown("---")
     st.markdown("#### 🎯 2. Metas de Ciclo 'Cómo Vamos' (Facturación, Activas & Saldos)")
     if not df_filtrado.empty:
-        col_exp1, col_exp2, col_exp3, col_exp4 = st.columns(4)
+        col_exp1, col_exp2 = st.columns(2)
         
         with col_exp1:
             excel_colores_bytes = exportar_excel_con_colores({
@@ -2568,33 +2616,6 @@ with tab_exportar:
             )
             
         with col_exp2:
-            ods_metas_bytes = exportar_tabla_ods({
-                'Metas_Procesadas': df_filtrado
-            })
-            st.download_button(
-                label="📄 Metas OpenDocument (.ods)",
-                data=ods_metas_bytes,
-                file_name="Reporte_Metas_Lideres.ods",
-                mime="application/vnd.oasis.opendocument.spreadsheet",
-                use_container_width=True
-            )
-            
-        with col_exp3:
-            cols_pdf_m = [c for c in ['Nombre de consultora', 'Código de grupo', 'Nombre Setor', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas', 'Real Facturación', 'Cumplimiento Facturación', 'Ganancia estimada'] if c in df_filtrado.columns]
-            pdf_metas_bytes = exportar_tabla_pdf(
-                df_filtrado[cols_pdf_m] if cols_pdf_m else df_filtrado,
-                titulo="Reporte de Metas de Ciclo - 'Cómo Vamos'",
-                subtitulo=f"Líderes / Grupos: {len(df_filtrado)} | Sector: {user_sector or 'Todos'} | Fecha: {pd.Timestamp.now().strftime('%d/%m/%Y')}"
-            )
-            st.download_button(
-                label="📕 Metas en PDF (.pdf)",
-                data=pdf_metas_bytes,
-                file_name="Reporte_Metas_Lideres.pdf",
-                mime="application/pdf",
-                use_container_width=True
-            )
-            
-        with col_exp4:
             csv_data = df_filtrado.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
                 label="📊 Metas en CSV (.csv)",
@@ -2609,12 +2630,82 @@ with tab_exportar:
 # --- TAB 6: GESTIÓN DE USUARIOS & ROLES (EXCLUSIVO SUPER ADMIN) ---
 with tab_usuarios:
         st.subheader("🔑 Gestión de Usuarios, Roles & Permisos (Super Admin)")
-        st.markdown("Administra credenciales de acceso, asigna roles (*superadmin, gerente, lider, asesor*), restablece contraseñas y vincula el **Código de grupo** a cada Líder.")
+        st.markdown("Administra credenciales de acceso, asigna roles (*superadmin, gerente, lider, asesor*), activa o desbloquea suscripciones en 1 clic y controla los periodos de prueba de 15 días.")
 
+        # --- SECCIÓN 1: CONTROL DE SUSCRIPCIONES Y DESBLOQUEO EN 1 CLIC ---
+        st.markdown("---")
+        st.subheader("💳 Control de Suscripciones, Pruebas Gratuitas y Desbloqueos en 1 Clic")
+        st.caption("Visualiza el estado de cada Sector registrado y desbloquea o activa planes pagados en tiempo real:")
+
+        df_res_sub = obtener_resumen_suscripciones()
+        if not df_res_sub.empty:
+            cols_show_sub = [c for c in ["Código Sector", "Nombre Sector", "Gerente Responsable", "Contacto (WhatsApp)", "Líderes Activas", "Estado", "Vence el", "Tiempo Restante"] if c in df_res_sub.columns]
+            st.dataframe(df_res_sub[cols_show_sub], use_container_width=True)
+            
+            col_acc1, col_acc2 = st.columns([1.2, 1])
+            with col_acc1:
+                st.markdown("##### ⚡ Gestión de Suscripción por Sector")
+                lista_sec_opciones = df_res_sub["Código Sector"].tolist()
+                
+                with st.form("form_gestion_suscripcion_sector"):
+                    sel_sec_id = st.selectbox(
+                        "Selecciona el Sector a gestionar:",
+                        options=lista_sec_opciones,
+                        format_func=lambda s: f"Sector {s} — {df_res_sub[df_res_sub['Código Sector'] == s]['Nombre Sector'].iloc[0]} ({df_res_sub[df_res_sub['Código Sector'] == s]['Gerente Responsable'].iloc[0]})"
+                    )
+                    
+                    accion_sub = st.selectbox(
+                        "Acción a Realizar:",
+                        options=[
+                            "🟢 Activar Plan Pagado (+30 Días / 1 Mes)",
+                            "🟢 Activar Plan Pagado (+90 Días / Trimestral)",
+                            "🟢 Activar Plan Pagado (+365 Días / Anual)",
+                            "👑 Activar Suscripción Permanente (Sin Vencimiento)",
+                            "⏳ Dar Prórroga de Prueba (+5 Días de Cortesía)",
+                            "⛔ Suspender / Bloquear Acceso a este Sector",
+                            "🔓 Desbloquear Acceso al Sector"
+                        ]
+                    )
+                    
+                    btn_aplicar_sub = st.form_submit_button("🚀 Aplicar Cambio al Sector", type="primary", use_container_width=True)
+                    
+                    if btn_aplicar_sub:
+                        if "30 Días" in accion_sub:
+                            ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="activo", dias_extension=30, es_pago=True)
+                        elif "90 Días" in accion_sub:
+                            ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="activo", dias_extension=90, es_pago=True)
+                        elif "365 Días" in accion_sub:
+                            ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="activo", dias_extension=365, es_pago=True)
+                        elif "Permanente" in accion_sub:
+                            ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="activo", dias_extension=-1, es_pago=True)
+                        elif "Prórroga" in accion_sub:
+                            ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="prueba", dias_extension=5, es_pago=False)
+                        elif "Suspender" in accion_sub:
+                            ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="bloqueado", dias_extension=0, es_pago=False)
+                        elif "Desbloquear" in accion_sub:
+                            ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="activo", dias_extension=30, es_pago=True)
+                        
+                        if ok_s:
+                            st.success(f"✅ ¡Éxito! {msg_s}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_s}")
+                            
+            with col_acc2:
+                st.markdown("##### ℹ️ Información de Ayuda")
+                st.info(
+                    "💡 **¿Cómo funciona el desbloqueo?**\n\n"
+                    "- Al seleccionar **Activar Plan Pagado**, la Gerente y **todas sus líderes** recuperan acceso inmediato.\n"
+                    "- Toda la data previa, comentarios y notas de consultoras quedan disponibles al instante.\n"
+                    "- El sistema audita y actualiza las cuentas en cascada."
+                )
+
+        st.markdown("---")
+        st.subheader("👥 Gestión de Cuentas y Creación de Usuarios")
         col_u1, col_u2 = st.columns([1.2, 1])
 
         with col_u1:
-            st.markdown("##### 👥 Usuarios Registrados Actuales")
+            st.markdown("##### 📋 Listado General de Cuentas Registradas")
             users_dict = cargar_usuarios()
             list_u = []
             for uname, udata in users_dict.items():
@@ -2623,30 +2714,77 @@ with tab_usuarios:
                     "Nombre": udata.get("nombre", ""),
                     "Rol": udata.get("rol", ""),
                     "Código de Grupo": udata.get("codigo_grupo") or "N/A",
-                    "Código de Sector": udata.get("codigo_sector") or "N/A"
+                    "Código de Sector": udata.get("codigo_sector") or "N/A",
+                    "Nombre Sector": udata.get("nombre_sector") or "N/A",
+                    "Estado": udata.get("estado_suscripcion") or "activo"
                 })
             st.dataframe(pd.DataFrame(list_u), use_container_width=True)
 
         with col_u2:
-            st.markdown("##### ➕ Crear / Editar Usuario de Gerente, Líder o Asesora")
-            with st.form("form_nuevo_usuario"):
-                nu_username = st.text_input("Usuario (Login)", placeholder="ej. gerente3 o lider9334")
-                nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Magola Lopez")
-                nu_pass = st.text_input("Contraseña", type="password", placeholder="Dejar vacío para mantener contraseña actual")
-                nu_rol = st.selectbox("Rol de Acceso", options=["gerente", "lider", "superadmin", "asesor"])
-                nu_grupo = st.text_input("Código de Grupo (Para Líderes)", placeholder="ej. 9334")
-                nu_sector = st.text_input("Código de Sector (Para Gerentes)", placeholder="ej. 700000499")
+            tab_crear_u, tab_eliminar_u = st.tabs(["➕ Crear / Editar Usuario", "🗑️ Eliminar Perfil"])
+            
+            with tab_crear_u:
+                st.markdown("##### 👤 Crear o Modificar Cuenta")
+                with st.form("form_nuevo_usuario"):
+                    nu_username = st.text_input("Usuario (Login)", placeholder="ej. gerente3 o lider9334")
+                    nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Dolly Salgara")
+                    nu_pass = st.text_input("Contraseña", type="password", placeholder="Dejar vacío para mantener contraseña actual")
+                    nu_rol = st.selectbox("Rol de Acceso", options=["gerente", "lider", "superadmin", "asesor"])
+                    nu_grupo = st.text_input("Código de Grupo (Para Líderes)", placeholder="ej. 9334")
+                    nu_sector = st.text_input("Código de Sector (Para Gerentes)", placeholder="ej. 700000466")
+                    nu_nom_sec = st.text_input("Nombre del Sector (Para Gerentes/Líderes)", placeholder="ej. EMOCIONES DOLLY")
+                    
+                    btn_save_u = st.form_submit_button("💾 Guardar / Actualizar Usuario", type="primary", use_container_width=True)
+                    if btn_save_u:
+                        ok_u, msg_u = registrar_o_actualizar_usuario(
+                            nu_username, nu_nombre, nu_pass, nu_rol, nu_grupo, nu_sector, nombre_sector=nu_nom_sec
+                        )
+                        if ok_u:
+                            st.success(f"✅ {msg_u}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_u}")
+                            
+            with tab_eliminar_u:
+                st.markdown("##### 🗑️ Eliminar Cuenta de Usuario / Gerente")
+                st.caption("Selecciona el perfil a remover. La cuenta del Super Administrador ('admin') está protegida.")
                 
-                btn_save_u = st.form_submit_button("💾 Guardar / Actualizar Usuario", type="primary", use_container_width=True)
-                if btn_save_u:
-                    ok_u, msg_u = registrar_o_actualizar_usuario(
-                        nu_username, nu_nombre, nu_pass, nu_rol, nu_grupo, nu_sector
-                    )
-                    if ok_u:
-                        st.success(f"✅ {msg_u}")
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {msg_u}")
+                users_disponibles_elim = [u for u in users_dict.keys() if u != 'admin']
+                
+                if users_disponibles_elim:
+                    with st.form("form_eliminar_usuario_perfil"):
+                        user_a_eliminar = st.selectbox(
+                            "Selecciona el usuario a eliminar:",
+                            options=users_disponibles_elim,
+                            format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} ({users_dict[u].get('rol', '')})"
+                        )
+                        
+                        u_info_sel = users_dict.get(user_a_eliminar, {})
+                        es_gerente_sel = (u_info_sel.get("rol") == "gerente")
+                        
+                        chk_elim_sec = False
+                        if es_gerente_sel and u_info_sel.get("codigo_sector"):
+                            chk_elim_sec = st.checkbox(
+                                f"🗑️ También eliminar el historial del Sector {u_info_sel.get('codigo_sector')} (permite que este sector pueda re-registrarse)",
+                                value=True
+                            )
+                            
+                        chk_conf_del_u = st.checkbox("🔒 Confirmo que deseo eliminar este usuario permanentemente", value=False)
+                        
+                        btn_del_u = st.form_submit_button("🚨 Eliminar Perfil Definitivamente", type="secondary", use_container_width=True)
+                        
+                        if btn_del_u:
+                            if not chk_conf_del_u:
+                                st.warning("⚠️ Debes marcar la casilla de confirmación para eliminar.")
+                            else:
+                                ok_del, msg_del = eliminar_usuario_perfil(user_a_eliminar, eliminar_sector_asociado=chk_elim_sec)
+                                if ok_del:
+                                    st.success(f"✅ {msg_del}")
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {msg_del}")
+                else:
+                    st.info("No hay usuarios adicionales disponibles para eliminar.")
 
         st.markdown("---")
         st.subheader("🎛️ Control Global de Permisos de Carga de Archivos")
@@ -2768,4 +2906,4 @@ with tab_usuarios:
 
 # Footer
 st.markdown("---")
-st.caption("📈 Panel de Control Matices | Desarrollado con Streamlit & Pandas")
+st.caption(f"📈 Panel de Control {user_sector_nombre} | Desarrollado por Tao-System")

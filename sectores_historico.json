@@ -1,0 +1,35 @@
+{
+  "700000459": {
+    "codigo_sector": "700000459",
+    "nombre_sector": "MATICES CLERY",
+    "primera_prueba_fecha": "2026-01-01T00:00:00",
+    "ha_consumido_prueba": true,
+    "ha_pagado": true,
+    "estado": "activo",
+    "fecha_vencimiento": null,
+    "correo_gerente": "gerente",
+    "telefono_gerente": "3057939537"
+  },
+  "700000466": {
+    "codigo_sector": "700000466",
+    "nombre_sector": "EMOCIONES DOLLY",
+    "primera_prueba_fecha": "2026-01-01T00:00:00",
+    "ha_consumido_prueba": true,
+    "ha_pagado": true,
+    "estado": "activo",
+    "fecha_vencimiento": null,
+    "correo_gerente": "dolly@gmail.com",
+    "telefono_gerente": "3113201145"
+  },
+  "700000003": {
+    "codigo_sector": "700000003",
+    "nombre_sector": "EMOCIONES DOLLY",
+    "primera_prueba_fecha": "2026-08-19T22:11:43.090516",
+    "ha_consumido_prueba": true,
+    "ha_pagado": false,
+    "estado": "prueba",
+    "fecha_vencimiento": "2026-09-03T22:11:43.090516",
+    "correo_gerente": "dolly@gmail.com",
+    "telefono_gerente": "3113201145"
+  }
+}
