@@ -662,6 +662,535 @@ def exportar_excel_con_colores(df_dict, buffer_salida=None):
         wb.save(out)
         return out.getvalue()
 
+COLUMNAS_ORDEN_TABLEAU = [
+    'Código CB',
+    'Asesora / Consultora',
+    'Líder / Grupo',
+    'Nivel / Color',
+    'Sit. Comercial',
+    'Pts Acum',
+    'Pts Mant',
+    'Pts Asc',
+    'Deuda Total',
+    'Deuda Mora',
+    'Credito Total',
+    'Credito Disponible',
+    'Pts Natura',
+    'Pts AVON',
+    'Ped. Pendientes',
+    'Notas / Comentarios Líder'
+]
+
+def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None):
+    """
+    Estandariza cualquier DataFrame de Tableau para que conserve exactamente el mismo orden
+    y cantidad de columnas limpias de la tabla 'Base de Datos' / 'Base Maestra Gestionable',
+    eliminando información repetida, columnas duplicadas o campos técnicos.
+    """
+    if df_raw is None or df_raw.empty:
+        return pd.DataFrame(columns=COLUMNAS_ORDEN_TABLEAU)
+
+    df = df_raw.copy()
+
+    if mapa_lideres is None:
+        mapa_lideres = obtener_mapa_lideres()
+
+    # 1. Enriquecer columna 'Líder / Grupo'
+    if 'Líder / Grupo' not in df.columns:
+        col_grp = next((c for c in ['Grupo', 'grupo', 'codigo_grupo', 'Código de grupo'] if c in df.columns), None)
+        if col_grp:
+            df['Líder / Grupo'] = df[col_grp].apply(
+                lambda g: f"Grupo {g} — {mapa_lideres[str(g).strip()]}" if str(g).strip() in mapa_lideres else f"Grupo {g}"
+            )
+        else:
+            df['Líder / Grupo'] = ''
+
+    # 2. Diccionario de normalización a nombres de cabecera canónicos
+    rename_dict = {}
+    
+    # Código CB
+    if 'Código CB' not in df.columns:
+        c_cb = next((c for c in ['Codigo CB', 'codigo_cb', 'Código de consultora', 'Cd Consultora'] if c in df.columns), None)
+        if c_cb: rename_dict[c_cb] = 'Código CB'
+
+    # Asesora / Consultora
+    if 'Asesora / Consultora' not in df.columns:
+        c_nom = next((c for c in ['Nombre', 'nombre', 'Nombre de consultora', 'Consultora'] if c in df.columns), None)
+        if c_nom: rename_dict[c_nom] = 'Asesora / Consultora'
+
+    # Nivel / Color
+    if 'Nivel / Color' not in df.columns:
+        c_col = next((c for c in ['Color', 'color', 'Nivel', 'nivel'] if c in df.columns), None)
+        if c_col: rename_dict[c_col] = 'Nivel / Color'
+
+    # Sit. Comercial
+    if 'Sit. Comercial' not in df.columns:
+        c_sit = next((c for c in ['sit_comercial', 'Sit Comercial', 'Situación', 'situacion', 'Situacion'] if c in df.columns), None)
+        if c_sit: rename_dict[c_sit] = 'Sit. Comercial'
+
+    # Puntos
+    if 'Pts Acum' not in df.columns:
+        c_pts_ac = next((c for c in ['pts_acum', 'Pts Acumulados'] if c in df.columns), None)
+        if c_pts_ac: rename_dict[c_pts_ac] = 'Pts Acum'
+
+    if 'Pts Mant' not in df.columns:
+        c_pts_mt = next((c for c in ['pts_mant', 'Pts Para Mantener'] if c in df.columns), None)
+        if c_pts_mt: rename_dict[c_pts_mt] = 'Pts Mant'
+
+    if 'Pts Asc' not in df.columns:
+        c_pts_as = next((c for c in ['pts_asc', 'Pts para Ascender', 'Pts para Ascender '] if c in df.columns), None)
+        if c_pts_as: rename_dict[c_pts_as] = 'Pts Asc'
+
+    # Deuda y Crédito
+    if 'Deuda Total' not in df.columns:
+        c_dt = next((c for c in ['deuda_total'] if c in df.columns), None)
+        if c_dt: rename_dict[c_dt] = 'Deuda Total'
+
+    if 'Deuda Mora' not in df.columns:
+        c_dm = next((c for c in ['deuda_mora', 'Deuda Mora '] if c in df.columns), None)
+        if c_dm: rename_dict[c_dm] = 'Deuda Mora'
+
+    if 'Credito Total' not in df.columns:
+        c_ct = next((c for c in ['credito_total', 'Crédito Total'] if c in df.columns), None)
+        if c_ct: rename_dict[c_ct] = 'Credito Total'
+
+    if 'Credito Disponible' not in df.columns:
+        c_cd = next((c for c in ['credito_disponible', 'Crédito Disponible'] if c in df.columns), None)
+        if c_cd: rename_dict[c_cd] = 'Credito Disponible'
+
+    if 'Pts Natura' not in df.columns:
+        c_pn = next((c for c in ['pts_natura'] if c in df.columns), None)
+        if c_pn: rename_dict[c_pn] = 'Pts Natura'
+
+    if 'Pts AVON' not in df.columns:
+        c_pa = next((c for c in ['pts_avon'] if c in df.columns), None)
+        if c_pa: rename_dict[c_pa] = 'Pts AVON'
+
+    if 'Ped. Pendientes' not in df.columns:
+        c_pp = next((c for c in ['pedidos_pendientes', 'Pedidos Pendientes'] if c in df.columns), None)
+        if c_pp: rename_dict[c_pp] = 'Ped. Pendientes'
+
+    if 'Notas / Comentarios Líder' not in df.columns:
+        c_nl = next((c for c in ['Comentarios_Lider', 'notas_lider', 'Notas / Comentarios'] if c in df.columns), None)
+        if c_nl: rename_dict[c_nl] = 'Notas / Comentarios Líder'
+
+    if rename_dict:
+        df = df.rename(columns=rename_dict)
+
+    # Eliminar duplicados de columnas
+    df = df.loc[:, ~df.columns.duplicated()].copy()
+
+    # Seleccionar única y exclusivamente las columnas en el orden canónico
+    cols_existentes = [c for c in COLUMNAS_ORDEN_TABLEAU if c in df.columns]
+    df_resultado = df[cols_existentes].copy()
+
+    return df_resultado
+
+def obtener_base_tableau_completa_original(grupo=None, sector=None, cbs_filtrados=None):
+    """
+    Retorna el DataFrame completo de Tableau con las 61+ columnas originales en su orden exacto,
+    incluyendo los comentarios persistentes de la líder y aplicando los filtros correspondientes.
+    """
+    if os.path.exists('Base de Datos.xlsx'):
+        try:
+            df = pd.read_excel('Base de Datos.xlsx')
+            
+            # Limpiar codificaciones comunes en encabezados
+            df = df.rename(columns=lambda c: str(c).replace('Situacin', 'Situación').replace('Mes Cumpleaos', 'Mes Cumpleaños').replace('Direccin', 'Dirección'))
+            
+            col_cb = next((c for c in ['Codigo CB', 'Código CB', 'codigo_cb'] if c in df.columns), df.columns[0])
+            comentarios = cargar_comentarios_lideres()
+            
+            df['Notas / Comentarios Líder'] = df[col_cb].astype(str).str.strip().map(lambda k: comentarios.get(k, ''))
+            
+            # 1. Si se pasan CBs filtrados directamente de la consulta activa en pantalla
+            if cbs_filtrados is not None:
+                cbs_set = {str(x).strip() for x in cbs_filtrados}
+                df = df[df[col_cb].astype(str).str.strip().isin(cbs_set)].copy()
+                return df
+
+            # 2. Si se proporciona grupo o sector
+            if grupo and str(grupo).strip() and str(grupo).strip() != 'Todas las Líderes (Consolidado Zona)':
+                g_str = str(grupo).strip()
+                mask_grp = pd.Series(False, index=df.index)
+                for c_grp in ['Grupo', 'grupo', 'codigo_grupo', 'Código de grupo', 'Cód. Grupo']:
+                    if c_grp in df.columns:
+                        mask_grp = mask_grp | df[c_grp].astype(str).str.strip().str.split('.').str[0].str.contains(g_str, case=False, na=False)
+                if mask_grp.any():
+                    df = df[mask_grp].copy()
+
+            if sector and str(sector).strip() and str(sector).strip() != 'Todos':
+                s_str = str(sector).strip()
+                mask_sec = pd.Series(False, index=df.index)
+                
+                # Buscar en columnas de código de sector
+                for c_sec in ['Cod. Sector', 'cod_sector', 'Codigo Sector', 'Código Sector']:
+                    if c_sec in df.columns:
+                        mask_sec = mask_sec | df[c_sec].astype(str).str.strip().str.split('.').str[0].str.contains(s_str, case=False, na=False)
+                        
+                # Buscar en columnas de nombre de sector
+                for c_sec in ['Sector ', 'Sector', 'sector', 'Nombre Setor', 'Nombre Sector']:
+                    if c_sec in df.columns:
+                        mask_sec = mask_sec | df[c_sec].astype(str).str.strip().str.contains(s_str, case=False, na=False)
+                        
+                if mask_sec.any():
+                    df = df[mask_sec].copy()
+                    
+            return df
+        except Exception as e:
+            safe_print(f"Nota al leer Base de Datos.xlsx para exportación: {e}")
+
+    # Fallback a SQLite
+    df_sql = consultar_tableau_sql(grupo=grupo, sector=sector)
+    if cbs_filtrados is not None and df_sql is not None and not df_sql.empty:
+        col_cb_sql = next((c for c in ['Código CB', 'Codigo CB', 'codigo_cb'] if c in df_sql.columns), df_sql.columns[0])
+        cbs_set = {str(x).strip() for x in cbs_filtrados}
+        df_sql = df_sql[df_sql[col_cb_sql].astype(str).str.strip().isin(cbs_set)].copy()
+    return df_sql
+
+def exportar_tableau_excel_con_colores(df, nombre_hoja="Base_Consultoras", buffer_salida=None):
+    """
+    Genera un archivo Excel profesional (.xlsx) con los colores exactos de la consulta,
+    manteniendo estrictamente el orden y todas las columnas originales de la base de datos.
+    """
+    import openpyxl
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+
+    # Evitar duplicados exactos en nombres de columnas conservando el orden completo
+    df = df.loc[:, ~df.columns.duplicated()].copy()
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = str(nombre_hoja)[:31]
+
+    # Paleta de colores para niveles
+    fill_bronce = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
+    font_bronce = Font(name="Calibri", size=10, bold=True, color="92400E")
+    
+    fill_plata = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
+    font_plata = Font(name="Calibri", size=10, bold=True, color="334155")
+    
+    fill_oro = PatternFill(start_color="FEF08A", end_color="FEF08A", fill_type="solid")
+    font_oro = Font(name="Calibri", size=10, bold=True, color="854D0E")
+    
+    fill_platino = PatternFill(start_color="E0F2FE", end_color="E0F2FE", fill_type="solid")
+    font_platino = Font(name="Calibri", size=10, bold=True, color="0369A1")
+    
+    fill_zafiro = PatternFill(start_color="DBEAFE", end_color="DBEAFE", fill_type="solid")
+    font_zafiro = Font(name="Calibri", size=10, bold=True, color="1E40AF")
+    
+    fill_diamante = PatternFill(start_color="F3E8FF", end_color="F3E8FF", fill_type="solid")
+    font_diamante = Font(name="Calibri", size=10, bold=True, color="6B21A8")
+
+    # Paleta para situación comercial
+    fill_activa = PatternFill(start_color="DCFCE7", end_color="DCFCE7", fill_type="solid")
+    font_activa = Font(name="Calibri", size=10, bold=True, color="166534")
+    
+    fill_inactiva_leve = PatternFill(start_color="FEF9C3", end_color="FEF9C3", fill_type="solid")
+    font_inactiva_leve = Font(name="Calibri", size=10, bold=True, color="854D0E")
+    
+    fill_inactiva_critica = PatternFill(start_color="FEE2E2", end_color="FEE2E2", fill_type="solid")
+    font_inactiva_critica = Font(name="Calibri", size=10, bold=True, color="991B1B")
+
+    fill_mora_media = PatternFill(start_color="FFEDD5", end_color="FFEDD5", fill_type="solid")
+    font_mora_media = Font(name="Calibri", size=10, bold=True, color="9A3412")
+
+    fill_header = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
+    font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
+
+    thin_border = Border(
+        left=Side(style='thin', color='E2E8F0'),
+        right=Side(style='thin', color='E2E8F0'),
+        top=Side(style='thin', color='E2E8F0'),
+        bottom=Side(style='thin', color='E2E8F0')
+    )
+
+    headers = list(df.columns)
+    ws.append(headers)
+
+    for col_num, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col_num)
+        cell.fill = fill_header
+        cell.font = font_header
+        cell.alignment = Alignment(horizontal="center", vertical="center")
+
+    for _, row in df.iterrows():
+        row_vals = [row[c] for c in headers]
+        ws.append(row_vals)
+        r_idx = ws.max_row
+
+        for col_idx, col_name in enumerate(headers, 1):
+            cell = ws.cell(row=r_idx, column=col_idx)
+            cell.border = thin_border
+            cell.alignment = Alignment(vertical="center")
+
+            val = row[col_name]
+            col_lower = str(col_name).lower()
+
+            # 1. Nivel / Color
+            if 'color' in col_lower or 'nivel' in col_lower:
+                v_str = str(val).strip().lower()
+                if 'bronce' in v_str:
+                    cell.fill = fill_bronce
+                    cell.font = font_bronce
+                elif 'plata' in v_str:
+                    cell.fill = fill_plata
+                    cell.font = font_plata
+                elif 'oro' in v_str:
+                    cell.fill = fill_oro
+                    cell.font = font_oro
+                elif 'platino' in v_str:
+                    cell.fill = fill_platino
+                    cell.font = font_platino
+                elif 'zafiro' in v_str:
+                    cell.fill = fill_zafiro
+                    cell.font = font_zafiro
+                elif 'diamante' in v_str:
+                    cell.fill = fill_diamante
+                    cell.font = font_diamante
+
+            # 2. Situación Comercial
+            elif 'sit. comercial' in col_lower or 'sit comercial' in col_lower or 'situacion' in col_lower or 'situación' in col_lower:
+                v_str = str(val).strip().lower()
+                if 'activa' in v_str or 'inicio' in v_str or 'reinicio' in v_str or 'recupero' in v_str:
+                    cell.fill = fill_activa
+                    cell.font = font_activa
+                elif any(x in v_str for x in ['inactiva 1', 'inactiva 2', 'inactiva 3', 'inactiva1', 'inactiva2', 'inactiva3']):
+                    cell.fill = fill_inactiva_leve
+                    cell.font = font_inactiva_leve
+                elif any(x in v_str for x in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'indisponible', 'inactiva4', 'inactiva5', 'inactiva6']):
+                    cell.fill = fill_inactiva_critica
+                    cell.font = font_inactiva_critica
+                elif 'fuga' in v_str:
+                    cell.fill = fill_mora_media
+                    cell.font = font_mora_media
+
+            # 3. Deuda Mora
+            elif 'deuda mora' in col_lower or 'mora' in col_lower:
+                num = limpiar_numero(val, 0.0)
+                if num <= 0:
+                    cell.fill = fill_activa
+                    cell.font = font_activa
+                elif num <= 200000:
+                    cell.fill = fill_inactiva_leve
+                    cell.font = font_inactiva_leve
+                elif num <= 500000:
+                    cell.fill = fill_mora_media
+                    cell.font = font_mora_media
+                else:
+                    cell.fill = fill_inactiva_critica
+                    cell.font = font_inactiva_critica
+                cell.number_format = '$#,##0'
+
+            # 4. Formatear números de dinero
+            elif any(k in col_lower for k in ['deuda', 'credito', 'crédito', 'fact', 'facturacion', 'facturación']):
+                try:
+                    num = limpiar_numero(val, 0.0)
+                    cell.value = num
+                    cell.number_format = '$#,##0'
+                except Exception:
+                    pass
+
+            # 5. Formatear puntos o cantidades
+            elif any(k in col_lower for k in ['pts', 'puntos', 'pedidos', 'ped.', 'inactividad']):
+                try:
+                    num = int(limpiar_numero(val, 0))
+                    cell.value = num
+                    cell.number_format = '#,##0'
+                except Exception:
+                    pass
+
+    for col in ws.columns:
+        max_len = max(len(str(cell.value or '')) for cell in col)
+        col_letter = get_column_letter(col[0].column)
+        ws.column_dimensions[col_letter].width = min(max(max_len + 4, 12), 45)
+
+    if buffer_salida is not None:
+        wb.save(buffer_salida)
+        return buffer_salida
+    else:
+        out = io.BytesIO()
+        wb.save(out)
+        return out.getvalue()
+
+def exportar_tabla_ods(df_dict_or_df, buffer_salida=None):
+    """
+    Exporta un DataFrame o diccionario de DataFrames a formato OpenDocument Spreadsheet (.ods).
+    """
+    out = buffer_salida if buffer_salida is not None else io.BytesIO()
+    with pd.ExcelWriter(out, engine='odf') as writer:
+        if isinstance(df_dict_or_df, dict):
+            for s_name, df_item in df_dict_or_df.items():
+                df_item.to_excel(writer, sheet_name=str(s_name)[:31], index=False)
+        else:
+            df_dict_or_df.to_excel(writer, sheet_name='Datos', index=False)
+    if buffer_salida is not None:
+        return buffer_salida
+    return out.getvalue()
+
+def exportar_tabla_pdf(df, titulo="Reporte Ejecutivo - Panel Matices", subtitulo="", columnas=None, max_filas=1000, buffer_salida=None):
+    """
+    Genera un documento PDF profesional horizontal (Landscape) con tabla estilizada,
+    encabezados corporativos y semáforo de colores en celdas de estado, nivel y mora.
+    """
+    from reportlab.lib.pagesizes import letter, landscape
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+
+    out = buffer_salida if buffer_salida is not None else io.BytesIO()
+    doc = SimpleDocTemplate(
+        out,
+        pagesize=landscape(letter),
+        leftMargin=20,
+        rightMargin=20,
+        topMargin=25,
+        bottomMargin=25
+    )
+
+    story = []
+    styles = getSampleStyleSheet()
+
+    title_style = ParagraphStyle(
+        'TitleStyle',
+        parent=styles['Heading1'],
+        fontName='Helvetica-Bold',
+        fontSize=15,
+        leading=17,
+        textColor=colors.HexColor('#1E293B'),
+        spaceAfter=3
+    )
+
+    sub_style = ParagraphStyle(
+        'SubStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=8.5,
+        leading=11,
+        textColor=colors.HexColor('#64748B'),
+        spaceAfter=10
+    )
+
+    cell_style = ParagraphStyle(
+        'CellStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica',
+        fontSize=7,
+        leading=8,
+        textColor=colors.HexColor('#1E293B')
+    )
+
+    cell_header_style = ParagraphStyle(
+        'CellHeaderStyle',
+        parent=styles['Normal'],
+        fontName='Helvetica-Bold',
+        fontSize=7.5,
+        leading=9,
+        textColor=colors.white,
+        alignment=1
+    )
+
+    story.append(Paragraph(f"<b>{titulo}</b>", title_style))
+    if subtitulo:
+        story.append(Paragraph(subtitulo, sub_style))
+
+    # Seleccionar columnas prioritarias si no se pasan explícitas
+    if columnas:
+        cols_usar = [c for c in columnas if c in df.columns]
+    else:
+        cols_prioritarias = [
+            'Código CB', 'Asesora / Consultora', 'Líder / Grupo', 'Nivel / Color', 'Sit. Comercial',
+            'Pts Acum', 'Deuda Total', 'Deuda Mora', 'Credito Disponible', 'Ped. Pendientes', 'Notas / Comentarios Líder'
+        ]
+        cols_usar = [c for c in cols_prioritarias if c in df.columns]
+        if not cols_usar:
+            cols_usar = list(df.columns[:10])
+
+    df_pdf = df[cols_usar].head(max_filas).copy()
+
+    table_data = []
+    header_row = [Paragraph(f"<b>{c}</b>", cell_header_style) for c in cols_usar]
+    table_data.append(header_row)
+
+    custom_table_styles = [
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#1E293B')),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor('#CBD5E1')),
+        ('TOPPADDING', (0, 0), (-1, -1), 2.5),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 2.5),
+        ('LEFTPADDING', (0, 0), (-1, -1), 2.5),
+        ('RIGHTPADDING', (0, 0), (-1, -1), 2.5),
+    ]
+
+    for r_idx, (_, row) in enumerate(df_pdf.iterrows(), start=1):
+        row_cells = []
+        for c_idx, col_name in enumerate(cols_usar):
+            val = row[col_name]
+            val_str = str(val) if pd.notna(val) else ""
+            col_lower = str(col_name).lower()
+
+            # Formatear números
+            if any(k in col_lower for k in ['deuda', 'credito', 'crédito', 'fact']):
+                num = limpiar_numero(val, 0.0)
+                val_str = f"${num:,.0f}".replace(",", ".")
+            elif any(k in col_lower for k in ['pts', 'puntos', 'pedidos', 'ped.']):
+                num = int(limpiar_numero(val, 0))
+                val_str = f"{num:,}".replace(",", ".")
+
+            # Colorear celdas según estado / nivel / mora
+            if 'color' in col_lower or 'nivel' in col_lower:
+                v_low = str(val).lower()
+                if 'bronce' in v_low:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#FEF3C7')))
+                elif 'plata' in v_low:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#E2E8F0')))
+                elif 'oro' in v_low:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#FEF08A')))
+                elif 'platino' in v_low:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#E0F2FE')))
+                elif 'zafiro' in v_low:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#DBEAFE')))
+                elif 'diamante' in v_low:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#F3E8FF')))
+
+            elif 'sit. comercial' in col_lower or 'sit comercial' in col_lower or 'situacion' in col_lower or 'situación' in col_lower:
+                v_low = str(val).lower()
+                if 'activa' in v_low or 'inicio' in v_low or 'reinicio' in v_low or 'recupero' in v_low:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#DCFCE7')))
+                elif any(x in v_low for x in ['inactiva 1', 'inactiva 2', 'inactiva 3']):
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#FEF9C3')))
+                elif any(x in v_low for x in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'indisponible']):
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#FEE2E2')))
+                elif 'fuga' in v_low:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#FFEDD5')))
+
+            elif 'deuda mora' in col_lower or 'mora' in col_lower:
+                num = limpiar_numero(val, 0.0)
+                if num <= 0:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#DCFCE7')))
+                elif num <= 200000:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#FEF9C3')))
+                elif num <= 500000:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#FFEDD5')))
+                else:
+                    custom_table_styles.append(('BACKGROUND', (c_idx, r_idx), (c_idx, r_idx), colors.HexColor('#FEE2E2')))
+
+            row_cells.append(Paragraph(val_str[:30], cell_style))
+        table_data.append(row_cells)
+
+    disponible_width = 750
+    col_w = disponible_width / max(1, len(cols_usar))
+    t = Table(table_data, colWidths=[col_w] * len(cols_usar), repeatRows=1)
+    t.setStyle(TableStyle(custom_table_styles))
+    story.append(t)
+
+    doc.build(story)
+    if buffer_salida is not None:
+        return buffer_salida
+    return out.getvalue()
+
 # --- MÓDULO INFORME TABLEAU MANAGER ("INFORME TABLEAU CAM") ---
 
 RUTA_COMENTARIOS = 'comentarios_lideres.json'
@@ -1627,6 +2156,56 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
                 })
 
     return creados
+
+def obtener_mapa_lideres():
+    """
+    Retorna un diccionario { 'codigo_grupo': 'Nombre Líder' }
+    recuperando nombres desde usuarios.json, la base de datos SQLite y 'Base para el como vamos.xlsx'.
+    """
+    mapa = {}
+
+    # 1. Desde usuarios.json
+    try:
+        usuarios = cargar_usuarios()
+        for u_id, u_data in usuarios.items():
+            grp = str(u_data.get('codigo_grupo') or '').strip()
+            nom = str(u_data.get('nombre') or '').strip()
+            if grp and nom and grp.lower() not in ['none', 'nan', 'null', ''] and nom.lower() not in ['none', 'nan', 'null', '']:
+                mapa[grp] = nom
+    except Exception:
+        pass
+
+    # 2. Desde la tabla SQLite metas_como_vamos
+    try:
+        conn = obtener_conexion_db()
+        cursor = conn.cursor()
+        rows = cursor.execute("SELECT DISTINCT codigo_grupo, nombre_consultora FROM metas_como_vamos WHERE codigo_grupo IS NOT NULL AND nombre_consultora IS NOT NULL").fetchall()
+        for r in rows:
+            grp = str(r[0] or '').strip().split('.')[0]
+            nom = str(r[1] or '').strip()
+            if grp and nom and grp.lower() not in ['none', 'nan', 'null', ''] and nom.lower() not in ['none', 'nan', 'null', '']:
+                mapa[grp] = nom
+        conn.close()
+    except Exception:
+        pass
+
+    # 3. Desde el archivo físico 'Base para el como vamos.xlsx' si existe
+    try:
+        if os.path.exists('Base para el como vamos.xlsx'):
+            df_m = pd.read_excel('Base para el como vamos.xlsx', sheet_name=0)
+            df_m = normalizar_columnas(df_m)
+            col_grp = 'Código de grupo' if 'Código de grupo' in df_m.columns else None
+            col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_m.columns else None
+            if col_grp and col_nom:
+                for _, row in df_m.iterrows():
+                    g = str(row[col_grp] or '').strip().split('.')[0]
+                    n = str(row[col_nom] or '').strip()
+                    if g and n and g.lower() not in ['none', 'nan', 'null', ''] and n.lower() not in ['none', 'nan', 'null', '']:
+                        mapa[g] = n
+    except Exception:
+        pass
+
+    return mapa
 
 # --- CONFIGURACIÓN DE PERMISOS GLOBALES DE CARGA ---
 RUTA_CONFIG = 'configuracion.json'

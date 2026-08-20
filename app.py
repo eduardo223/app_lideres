@@ -46,9 +46,15 @@ from procesador import (
     color_avance,
     color_saldo,
     exportar_excel_con_colores,
+    exportar_tableau_excel_con_colores,
+    exportar_tabla_ods,
+    exportar_tabla_pdf,
+    limpiar_y_ordenar_columnas_tableau,
+    obtener_base_tableau_completa_original,
     limpiar_numero,
     validar_sector_archivo,
-    auto_crear_usuarios_lideres_desde_bases
+    auto_crear_usuarios_lideres_desde_bases,
+    obtener_mapa_lideres
 )
 
 # 1. Configuración de la página
@@ -868,9 +874,20 @@ if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
     col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
     if col_grp_ref and col_grp_ref in df_filtrado.columns:
         grupos_unicos = sorted([str(g).strip() for g in df_filtrado[col_grp_ref].dropna().unique()])
+        mapa_lideres_sb = obtener_mapa_lideres()
+        
+        def format_lider_sb(g_val):
+            if g_val == "Todas las Líderes":
+                return "🌟 Todas las Líderes"
+            nom = mapa_lideres_sb.get(str(g_val).strip())
+            if nom:
+                return f"👩‍💼 Grupo {g_val} — {nom}"
+            return f"👥 Grupo {g_val}"
+
         lider_seleccionada_sb = st.sidebar.selectbox(
             "👤 Seleccionar Líder / Grupo",
             options=["Todas las Líderes"] + grupos_unicos,
+            format_func=format_lider_sb,
             index=0
         )
         if lider_seleccionada_sb != "Todas las Líderes":
@@ -1361,8 +1378,23 @@ with tab_tableau:
 
         # 3. Filtro Directo por Líder / Grupo [NUEVO PARA GERENCIA]
         lista_grupos_t = sorted([str(g).strip() for g in df_tab_filt['Grupo'].dropna().unique()]) if 'Grupo' in df_tab_filt.columns else []
+        mapa_lideres_tab = obtener_mapa_lideres()
+
+        def format_lider_tab(g_val):
+            if g_val == "Todas las Líderes (Consolidado Zona)":
+                return "🌟 Todas las Líderes (Consolidado Zona)"
+            nom = mapa_lideres_tab.get(str(g_val).strip())
+            if nom:
+                return f"👩‍💼 Grupo {g_val} — {nom}"
+            return f"👥 Grupo {g_val}"
+
         with col_t3:
-            lider_sel_t = st.selectbox("👤 Selección de Líder / Grupo", options=["Todas las Líderes (Consolidado Zona)"] + lista_grupos_t, key="tab_lider_grp_sel")
+            lider_sel_t = st.selectbox(
+                "👤 Selección de Líder / Grupo",
+                options=["Todas las Líderes (Consolidado Zona)"] + lista_grupos_t,
+                format_func=format_lider_tab,
+                key="tab_lider_grp_sel"
+            )
 
         if lider_sel_t != "Todas las Líderes (Consolidado Zona)" and 'Grupo' in df_tab_filt.columns:
             df_tab_filt = df_tab_filt[df_tab_filt['Grupo'].astype(str).str.strip() == str(lider_sel_t).strip()]
@@ -1472,51 +1504,8 @@ with tab_tableau:
             st.markdown("##### 📝 Comentarios y Notas Persistentes de la Líder")
             st.caption("Escribe las notas de gestión por cada asesora. Se guardarán automáticamente por `Codigo CB` y se mantendrán aunque actualices la base con nuevos cortes de Tableau.")
 
-            # Selección de columnas principales para la vista inicial
-            cols_deseadas = [
-                'Codigo CB', 'Nombre', 'Color', 'Sit. Comercial',
-                'Pts Acum', 'Pts Mant', 'Pts Asc',
-                'Deuda Total', 'Deuda Mora', 'Credito Total', 'Credito Disponible',
-                'Pts Natura', 'Pts AVON', 'Ped. Pendientes', 'Comentarios_Lider'
-            ]
-            cols_disp_tab = [c for c in cols_deseadas if c in df_tab_filt.columns]
-            
-            # Excluir columnas duplicadas o redundantes (ej: 'Situación' vs 'Sit. Comercial', 'Pts Acumulados' vs 'Pts Acum')
-            cols_desactivar_duplicadas = {
-                'Situación', 'Situacion', 'Pts Acumulados', 'Pts Para Mantener',
-                'Pts para Ascender ', 'Deuda Mora ', 'Código CB', 'Codigo_CB_key', 'Unnamed: 55',
-                'Asesora / Consultora', 'Nivel / Color', 'Notas / Comentarios Líder'
-            }
-            cols_adicionales = [
-                c for c in df_tab_filt.columns
-                if c not in cols_disp_tab and c not in cols_desactivar_duplicadas and not str(c).startswith('Unnamed:')
-            ]
-            todas_las_columnas = cols_disp_tab + cols_adicionales
-
-            df_edit_view = df_tab_filt[todas_las_columnas].copy()
-
-            # Renombrar columnas clave para la visualización inicial requerida
-            nombres_header_exactos = {
-                'Codigo CB': 'Código CB',
-                'Nombre': 'Asesora / Consultora',
-                'Color': 'Nivel / Color',
-                'Sit. Comercial': 'Sit. Comercial',
-                'Pts Acum': 'Pts Acum',
-                'Pts Mant': 'Pts Mant',
-                'Pts Asc': 'Pts Asc',
-                'Deuda Total': 'Deuda Total',
-                'Deuda Mora': 'Deuda Mora',
-                'Credito Total': 'Credito Total',
-                'Credito Disponible': 'Credito Disponible',
-                'Pts Natura': 'Pts Natura',
-                'Pts AVON': 'Pts AVON',
-                'Ped. Pendientes': 'Ped. Pendientes',
-                'Comentarios_Lider': 'Notas / Comentarios Líder'
-            }
-            df_edit_view = df_edit_view.rename(columns=nombres_header_exactos)
-            
-            # Garantizar que todos los nombres de columnas sean 100% únicos para st.data_editor
-            df_edit_view = df_edit_view.loc[:, ~df_edit_view.columns.duplicated()].copy()
+            # Limpiar, ordenar y estandarizar columnas para que coincidan exactamente con la base canónica (16 columnas)
+            df_edit_view = limpiar_y_ordenar_columnas_tableau(df_tab_filt, mapa_lideres_tab)
 
             # Limpiar cualquier flotante residual en todo el DataFrame para eliminar decimales (.000000)
             for c in df_edit_view.columns:
@@ -1545,19 +1534,9 @@ with tab_tableau:
                 color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_edit_view.columns else []
             )
 
-            # Columnas seleccionadas / visibles por defecto en la vista principal (Imagen 1)
-            cols_visibles_iniciales = [
-                'Código CB', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial',
-                'Pts Acum', 'Pts Mant', 'Pts Asc',
-                'Deuda Total', 'Deuda Mora', 'Credito Total', 'Credito Disponible',
-                'Pts Natura', 'Pts AVON', 'Ped. Pendientes', 'Notas / Comentarios Líder'
-            ]
-            cols_visibles_iniciales_disp = [c for c in cols_visibles_iniciales if c in df_edit_view.columns]
-
             edited_df = st.data_editor(
                 df_edit_styled,
                 column_config=col_config,
-                column_order=cols_visibles_iniciales_disp,
                 use_container_width=True,
                 hide_index=True,
                 key="editor_tabla_tableau"
@@ -1575,6 +1554,60 @@ with tab_tableau:
                 if guardar_todos_comentarios(dict_guardar):
                     st.success("✅ ¡Comentarios guardados exitosamente!")
                     st.rerun()
+
+            # --- BARRA DE DESCARGAS A COLORES (XLSX, ODS, PDF, CSV) ---
+            st.markdown("---")
+            st.markdown("##### 📥 Opciones de Descarga de la Consulta Actual")
+            st.caption("Exporta la base completa conservando todas las columnas y el orden original, con semáforos de color:")
+
+            cbs_visibles = set(df_edit_view['Código CB'].astype(str)) if 'Código CB' in df_edit_view.columns else None
+            df_export_tab = obtener_base_tableau_completa_original(cbs_filtrados=cbs_visibles)
+
+            cdown1, cdown2, cdown3, cdown4 = st.columns(4)
+
+            with cdown1:
+                excel_colores_bytes = exportar_tableau_excel_con_colores(df_export_tab, nombre_hoja="Base_Consultoras")
+                st.download_button(
+                    label="📗 Excel a Colores (.xlsx)",
+                    data=excel_colores_bytes,
+                    file_name="Base_Consultoras_Colores.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+            with cdown2:
+                ods_tab_bytes = exportar_tabla_ods(df_export_tab)
+                st.download_button(
+                    label="📄 OpenDocument (.ods)",
+                    data=ods_tab_bytes,
+                    file_name="Base_Consultoras.ods",
+                    mime="application/vnd.oasis.opendocument.spreadsheet",
+                    use_container_width=True
+                )
+
+            with cdown3:
+                pdf_tab_bytes = exportar_tabla_pdf(
+                    df_export_tab,
+                    titulo="Informe de Consultoras - Panel Matices",
+                    subtitulo=f"Registros filtrados: {len(df_export_tab)} | Sector: {user_sector or 'General'} | Fecha: {pd.Timestamp.now().strftime('%d/%m/%Y')}"
+                )
+                st.download_button(
+                    label="📕 Reporte PDF (.pdf)",
+                    data=pdf_tab_bytes,
+                    file_name="Informe_Consultoras_Matices.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+
+            with cdown4:
+                csv_tab_bytes = df_export_tab.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📊 Archivo CSV (.csv)",
+                    data=csv_tab_bytes,
+                    file_name="Base_Consultoras.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
 
         # --- SUBPESTAÑA 2: AGUARDANDO PAGO / PEDIDOS PENDIENTES ---
         with tab_tab_pago:
@@ -2461,51 +2494,117 @@ with tab_detalle:
 
 # --- TAB 5: EXPORTAR DATOS ---
 with tab_exportar:
-    st.subheader("📥 Exportar Resultados Procesados")
-    st.write("Descarga la base de datos con los filtros actuales o exporta los reportes visuales a colores listos para compartir con las líderes.")
-    
-    col_exp1, col_exp2, col_exp3 = st.columns(3)
-    
-    with col_exp1:
-        # Excel estándar completo
-        output_excel = io.BytesIO()
-        with pd.ExcelWriter(output_excel, engine='openpyxl') as writer:
-            df_filtrado.to_excel(writer, index=False, sheet_name='Metas_Procesadas')
-        excel_data = output_excel.getvalue()
+    st.subheader("📥 Centro de Descargas & Exportación Multiformato")
+    st.markdown("Genera y descarga reportes en **Excel (.xlsx)** con colores reales de semáforo, **OpenDocument (.ods)**, **PDF profesional (.pdf)** o **CSV (.csv)**.")
+
+    st.markdown("#### 📊 1. Base Maestra de Tableau (Consultoras, Puntos & Cartera)")
+    df_tab_exp = obtener_base_tableau_completa_original(
+        grupo=(user_grupo if user_rol == 'lider' else None),
+        sector=(user_sector if (user_rol == 'gerente' and user_sector) else None)
+    )
+    if df_tab_exp is not None and not df_tab_exp.empty:
+        c_te1, c_te2, c_te3, c_te4 = st.columns(4)
+        with c_te1:
+            xl_t_bytes = exportar_tableau_excel_con_colores(df_tab_exp, nombre_hoja="Base_Consultoras")
+            st.download_button(
+                label="📗 Descargar Excel a Colores (.xlsx)",
+                data=xl_t_bytes,
+                file_name="Base_Consultoras_Tableau_Colores.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        with c_te2:
+            ods_t_bytes = exportar_tabla_ods(df_tab_exp)
+            st.download_button(
+                label="📄 Descargar OpenDocument (.ods)",
+                data=ods_t_bytes,
+                file_name="Base_Consultoras_Tableau.ods",
+                mime="application/vnd.oasis.opendocument.spreadsheet",
+                use_container_width=True
+            )
+        with c_te3:
+            pdf_t_bytes = exportar_tabla_pdf(
+                df_tab_exp,
+                titulo="Informe Base Maestra Tableau - Panel Matices",
+                subtitulo=f"Total Registros: {len(df_tab_exp)} | Sector: {user_sector or 'Todos'} | Fecha: {pd.Timestamp.now().strftime('%d/%m/%Y')}"
+            )
+            st.download_button(
+                label="📕 Descargar Reporte PDF (.pdf)",
+                data=pdf_t_bytes,
+                file_name="Informe_Tableau_Consultoras.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+        with c_te4:
+            csv_t_bytes = df_tab_exp.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📊 Descargar Archivo CSV (.csv)",
+                data=csv_t_bytes,
+                file_name="Base_Consultoras_Tableau.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+    else:
+        st.info("ℹ️ Sube la base de Tableau en la primera pestaña para habilitar las descargas de este módulo.")
+
+    st.markdown("---")
+    st.markdown("#### 🎯 2. Metas de Ciclo 'Cómo Vamos' (Facturación, Activas & Saldos)")
+    if not df_filtrado.empty:
+        col_exp1, col_exp2, col_exp3, col_exp4 = st.columns(4)
         
-        st.download_button(
-            label="📄 Descargar Excel Completo (.xlsx)",
-            data=excel_data,
-            file_name="Resultado_Metas_Procesadas_Filtrado.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-    with col_exp2:
-        # Reporte Excel a Colores para Líderes
-        excel_colores_bytes = exportar_excel_con_colores({
-            'Activas': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_filtrado.columns]],
-            'Facturacion': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Real Facturación', 'Objetivo Facturación', 'Cumplimiento Facturación', 'Falta para el 100%'] if c in df_filtrado.columns]],
-            'Saldos': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia estimada'] if c in df_filtrado.columns]],
-            'Disponibles': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos'] if c in df_filtrado.columns]]
-        })
-        
-        st.download_button(
-            label="🎨 Descargar Reporte A COLORES (.xlsx)",
-            data=excel_colores_bytes,
-            file_name="Reporte_Lideres_Formato_Colores.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
-        
-    with col_exp3:
-        # Generar CSV en memoria
-        csv_data = df_filtrado.to_csv(index=False).encode('utf-8-sig')
-        
-        st.download_button(
-            label="📊 Descargar CSV (.csv)",
-            data=csv_data,
-            file_name="Resultado_Metas_Procesadas_Filtrado.csv",
-            mime="text/csv"
-        )
+        with col_exp1:
+            excel_colores_bytes = exportar_excel_con_colores({
+                'Activas': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_filtrado.columns]],
+                'Facturacion': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Real Facturación', 'Objetivo Facturación', 'Cumplimiento Facturación', 'Falta para el 100%'] if c in df_filtrado.columns]],
+                'Saldos': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia estimada'] if c in df_filtrado.columns]],
+                'Disponibles': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos'] if c in df_filtrado.columns]]
+            })
+            st.download_button(
+                label="📗 Metas a Colores (.xlsx)",
+                data=excel_colores_bytes,
+                file_name="Reporte_Metas_Lideres_Colores.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+            
+        with col_exp2:
+            ods_metas_bytes = exportar_tabla_ods({
+                'Metas_Procesadas': df_filtrado
+            })
+            st.download_button(
+                label="📄 Metas OpenDocument (.ods)",
+                data=ods_metas_bytes,
+                file_name="Reporte_Metas_Lideres.ods",
+                mime="application/vnd.oasis.opendocument.spreadsheet",
+                use_container_width=True
+            )
+            
+        with col_exp3:
+            cols_pdf_m = [c for c in ['Nombre de consultora', 'Código de grupo', 'Nombre Setor', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas', 'Real Facturación', 'Cumplimiento Facturación', 'Ganancia estimada'] if c in df_filtrado.columns]
+            pdf_metas_bytes = exportar_tabla_pdf(
+                df_filtrado[cols_pdf_m] if cols_pdf_m else df_filtrado,
+                titulo="Reporte de Metas de Ciclo - 'Cómo Vamos'",
+                subtitulo=f"Líderes / Grupos: {len(df_filtrado)} | Sector: {user_sector or 'Todos'} | Fecha: {pd.Timestamp.now().strftime('%d/%m/%Y')}"
+            )
+            st.download_button(
+                label="📕 Metas en PDF (.pdf)",
+                data=pdf_metas_bytes,
+                file_name="Reporte_Metas_Lideres.pdf",
+                mime="application/pdf",
+                use_container_width=True
+            )
+            
+        with col_exp4:
+            csv_data = df_filtrado.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📊 Metas en CSV (.csv)",
+                data=csv_data,
+                file_name="Resultado_Metas_Procesadas_Filtrado.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
+    else:
+        st.info("ℹ️ Sube el archivo 'Cómo Vamos' en la barra lateral para habilitar las descargas de este módulo.")
 
 # --- TAB 6: GESTIÓN DE USUARIOS & ROLES (EXCLUSIVO SUPER ADMIN) ---
 with tab_usuarios:
