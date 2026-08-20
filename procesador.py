@@ -2149,6 +2149,8 @@ def consultar_tableau_sql(grupo=None, sector=None):
     if 'Notas / Comentarios Líder' in df.columns and 'Comentarios_Lider' not in df.columns:
         df['Comentarios_Lider'] = df['Notas / Comentarios Líder']
 
+    return df
+
 def eliminar_datos_por_grupo_o_usuario(codigo_grupo, eliminar_cuenta=False):
     """
     Elimina todos los registros asociados a un código de grupo en las tablas SQLite
