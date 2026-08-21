@@ -1427,10 +1427,11 @@ with tab_tableau:
                     if st.button(f"⚡ Cruzar desde '{local_act_path}' local", type="secondary", key="btn_act_local"):
                         res_act = actualizar_base_desde_activas(local_act_path)
                         if res_act.get('exito'):
-                            st.success(f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).")
-                            if res_act.get('detalles'):
-                                st.markdown("##### 📋 Resumen de Asesoras Actualizadas con Activas:")
-                                st.dataframe(pd.DataFrame(res_act['detalles']), use_container_width=True)
+                            st.cache_data.clear()
+                            st.session_state['res_act_log'] = {
+                                'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
+                                'detalles': res_act.get('detalles', [])
+                            }
                             st.rerun()
                         else:
                             st.error(f"Error: {res_act.get('error')}")
@@ -1439,13 +1440,25 @@ with tab_tableau:
                     if st.button("🚀 Cruzar y Actualizar Activas", type="primary", key="btn_act_subido"):
                         res_act = actualizar_base_desde_activas(file_act)
                         if res_act.get('exito'):
-                            st.success(f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).")
-                            if res_act.get('detalles'):
-                                st.markdown("##### 📋 Resumen de Asesoras Actualizadas con Activas:")
-                                st.dataframe(pd.DataFrame(res_act['detalles']), use_container_width=True)
+                            st.cache_data.clear()
+                            st.session_state['res_act_log'] = {
+                                'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
+                                'detalles': res_act.get('detalles', [])
+                            }
                             st.rerun()
                         else:
                             st.error(f"Error: {res_act.get('error')}")
+
+            # Mostrar resumen persistente de activas si existe
+            if st.session_state.get('res_act_log'):
+                log_data = st.session_state['res_act_log']
+                st.success(log_data['msg'])
+                if log_data.get('detalles'):
+                    with st.expander("📋 Ver detalle de Consultoras Actualizadas con Activas", expanded=True):
+                        st.dataframe(pd.DataFrame(log_data['detalles']), use_container_width=True)
+                if st.button("Cerrar notificación", key="btn_close_act_log"):
+                    del st.session_state['res_act_log']
+                    st.rerun()
 
     if df_tableau is None or df_tableau.empty:
         st.warning("⚠️ No se encontró la base de datos `Base de Datos.xlsx`. Por favor, sube el archivo desde la barra lateral o el panel de administración superior.")

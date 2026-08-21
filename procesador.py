@@ -1306,18 +1306,26 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
         df['Comentarios_Lider'] = ''
 
     # Sincronización consistente de estado Activa entre Situación y Sit. Comercial
-    if 'Sit. Comercial' in df.columns:
+    if 'Sit. Comercial' in df.columns or 'Situación' in df.columns:
+        if 'Sit. Comercial' not in df.columns:
+            df['Sit. Comercial'] = ''
+        if 'Situación' not in df.columns:
+            df['Situación'] = ''
+            
         mask_activa_cycle = pd.Series(False, index=df.index)
         if 'Pts Total VD' in df.columns:
-            mask_activa_cycle = mask_activa_cycle | (df['Pts Total VD'] > 0)
+            mask_activa_cycle = mask_activa_cycle | (pd.to_numeric(df['Pts Total VD'], errors='coerce').fillna(0) > 0)
         if 'Fact. Total' in df.columns:
-            mask_activa_cycle = mask_activa_cycle | (df['Fact. Total'] > 0)
+            mask_activa_cycle = mask_activa_cycle | (pd.to_numeric(df['Fact. Total'], errors='coerce').fillna(0) > 0)
         if 'Situación' in df.columns:
             mask_activa_cycle = mask_activa_cycle | (df['Situación'].astype(str).str.strip().str.lower() == 'activa')
+        if 'Sit. Comercial' in df.columns:
+            mask_activa_cycle = mask_activa_cycle | (df['Sit. Comercial'].astype(str).str.strip().str.lower() == 'activa')
+        if 'Indicador' in df.columns:
+            mask_activa_cycle = mask_activa_cycle | (df['Indicador'].astype(str).str.strip().str.lower() == 'activas')
         
         df.loc[mask_activa_cycle, 'Sit. Comercial'] = 'Activa'
-        if 'Situación' in df.columns:
-            df.loc[mask_activa_cycle, 'Situación'] = 'Activa'
+        df.loc[mask_activa_cycle, 'Situación'] = 'Activa'
 
     return df
 
@@ -1391,6 +1399,24 @@ def color_deuda_mora(val):
             return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold;'
     except Exception:
         return ""
+
+def limpiar_codigo_cb_estandar(v):
+    """
+    Limpia y estandariza cualquier código CB o documento:
+    - Remueve NaN/None.
+    - Remueve sufijo .0 de conversiones a float.
+    - Quita espacios en blanco.
+    - Remueve ceros a la izquierda si es un valor numérico para asegurar coincidencia consistente.
+    """
+    if pd.isna(v):
+        return ""
+    s = str(v).strip()
+    if s.endswith('.0'):
+        s = s[:-2].strip()
+    if s.isdigit():
+        s_num = s.lstrip('0')
+        return s_num if s_num else "0"
+    return s
 
 def normalizar_estado_mi_grupo(val):
     """
@@ -1485,16 +1511,28 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
         return {'exito': False, 'error': "No se encontró la columna 'ESTADO' o 'Situación' en 'mi_grupo'."}
 
     # Crear mapeo {codigo_cb_clean: estado_normalizado}
-    df_grupo['cb_clean'] = df_grupo[col_code_grupo].astype(str).str.strip()
+    df_grupo['cb_clean'] = df_grupo[col_code_grupo].apply(limpiar_codigo_cb_estandar)
     df_grupo['estado_clean'] = df_grupo[col_estado_grupo].apply(normalizar_estado_mi_grupo)
 
     mapa_estados = dict(zip(df_grupo['cb_clean'], df_grupo['estado_clean']))
 
     # Cargar la base principal
     df_base = pd.read_excel(ruta_base, sheet_name=0)
+    # Detectar y promover cabecera real si viene con 'Unnamed' (formato estándar Tableau)
+    if any('unnamed' in str(c).lower() for c in df_base.columns[:5]):
+        for r_idx in range(min(10, len(df_base))):
+            row_vals = [str(x).lower() for x in df_base.iloc[r_idx].values if pd.notna(x)]
+            if any('codigo' in x or 'código' in x or 'cb' in x or 'asesora' in x or 'consultora' in x for x in row_vals):
+                df_base.columns = [str(col_name).strip() for col_name in df_base.iloc[r_idx]]
+                df_base = df_base.iloc[r_idx + 1:].reset_index(drop=True)
+                break
+
+    df_base.columns = [str(c).replace('\ufffd', 'ó').strip() for c in df_base.columns]
+
     col_code_base = None
     for c in df_base.columns:
-        if 'Codigo CB' in str(c) or 'Código CB' in str(c) or 'Código de consultora' in str(c):
+        c_str = str(c).strip().lower()
+        if any(k in c_str for k in ['codigo cb', 'código cb', 'código de consultora', 'codigo de consultora', 'cd consultora']):
             col_code_base = c
             break
     if not col_code_base:
@@ -1506,8 +1544,15 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
     if not col_sit_comercial:
         col_sit_comercial = 'Sit. Comercial'
         df_base[col_sit_comercial] = ''
+    if not col_situacion_macro:
+        col_situacion_macro = 'Situación'
+        df_base[col_situacion_macro] = ''
 
-    df_base['cb_clean'] = df_base[col_code_base].astype(str).str.strip()
+    df_base['cb_clean'] = df_base[col_code_base].apply(limpiar_codigo_cb_estandar)
+
+    for c in [col_sit_comercial, col_situacion_macro]:
+        if c and c in df_base.columns:
+            df_base[c] = df_base[c].astype(object)
 
     coincidencias = 0
     cambios = 0
@@ -1520,7 +1565,7 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
             nuevo_estado = mapa_estados[cb]
             estado_actual = str(df_base.at[idx, col_sit_comercial]).strip() if pd.notna(df_base.at[idx, col_sit_comercial]) else ''
             if nuevo_estado and nuevo_estado != estado_actual:
-                nombre = str(df_base.at[idx, 'Nombre'] if 'Nombre' in df_base.columns else cb)
+                nombre = str(df_base.at[idx, 'Nombre'] if 'Nombre' in df_base.columns else (df_base.at[idx, 'Asesora / Consultora'] if 'Asesora / Consultora' in df_base.columns else cb))
                 detalles_cambios.append({
                     'Código CB': cb,
                     'Asesora / Consultora': nombre,
@@ -1529,7 +1574,7 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
                 })
                 df_base.at[idx, col_sit_comercial] = nuevo_estado
                 if col_situacion_macro:
-                    if nuevo_estado == 'Activa':
+                    if 'activa' in nuevo_estado.lower():
                         df_base.at[idx, col_situacion_macro] = 'Activa'
                     elif 'inactiva' in nuevo_estado.lower():
                         if any(k in nuevo_estado.lower() for k in ['1', '2', '3']):
@@ -1558,11 +1603,12 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
 
 def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'):
     """
-    Cruce inteligente de base de datos con archivo de 'activas' (.xlsx, .xls, .csv).
-    - Lee el archivo de activas identificando inteligentemente la columna de Código CB o Documento.
-    - Si el archivo trae columna de Estado/Situación, la normaliza; de lo contrario, marca a las asesoras cruzadas como 'Activa'.
-    - Si el archivo contiene Facturación, Puntos, Pedidos o Mora, complementa/actualiza las columnas correspondientes.
-    - Guarda en 'Base de Datos.xlsx' y sincroniza automáticamente con la base de datos relacional SQLite (base_matices.db).
+    Cruce del archivo de 'activas' (.xlsx, .xls, .csv) con la base de datos de Tableau:
+    - Identifica los Códigos CB del archivo de activas.
+    - Actualiza únicamente el campo 'Indicador' con el valor 'Activas'.
+    - Sincroniza 'Sit. Comercial' y 'Situación' a 'Activa'.
+    - No modifica otros campos (Facturación, Puntos, Pedidos se preservan intactos).
+    - Guarda en 'Base de Datos.xlsx' y sincroniza la tabla SQLite consultoras_tableau.
     """
     if not os.path.exists(ruta_base):
         return {'exito': False, 'error': f"No se encontró el archivo base '{ruta_base}'."}
@@ -1574,10 +1620,13 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
             if not os.path.exists(origen_activas):
                 return {'exito': False, 'error': f"No existe el archivo '{origen_activas}'."}
             if origen_activas.lower().endswith('.csv'):
-                try:
-                    df_act = pd.read_csv(origen_activas, encoding='utf-8')
-                except Exception:
-                    df_act = pd.read_csv(origen_activas, encoding='latin1', sep=None, engine='python')
+                for enc in ['utf-8', 'utf-8-sig', 'latin1', 'iso-8859-1']:
+                    try:
+                        df_act = pd.read_csv(origen_activas, encoding=enc, sep=None, engine='python')
+                        if df_act is not None and not df_act.empty:
+                            break
+                    except Exception:
+                        continue
             else:
                 try:
                     df_act = pd.read_excel(origen_activas)
@@ -1592,16 +1641,17 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
             except Exception:
                 pass
             if name.endswith('.csv'):
-                try:
-                    df_act = pd.read_csv(origen_activas, encoding='utf-8')
-                except Exception:
+                for enc in ['utf-8', 'utf-8-sig', 'latin1', 'iso-8859-1']:
                     try:
                         origen_activas.seek(0)
-                        df_act = pd.read_csv(origen_activas, encoding='latin1', sep=None, engine='python')
+                        df_act = pd.read_csv(origen_activas, encoding=enc, sep=None, engine='python')
+                        if df_act is not None and not df_act.empty:
+                            break
                     except Exception:
-                        pass
+                        continue
             else:
                 try:
+                    origen_activas.seek(0)
                     df_act = pd.read_excel(origen_activas)
                 except Exception:
                     try:
@@ -1616,15 +1666,15 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
         return {'exito': False, 'error': "El archivo de activas está vacío o no se pudo interpretar."}
 
     # Si la primera fila es encabezado desplazado, buscar la fila con 'CODIGO' o 'DOCUMENTO' o 'NOMBRE'
-    if not any(any(k in str(c).upper() for k in ['CODIGO', 'CB', 'DOC', 'ASESORA', 'CONSULTORA', 'NOMBRE']) for c in df_act.columns):
-        for r_idx in range(min(10, len(df_act))):
+    if not any(any(k in str(c).upper() for k in ['CODIGO', 'CB', 'DOC', 'ASESORA', 'CONSULTORA', 'NOMBRE', 'CEDULA', 'IDENT']) for c in df_act.columns):
+        for r_idx in range(min(15, len(df_act))):
             row_vals = [str(x).upper() for x in df_act.iloc[r_idx].values if pd.notna(x)]
-            if any('COD' in v or 'DOC' in v or 'CONSULTORA' in v for v in row_vals):
+            if any('COD' in v or 'DOC' in v or 'CONSULTORA' in v or 'ASESORA' in v or 'CEDULA' in v for v in row_vals):
                 df_act.columns = df_act.iloc[r_idx]
                 df_act = df_act.iloc[r_idx + 1:].reset_index(drop=True)
                 break
 
-    # 2. Identificar columna de Código CB en el archivo de activas
+    # 2. Identificar columna de Código CB o Documento en el archivo de activas
     col_code_act = None
     for c in df_act.columns:
         c_up = str(c).strip().upper()
@@ -1634,97 +1684,45 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
     if not col_code_act:
         for c in df_act.columns:
             c_up = str(c).strip().upper()
-            if 'DOC' in c_up or 'CEDULA' in c_up or 'IDENT' in c_up:
-                col_code_act = c
-                break
+            if any(k in c_up for k in ['DOC', 'CEDULA', 'IDENT', 'CONSULTORA', 'ASESORA', 'ID_CONSULTORA', 'ID_ASESORA']):
+                if 'NOMBRE' not in c_up and 'GERENCIA' not in c_up and 'SECTOR' not in c_up and 'GRUPO' not in c_up:
+                    col_code_act = c
+                    break
 
     if not col_code_act:
         return {'exito': False, 'error': "No se identificó la columna de Código o Documento en el archivo de activas."}
 
-    # 3. Detectar columnas complementarias opcionales en el archivo de activas
-    col_estado_act = None
-    for c in df_act.columns:
-        c_up = str(c).strip().upper()
-        if str(c).strip().upper() == 'ESTADO' or 'SIT. COM' in c_up or 'SITUACION' in c_up or 'SITUACI' in c_up:
-            col_estado_act = c
-            break
+    # Obtener el conjunto de Códigos CB del archivo de activas
+    df_act['cb_clean'] = df_act[col_code_act].apply(limpiar_codigo_cb_estandar)
+    cbs_activas = set(df_act['cb_clean'].dropna().loc[lambda s: s != ''])
 
-    col_fact_act = None
-    for c in df_act.columns:
-        c_up = str(c).strip().upper()
-        if ('FACT' in c_up or 'VENTA' in c_up or 'VALOR PEDIDO' in c_up or 'VALOR' in c_up) and 'ANTERIOR' not in c_up and 'OBJETIVO' not in c_up:
-            col_fact_act = c
-            break
-
-    col_pts_act = None
-    for c in df_act.columns:
-        c_up = str(c).strip().upper()
-        if ('PTS' in c_up or 'PUNTOS' in c_up) and 'ANTERIOR' not in c_up:
-            col_pts_act = c
-            break
-
-    col_ped_act = None
-    for c in df_act.columns:
-        c_up = str(c).strip().upper()
-        if 'PEDIDO' in c_up or 'PED.' in c_up or 'ORDEN' in c_up:
-            col_ped_act = c
-            break
-
-    # Función helper para limpiar códigos eliminando .0 y espacios
-    def _limpiar_cb_str(v):
-        if pd.isna(v):
-            return ""
-        s = str(v).strip()
-        if s.endswith('.0'):
-            s = s[:-2]
-        return s
-
-    df_act['cb_clean'] = df_act[col_code_act].apply(_limpiar_cb_str)
-    df_act = df_act[df_act['cb_clean'] != '']
-
-    # Diccionarios de mapeo desde el archivo de activas
-    mapa_estados = {}
-    mapa_fact = {}
-    mapa_pts = {}
-    mapa_ped = {}
-
-    for _, row in df_act.iterrows():
-        cb = row['cb_clean']
-        if not cb:
-            continue
-        # Estado: Si trae columna la normalizamos; de lo contrario 'Activa'
-        if col_estado_act and pd.notna(row[col_estado_act]):
-            mapa_estados[cb] = normalizar_estado_mi_grupo(row[col_estado_act])
-        else:
-            mapa_estados[cb] = "Activa"
-
-        if col_fact_act and pd.notna(row[col_fact_act]):
-            try:
-                mapa_fact[cb] = float(limpiar_numero(row[col_fact_act], 0.0))
-            except Exception:
-                pass
-
-        if col_pts_act and pd.notna(row[col_pts_act]):
-            try:
-                mapa_pts[cb] = int(round(limpiar_numero(row[col_pts_act], 0)))
-            except Exception:
-                pass
-
-        if col_ped_act and pd.notna(row[col_ped_act]):
-            try:
-                mapa_ped[cb] = int(round(limpiar_numero(row[col_ped_act], 0)))
-            except Exception:
-                pass
-
-    # 4. Cargar Base de Datos.xlsx principal
+    # 3. Cargar Base de Datos.xlsx principal
     df_base = pd.read_excel(ruta_base, sheet_name=0)
+    # Detectar y promover cabecera real si viene con 'Unnamed' (formato estándar Tableau)
+    if any('unnamed' in str(c).lower() for c in df_base.columns[:5]):
+        for r_idx in range(min(10, len(df_base))):
+            row_vals = [str(x).lower() for x in df_base.iloc[r_idx].values if pd.notna(x)]
+            if any('codigo' in x or 'código' in x or 'cb' in x or 'asesora' in x or 'consultora' in x for x in row_vals):
+                df_base.columns = [str(col_name).strip() for col_name in df_base.iloc[r_idx]]
+                df_base = df_base.iloc[r_idx + 1:].reset_index(drop=True)
+                break
+
+    df_base.columns = [str(c).replace('\ufffd', 'ó').strip() for c in df_base.columns]
+
     col_code_base = None
     for c in df_base.columns:
-        if 'Codigo CB' in str(c) or 'Código CB' in str(c) or 'Código de consultora' in str(c):
+        c_str = str(c).strip().lower()
+        if any(k in c_str for k in ['codigo cb', 'código cb', 'código de consultora', 'codigo de consultora', 'cd consultora']):
             col_code_base = c
             break
     if not col_code_base:
         col_code_base = df_base.columns[0]
+
+    # Identificar o crear columna 'Indicador'
+    col_indicador = next((c for c in df_base.columns if str(c).strip().lower() in ['indicador', 'indicadores']), None)
+    if not col_indicador:
+        col_indicador = 'Indicador'
+        df_base[col_indicador] = ''
 
     col_sit_comercial = next((c for c in df_base.columns if 'sit. comercial' in str(c).lower() or 'sit comercial' in str(c).lower()), None)
     col_situacion_macro = next((c for c in df_base.columns if str(c).strip().lower() in ['situación', 'situacion']), None)
@@ -1732,73 +1730,43 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
     if not col_sit_comercial:
         col_sit_comercial = 'Sit. Comercial'
         df_base[col_sit_comercial] = ''
+    if not col_situacion_macro:
+        col_situacion_macro = 'Situación'
+        df_base[col_situacion_macro] = ''
 
-    df_base['cb_clean'] = df_base[col_code_base].apply(_limpiar_cb_str)
+    df_base['cb_clean'] = df_base[col_code_base].apply(limpiar_codigo_cb_estandar)
 
-    # Identificar columnas opcionales en Base de Datos.xlsx
-    col_fact_base = next((c for c in df_base.columns if 'Fact. Total' in str(c) or 'Facturación Total' in str(c)), None)
-    col_pts_base = next((c for c in df_base.columns if 'Pts Acumulados' in str(c) or 'Pts Acum' in str(c) or 'Pts Total VD' in str(c)), None)
-    col_ped_base = next((c for c in df_base.columns if 'Ped. Pendientes' in str(c) or 'Pedidos' in str(c)), None)
+    # Asegurar compatibilidad de tipos (PyArrow / Pandas 2+ / Python 3.14)
+    for c in [col_indicador, col_sit_comercial, col_situacion_macro]:
+        if c and c in df_base.columns:
+            df_base[c] = df_base[c].astype(object)
 
     coincidencias = 0
-    cambios_estado = 0
     cambios_totales = 0
     detalles_cambios = []
     cbs_base_set = set(df_base['cb_clean'].dropna())
 
     for idx in df_base.index:
         cb = df_base.at[idx, 'cb_clean']
-        if cb in mapa_estados:
+        if cb in cbs_activas:
             coincidencias += 1
-            nuevo_est = mapa_estados[cb]
-            est_actual = str(df_base.at[idx, col_sit_comercial]).strip() if pd.notna(df_base.at[idx, col_sit_comercial]) else ''
+            ind_actual = str(df_base.at[idx, col_indicador]).strip() if pd.notna(df_base.at[idx, col_indicador]) else ''
             
-            campos_modificados = []
-            
-            if nuevo_est:
-                df_base.at[idx, col_sit_comercial] = nuevo_est
-                if col_situacion_macro:
-                    if nuevo_est == 'Activa':
-                        df_base.at[idx, col_situacion_macro] = 'Activa'
-                    elif 'inactiva' in nuevo_est.lower():
-                        if any(k in nuevo_est.lower() for k in ['1', '2', '3']):
-                            df_base.at[idx, col_situacion_macro] = 'Disponible'
-                        elif any(k in nuevo_est.lower() for k in ['4', '5', '6']):
-                            df_base.at[idx, col_situacion_macro] = 'Indisponible'
-                
-                if nuevo_est != est_actual:
-                    cambios_estado += 1
-                    campos_modificados.append(f"Estado: {est_actual or 'N/D'} ➔ {nuevo_est}")
+            # Actualizar Indicador a 'Activas'
+            df_base.at[idx, col_indicador] = 'Activas'
+            df_base.at[idx, col_sit_comercial] = 'Activa'
+            if col_situacion_macro:
+                df_base.at[idx, col_situacion_macro] = 'Activa'
 
-            # Actualizar Facturación si viene en activas
-            if cb in mapa_fact and col_fact_base:
-                val_f = mapa_fact[cb]
-                if val_f > 0:
-                    df_base.at[idx, col_fact_base] = val_f
-                    campos_modificados.append(f"Facturación: ${val_f:,.0f}".replace(",", "."))
-
-            # Actualizar Puntos si viene en activas
-            if cb in mapa_pts and col_pts_base:
-                val_p = mapa_pts[cb]
-                if val_p > 0:
-                    df_base.at[idx, col_pts_base] = val_p
-                    campos_modificados.append(f"Puntos: {val_p:,}".replace(",", "."))
-
-            # Actualizar Pedidos si viene en activas
-            if cb in mapa_ped and col_ped_base:
-                val_ped = mapa_ped[cb]
-                df_base.at[idx, col_ped_base] = val_ped
-                campos_modificados.append(f"Pedidos: {val_ped}")
-
-            if campos_modificados:
+            if ind_actual != 'Activas':
                 cambios_totales += 1
-                nombre = str(df_base.at[idx, 'Nombre'] if 'Nombre' in df_base.columns else cb)
+                nombre = str(df_base.at[idx, 'Nombre'] if 'Nombre' in df_base.columns else (df_base.at[idx, 'Asesora / Consultora'] if 'Asesora / Consultora' in df_base.columns else cb))
                 detalles_cambios.append({
                     'Código CB': cb,
                     'Asesora / Consultora': nombre,
-                    'Estado Anterior': est_actual,
-                    'Nuevo Estado': nuevo_est,
-                    'Campos Actualizados': ", ".join(campos_modificados)
+                    'Indicador Anterior': ind_actual or 'N/D',
+                    'Nuevo Indicador': 'Activas',
+                    'Sit. Comercial': 'Activa'
                 })
 
     df_base = df_base.drop(columns=['cb_clean'], errors='ignore')
@@ -1811,13 +1779,12 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
         except Exception as e_sql:
             safe_print(f"Advertencia al sincronizar SQLite tras cruce de activas: {e_sql}")
 
-        no_encontradas = [cb for cb in mapa_estados.keys() if cb not in cbs_base_set]
+        no_encontradas = [cb for cb in cbs_activas if cb not in cbs_base_set]
 
         return {
             'exito': True,
-            'total_activas_archivo': len(mapa_estados),
+            'total_activas_archivo': len(cbs_activas),
             'coincidencias': coincidencias,
-            'cambios_estado': cambios_estado,
             'cambios_totales': cambios_totales,
             'detalles': detalles_cambios,
             'no_encontradas_count': len(no_encontradas)
@@ -2818,9 +2785,14 @@ def inicializar_db_sqlite():
         referencia_entrega TEXT,
         tiempo_casa INTEGER,
         origen_cb TEXT,
-        notas_lider TEXT
+        notas_lider TEXT,
+        indicador TEXT
     )
     """)
+    try:
+        cursor.execute("ALTER TABLE consultoras_tableau ADD COLUMN indicador TEXT")
+    except Exception:
+        pass
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_grupo ON consultoras_tableau (grupo)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_sector ON consultoras_tableau (sector)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_cod_sector ON consultoras_tableau (cod_sector)")
@@ -2914,6 +2886,10 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         close_at_end = True
     
     cursor = conn.cursor()
+    try:
+        cursor.execute("ALTER TABLE consultoras_tableau ADD COLUMN indicador TEXT")
+    except Exception:
+        pass
     
     # Extraer el código de sector del dataframe subido para borrar ÚNICAMENTE los registros de ese sector
     col_sec_check = None
@@ -2932,7 +2908,7 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         cursor.execute("DELETE FROM consultoras_tableau")
     
     for _, row in df.iterrows():
-        cb = str(row.get('Codigo CB') if 'Codigo CB' in df.columns else row.get('Código CB', '')).strip()
+        cb = limpiar_codigo_cb_estandar(row.get('Codigo CB') if 'Codigo CB' in df.columns else row.get('Código CB', ''))
         if not cb or cb.lower() == 'nan':
             continue
         
@@ -2950,7 +2926,7 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             celular, correo,
             dpto_residencia, ciudad_residencia, barrio_residencia, direccion_residencia, complemento_residencia, referencia_residencia,
             dpto_entrega, ciudad_entrega, barrio_entrega, direccion_entrega, complemento_entrega, referencia_entrega,
-            tiempo_casa, origen_cb, notas_lider
+            tiempo_casa, origen_cb, notas_lider, indicador
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
@@ -2961,7 +2937,7 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
-            ?, ?, ?
+            ?, ?, ?, ?
         )
         """, (
             cb,
@@ -3019,7 +2995,8 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             str(row.get('Referencia - Entrega', '')),
             int(limpiar_numero(row.get('Tiempo de Casa (Ciclo)', 0))),
             str(row.get('Origen CB', '')),
-            str(row.get('Notas / Comentarios Líder', ''))
+            str(row.get('Notas / Comentarios Líder', '')),
+            str(row.get('Indicador', ''))
         ))
     
     conn.commit()
@@ -3091,6 +3068,10 @@ def consultar_tableau_sql(grupo=None, sector=None):
     filtrando por grupo de líder o sector de gerencia.
     """
     conn = obtener_conexion_db()
+    try:
+        conn.cursor().execute("ALTER TABLE consultoras_tableau ADD COLUMN indicador TEXT")
+    except Exception:
+        pass
     query = """
     SELECT 
         codigo_cb AS 'Código CB',
@@ -3148,7 +3129,8 @@ def consultar_tableau_sql(grupo=None, sector=None):
         referencia_entrega AS 'Referencia - Entrega',
         tiempo_casa AS 'Tiempo de Casa (Ciclo)',
         origen_cb AS 'Origen CB',
-        notas_lider AS 'Notas / Comentarios Líder'
+        notas_lider AS 'Notas / Comentarios Líder',
+        indicador AS 'Indicador'
     FROM consultoras_tableau
     """
     where_clauses = []
