@@ -1662,32 +1662,69 @@ with tab_tableau:
                     st.success("✅ ¡Comentarios guardados exitosamente!")
                     st.rerun()
 
-            # --- BARRA DE DESCARGAS A COLORES (XLSX, ODS, PDF, CSV) ---
+            # --- BARRA DE DESCARGAS DINÁMICAS (XLSX Y CSV CON FILTROS Y ORDEN EXACTO) ---
             st.markdown("---")
-            st.markdown("##### 📥 Opciones de Descarga de la Consulta Actual")
-            st.caption("Exporta la base completa conservando todas las columnas y el orden original, con semáforos de color:")
+            cant_export = len(df_edit_view)
+            st.markdown(f"##### 📥 Opciones de Descarga Dinámica ({cant_export:,} consultoras filtradas)".replace(",", "."))
+            st.caption("Exporta la base conservando exactamente los filtros aplicados y el orden visible en pantalla, con semáforos de color:")
 
-            cbs_visibles = set(df_edit_view['Código CB'].astype(str)) if 'Código CB' in df_edit_view.columns else None
+            # Obtener lista ordenada de Códigos CB visibles en pantalla
+            cbs_visibles = [str(x).strip() for x in df_edit_view['Código CB'] if pd.notna(x)] if 'Código CB' in df_edit_view.columns else None
             df_export_tab = obtener_base_tableau_completa_original(cbs_filtrados=cbs_visibles)
 
-            cdown1, cdown2 = st.columns(2)
+            # Construir nombre dinámico y descriptivo del archivo según los filtros activos
+            partes_nombre = ["Base_Consultoras"]
+            if lider_sel_t != "Todas las Líderes (Consolidado Zona)":
+                g_slug = str(lider_sel_t).strip().replace(" ", "_")
+                lider_nombre = mapa_lideres_tab.get(str(lider_sel_t).strip(), "")
+                if lider_nombre:
+                    lider_clean = "".join(c for c in lider_nombre if c.isalnum() or c == ' ').strip().replace(" ", "_")
+                    partes_nombre.append(f"Gpo_{g_slug}_{lider_clean[:15]}")
+                else:
+                    partes_nombre.append(f"Gpo_{g_slug}")
+            if sits_sel:
+                sits_slug = "_".join([str(s).replace(" ", "") for s in sits_sel[:2]])
+                partes_nombre.append(sits_slug)
+            if colores_tab_sel:
+                col_slug = "_".join([str(c) for c in colores_tab_sel[:2]])
+                partes_nombre.append(col_slug)
+            if f_mora_opt != "Todas":
+                partes_nombre.append("ConMora" if "Con" in f_mora_opt else "SinMora")
+            if f_ped_opt != "Todos":
+                partes_nombre.append("ConPedidos")
+            if busq_t.strip():
+                partes_nombre.append("Busqueda")
+
+            nombre_base_archivo = "_".join(partes_nombre)
+
+            cdown1, cdown2, cdown3 = st.columns(3)
 
             with cdown1:
-                excel_colores_bytes = cached_export_excel_tableau(df_export_tab)
+                excel_colores_bytes = exportar_tableau_excel_con_colores(df_export_tab, nombre_hoja="Base_Completa")
                 st.download_button(
-                    label="📗 Excel a Colores (.xlsx)",
+                    label="📗 Excel Completo a Colores (60+ Cols)",
                     data=excel_colores_bytes,
-                    file_name="Base_Consultoras_Colores.xlsx",
+                    file_name=f"{nombre_base_archivo}_Completa.xlsx",
                     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True
                 )
 
             with cdown2:
-                csv_tab_bytes = cached_export_csv(df_export_tab)
+                excel_gestion_bytes = exportar_tableau_excel_con_colores(df_edit_view, nombre_hoja="Vista_Gestion")
+                st.download_button(
+                    label="📑 Excel Vista Gestión (16 Cols)",
+                    data=excel_gestion_bytes,
+                    file_name=f"{nombre_base_archivo}_Gestion.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+
+            with cdown3:
+                csv_tab_bytes = df_export_tab.to_csv(index=False).encode('utf-8-sig')
                 st.download_button(
                     label="📊 Archivo CSV (.csv)",
                     data=csv_tab_bytes,
-                    file_name="Base_Consultoras.csv",
+                    file_name=f"{nombre_base_archivo}.csv",
                     mime="text/csv",
                     use_container_width=True
                 )

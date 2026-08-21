@@ -789,24 +789,40 @@ def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None):
 def obtener_base_tableau_completa_original(grupo=None, sector=None, cbs_filtrados=None):
     """
     Retorna el DataFrame completo de Tableau con las 61+ columnas originales en su orden exacto,
-    incluyendo los comentarios persistentes de la líder y aplicando los filtros correspondientes.
+    incluyendo los comentarios persistentes de la líder y aplicando los filtros y ordenamiento correspondientes.
     """
     if os.path.exists('Base de Datos.xlsx'):
         try:
             df = pd.read_excel('Base de Datos.xlsx')
             
+            # Detectar y promover cabecera real si viene desplazada
+            if any('unnamed' in str(c).lower() for c in df.columns[:5]):
+                for r_idx in range(min(10, len(df))):
+                    row_vals = [str(x).lower() for x in df.iloc[r_idx].values if pd.notna(x)]
+                    if any('codigo' in x or 'código' in x or 'cb' in x for x in row_vals):
+                        df.columns = [str(col_name).strip() for col_name in df.iloc[r_idx]]
+                        df = df.iloc[r_idx + 1:].reset_index(drop=True)
+                        break
+
             # Limpiar codificaciones comunes en encabezados
             df = df.rename(columns=lambda c: str(c).replace('Situacin', 'Situación').replace('Mes Cumpleaos', 'Mes Cumpleaños').replace('Direccin', 'Dirección'))
             
             col_cb = next((c for c in ['Codigo CB', 'Código CB', 'codigo_cb'] if c in df.columns), df.columns[0])
             comentarios = cargar_comentarios_lideres()
             
-            df['Notas / Comentarios Líder'] = df[col_cb].astype(str).str.strip().map(lambda k: comentarios.get(k, ''))
+            df['cb_clean_tmp'] = df[col_cb].apply(limpiar_codigo_cb_estandar)
+            df['Notas / Comentarios Líder'] = df['cb_clean_tmp'].map(lambda k: comentarios.get(k, ''))
             
             # 1. Si se pasan CBs filtrados directamente de la consulta activa en pantalla
             if cbs_filtrados is not None:
-                cbs_set = {str(x).strip() for x in cbs_filtrados}
-                df = df[df[col_cb].astype(str).str.strip().isin(cbs_set)].copy()
+                cbs_clean_list = [limpiar_codigo_cb_estandar(x) for x in cbs_filtrados if limpiar_codigo_cb_estandar(x) != '']
+                cbs_set = set(cbs_clean_list)
+                df = df[df['cb_clean_tmp'].isin(cbs_set)].copy()
+                
+                # Mantener estrictamente el orden de los filtros de la pantalla
+                order_map = {cb: idx for idx, cb in enumerate(cbs_clean_list)}
+                df['__sort_rank__'] = df['cb_clean_tmp'].map(order_map)
+                df = df.sort_values(by='__sort_rank__').drop(columns=['cb_clean_tmp', '__sort_rank__'], errors='ignore')
                 return df
 
             # 2. Si se proporciona grupo o sector
@@ -822,30 +838,34 @@ def obtener_base_tableau_completa_original(grupo=None, sector=None, cbs_filtrado
             if sector and str(sector).strip() and str(sector).strip() != 'Todos':
                 s_str = str(sector).strip()
                 mask_sec = pd.Series(False, index=df.index)
-                
-                # Buscar en columnas de código de sector
                 for c_sec in ['Cod. Sector', 'cod_sector', 'Codigo Sector', 'Código Sector']:
                     if c_sec in df.columns:
                         mask_sec = mask_sec | df[c_sec].astype(str).str.strip().str.split('.').str[0].str.contains(s_str, case=False, na=False)
-                        
-                # Buscar en columnas de nombre de sector
                 for c_sec in ['Sector ', 'Sector', 'sector', 'Nombre Setor', 'Nombre Sector']:
                     if c_sec in df.columns:
                         mask_sec = mask_sec | df[c_sec].astype(str).str.strip().str.contains(s_str, case=False, na=False)
-                        
                 if mask_sec.any():
                     df = df[mask_sec].copy()
                     
+            df = df.drop(columns=['cb_clean_tmp'], errors='ignore')
             return df
         except Exception as e:
             safe_print(f"Nota al leer Base de Datos.xlsx para exportación: {e}")
 
     # Fallback a SQLite
     df_sql = consultar_tableau_sql(grupo=grupo, sector=sector)
-    if cbs_filtrados is not None and df_sql is not None and not df_sql.empty:
+    if df_sql is not None and not df_sql.empty:
         col_cb_sql = next((c for c in ['Código CB', 'Codigo CB', 'codigo_cb'] if c in df_sql.columns), df_sql.columns[0])
-        cbs_set = {str(x).strip() for x in cbs_filtrados}
-        df_sql = df_sql[df_sql[col_cb_sql].astype(str).str.strip().isin(cbs_set)].copy()
+        df_sql['cb_clean_tmp'] = df_sql[col_cb_sql].apply(limpiar_codigo_cb_estandar)
+        if cbs_filtrados is not None:
+            cbs_clean_list = [limpiar_codigo_cb_estandar(x) for x in cbs_filtrados if limpiar_codigo_cb_estandar(x) != '']
+            cbs_set = set(cbs_clean_list)
+            df_sql = df_sql[df_sql['cb_clean_tmp'].isin(cbs_set)].copy()
+            order_map = {cb: idx for idx, cb in enumerate(cbs_clean_list)}
+            df_sql['__sort_rank__'] = df_sql['cb_clean_tmp'].map(order_map)
+            df_sql = df_sql.sort_values(by='__sort_rank__').drop(columns=['cb_clean_tmp', '__sort_rank__'], errors='ignore')
+        else:
+            df_sql = df_sql.drop(columns=['cb_clean_tmp'], errors='ignore')
     return df_sql
 
 def exportar_tableau_excel_con_colores(df, nombre_hoja="Base_Consultoras", buffer_salida=None):
