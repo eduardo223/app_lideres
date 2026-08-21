@@ -2016,12 +2016,44 @@ with tab_diagnostico:
     if df_diag.empty:
         st.info("ℹ️ No hay datos de 'Cómo Vamos' cargados para mostrar las tablas dinámicas de diagnóstico. Sube un archivo desde 'Rotación de Ciclo' para comenzar.")
     else:
+        # Clasificación: Semillas (Desafío <= 0) vs Líderes (Desafío > 0)
+        col_obj_fact_chk = 'Objetivo Facturación' if 'Objetivo Facturación' in df_diag.columns else None
+        if col_obj_fact_chk:
+            df_diag['Tipo_Red'] = df_diag[col_obj_fact_chk].apply(
+                lambda v: '👑 Líder' if limpiar_numero(v, 0.0) > 0 else '🌱 Semilla'
+            )
+        else:
+            df_diag['Tipo_Red'] = '👑 Líder'
+
+        count_tot = len(df_diag)
+        count_lideres = int((df_diag['Tipo_Red'] == '👑 Líder').sum())
+        count_semillas = int((df_diag['Tipo_Red'] == '🌱 Semilla').sum())
+
+        col_f1, col_f2 = st.columns([3.2, 1.8])
+        with col_f1:
+            filtro_segmento = st.radio(
+                "🎯 **Filtrar por Tipo de Red:**",
+                options=[
+                    f"🌟 Todas ({count_tot})",
+                    f"👑 Líderes ({count_lideres})",
+                    f"🌱 Semillas ({count_semillas})"
+                ],
+                horizontal=True,
+                key="filtro_segmento_red_diagnostico"
+            )
+        with col_f2:
+            st.caption("💡 **Criterio de Clasificación:**\n* **👑 Líderes:** Desafío/Meta Facturación > $0\n* **🌱 Semillas:** Desafío/Meta Facturación = $0 o menor")
+
+        if "👑 Líderes" in filtro_segmento:
+            df_diag = df_diag[df_diag['Tipo_Red'] == '👑 Líder'].copy()
+        elif "🌱 Semillas" in filtro_segmento:
+            df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 Semilla'].copy()
 
         # --- 1. TABLA DE FACTURACIÓN (Formato exacto Clery Cuellar + Ganancia Estimada Total) ---
         st.markdown("#### 💰 1. Tabla de Facturación y Cumplimiento (Ordenadas de Mayor a Menor Cumplimiento)")
         
         cols_fact_exactas = [
-            col_lider, 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación',
+            col_lider, 'Tipo_Red', 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación',
             'Avance % Facturación', 'Productividad', 'Falta para el 100%', 'Falta para el 110%', 'Ganancia estimada'
         ]
         cols_presentes = [c for c in cols_fact_exactas if c in df_diag.columns]
@@ -2035,6 +2067,7 @@ with tab_diagnostico:
         
         nombres_clery = {
             col_lider: 'LÍDER DE NEGOCIOS',
+            'Tipo_Red': 'TIPO',
             'Objetivo Facturación': 'DESAFÍO FACTURACIÓN',
             'Real Facturación': 'FACTURACIÓN A HOY',
             'Cumplimiento Facturación': 'CUMPLIMIENTO DE FACTURACIÓN',
@@ -2066,6 +2099,13 @@ with tab_diagnostico:
             
         # Aplicar paleta de colores condicionales a Tabla 1
         styler_fact = df_fact_formatted.style
+
+        def _estilo_tipo(val_str):
+            if 'Líder' in str(val_str):
+                return 'background-color: #dbeafe; color: #1e40af; font-weight: bold;'
+            elif 'Semilla' in str(val_str):
+                return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+            return ''
 
         def _estilo_cump_fact(val_str):
             try:
@@ -2110,6 +2150,8 @@ with tab_diagnostico:
             except Exception:
                 return ''
 
+        if 'TIPO' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_tipo, subset=['TIPO'])
         if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_formatted.columns:
             styler_fact = aplicar_mapa_styler(styler_fact, _estilo_cump_fact, subset=['CUMPLIMIENTO DE FACTURACIÓN'])
         if 'AVANCE %' in df_fact_formatted.columns:
@@ -2128,7 +2170,7 @@ with tab_diagnostico:
         # --- 2. TABLA DE ACTIVAS / PEDIDOS ---
         st.markdown("#### 👥 2. Tabla de Activas / Pedidos (Ordenadas de Mayor a Menor Cumplimiento)")
         cols_act_exactas = [
-            col_lider, 'Objetivo Activas', 'Real Activas', 'Cumplimiento Activas',
+            col_lider, 'Tipo_Red', 'Objetivo Activas', 'Real Activas', 'Cumplimiento Activas',
             'Saldo', 'Disponibles', 'Inicios', 'Reinicios', 'Recuperos'
         ]
         cols_act_presentes = [c for c in cols_act_exactas if c in df_diag.columns]
@@ -2143,6 +2185,7 @@ with tab_diagnostico:
         df_act_view = df_act_sorted[cols_act_presentes].copy()
         nombres_clery_act = {
             col_lider: 'LÍDER DE NEGOCIOS',
+            'Tipo_Red': 'TIPO',
             'Objetivo Activas': 'ACTIVAS METAS',
             'Real Activas': 'ACTIVAS HOY (PEDIDOS)',
             'Cumplimiento Activas': 'CUMPLIMIENTO ACTIVAS',
@@ -2206,6 +2249,8 @@ with tab_diagnostico:
             except Exception:
                 return ''
 
+        if 'TIPO' in df_act_formatted.columns:
+            styler_act = aplicar_mapa_styler(styler_act, _estilo_tipo, subset=['TIPO'])
         if 'CUMPLIMIENTO ACTIVAS' in df_act_formatted.columns:
             styler_act = aplicar_mapa_styler(styler_act, _estilo_cump_act, subset=['CUMPLIMIENTO ACTIVAS'])
         if 'SALDO ACTIVAS' in df_act_formatted.columns:
