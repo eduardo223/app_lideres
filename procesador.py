@@ -168,6 +168,36 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
     # Cálculo dinámico de Ganancia Estimada según Matriz y Potencializador de Saldo
     df = calcular_ganancia_estimada_df(df)
 
+    # Integrar Metas de Objetivos Arte (Desafíos LNN: Inicios + Reinicios y Recuperos)
+    try:
+        mapa_arte = cargar_objetivos_arte()
+        mapa_grp = mapa_arte.get('por_grupo', {})
+        mapa_nom = mapa_arte.get('por_nombre', {})
+        
+        col_cv_grp = next((c for c in df.columns if 'grupo' in str(c).lower()), None)
+        col_cv_nom = next((c for c in df.columns if 'nombre' in str(c).lower() and 'consultora' in str(c).lower()), None)
+        
+        def _obtener_meta_ini(row):
+            g = str(row.get(col_cv_grp, '')).strip().split('.')[0] if col_cv_grp else ''
+            nom = str(row.get(col_cv_nom, '')).strip().lower() if col_cv_nom else ''
+            target = mapa_grp.get(g) or mapa_nom.get(nom)
+            if target:
+                return target.get('meta_inicios_reinicios', 0)
+            return 0
+
+        def _obtener_meta_rec(row):
+            g = str(row.get(col_cv_grp, '')).strip().split('.')[0] if col_cv_grp else ''
+            nom = str(row.get(col_cv_nom, '')).strip().lower() if col_cv_nom else ''
+            target = mapa_grp.get(g) or mapa_nom.get(nom)
+            if target:
+                return target.get('meta_recuperos', 0)
+            return 0
+
+        df['Meta Inicios + Reinicios'] = df.apply(_obtener_meta_ini, axis=1)
+        df['Meta Recuperos'] = df.apply(_obtener_meta_rec, axis=1)
+    except Exception as e_arte:
+        safe_print(f"Nota al integrar Objetivos Arte en calcular_metas_ciclo: {e_arte}")
+
     # Si se ejecuta directamente desde archivo, exportamos
     if isinstance(origen, str):
         archivo_salida = 'Resultado_Metas_Procesadas.xlsx'
@@ -178,6 +208,144 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
             safe_print(f"Advertencia al guardar archivo de salida: {e}")
 
     return df
+
+# --- MÓDULO DE GESTIÓN DE OBJETIVOS ARTE (DESAFÍOS LNN: INICIOS, REINICIOS, RECUPEROS) ---
+
+RUTA_OBJETIVOS_ARTE_JSON = 'objetivos_arte.json'
+
+def cargar_objetivos_arte():
+    """
+    Carga el diccionario mapeado de Objetivos Arte desde objetivos_arte.json o lo genera desde Objetivos Arte.xlsx si existe.
+    """
+    if os.path.exists(RUTA_OBJETIVOS_ARTE_JSON):
+        try:
+            with open(RUTA_OBJETIVOS_ARTE_JSON, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if data and isinstance(data, dict):
+                    return data
+        except Exception as e:
+            safe_print(f"Nota al cargar {RUTA_OBJETIVOS_ARTE_JSON}: {e}")
+
+    # Fallback automático: procesar Objetivos Arte.xlsx si existe localmente
+    if os.path.exists('Objetivos Arte.xlsx'):
+        res = procesar_archivo_objetivos_arte('Objetivos Arte.xlsx')
+        if res.get('exito'):
+            return res.get('data', {})
+            
+    return {}
+
+def guardar_objetivos_arte(dict_data):
+    """
+    Guarda el diccionario mapeado de Objetivos Arte en objetivos_arte.json.
+    """
+    try:
+        with open(RUTA_OBJETIVOS_ARTE_JSON, 'w', encoding='utf-8') as f:
+            json.dump(dict_data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        safe_print(f"Error al guardar {RUTA_OBJETIVOS_ARTE_JSON}: {e}")
+        return False
+
+def procesar_archivo_objetivos_arte(origen_arte, ruta_guardar_excel='Objetivos Arte.xlsx'):
+    """
+    Lee y procesa el archivo Objetivos Arte (.xlsx, .xls), extrayendo las metas de:
+    - 'Inicios + reinicios'
+    - 'Recuperos'
+    de la hoja 'Desafíos LNN'.
+    Guarda el mapeo persistente en 'objetivos_arte.json' y actualiza el archivo 'Objetivos Arte.xlsx'.
+    """
+    try:
+        if hasattr(origen_arte, 'read'):
+            try:
+                origen_arte.seek(0)
+            except Exception:
+                pass
+            with open(ruta_guardar_excel, 'wb') as f_out:
+                f_out.write(origen_arte.read())
+            try:
+                origen_arte.seek(0)
+            except Exception:
+                pass
+            ruta_leer = ruta_guardar_excel
+        elif isinstance(origen_arte, str):
+            ruta_leer = origen_arte
+        else:
+            return {'exito': False, 'error': "Formato de origen no soportado."}
+
+        xl = pd.ExcelFile(ruta_leer)
+        
+        # Buscar hoja Desafíos LNN (insensible a mayúsculas/tildes)
+        hoja_des = next((s for s in xl.sheet_names if 'desaf' in s.lower() and 'ln' in s.lower()), None)
+        if not hoja_des:
+            hoja_des = next((s for s in xl.sheet_names if 'desaf' in s.lower()), xl.sheet_names[0])
+
+        df_raw = xl.parse(hoja_des)
+        
+        # Detectar cabeceras desplazadas si vienen con 'Unnamed'
+        if any('unnamed' in str(c).lower() for c in df_raw.columns[:5]):
+            for r_idx in range(min(5, len(df_raw))):
+                row_vals = [str(x).lower() for x in df_raw.iloc[r_idx].values if pd.notna(x)]
+                if any('sector' in v or 'grupo' in v or 'lider' in v or 'líder' in v for v in row_vals):
+                    df_raw.columns = [str(col_name).strip() for col_name in df_raw.iloc[r_idx]]
+                    df_raw = df_raw.iloc[r_idx + 1:].reset_index(drop=True)
+                    break
+
+        col_grp = next((c for c in df_raw.columns if any(k in str(c).lower() for k in ['cód. grupo', 'cod grupo', 'cód grupo', 'grupo', 'codigo grupo'])), None)
+        col_lider = next((c for c in df_raw.columns if any(k in str(c).lower() for k in ['nombre líder', 'nombre lider', 'lider', 'líder'])), None)
+        col_sec = next((c for c in df_raw.columns if str(c).lower() in ['sector', 'nombre setor', 'nombre sector']), None)
+        
+        col_ini_meta = next((c for c in df_raw.columns if 'inicios + reinicios' in str(c).lower() or ('inicio' in str(c).lower() and 'meta' in str(c).lower())), None)
+        if not col_ini_meta:
+            col_ini_meta = next((c for c in df_raw.columns if 'inicios' in str(c).lower() and 'reinicio' in str(c).lower()), None)
+        
+        col_rec_meta = next((c for c in df_raw.columns if 'recupero' in str(c).lower()), None)
+
+        if not col_grp and not col_lider:
+            return {'exito': False, 'error': "No se identificó la columna de Grupo o Líder en la hoja 'Desafíos LNN'."}
+
+        mapa_por_grupo = {}
+        mapa_por_nombre = {}
+        sectores_encontrados = set()
+
+        for _, row in df_raw.iterrows():
+            g_raw = str(row.get(col_grp, '')).strip().split('.')[0] if col_grp else ''
+            nom = str(row.get(col_lider, '')).strip() if col_lider else ''
+            sec = str(row.get(col_sec, '')).strip() if col_sec else ''
+            if sec:
+                sectores_encontrados.add(sec)
+
+            val_ini = int(round(limpiar_numero(row.get(col_ini_meta, 0), 0))) if col_ini_meta else 0
+            val_rec = int(round(limpiar_numero(row.get(col_rec_meta, 0), 0))) if col_rec_meta else 0
+
+            data_lider = {
+                'meta_inicios_reinicios': val_ini,
+                'meta_recuperos': val_rec,
+                'nombre_lider': nom,
+                'grupo': g_raw,
+                'sector': sec
+            }
+
+            if g_raw and g_raw not in ['-', 'nan', '']:
+                mapa_por_grupo[g_raw] = data_lider
+            if nom and nom not in ['-', 'nan', '']:
+                mapa_por_nombre[nom.lower()] = data_lider
+
+        dict_final = {
+            'por_grupo': mapa_por_grupo,
+            'por_nombre': mapa_por_nombre
+        }
+
+        guardar_objetivos_arte(dict_final)
+        extraer_catalogo_sectores_desde_arte(ruta_leer)
+
+        return {
+            'exito': True,
+            'total_mapeados': len(mapa_por_grupo),
+            'sectores': sorted(list(sectores_encontrados)),
+            'data': dict_final
+        }
+    except Exception as e:
+        return {'exito': False, 'error': f"Error al procesar Objetivos Arte: {e}"}
 
 # --- REGLAS DE GANANCIA ESTIMADA SEGÚN MATRIZ Y POTENCIALIZADOR DE SALDO ---
 
@@ -2070,10 +2238,181 @@ def verificar_estado_suscripcion(user_info_o_sector):
             "motivo": f"Vigente ({e})"
         }
 
+# --- CATÁLOGO CORPORATIVO DE SECTORES Y AUTO-APROVISIONAMIENTO DE LÍDERES ---
+
+RUTA_CATALOGO_SECTORES_JSON = 'catalogo_sectores.json'
+
+def limpiar_nombre_sector_solo(nombre_sector):
+    """
+    Retorna únicamente el nombre del sector sin el nombre de la persona ni códigos adicionales.
+    Ejemplo: 'SECTOR COLORES  KAREN' -> 'SECTOR COLORES'
+             'SECTOR ARTESANÍA FERNANDA' -> 'SECTOR ARTESANÍA'
+             'SECTOR MATICES CLERY' -> 'SECTOR MATICES'
+             'Sector ABÁNICO Judy' -> 'SECTOR ABÁNICO'
+    """
+    if not nombre_sector:
+        return ""
+    partes = str(nombre_sector).strip().split()
+    if len(partes) >= 2:
+        if partes[0].lower() == 'sector':
+            return f"SECTOR {partes[1].upper()}"
+    return str(nombre_sector).strip().upper()
+
+def cargar_catalogo_sectores():
+    """
+    Retorna el diccionario estructurado de sectores y líderes desde catalogo_sectores.json.
+    Si no existe, intenta extraerlo desde Objetivos Arte.xlsx.
+    """
+    if os.path.exists(RUTA_CATALOGO_SECTORES_JSON):
+        try:
+            with open(RUTA_CATALOGO_SECTORES_JSON, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                if data and isinstance(data, dict):
+                    return data
+        except Exception as e:
+            safe_print(f"Nota al cargar {RUTA_CATALOGO_SECTORES_JSON}: {e}")
+
+    if os.path.exists('Objetivos Arte.xlsx'):
+        return extraer_catalogo_sectores_desde_arte('Objetivos Arte.xlsx')
+
+    return {}
+
+def extraer_catalogo_sectores_desde_arte(ruta_o_buffer='Objetivos Arte.xlsx'):
+    """
+    Analiza la hoja 'Desafíos LNN' de Objetivos Arte y extrae todos los sectores con sus códigos oficiales
+    y la lista completa de sus líderes de negocio (con código de grupo y nombre oficial).
+    """
+    catalogo = {}
+    try:
+        xl = pd.ExcelFile(ruta_o_buffer)
+        hoja_des = next((s for s in xl.sheet_names if 'desaf' in s.lower() and 'ln' in s.lower()), None)
+        if not hoja_des:
+            hoja_des = next((s for s in xl.sheet_names if 'desaf' in s.lower()), xl.sheet_names[0])
+            
+        df_raw = xl.parse(hoja_des)
+
+        if any('unnamed' in str(c).lower() for c in df_raw.columns[:5]):
+            for r_idx in range(min(5, len(df_raw))):
+                row_vals = [str(x).lower() for x in df_raw.iloc[r_idx].values if pd.notna(x)]
+                if any('sector' in v or 'grupo' in v or 'lider' in v or 'líder' in v for v in row_vals):
+                    df_raw.columns = [str(col_name).strip() for col_name in df_raw.iloc[r_idx]]
+                    df_raw = df_raw.iloc[r_idx + 1:].reset_index(drop=True)
+                    break
+
+        col_sec = next((c for c in df_raw.columns if str(c).lower() in ['sector', 'nombre setor', 'nombre sector']), None)
+        col_cod = next((c for c in df_raw.columns if 'cod' in str(c).lower() and 'sector' in str(c).lower()), None)
+        col_grp = next((c for c in df_raw.columns if any(k in str(c).lower() for k in ['cód. grupo', 'cod grupo', 'grupo'])), None)
+        col_lc = next((c for c in df_raw.columns if 'cód. líder' in str(c).lower() or 'cod lider' in str(c).lower()), None)
+        col_ln = next((c for c in df_raw.columns if 'nombre líder' in str(c).lower() or 'nombre lider' in str(c).lower()), None)
+
+        if not col_sec:
+            return catalogo
+
+        for sec_name, grp in df_raw.groupby(col_sec):
+            sec_clean = str(sec_name).strip()
+            if not sec_clean or sec_clean.lower() in ['nan', '-', 'none', '']:
+                continue
+                
+            cod_s = ""
+            if col_cod and not grp[col_cod].dropna().empty:
+                cod_s = str(grp[col_cod].dropna().iloc[0]).split('.')[0].strip()
+                
+            lideres = []
+            for _, r in grp.iterrows():
+                g = str(r.get(col_grp, '')).split('.')[0].strip() if col_grp else ''
+                lc = str(r.get(col_lc, '')).split('.')[0].strip() if col_lc else ''
+                ln = str(r.get(col_ln, '')).strip() if col_ln else ''
+                
+                if not ln or ln.lower() in ['nan', '-', 'none'] or 'fuera de grupo' in ln.lower():
+                    continue
+                    
+                clean_name = ln.split(' - ', 1)[1].strip() if ' - ' in ln else ln
+                lideres.append({
+                    'codigo_grupo': g,
+                    'codigo_consultora': lc if lc != '-' else '',
+                    'nombre_lider': clean_name,
+                    'nombre_original': ln
+                })
+
+            nombre_solo = limpiar_nombre_sector_solo(sec_clean)
+            clave_sector = cod_s if cod_s else nombre_solo
+            catalogo[clave_sector] = {
+                'codigo_sector': cod_s,
+                'nombre_sector': nombre_solo,
+                'nombre_sector_original': sec_clean,
+                'total_lideres': len(lideres),
+                'lideres': lideres
+            }
+
+        with open(RUTA_CATALOGO_SECTORES_JSON, 'w', encoding='utf-8') as f:
+            json.dump(catalogo, f, ensure_ascii=False, indent=2)
+
+    except Exception as e:
+        safe_print(f"Error al extraer catálogo de sectores desde Objetivos Arte: {e}")
+
+    return catalogo
+
+def auto_aprovisionar_lideres_sector(cod_sector, nombre_sector=""):
+    """
+    Crea o vincula automáticamente las cuentas de usuario de todas las Líderes de Negocio
+    asociadas a un sector específico basándose en catalogo_sectores.json.
+    """
+    creadas = []
+    sec_clean = str(cod_sector).strip()
+    if not sec_clean:
+        return creadas
+
+    catalogo = cargar_catalogo_sectores()
+    sec_info = catalogo.get(sec_clean)
+    if not sec_info:
+        for k, v in catalogo.items():
+            if str(v.get('nombre_sector', '')).strip().lower() == str(nombre_sector).strip().lower():
+                sec_info = v
+                break
+
+    if not sec_info or not sec_info.get('lideres'):
+        return creadas
+
+    usuarios = cargar_usuarios()
+    cambios = False
+
+    for lider in sec_info.get('lideres', []):
+        g = lider.get('codigo_grupo', '').strip()
+        nom = lider.get('nombre_lider', '').strip()
+        if not g or g.lower() in ['nan', '-', 'none', '0']:
+            continue
+
+        username = f"lider{g}".lower()
+        if username not in usuarios:
+            usuarios[username] = {
+                "nombre": nom,
+                "password_hash": hashlib_sha256(f"Lider{g}*2026"),
+                "rol": "lider",
+                "codigo_grupo": g,
+                "codigo_sector": sec_clean,
+                "nombre_sector": nombre_sector or sec_info.get('nombre_sector', ''),
+                "telefono": "",
+                "debe_cambiar_password": False
+            }
+            creadas.append({'username': username, 'nombre': nom, 'grupo': g})
+            cambios = True
+        else:
+            user_u = usuarios[username]
+            if not user_u.get('codigo_sector') or user_u.get('codigo_sector') != sec_clean:
+                user_u['codigo_sector'] = sec_clean
+                user_u['nombre_sector'] = nombre_sector or sec_info.get('nombre_sector', '')
+                cambios = True
+
+    if cambios:
+        guardar_usuarios(usuarios)
+
+    return creadas
+
 def registrar_nueva_gerente(nombre, correo, password, telefono, cod_sector, nombre_sector=""):
     """
     Registra a una nueva Gerente de forma autónoma con 15 días de prueba gratis.
     Valida que el correo no exista y que el código de sector no haya usado ya la prueba gratuita.
+    Además, aprovisiona automáticamente las cuentas de todas las líderes de su sector.
     """
     from datetime import datetime, timedelta
     
@@ -2141,10 +2480,14 @@ def registrar_nueva_gerente(nombre, correo, password, telefono, cod_sector, nomb
     }
     guardar_historico_sectores(historico)
 
+    # Auto-aprovisionar instantáneamente las cuentas de las líderes de este sector
+    lideres_creadas = auto_aprovisionar_lideres_sector(sec_clean, sec_nom_clean)
+    msg_lideres = f" y {len(lideres_creadas)} cuentas de Líderes aprovisionadas automáticamente" if lideres_creadas else ""
+
     user_session_info = nuevo_usuario.copy()
     user_session_info["username"] = u_clean
 
-    return True, f"¡Bienvenida {nom_clean}! Tu cuenta de Gerente y tu prueba gratis de 15 días han sido activadas exitosamente.", user_session_info
+    return True, f"¡Bienvenida {nom_clean}! Tu cuenta de Gerente y tu prueba gratis de 15 días han sido activadas exitosamente{msg_lideres}.", user_session_info
 
 def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es_pago=False):
     """

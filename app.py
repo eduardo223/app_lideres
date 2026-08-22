@@ -60,7 +60,12 @@ from procesador import (
     actualizar_suscripcion_sector,
     obtener_resumen_suscripciones,
     eliminar_usuario_perfil,
-    obtener_nombre_sector_usuario
+    obtener_nombre_sector_usuario,
+    procesar_archivo_objetivos_arte,
+    cargar_objetivos_arte,
+    cargar_catalogo_sectores,
+    extraer_catalogo_sectores_desde_arte,
+    limpiar_nombre_sector_solo
 )
 
 # 1. Configuración de la página
@@ -179,6 +184,18 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 10px 24px rgba(255, 107, 0, 0.35) !important;
         background: linear-gradient(135deg, #F58220 0%, #9B0053 100%) !important;
+    }
+
+    /* Ocultar icono del ojo para revelar contraseñas / campos sensibles */
+    button[aria-label*="password" i],
+    button[aria-label*="contraseña" i],
+    button[aria-label*="Show" i],
+    button[aria-label*="Hide" i],
+    [data-testid="stTextInputRootElement"] button,
+    [data-testid="stTextInput"] button {
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
     }
 
     /* Executive Login Card Styling (Natura & Avon Theme) */
@@ -703,33 +720,76 @@ if st.session_state['user'] is None:
             st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
             st.markdown("#### 🚀 Registro para Gerentes de Sector")
             st.caption("Activa tu prueba gratuita de 15 días con acceso total para ti y todo tu equipo de líderes.")
-            
+
+            catalogo_sectores = cargar_catalogo_sectores()
+            opciones_sector = ["-- Selecciona tu Sector --"]
+            mapa_opciones_sector = {}
+
+            if catalogo_sectores:
+                for cod, info in sorted(catalogo_sectores.items(), key=lambda x: str(x[1].get('nombre_sector', ''))):
+                    nom_sec = limpiar_nombre_sector_solo(info.get('nombre_sector', f'SECTOR {cod}'))
+                    label = f"{nom_sec}"
+                    if label not in mapa_opciones_sector:
+                        opciones_sector.append(label)
+                        mapa_opciones_sector[label] = info
+
+            opciones_sector.append("✏️ Otro Sector (Ingresar manualmente)")
+
+            sec_seleccionado_label = st.selectbox(
+                "🏢 Sector:",
+                options=opciones_sector,
+                key="sel_sector_registro"
+            )
+
+            info_sec_sel = mapa_opciones_sector.get(sec_seleccionado_label)
+
+            default_cod_sec = info_sec_sel.get('codigo_sector', '') if info_sec_sel else ""
+            default_nom_sec = limpiar_nombre_sector_solo(info_sec_sel.get('nombre_sector', '')) if info_sec_sel else ""
+
+            es_manual = (sec_seleccionado_label == "✏️ Otro Sector (Ingresar manualmente)")
+
             with st.form("form_registro_gerente"):
                 reg_nombre = st.text_input("👩‍💼 Nombre Completo", placeholder="Ej: Dolly Salgara o Clery Cuellar")
                 reg_correo = st.text_input("✉️ Correo Electrónico (Será tu usuario de acceso)", placeholder="ejemplo@gmail.com")
                 reg_pass = st.text_input("🔒 Contraseña Segura", type="password", placeholder="Mínimo 6 caracteres")
                 reg_tel = st.text_input("📲 Celular / WhatsApp de Contacto", placeholder="Ej: 3113201145")
-                reg_sec_cod = st.text_input("🏷️ Código Oficial de Sector (Natura / Avon)", placeholder="Ej: 700000466", help="Código único de sector que viene en tus reportes")
-                reg_sec_nom = st.text_input("🏢 Nombre del Sector", placeholder="Ej: EMOCIONES DOLLY o MATICES CLERY")
+                
+                if es_manual:
+                    reg_sec_cod = st.text_input(
+                        "🏷️ Código Oficial de Sector",
+                        type="password",
+                        placeholder="•••••••••",
+                        help="Código único de sector"
+                    )
+                    reg_sec_nom = st.text_input(
+                        "🏢 Nombre del Sector",
+                        placeholder="Ej: SECTOR COLORES o SECTOR MATICES"
+                    )
+                else:
+                    reg_sec_cod = default_cod_sec
+                    reg_sec_nom = default_nom_sec
                 
                 btn_registro = st.form_submit_button("🎉 Comenzar Mi Prueba Gratis de 15 Días", type="primary", use_container_width=True)
                 
                 if btn_registro:
-                    ok_reg, msg_reg, u_data = registrar_nueva_gerente(
-                        nombre=reg_nombre,
-                        correo=reg_correo,
-                        password=reg_pass,
-                        telefono=reg_tel,
-                        cod_sector=reg_sec_cod,
-                        nombre_sector=reg_sec_nom
-                    )
-                    if ok_reg:
-                        st.session_state['user'] = u_data
-                        st.query_params['user'] = u_data.get('username', reg_correo)
-                        st.success("✅ " + msg_reg)
-                        st.rerun()
+                    if not reg_sec_cod or not reg_sec_nom:
+                        st.error("Por favor selecciona tu Sector de la lista antes de continuar.")
                     else:
-                        st.error(msg_reg)
+                        ok_reg, msg_reg, u_data = registrar_nueva_gerente(
+                            nombre=reg_nombre,
+                            correo=reg_correo,
+                            password=reg_pass,
+                            telefono=reg_tel,
+                            cod_sector=reg_sec_cod,
+                            nombre_sector=reg_sec_nom
+                        )
+                        if ok_reg:
+                            st.session_state['user'] = u_data
+                            st.query_params['user'] = u_data.get('username', reg_correo)
+                            st.success("✅ " + msg_reg)
+                            st.rerun()
+                        else:
+                            st.error(msg_reg)
             st.markdown('</div>', unsafe_allow_html=True)
             
     st.stop()
@@ -864,6 +924,29 @@ if puede_subir_archivos:
                     st.info("💡 **Solución**: Por favor, **cierra el archivo en Microsoft Excel** y vuelve a presionar el botón '🚀 Rotar Ciclo y Actualizar Histórico'.")
                 except Exception as ex:
                     st.error(f"❌ Ocurrió un error al rotar el ciclo: {ex}")
+
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🎯 Metas 'Objetivos Arte'")
+        st.sidebar.caption("Sube el archivo `Objetivos Arte.xlsx` (Hoja *Desafíos LNN*) para actualizar las metas de Inicios + Reinicios y Recuperos.")
+        
+        obj_arte_file = st.sidebar.file_uploader(
+            "Cargar 'Objetivos Arte.xlsx'",
+            type=["xlsx", "xls"],
+            key="uploader_objetivos_arte_sidebar"
+        )
+        if obj_arte_file is not None:
+            if st.sidebar.button("⚡ Actualizar Metas de Inicios, Reinicios y Recuperos", type="primary"):
+                try:
+                    with st.spinner("Procesando hoja Desafíos LNN de Objetivos Arte..."):
+                        res_oa = procesar_archivo_objetivos_arte(obj_arte_file)
+                        if res_oa.get('exito'):
+                            st.cache_data.clear()
+                            st.sidebar.success(f"✅ ¡Metas actualizadas con éxito! ({res_oa.get('total_mapeados', 0)} líderes mapeadas)")
+                            st.rerun()
+                        else:
+                            st.sidebar.error(f"❌ Error al procesar: {res_oa.get('error')}")
+                except Exception as ex_oa:
+                    st.sidebar.error(f"❌ Ocurrió un error: {ex_oa}")
 
         st.sidebar.markdown("---")
 else:
@@ -2413,8 +2496,7 @@ with tab_diagnostico:
             df_ing_prep = df_diag.copy()
             col_inicios = 'Inicios' if 'Inicios' in df_ing_prep.columns else None
             col_reinicios = 'Reinicios' if 'Reinicios' in df_ing_prep.columns else None
-            
-            col_meta_ing = next((c for c in df_ing_prep.columns if any(k in str(c).lower() for k in ['meta inicio', 'meta_inicio', 'meta ingreso', 'meta_ingreso'])), None)
+            col_meta_ing = next((c for c in df_ing_prep.columns if any(k in str(c).lower() for k in ['meta inicios + reinicios', 'meta_inicios_reinicios', 'meta inicios', 'meta_inicios', 'inicios + reinicios'])), None)
 
             df_ing_calc = pd.DataFrame()
             df_ing_calc['LÍDER DE NEGOCIOS'] = df_ing_prep[col_lider].astype(str)
@@ -2424,7 +2506,8 @@ with tab_diagnostico:
             df_ing_calc['Hoy'] = (val_inicios + val_reinicios).astype(int)
 
             if col_meta_ing:
-                df_ing_calc['Meta'] = df_ing_prep[col_meta_ing].apply(lambda v: int(limpiar_numero(v, 5)))
+                df_ing_calc['Meta'] = df_ing_prep[col_meta_ing].apply(lambda v: int(limpiar_numero(v, 0)))
+                df_ing_calc['Meta'] = df_ing_calc.apply(lambda r: r['Meta'] if r['Meta'] > 0 else max(5, int(r['Hoy'] + 3)), axis=1)
             else:
                 df_ing_calc['Meta'] = df_ing_calc['Hoy'].apply(lambda h: max(5, int(h + 3)))
 
@@ -2447,16 +2530,16 @@ with tab_diagnostico:
 
             row_total_ing = pd.DataFrame([{
                 'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
-                'Meta': tot_meta_ing,
                 'Hoy': tot_hoy_ing,
+                'Meta': tot_meta_ing,
                 'Avance': tot_av_ing,
                 'para activar!': tot_act_ing
             }])
             df_ing_final = pd.concat([df_ing_calc, row_total_ing], ignore_index=True)
 
-            df_ing_formatted = df_ing_final.copy()
-            df_ing_formatted['Meta'] = df_ing_formatted['Meta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_ing_formatted = df_ing_final[['LÍDER DE NEGOCIOS', 'Hoy', 'Meta', 'Avance', 'para activar!']].copy()
             df_ing_formatted['Hoy'] = df_ing_formatted['Hoy'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_ing_formatted['Meta'] = df_ing_formatted['Meta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
             df_ing_formatted['Avance'] = df_ing_formatted['Avance'].apply(lambda v: f"{v:.1f}%")
             df_ing_formatted['para activar!'] = df_ing_formatted['para activar!'].apply(lambda v: f"{int(v):,}".replace(",", "."))
 
@@ -2482,6 +2565,67 @@ with tab_diagnostico:
                 styler_ing = styler_ing.applymap(_estilo_avance_magenta, subset=['Avance']).applymap(_estilo_para_activar, subset=['para activar!'])
 
             st.dataframe(styler_ing, use_container_width=True)
+
+        # --- 5. CUADRO RESUMEN DE RECUPEROS (Meta vs. Recuperos del Ciclo) ---
+        st.markdown("---")
+        st.markdown("#### 🎯 5. Cuadro Resumen de Recuperos (Meta vs. Recuperos del Ciclo)")
+        st.caption("Fórmulas del modelo: `Hoy = Recuperos Reales`, `Avance = (Hoy / Meta) * 100`, `para activar! = Meta - Hoy`.")
+
+        if col_lider and col_lider in df_diag.columns:
+            df_rec_prep = df_diag.copy()
+            col_recuperos = 'Recuperos' if 'Recuperos' in df_rec_prep.columns else None
+            col_meta_rec = next((c for c in df_rec_prep.columns if any(k in str(c).lower() for k in ['meta recuperos', 'meta_recuperos', 'recuperos_meta'])), None)
+
+            df_rec_calc = pd.DataFrame()
+            df_rec_calc['LÍDER DE NEGOCIOS'] = df_rec_prep[col_lider].astype(str)
+
+            val_rec = df_rec_prep[col_recuperos].apply(lambda v: limpiar_numero(v, 0)) if col_recuperos else 0
+            df_rec_calc['Hoy'] = val_rec.astype(int)
+
+            if col_meta_rec:
+                df_rec_calc['Meta'] = df_rec_prep[col_meta_rec].apply(lambda v: int(limpiar_numero(v, 0)))
+                df_rec_calc['Meta'] = df_rec_calc.apply(lambda r: r['Meta'] if r['Meta'] > 0 else max(4, int(r['Hoy'] + 2)), axis=1)
+            else:
+                df_rec_calc['Meta'] = df_rec_calc['Hoy'].apply(lambda h: max(4, int(h + 2)))
+
+            df_rec_calc['Avance'] = df_rec_calc.apply(
+                lambda r: (r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0,
+                axis=1
+            )
+            df_rec_calc['para activar!'] = df_rec_calc.apply(
+                lambda r: max(0, r['Meta'] - r['Hoy']),
+                axis=1
+            )
+
+            df_rec_calc = df_rec_calc.sort_values(by='Avance', ascending=False).reset_index(drop=True)
+
+            tot_meta_rec = int(df_rec_calc['Meta'].sum())
+            tot_hoy_rec = int(df_rec_calc['Hoy'].sum())
+            tot_av_rec = (tot_hoy_rec / tot_meta_rec * 100.0) if tot_meta_rec > 0 else 0.0
+            tot_act_rec = max(0, tot_meta_rec - tot_hoy_rec)
+
+            row_total_rec = pd.DataFrame([{
+                'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                'Hoy': tot_hoy_rec,
+                'Meta': tot_meta_rec,
+                'Avance': tot_av_rec,
+                'para activar!': tot_act_rec
+            }])
+            df_rec_final = pd.concat([df_rec_calc, row_total_rec], ignore_index=True)
+
+            df_rec_formatted = df_rec_final[['LÍDER DE NEGOCIOS', 'Hoy', 'Meta', 'Avance', 'para activar!']].copy()
+            df_rec_formatted['Hoy'] = df_rec_formatted['Hoy'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_rec_formatted['Meta'] = df_rec_formatted['Meta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_rec_formatted['Avance'] = df_rec_formatted['Avance'].apply(lambda v: f"{v:.1f}%")
+            df_rec_formatted['para activar!'] = df_rec_formatted['para activar!'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+            styler_rec = df_rec_formatted.style
+            if hasattr(styler_rec, 'map'):
+                styler_rec = styler_rec.map(_estilo_avance_magenta, subset=['Avance']).map(_estilo_para_activar, subset=['para activar!'])
+            elif hasattr(styler_rec, 'applymap'):
+                styler_rec = styler_rec.applymap(_estilo_avance_magenta, subset=['Avance']).applymap(_estilo_para_activar, subset=['para activar!'])
+
+            st.dataframe(styler_rec, use_container_width=True)
 
     st.markdown("---")
 

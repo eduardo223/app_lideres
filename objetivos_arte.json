@@ -1,0 +1,2456 @@
+{
+  "por_grupo": {
+    "3249": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "-",
+      "grupo": "3249",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "4796": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 9,
+      "nombre_lider": "276872",
+      "grupo": "4796",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "5292": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 10,
+      "nombre_lider": "532314",
+      "grupo": "5292",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "5672": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "275838",
+      "grupo": "5672",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "8832": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 12,
+      "nombre_lider": "490031",
+      "grupo": "8832",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "9039": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "511097",
+      "grupo": "9039",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "9040": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 6,
+      "nombre_lider": "1435494",
+      "grupo": "9040",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "9177": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 12,
+      "nombre_lider": "1344968",
+      "grupo": "9177",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "9426": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "1538217",
+      "grupo": "9426",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "9549": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "719915",
+      "grupo": "9549",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "10183": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 11,
+      "nombre_lider": "1751355",
+      "grupo": "10183",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "10184": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 12,
+      "nombre_lider": "1697626",
+      "grupo": "10184",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "10216": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 12,
+      "nombre_lider": "814696",
+      "grupo": "10216",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "3250": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 18,
+      "nombre_lider": "-",
+      "grupo": "3250",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "5747": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 12,
+      "nombre_lider": "183829",
+      "grupo": "5747",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "8834": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 10,
+      "nombre_lider": "463410",
+      "grupo": "8834",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "8870": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 12,
+      "nombre_lider": "969442",
+      "grupo": "8870",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "9255": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "224691",
+      "grupo": "9255",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "9340": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 8,
+      "nombre_lider": "1098352",
+      "grupo": "9340",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "9483": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 10,
+      "nombre_lider": "262067",
+      "grupo": "9483",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "9485": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "1373038",
+      "grupo": "9485",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "9487": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 8,
+      "nombre_lider": "510723",
+      "grupo": "9487",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "9619": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 15,
+      "nombre_lider": "742241",
+      "grupo": "9619",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "3251": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 2,
+      "nombre_lider": "-",
+      "grupo": "3251",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "5041": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "553308",
+      "grupo": "5041",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "5042": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 16,
+      "nombre_lider": "233182",
+      "grupo": "5042",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "5423": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 10,
+      "nombre_lider": "200765",
+      "grupo": "5423",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "5578": {
+      "meta_inicios_reinicios": 15,
+      "meta_recuperos": 19,
+      "nombre_lider": "767738",
+      "grupo": "5578",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "9041": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "368589",
+      "grupo": "9041",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "9058": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 13,
+      "nombre_lider": "460802",
+      "grupo": "9058",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "9425": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 7,
+      "nombre_lider": "1635187",
+      "grupo": "9425",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "9844": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 2,
+      "nombre_lider": "425309",
+      "grupo": "9844",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "97": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 10,
+      "nombre_lider": "16547",
+      "grupo": "97",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "3292": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 1,
+      "nombre_lider": "-",
+      "grupo": "3292",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "3561": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "191068",
+      "grupo": "3561",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "3887": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 8,
+      "nombre_lider": "367886",
+      "grupo": "3887",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "9199": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "672837",
+      "grupo": "9199",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "9757": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "251064",
+      "grupo": "9757",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "2010": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 5,
+      "nombre_lider": "251534",
+      "grupo": "2010",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "3323": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 0,
+      "nombre_lider": "-",
+      "grupo": "3323",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "5711": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 4,
+      "nombre_lider": "735240",
+      "grupo": "5711",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "8852": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 6,
+      "nombre_lider": "352596",
+      "grupo": "8852",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "9214": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 3,
+      "nombre_lider": "999843",
+      "grupo": "9214",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "9482": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 3,
+      "nombre_lider": "603314",
+      "grupo": "9482",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "9618": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "985776",
+      "grupo": "9618",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "9842": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 3,
+      "nombre_lider": "238877",
+      "grupo": "9842",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "3342": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 3,
+      "nombre_lider": "-",
+      "grupo": "3342",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "4319": {
+      "meta_inicios_reinicios": 20,
+      "meta_recuperos": 16,
+      "nombre_lider": "257409",
+      "grupo": "4319",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "4664": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 10,
+      "nombre_lider": "207964",
+      "grupo": "4664",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "5183": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "668955",
+      "grupo": "5183",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "5445": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "554798",
+      "grupo": "5445",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "6117": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 4,
+      "nombre_lider": "988129",
+      "grupo": "6117",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "6761": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "1039557",
+      "grupo": "6761",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "8956": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "1174885",
+      "grupo": "8956",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "9269": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "612575",
+      "grupo": "9269",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "9994": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 4,
+      "nombre_lider": "887471",
+      "grupo": "9994",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "3390": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 8,
+      "nombre_lider": "-",
+      "grupo": "3390",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "8831": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 8,
+      "nombre_lider": "1398305",
+      "grupo": "8831",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "8927": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 12,
+      "nombre_lider": "333237",
+      "grupo": "8927",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "9374": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "1618025",
+      "grupo": "9374",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "9616": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 8,
+      "nombre_lider": "296231",
+      "grupo": "9616",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "10138": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1724395",
+      "grupo": "10138",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "10217": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "4376",
+      "grupo": "10217",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "3402": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 1,
+      "nombre_lider": "-",
+      "grupo": "3402",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "5719": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 8,
+      "nombre_lider": "503822",
+      "grupo": "5719",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "7957": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "1034491",
+      "grupo": "7957",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "7959": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "1076655",
+      "grupo": "7959",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "8467": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 15,
+      "nombre_lider": "199547",
+      "grupo": "8467",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "9021": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "975220",
+      "grupo": "9021",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "9126": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "646289",
+      "grupo": "9126",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "9215": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "1093353",
+      "grupo": "9215",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "9454": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 9,
+      "nombre_lider": "1606814",
+      "grupo": "9454",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "9841": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "1062847",
+      "grupo": "9841",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "3410": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 0,
+      "nombre_lider": "-",
+      "grupo": "3410",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "3959": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 3,
+      "nombre_lider": "101727",
+      "grupo": "3959",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "4738": {
+      "meta_inicios_reinicios": 16,
+      "meta_recuperos": 9,
+      "nombre_lider": "529889",
+      "grupo": "4738",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "6146": {
+      "meta_inicios_reinicios": 17,
+      "meta_recuperos": 10,
+      "nombre_lider": "988047",
+      "grupo": "6146",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "6818": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 8,
+      "nombre_lider": "1037580",
+      "grupo": "6818",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "6854": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 4,
+      "nombre_lider": "176289",
+      "grupo": "6854",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "10249": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 2,
+      "nombre_lider": "1004353",
+      "grupo": "10249",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "4256": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 2,
+      "nombre_lider": "-",
+      "grupo": "4256",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "4324": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 6,
+      "nombre_lider": "302195",
+      "grupo": "4324",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "4825": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 5,
+      "nombre_lider": "546260",
+      "grupo": "4825",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "5851": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 4,
+      "nombre_lider": "987514",
+      "grupo": "5851",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "5868": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "988939",
+      "grupo": "5868",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "6716": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 7,
+      "nombre_lider": "1007257",
+      "grupo": "6716",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "8427": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 9,
+      "nombre_lider": "468872",
+      "grupo": "8427",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "9338": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 9,
+      "nombre_lider": "974990",
+      "grupo": "9338",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "9360": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "883559",
+      "grupo": "9360",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "4286": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 3,
+      "nombre_lider": "-",
+      "grupo": "4286",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "5764": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 5,
+      "nombre_lider": "247364",
+      "grupo": "5764",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "6799": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "446166",
+      "grupo": "6799",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "6809": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "1196154",
+      "grupo": "6809",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "9230": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "943937",
+      "grupo": "9230",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "9424": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "1350582",
+      "grupo": "9424",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "9481": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "162397",
+      "grupo": "9481",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "9538": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 3,
+      "nombre_lider": "331829",
+      "grupo": "9538",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "9617": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "1685600",
+      "grupo": "9617",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "10248": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1471446",
+      "grupo": "10248",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "4024": {
+      "meta_inicios_reinicios": 16,
+      "meta_recuperos": 16,
+      "nombre_lider": "350200",
+      "grupo": "4024",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "5182": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 13,
+      "nombre_lider": "476030",
+      "grupo": "5182",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "6113": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 6,
+      "nombre_lider": "987956",
+      "grupo": "6113",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "6115": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "988157",
+      "grupo": "6115",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "6116": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "990463",
+      "grupo": "6116",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "6737": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 10,
+      "nombre_lider": "988207",
+      "grupo": "6737",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "6739": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1093547",
+      "grupo": "6739",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "8012": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 2,
+      "nombre_lider": "-",
+      "grupo": "8012",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "8929": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 5,
+      "nombre_lider": "792715",
+      "grupo": "8929",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "6120": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "988051",
+      "grupo": "6120",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "6122": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 5,
+      "nombre_lider": "988066",
+      "grupo": "6122",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "6123": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 2,
+      "nombre_lider": "259746",
+      "grupo": "6123",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "6816": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 3,
+      "nombre_lider": "446249",
+      "grupo": "6816",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "6825": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 7,
+      "nombre_lider": "1030759",
+      "grupo": "6825",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "6828": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1070454",
+      "grupo": "6828",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "6829": {
+      "meta_inicios_reinicios": 14,
+      "meta_recuperos": 8,
+      "nombre_lider": "1034757",
+      "grupo": "6829",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "6832": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 12,
+      "nombre_lider": "1204030",
+      "grupo": "6832",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "6847": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 5,
+      "nombre_lider": "1019658",
+      "grupo": "6847",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "8017": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "-",
+      "grupo": "8017",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "7603": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 4,
+      "nombre_lider": "1161321",
+      "grupo": "7603",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "7616": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 6,
+      "nombre_lider": "1189260",
+      "grupo": "7616",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "7620": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 20,
+      "nombre_lider": "1109731",
+      "grupo": "7620",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "7628": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 7,
+      "nombre_lider": "1095522",
+      "grupo": "7628",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "8043": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 20,
+      "nombre_lider": "-",
+      "grupo": "8043",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "9162": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "223072",
+      "grupo": "9162",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "9254": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 4,
+      "nombre_lider": "953646",
+      "grupo": "9254",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "9286": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 10,
+      "nombre_lider": "380579",
+      "grupo": "9286",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "9446": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "1258517",
+      "grupo": "9446",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "9995": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "445593",
+      "grupo": "9995",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "3236": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 1,
+      "nombre_lider": "-",
+      "grupo": "3236",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "7647": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 7,
+      "nombre_lider": "1103016",
+      "grupo": "7647",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "8390": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 5,
+      "nombre_lider": "254278",
+      "grupo": "8390",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "9290": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 3,
+      "nombre_lider": "989094",
+      "grupo": "9290",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "9404": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "1095552",
+      "grupo": "9404",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "9406": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 8,
+      "nombre_lider": "118281",
+      "grupo": "9406",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "9429": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 8,
+      "nombre_lider": "1637390",
+      "grupo": "9429",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "9511": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 2,
+      "nombre_lider": "801761",
+      "grupo": "9511",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "9954": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "105465",
+      "grupo": "9954",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "10128": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "144121",
+      "grupo": "10128",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "10218": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 13,
+      "nombre_lider": "1761446",
+      "grupo": "10218",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "6215": {
+      "meta_inicios_reinicios": 14,
+      "meta_recuperos": 13,
+      "nombre_lider": "367435",
+      "grupo": "6215",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "7655": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "1249295",
+      "grupo": "7655",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "7657": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 8,
+      "nombre_lider": "1114347",
+      "grupo": "7657",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "7661": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "1258510",
+      "grupo": "7661",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "8045": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 1,
+      "nombre_lider": "-",
+      "grupo": "8045",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "8484": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 13,
+      "nombre_lider": "203161",
+      "grupo": "8484",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "8837": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 10,
+      "nombre_lider": "27564",
+      "grupo": "8837",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "9403": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 9,
+      "nombre_lider": "1263799",
+      "grupo": "9403",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "9508": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 8,
+      "nombre_lider": "256591",
+      "grupo": "9508",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "9509": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "1309526",
+      "grupo": "9509",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "9843": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "1645460",
+      "grupo": "9843",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "6216": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 9,
+      "nombre_lider": "989497",
+      "grupo": "6216",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "7675": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 5,
+      "nombre_lider": "1162194",
+      "grupo": "7675",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "7680": {
+      "meta_inicios_reinicios": 13,
+      "meta_recuperos": 10,
+      "nombre_lider": "350999",
+      "grupo": "7680",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "7685": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 10,
+      "nombre_lider": "1263782",
+      "grupo": "7685",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "7686": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 8,
+      "nombre_lider": "1159643",
+      "grupo": "7686",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "8046": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 1,
+      "nombre_lider": "-",
+      "grupo": "8046",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "8835": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "405795",
+      "grupo": "8835",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "9270": {
+      "meta_inicios_reinicios": 14,
+      "meta_recuperos": 12,
+      "nombre_lider": "938577",
+      "grupo": "9270",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "9423": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "669998",
+      "grupo": "9423",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "10054": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "1621219",
+      "grupo": "10054",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "5061": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "538932",
+      "grupo": "5061",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "6232": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "955436",
+      "grupo": "6232",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "7818": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1309162",
+      "grupo": "7818",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "7819": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "1047487",
+      "grupo": "7819",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "7824": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "1030881",
+      "grupo": "7824",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "7826": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 8,
+      "nombre_lider": "1218626",
+      "grupo": "7826",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "8047": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 1,
+      "nombre_lider": "-",
+      "grupo": "8047",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "8998": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "1176835",
+      "grupo": "8998",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "9146": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "1272154",
+      "grupo": "9146",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "9620": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "1030749",
+      "grupo": "9620",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "7841": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 6,
+      "nombre_lider": "1021104",
+      "grupo": "7841",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "8048": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "-",
+      "grupo": "8048",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "8425": {
+      "meta_inicios_reinicios": 13,
+      "meta_recuperos": 9,
+      "nombre_lider": "813431",
+      "grupo": "8425",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "8481": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 8,
+      "nombre_lider": "768496",
+      "grupo": "8481",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "9291": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1077740",
+      "grupo": "9291",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "9334": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 6,
+      "nombre_lider": "1099653",
+      "grupo": "9334",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "9400": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 8,
+      "nombre_lider": "985990",
+      "grupo": "9400",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "177": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 10,
+      "nombre_lider": "14107",
+      "grupo": "177",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "5060": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 9,
+      "nombre_lider": "13774",
+      "grupo": "5060",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "7815": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "1101830",
+      "grupo": "7815",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "7817": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 10,
+      "nombre_lider": "1082490",
+      "grupo": "7817",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "8055": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "-",
+      "grupo": "8055",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "9349": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "194242",
+      "grupo": "9349",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "9529": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "1037030",
+      "grupo": "9529",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "10215": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "1714795",
+      "grupo": "10215",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    }
+  },
+  "por_nombre": {
+    "276872": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 9,
+      "nombre_lider": "276872",
+      "grupo": "4796",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "532314": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 10,
+      "nombre_lider": "532314",
+      "grupo": "5292",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "275838": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "275838",
+      "grupo": "5672",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "490031": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 12,
+      "nombre_lider": "490031",
+      "grupo": "8832",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "511097": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "511097",
+      "grupo": "9039",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "1435494": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 6,
+      "nombre_lider": "1435494",
+      "grupo": "9040",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "1344968": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 12,
+      "nombre_lider": "1344968",
+      "grupo": "9177",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "1538217": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "1538217",
+      "grupo": "9426",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "719915": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "719915",
+      "grupo": "9549",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "1751355": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 11,
+      "nombre_lider": "1751355",
+      "grupo": "10183",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "1697626": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 12,
+      "nombre_lider": "1697626",
+      "grupo": "10184",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "814696": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 12,
+      "nombre_lider": "814696",
+      "grupo": "10216",
+      "sector": "SECTOR COLORES  KAREN"
+    },
+    "183829": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 12,
+      "nombre_lider": "183829",
+      "grupo": "5747",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "463410": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 10,
+      "nombre_lider": "463410",
+      "grupo": "8834",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "969442": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 12,
+      "nombre_lider": "969442",
+      "grupo": "8870",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "224691": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "224691",
+      "grupo": "9255",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "1098352": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 8,
+      "nombre_lider": "1098352",
+      "grupo": "9340",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "262067": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 10,
+      "nombre_lider": "262067",
+      "grupo": "9483",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "1373038": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "1373038",
+      "grupo": "9485",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "510723": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 8,
+      "nombre_lider": "510723",
+      "grupo": "9487",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "742241": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 15,
+      "nombre_lider": "742241",
+      "grupo": "9619",
+      "sector": "SECTOR BRILLO KELLY"
+    },
+    "553308": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "553308",
+      "grupo": "5041",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "233182": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 16,
+      "nombre_lider": "233182",
+      "grupo": "5042",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "200765": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 10,
+      "nombre_lider": "200765",
+      "grupo": "5423",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "767738": {
+      "meta_inicios_reinicios": 15,
+      "meta_recuperos": 19,
+      "nombre_lider": "767738",
+      "grupo": "5578",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "368589": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "368589",
+      "grupo": "9041",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "460802": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 13,
+      "nombre_lider": "460802",
+      "grupo": "9058",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "1635187": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 7,
+      "nombre_lider": "1635187",
+      "grupo": "9425",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "425309": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 2,
+      "nombre_lider": "425309",
+      "grupo": "9844",
+      "sector": "SECTOR POESIA YULIETH"
+    },
+    "16547": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 10,
+      "nombre_lider": "16547",
+      "grupo": "97",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "191068": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "191068",
+      "grupo": "3561",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "367886": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 8,
+      "nombre_lider": "367886",
+      "grupo": "3887",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "672837": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "672837",
+      "grupo": "9199",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "251064": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "251064",
+      "grupo": "9757",
+      "sector": "SECTOR MOSAICO JULIETH"
+    },
+    "251534": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 5,
+      "nombre_lider": "251534",
+      "grupo": "2010",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "735240": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 4,
+      "nombre_lider": "735240",
+      "grupo": "5711",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "352596": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 6,
+      "nombre_lider": "352596",
+      "grupo": "8852",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "999843": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 3,
+      "nombre_lider": "999843",
+      "grupo": "9214",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "603314": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 3,
+      "nombre_lider": "603314",
+      "grupo": "9482",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "985776": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "985776",
+      "grupo": "9618",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "238877": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 3,
+      "nombre_lider": "238877",
+      "grupo": "9842",
+      "sector": "SECTOR INSPIRACIÓN VANESA"
+    },
+    "257409": {
+      "meta_inicios_reinicios": 20,
+      "meta_recuperos": 16,
+      "nombre_lider": "257409",
+      "grupo": "4319",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "207964": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 10,
+      "nombre_lider": "207964",
+      "grupo": "4664",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "668955": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "668955",
+      "grupo": "5183",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "554798": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "554798",
+      "grupo": "5445",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "988129": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 4,
+      "nombre_lider": "988129",
+      "grupo": "6117",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "1039557": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "1039557",
+      "grupo": "6761",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "1174885": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "1174885",
+      "grupo": "8956",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "612575": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "612575",
+      "grupo": "9269",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "887471": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 4,
+      "nombre_lider": "887471",
+      "grupo": "9994",
+      "sector": "SECTOR DESTELLO KARINA"
+    },
+    "1398305": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 8,
+      "nombre_lider": "1398305",
+      "grupo": "8831",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "333237": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 12,
+      "nombre_lider": "333237",
+      "grupo": "8927",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "1618025": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "1618025",
+      "grupo": "9374",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "296231": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 8,
+      "nombre_lider": "296231",
+      "grupo": "9616",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "1724395": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1724395",
+      "grupo": "10138",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "4376": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "4376",
+      "grupo": "10217",
+      "sector": "SECTOR EXPRESIÓN NAYIBE"
+    },
+    "503822": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 8,
+      "nombre_lider": "503822",
+      "grupo": "5719",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "1034491": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "1034491",
+      "grupo": "7957",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "1076655": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "1076655",
+      "grupo": "7959",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "199547": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 15,
+      "nombre_lider": "199547",
+      "grupo": "8467",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "975220": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "975220",
+      "grupo": "9021",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "646289": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "646289",
+      "grupo": "9126",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "1093353": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "1093353",
+      "grupo": "9215",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "1606814": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 9,
+      "nombre_lider": "1606814",
+      "grupo": "9454",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "1062847": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "1062847",
+      "grupo": "9841",
+      "sector": "SECTOR ARTESANÍA FERNANDA"
+    },
+    "101727": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 3,
+      "nombre_lider": "101727",
+      "grupo": "3959",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "529889": {
+      "meta_inicios_reinicios": 16,
+      "meta_recuperos": 9,
+      "nombre_lider": "529889",
+      "grupo": "4738",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "988047": {
+      "meta_inicios_reinicios": 17,
+      "meta_recuperos": 10,
+      "nombre_lider": "988047",
+      "grupo": "6146",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "1037580": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 8,
+      "nombre_lider": "1037580",
+      "grupo": "6818",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "176289": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 4,
+      "nombre_lider": "176289",
+      "grupo": "6854",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "1004353": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 2,
+      "nombre_lider": "1004353",
+      "grupo": "10249",
+      "sector": "SECTOR CREATIVIDAD YOMAIRA"
+    },
+    "302195": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 6,
+      "nombre_lider": "302195",
+      "grupo": "4324",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "546260": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 5,
+      "nombre_lider": "546260",
+      "grupo": "4825",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "987514": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 4,
+      "nombre_lider": "987514",
+      "grupo": "5851",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "988939": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "988939",
+      "grupo": "5868",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "1007257": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 7,
+      "nombre_lider": "1007257",
+      "grupo": "6716",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "468872": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 9,
+      "nombre_lider": "468872",
+      "grupo": "8427",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "974990": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 9,
+      "nombre_lider": "974990",
+      "grupo": "9338",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "883559": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "883559",
+      "grupo": "9360",
+      "sector": "SECTOR CREACIÓN PERLA"
+    },
+    "247364": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 5,
+      "nombre_lider": "247364",
+      "grupo": "5764",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "446166": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "446166",
+      "grupo": "6799",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "1196154": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "1196154",
+      "grupo": "6809",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "943937": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "943937",
+      "grupo": "9230",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "1350582": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "1350582",
+      "grupo": "9424",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "162397": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "162397",
+      "grupo": "9481",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "331829": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 3,
+      "nombre_lider": "331829",
+      "grupo": "9538",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "1685600": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "1685600",
+      "grupo": "9617",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "1471446": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1471446",
+      "grupo": "10248",
+      "sector": "SECTOR PICASSO REGINA"
+    },
+    "350200": {
+      "meta_inicios_reinicios": 16,
+      "meta_recuperos": 16,
+      "nombre_lider": "350200",
+      "grupo": "4024",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "476030": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 13,
+      "nombre_lider": "476030",
+      "grupo": "5182",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "987956": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 6,
+      "nombre_lider": "987956",
+      "grupo": "6113",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "988157": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "988157",
+      "grupo": "6115",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "990463": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "990463",
+      "grupo": "6116",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "988207": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 10,
+      "nombre_lider": "988207",
+      "grupo": "6737",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "1093547": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1093547",
+      "grupo": "6739",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "792715": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 5,
+      "nombre_lider": "792715",
+      "grupo": "8929",
+      "sector": "SECTOR ARMONÍA CLAUDIA"
+    },
+    "988051": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "988051",
+      "grupo": "6120",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "988066": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 5,
+      "nombre_lider": "988066",
+      "grupo": "6122",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "259746": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 2,
+      "nombre_lider": "259746",
+      "grupo": "6123",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "446249": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 3,
+      "nombre_lider": "446249",
+      "grupo": "6816",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "1030759": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 7,
+      "nombre_lider": "1030759",
+      "grupo": "6825",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "1070454": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1070454",
+      "grupo": "6828",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "1034757": {
+      "meta_inicios_reinicios": 14,
+      "meta_recuperos": 8,
+      "nombre_lider": "1034757",
+      "grupo": "6829",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "1204030": {
+      "meta_inicios_reinicios": 11,
+      "meta_recuperos": 12,
+      "nombre_lider": "1204030",
+      "grupo": "6832",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "1019658": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 5,
+      "nombre_lider": "1019658",
+      "grupo": "6847",
+      "sector": "SECTOR GALERÍA YURIETH"
+    },
+    "1161321": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 4,
+      "nombre_lider": "1161321",
+      "grupo": "7603",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "1189260": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 6,
+      "nombre_lider": "1189260",
+      "grupo": "7616",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "1109731": {
+      "meta_inicios_reinicios": 12,
+      "meta_recuperos": 20,
+      "nombre_lider": "1109731",
+      "grupo": "7620",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "1095522": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 7,
+      "nombre_lider": "1095522",
+      "grupo": "7628",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "223072": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "223072",
+      "grupo": "9162",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "953646": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 4,
+      "nombre_lider": "953646",
+      "grupo": "9254",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "380579": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 10,
+      "nombre_lider": "380579",
+      "grupo": "9286",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "1258517": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "1258517",
+      "grupo": "9446",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "445593": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "445593",
+      "grupo": "9995",
+      "sector": "Sector ABÁNICO Judy"
+    },
+    "1103016": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 7,
+      "nombre_lider": "1103016",
+      "grupo": "7647",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "254278": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 5,
+      "nombre_lider": "254278",
+      "grupo": "8390",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "989094": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 3,
+      "nombre_lider": "989094",
+      "grupo": "9290",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "1095552": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "1095552",
+      "grupo": "9404",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "118281": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 8,
+      "nombre_lider": "118281",
+      "grupo": "9406",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "1637390": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 8,
+      "nombre_lider": "1637390",
+      "grupo": "9429",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "801761": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 2,
+      "nombre_lider": "801761",
+      "grupo": "9511",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "105465": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "105465",
+      "grupo": "9954",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "144121": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "144121",
+      "grupo": "10128",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "1761446": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 13,
+      "nombre_lider": "1761446",
+      "grupo": "10218",
+      "sector": "SECTOR ESPLENDOR SANDRA"
+    },
+    "367435": {
+      "meta_inicios_reinicios": 14,
+      "meta_recuperos": 13,
+      "nombre_lider": "367435",
+      "grupo": "6215",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "1249295": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "1249295",
+      "grupo": "7655",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "1114347": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 8,
+      "nombre_lider": "1114347",
+      "grupo": "7657",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "1258510": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 9,
+      "nombre_lider": "1258510",
+      "grupo": "7661",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "203161": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 13,
+      "nombre_lider": "203161",
+      "grupo": "8484",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "27564": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 10,
+      "nombre_lider": "27564",
+      "grupo": "8837",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "1263799": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 9,
+      "nombre_lider": "1263799",
+      "grupo": "9403",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "256591": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 8,
+      "nombre_lider": "256591",
+      "grupo": "9508",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "1309526": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "1309526",
+      "grupo": "9509",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "1645460": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "1645460",
+      "grupo": "9843",
+      "sector": "Sector ACUARELA Yeimi"
+    },
+    "989497": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 9,
+      "nombre_lider": "989497",
+      "grupo": "6216",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "1162194": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 5,
+      "nombre_lider": "1162194",
+      "grupo": "7675",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "350999": {
+      "meta_inicios_reinicios": 13,
+      "meta_recuperos": 10,
+      "nombre_lider": "350999",
+      "grupo": "7680",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "1263782": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 10,
+      "nombre_lider": "1263782",
+      "grupo": "7685",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "1159643": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 8,
+      "nombre_lider": "1159643",
+      "grupo": "7686",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "405795": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 7,
+      "nombre_lider": "405795",
+      "grupo": "8835",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "938577": {
+      "meta_inicios_reinicios": 14,
+      "meta_recuperos": 12,
+      "nombre_lider": "938577",
+      "grupo": "9270",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "669998": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "669998",
+      "grupo": "9423",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "1621219": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "1621219",
+      "grupo": "10054",
+      "sector": "Sector PINCEL Iliana"
+    },
+    "538932": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 8,
+      "nombre_lider": "538932",
+      "grupo": "5061",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "955436": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "955436",
+      "grupo": "6232",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "1309162": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1309162",
+      "grupo": "7818",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "1047487": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "1047487",
+      "grupo": "7819",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "1030881": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "1030881",
+      "grupo": "7824",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "1218626": {
+      "meta_inicios_reinicios": 10,
+      "meta_recuperos": 8,
+      "nombre_lider": "1218626",
+      "grupo": "7826",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "1176835": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 6,
+      "nombre_lider": "1176835",
+      "grupo": "8998",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "1272154": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "1272154",
+      "grupo": "9146",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "1030749": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 4,
+      "nombre_lider": "1030749",
+      "grupo": "9620",
+      "sector": "Sector LIENZO Ángela"
+    },
+    "1021104": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 6,
+      "nombre_lider": "1021104",
+      "grupo": "7841",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "813431": {
+      "meta_inicios_reinicios": 13,
+      "meta_recuperos": 9,
+      "nombre_lider": "813431",
+      "grupo": "8425",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "768496": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 8,
+      "nombre_lider": "768496",
+      "grupo": "8481",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "1077740": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 5,
+      "nombre_lider": "1077740",
+      "grupo": "9291",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "1099653": {
+      "meta_inicios_reinicios": 7,
+      "meta_recuperos": 6,
+      "nombre_lider": "1099653",
+      "grupo": "9334",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "985990": {
+      "meta_inicios_reinicios": 5,
+      "meta_recuperos": 8,
+      "nombre_lider": "985990",
+      "grupo": "9400",
+      "sector": "SECTOR MATICES CLERY"
+    },
+    "14107": {
+      "meta_inicios_reinicios": 9,
+      "meta_recuperos": 10,
+      "nombre_lider": "14107",
+      "grupo": "177",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "13774": {
+      "meta_inicios_reinicios": 8,
+      "meta_recuperos": 9,
+      "nombre_lider": "13774",
+      "grupo": "5060",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "1101830": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 6,
+      "nombre_lider": "1101830",
+      "grupo": "7815",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "1082490": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 10,
+      "nombre_lider": "1082490",
+      "grupo": "7817",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "194242": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 7,
+      "nombre_lider": "194242",
+      "grupo": "9349",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "1037030": {
+      "meta_inicios_reinicios": 6,
+      "meta_recuperos": 5,
+      "nombre_lider": "1037030",
+      "grupo": "9529",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    },
+    "1714795": {
+      "meta_inicios_reinicios": 4,
+      "meta_recuperos": 7,
+      "nombre_lider": "1714795",
+      "grupo": "10215",
+      "sector": "SECTOR EMOCIONES DOLLY"
+    }
+  }
+}
