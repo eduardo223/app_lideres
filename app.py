@@ -335,8 +335,18 @@ def formato_cop_signo(val):
     return f"{signo}${abs(num):,.0f}".replace(",", ".")
 
 def formato_porcentaje(val):
-    num = limpiar_numero(val, 0.0)
-    return f"{num:.1f}%"
+    if pd.isna(val):
+        return "0.0%"
+    try:
+        if isinstance(val, str) and '%' in val:
+            num = float(val.replace('%', '').strip())
+        else:
+            num = float(limpiar_numero(val, 0.0))
+        if 0 < abs(num) <= 2.5:
+            num = num * 100.0
+        return f"{num:.1f}%"
+    except Exception:
+        return "0.0%"
 
 def formato_saldo_entero(val):
     num = int(limpiar_numero(val, 0.0))
@@ -2348,6 +2358,13 @@ with tab_diagnostico:
 
         # --- 2. TABLA DE ACTIVAS / PEDIDOS ---
         st.markdown("#### 👥 2. Tabla de Activas / Pedidos (Ordenadas de Mayor a Menor Cumplimiento)")
+        
+        # Asegurar cálculo dinámico de Cumplimiento Activas
+        if 'Objetivo Activas' in df_diag.columns and 'Real Activas' in df_diag.columns:
+            obj_a_num = df_diag['Objetivo Activas'].apply(lambda v: limpiar_numero(v, 0.0))
+            real_a_num = df_diag['Real Activas'].apply(lambda v: limpiar_numero(v, 0.0))
+            df_diag['Cumplimiento Activas'] = (real_a_num / obj_a_num.replace(0, pd.NA) * 100.0).fillna(0.0)
+
         cols_act_exactas = [
             col_lider, 'Tipo_Red', 'Objetivo Activas', 'Real Activas', 'Cumplimiento Activas',
             'Saldo', 'Disponibles', 'Inicios', 'Reinicios', 'Recuperos'
@@ -2412,10 +2429,10 @@ with tab_diagnostico:
         def _estilo_saldo_act(val_str):
             try:
                 num = float(limpiar_numero(val_str, 0))
-                if num <= 0:
-                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
-                else:
+                if num < 0:
                     return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                else:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
             except Exception:
                 return ''
 

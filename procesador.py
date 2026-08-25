@@ -162,6 +162,15 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
         real_a = pd.to_numeric(df['Real Activas'], errors='coerce')
         df['Productividad'] = (real_f / real_a).fillna(0.0)
 
+    # Cálculo de Cumplimiento Activas (en escala 0-100%)
+    if 'Objetivo Activas' in df.columns and 'Real Activas' in df.columns:
+        obj_a = pd.to_numeric(df['Objetivo Activas'], errors='coerce')
+        real_a = pd.to_numeric(df['Real Activas'], errors='coerce')
+        df['Cumplimiento Activas'] = (real_a / obj_a * 100.0).where(obj_a > 0, 0.0)
+    elif 'Cumplimiento Activas' in df.columns:
+        c_a = pd.to_numeric(df['Cumplimiento Activas'], errors='coerce')
+        df['Cumplimiento Activas'] = c_a.apply(lambda v: v * 100.0 if pd.notna(v) and 0 < v <= 2.5 else (v if pd.notna(v) else 0.0))
+
     # Cálculo dinámico de Ganancia Estimada según Matriz y Potencializador de Saldo
     df = calcular_ganancia_estimada_df(df)
 
@@ -705,19 +714,17 @@ def color_avance(val):
 def color_saldo(val):
     """
     Retorna estilo CSS para formatear celdas de saldo:
-    0-2: Verde (#DCFCE7), 3-5: Amarillo (#FEF9C3), >=6: Rojo (#FEE2E2).
+    Saldo negativo (< 0): Rojo (#FEE2E2), Saldo >= 0: Verde (#DCFCE7).
     """
     try:
         if pd.isna(val):
             return ""
         s = str(val).replace('$', '').replace(',', '').replace(' ', '').strip()
         num = float(s)
-        if num <= 2:
-            return 'background-color: #DCFCE7; color: #166534; font-weight: bold;'
-        elif num <= 5:
-            return 'background-color: #FEF9C3; color: #854D0E; font-weight: bold;'
-        else:
+        if num < 0:
             return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold;'
+        else:
+            return 'background-color: #DCFCE7; color: #166534; font-weight: bold;'
     except:
         return ""
 
@@ -730,9 +737,9 @@ def exportar_excel_con_colores(df_dict, buffer_salida=None):
     from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
 
     wb = openpyxl.Workbook()
-    wb.remove(wb.active)  # Eliminar hoja inicial por defecto
+    wb.remove(wb.active)  # Eliminar hoja por defecto
 
-    # Definir paleta de colores openpyxl
+    # Estilos profesionales
     fill_header = PatternFill(start_color="1E293B", end_color="1E293B", fill_type="solid")
     font_header = Font(name="Calibri", size=11, bold=True, color="FFFFFF")
     
@@ -784,8 +791,10 @@ def exportar_excel_con_colores(df_dict, buffer_salida=None):
                     try:
                         clean_str = str(val).replace('%', '').replace('+', '').strip()
                         num = float(clean_str)
+                        if 0 < abs(num) <= 2.5:
+                            num = num * 100.0
                         
-                        if num < 95.0:
+                        if num < 90.0:
                             cell.fill = fill_red
                             cell.font = font_red
                         elif num < 100.0:
@@ -801,16 +810,14 @@ def exportar_excel_con_colores(df_dict, buffer_salida=None):
                         pass
                 elif 'saldo' in col_lower:
                     try:
-                        num = float(val)
-                        if num <= 2:
-                            cell.fill = fill_green
-                            cell.font = font_green
-                        elif num <= 5:
-                            cell.fill = fill_yellow
-                            cell.font = font_yellow
-                        else:
+                        clean_s = str(val).replace('$', '').replace(',', '').strip()
+                        num = float(clean_s)
+                        if num < 0:
                             cell.fill = fill_red
                             cell.font = font_red
+                        else:
+                            cell.fill = fill_green
+                            cell.font = font_green
                     except (ValueError, TypeError):
                         pass
 
