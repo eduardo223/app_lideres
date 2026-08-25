@@ -4,6 +4,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 import io
 import os
+import time
 import importlib
 import contextlib
 import procesador
@@ -664,20 +665,40 @@ def load_and_process_data(ruta_o_buffer='Base para el como vamos.xlsx'):
         df_uploaded = pd.read_excel(ruta_o_buffer, sheet_name="Base para el como vamos")
         return calcular_metas_ciclo(df_uploaded)
 
-# --- CONTROL DE SESIÓN Y LOGIN ---
+# --- CONTROL DE SESIÓN, INACTIVIDAD (15 MIN) Y LOGIN ---
+TIEMPO_INACTIVIDAD_SEGUNDOS = 15 * 60  # 15 minutos (900 segundos)
+
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 
-# Recuperación automática de sesión al refrescar la página (F5)
+if 'ultimo_acceso' not in st.session_state:
+    st.session_state['ultimo_acceso'] = time.time()
+
+# 1. Validar si la sesión activa superó el tiempo máximo de inactividad
+if st.session_state['user'] is not None:
+    tiempo_inactivo = time.time() - st.session_state.get('ultimo_acceso', time.time())
+    if tiempo_inactivo > TIEMPO_INACTIVIDAD_SEGUNDOS:
+        st.session_state['user'] = None
+        if 'user' in st.query_params:
+            del st.query_params['user']
+        st.session_state['msg_timeout'] = "⏳ Tu sesión ha expirado automáticamente por inactividad (más de 15 minutos sin interacción). Por tu seguridad y privacidad de los datos, por favor inicia sesión nuevamente."
+        st.session_state['ultimo_acceso'] = time.time()
+        st.rerun()
+    else:
+        # Renovar el temporizador en cada interacción activa
+        st.session_state['ultimo_acceso'] = time.time()
+
+# 2. Recuperación automática de sesión al refrescar la página (F5) SOLO si no expiró
 if st.session_state['user'] is None:
     session_user_param = st.query_params.get('user')
-    if session_user_param:
+    if session_user_param and not st.session_state.get('msg_timeout'):
         todos_usuarios = cargar_usuarios()
         u_clean_param = str(session_user_param).strip().lower()
         if u_clean_param in todos_usuarios:
             user_info = todos_usuarios[u_clean_param].copy()
             user_info['username'] = u_clean_param
             st.session_state['user'] = user_info
+            st.session_state['ultimo_acceso'] = time.time()
 
 if st.session_state['user'] is None:
     st.markdown("""
@@ -693,6 +714,9 @@ if st.session_state['user'] is None:
     col_pad1, col_center, col_pad2 = st.columns([0.5, 2, 0.5])
     
     with col_center:
+        if st.session_state.get('msg_timeout'):
+            st.warning(st.session_state['msg_timeout'])
+
         tab_login_tab, tab_registro_tab = st.tabs(["🔑 Iniciar Sesión", "🚀 Probar Gratis (15 Días)"])
         
         with tab_login_tab:
@@ -709,6 +733,9 @@ if st.session_state['user'] is None:
                     user_auth = autenticar_usuario(input_user, input_pass)
                     if user_auth:
                         st.session_state['user'] = user_auth
+                        st.session_state['ultimo_acceso'] = time.time()
+                        if 'msg_timeout' in st.session_state:
+                            del st.session_state['msg_timeout']
                         st.query_params['user'] = user_auth.get('username', input_user)
                         st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
                         st.rerun()
@@ -888,7 +915,32 @@ if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
     st.session_state['user'] = None
     if 'user' in st.query_params:
         del st.query_params['user']
+    if 'msg_timeout' in st.session_state:
+        del st.session_state['msg_timeout']
     st.rerun()
+
+# Inactivador automático en cliente tras 15 minutos sin interacción
+st.markdown("""
+<script>
+    (function() {
+        const TIEMPO_LIMITE_MS = 15 * 60 * 1000; // 15 minutos
+        let timeoutInactividad;
+
+        function reiniciarReloj() {
+            clearTimeout(timeoutInactividad);
+            timeoutInactividad = setTimeout(function() {
+                window.location.reload();
+            }, TIEMPO_LIMITE_MS);
+        }
+
+        ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(function(evt) {
+            window.addEventListener(evt, reiniciarReloj, { passive: true });
+        });
+
+        reiniciarReloj();
+    })();
+</script>
+""", unsafe_allow_html=True)
 
 st.sidebar.markdown("---")
 
