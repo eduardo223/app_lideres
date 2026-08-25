@@ -2634,10 +2634,246 @@ with tab_diagnostico:
 
             st.dataframe(styler_rec, use_container_width=True)
 
+        # --- 6. CUADRO RESUMEN DE RETENCIÓN I2 (Meta 8% Fuga / Retención I2) ---
+        st.markdown("---")
+        st.markdown("#### 🔄 6. Cuadro Resumen de Retención I2 (Meta 8% Máx. Fuga I2)")
+        st.caption("Fórmulas del modelo: `Meta Retención I2 = Disponibles * 8%`, `Falta I2 Activarse = Inactiva 2 - Meta I2`, `% Retención I2 = (Inactiva 2 / Disponibles) * 100`, `Avance = Inactiva 2 Anterior - Inactiva 2 Actual`.")
+
+        if col_lider and col_lider in df_diag.columns:
+            df_i2_prep = df_diag.copy()
+            col_disp_i2 = 'Disponibles' if 'Disponibles' in df_i2_prep.columns else None
+            col_i2 = next((c for c in df_i2_prep.columns if str(c).lower().strip() in ['inactiva 2', 'inactiva_2', 'inactivas 2', 'inactivas_2', 'i2']), None)
+            col_i2_ant = next((c for c in df_i2_prep.columns if 'inactiva 2_anterior' in str(c).lower() or 'inactivas 2_anterior' in str(c).lower()), None)
+
+            if col_disp_i2 and col_i2:
+                df_i2_calc = pd.DataFrame()
+                df_i2_calc['LÍDER DE NEGOCIOS'] = df_i2_prep[col_lider].astype(str)
+
+                val_disp2 = df_i2_prep[col_disp_i2].apply(lambda v: limpiar_numero(v, 0.0))
+                val_i2 = df_i2_prep[col_i2].apply(lambda v: limpiar_numero(v, 0.0))
+
+                df_i2_calc['META RETENCIÓN I2'] = (val_disp2 * 0.08).round().astype(int)
+                df_i2_calc['FALTA I2 ACTIVARSE'] = (val_i2 - df_i2_calc['META RETENCIÓN I2']).round().astype(int)
+                df_i2_calc['% RETENCIÓN META 8%'] = df_i2_calc.apply(
+                    lambda r, idx=df_i2_prep.index: (val_i2[idx] / val_disp2[idx] * 100.0) if val_disp2[idx] > 0 else 0.0
+                )
+                if col_i2_ant:
+                    val_i2_ant = df_i2_prep[col_i2_ant].apply(lambda v: limpiar_numero(v, 0.0))
+                    df_i2_calc['AVANCE RETENCION I2'] = (val_i2_ant - val_i2).fillna(0).astype(int)
+                else:
+                    df_i2_calc['AVANCE RETENCION I2'] = 0
+
+                df_i2_calc = df_i2_calc.sort_values(by='% RETENCIÓN META 8%', ascending=True).reset_index(drop=True)
+
+                tot_disp_i2 = val_disp2.sum()
+                tot_i2 = val_i2.sum()
+                tot_meta_i2 = int(df_i2_calc['META RETENCIÓN I2'].sum())
+                tot_falta_i2 = int(df_i2_calc['FALTA I2 ACTIVARSE'].sum())
+                tot_pct_i2 = (tot_i2 / tot_disp_i2 * 100.0) if tot_disp_i2 > 0 else 0.0
+                tot_av_i2 = int(df_i2_calc['AVANCE RETENCION I2'].sum())
+
+                row_tot_i2 = pd.DataFrame([{
+                    'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                    'META RETENCIÓN I2': tot_meta_i2,
+                    'FALTA I2 ACTIVARSE': tot_falta_i2,
+                    '% RETENCIÓN META 8%': tot_pct_i2,
+                    'AVANCE RETENCION I2': tot_av_i2
+                }])
+                df_i2_final = pd.concat([df_i2_calc, row_tot_i2], ignore_index=True)
+
+                df_i2_formatted = df_i2_final[['LÍDER DE NEGOCIOS', 'META RETENCIÓN I2', 'FALTA I2 ACTIVARSE', '% RETENCIÓN META 8%', 'AVANCE RETENCION I2']].copy()
+                df_i2_formatted['META RETENCIÓN I2'] = df_i2_formatted['META RETENCIÓN I2'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_i2_formatted['FALTA I2 ACTIVARSE'] = df_i2_formatted['FALTA I2 ACTIVARSE'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_i2_formatted['% RETENCIÓN META 8%'] = df_i2_formatted['% RETENCIÓN META 8%'].apply(lambda v: f"{v:.1f}%")
+                df_i2_formatted['AVANCE RETENCION I2'] = df_i2_formatted['AVANCE RETENCION I2'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+                def _estilo_falta_retencion(val_str):
+                    try:
+                        num = int(str(val_str).replace('.', '').strip())
+                        if num <= 0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num <= 5:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                def _estilo_pct_retencion_8(val_str):
+                    try:
+                        num = float(str(val_str).replace('%', '').strip())
+                        if num <= 8.0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num <= 10.0:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                styler_i2 = df_i2_formatted.style
+                if hasattr(styler_i2, 'map'):
+                    styler_i2 = styler_i2.map(_estilo_falta_retencion, subset=['FALTA I2 ACTIVARSE']).map(_estilo_pct_retencion_8, subset=['% RETENCIÓN META 8%'])
+                elif hasattr(styler_i2, 'applymap'):
+                    styler_i2 = styler_i2.applymap(_estilo_falta_retencion, subset=['FALTA I2 ACTIVARSE']).applymap(_estilo_pct_retencion_8, subset=['% RETENCIÓN META 8%'])
+
+                st.dataframe(styler_i2, use_container_width=True)
+
+        # --- 7. CUADRO RESUMEN DE RETENCIÓN I3 (Meta 6% Fuga / Retención I3) ---
+        st.markdown("---")
+        st.markdown("#### 🔄 7. Cuadro Resumen de Retención I3 (Meta 6% Máx. Fuga I3)")
+        st.caption("Fórmulas del modelo: `Meta Retención I3 = Disponibles * 6%`, `Falta I3 Activarse = Inactiva 3 - Meta I3`, `% Retención I3 = (Inactiva 3 / Disponibles) * 100`, `Avance = Inactiva 3 Anterior - Inactiva 3 Actual`.")
+
+        if col_lider and col_lider in df_diag.columns:
+            df_i3_prep = df_diag.copy()
+            col_disp_i3 = 'Disponibles' if 'Disponibles' in df_i3_prep.columns else None
+            col_i3 = next((c for c in df_i3_prep.columns if str(c).lower().strip() in ['inactiva 3', 'inactiva_3', 'inactivas 3', 'inactivas_3', 'i3']), None)
+            col_i3_ant = next((c for c in df_i3_prep.columns if 'inactiva 3_anterior' in str(c).lower() or 'inactivas 3_anterior' in str(c).lower()), None)
+
+            if col_disp_i3 and col_i3:
+                df_i3_calc = pd.DataFrame()
+                df_i3_calc['LÍDER DE NEGOCIOS'] = df_i3_prep[col_lider].astype(str)
+
+                val_disp3 = df_i3_prep[col_disp_i3].apply(lambda v: limpiar_numero(v, 0.0))
+                val_i3 = df_i3_prep[col_i3].apply(lambda v: limpiar_numero(v, 0.0))
+
+                df_i3_calc['META RETENCIÓN I3'] = (val_disp3 * 0.06).round().astype(int)
+                df_i3_calc['FALTA I3 ACTIVARSE'] = (val_i3 - df_i3_calc['META RETENCIÓN I3']).round().astype(int)
+                df_i3_calc['% RETENCIÓN META 6%'] = df_i3_calc.apply(
+                    lambda r, idx=df_i3_prep.index: (val_i3[idx] / val_disp3[idx] * 100.0) if val_disp3[idx] > 0 else 0.0
+                )
+                if col_i3_ant:
+                    val_i3_ant = df_i3_prep[col_i3_ant].apply(lambda v: limpiar_numero(v, 0.0))
+                    df_i3_calc['AVANCE RETENCION I3'] = (val_i3_ant - val_i3).fillna(0).astype(int)
+                else:
+                    df_i3_calc['AVANCE RETENCION I3'] = 0
+
+                df_i3_calc = df_i3_calc.sort_values(by='% RETENCIÓN META 6%', ascending=True).reset_index(drop=True)
+
+                tot_disp_i3 = val_disp3.sum()
+                tot_i3 = val_i3.sum()
+                tot_meta_i3 = int(df_i3_calc['META RETENCIÓN I3'].sum())
+                tot_falta_i3 = int(df_i3_calc['FALTA I3 ACTIVARSE'].sum())
+                tot_pct_i3 = (tot_i3 / tot_disp_i3 * 100.0) if tot_disp_i3 > 0 else 0.0
+                tot_av_i3 = int(df_i3_calc['AVANCE RETENCION I3'].sum())
+
+                row_tot_i3 = pd.DataFrame([{
+                    'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                    'META RETENCIÓN I3': tot_meta_i3,
+                    'FALTA I3 ACTIVARSE': tot_falta_i3,
+                    '% RETENCIÓN META 6%': tot_pct_i3,
+                    'AVANCE RETENCION I3': tot_av_i3
+                }])
+                df_i3_final = pd.concat([df_i3_calc, row_tot_i3], ignore_index=True)
+
+                df_i3_formatted = df_i3_final[['LÍDER DE NEGOCIOS', 'META RETENCIÓN I3', 'FALTA I3 ACTIVARSE', '% RETENCIÓN META 6%', 'AVANCE RETENCION I3']].copy()
+                df_i3_formatted['META RETENCIÓN I3'] = df_i3_formatted['META RETENCIÓN I3'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_i3_formatted['FALTA I3 ACTIVARSE'] = df_i3_formatted['FALTA I3 ACTIVARSE'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_i3_formatted['% RETENCIÓN META 6%'] = df_i3_formatted['% RETENCIÓN META 6%'].apply(lambda v: f"{v:.1f}%")
+                df_i3_formatted['AVANCE RETENCION I3'] = df_i3_formatted['AVANCE RETENCION I3'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+                def _estilo_pct_retencion_6(val_str):
+                    try:
+                        num = float(str(val_str).replace('%', '').strip())
+                        if num <= 6.0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num <= 8.0:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                styler_i3 = df_i3_formatted.style
+                if hasattr(styler_i3, 'map'):
+                    styler_i3 = styler_i3.map(_estilo_falta_retencion, subset=['FALTA I3 ACTIVARSE']).map(_estilo_pct_retencion_6, subset=['% RETENCIÓN META 6%'])
+                elif hasattr(styler_i3, 'applymap'):
+                    styler_i3 = styler_i3.applymap(_estilo_falta_retencion, subset=['FALTA I3 ACTIVARSE']).applymap(_estilo_pct_retencion_6, subset=['% RETENCIÓN META 6%'])
+
+                st.dataframe(styler_i3, use_container_width=True)
+
+        # --- 8. CUADRO DE ACTIVAS Y ACTIVIDAD FRECUENTE ---
+        st.markdown("---")
+        st.markdown("#### 💎 8. Cuadro de Activas y Actividad Frecuente (Base Estable)")
+        st.caption("Fórmulas del modelo: `Activas Frecuentes = Real Activas - Recuperos - Inicios - Reinicios`, `Actividad Frecuente = (Activas Frecuentes / Disponibles) * 100`.")
+
+        if col_lider and col_lider in df_diag.columns:
+            df_af_prep = df_diag.copy()
+            col_disp_af = 'Disponibles' if 'Disponibles' in df_af_prep.columns else None
+            col_real_act = 'Real Activas' if 'Real Activas' in df_af_prep.columns else None
+            col_rec_af = 'Recuperos' if 'Recuperos' in df_af_prep.columns else None
+            col_ini_af = 'Inicios' if 'Inicios' in df_af_prep.columns else None
+            col_rei_af = 'Reinicios' if 'Reinicios' in df_af_prep.columns else None
+            col_af_directa = next((c for c in df_af_prep.columns if 'activas frecuentes' in str(c).lower() or 'activas_frecuentes' in str(c).lower()), None)
+            col_pct_af_directa = next((c for c in df_af_prep.columns if '%actividad frecuente' in str(c).lower() or 'actividad frecuente' in str(c).lower()), None)
+
+            if col_disp_af:
+                df_af_calc = pd.DataFrame()
+                df_af_calc['LÍDER DE NEGOCIOS'] = df_af_prep[col_lider].astype(str)
+
+                val_disp_af = df_af_prep[col_disp_af].apply(lambda v: limpiar_numero(v, 0.0))
+
+                if col_af_directa:
+                    val_act_frec = df_af_prep[col_af_directa].apply(lambda v: limpiar_numero(v, 0.0))
+                elif col_real_act:
+                    r_act = df_af_prep[col_real_act].apply(lambda v: limpiar_numero(v, 0.0))
+                    r_rec = df_af_prep[col_rec_af].apply(lambda v: limpiar_numero(v, 0.0)) if col_rec_af else 0
+                    r_ini = df_af_prep[col_ini_af].apply(lambda v: limpiar_numero(v, 0.0)) if col_ini_af else 0
+                    r_rei = df_af_prep[col_rei_af].apply(lambda v: limpiar_numero(v, 0.0)) if col_rei_af else 0
+                    val_act_frec = (r_act - r_rec - r_ini - r_rei).apply(lambda v: max(0, v))
+                else:
+                    val_act_frec = pd.Series(0, index=df_af_prep.index)
+
+                df_af_calc['ACTIVAS FRECUENTES'] = val_act_frec.round().astype(int)
+
+                if col_pct_af_directa:
+                    df_af_calc['ACTIVIDAD FRECUENTE'] = df_af_prep[col_pct_af_directa].apply(lambda v: limpiar_numero(v, 0.0) if limpiar_numero(v, 0.0) > 1.0 else limpiar_numero(v, 0.0) * 100.0)
+                else:
+                    df_af_calc['ACTIVIDAD FRECUENTE'] = df_af_calc.apply(
+                        lambda r, idx=df_af_prep.index: (val_act_frec[idx] / val_disp_af[idx] * 100.0) if val_disp_af[idx] > 0 else 0.0
+                    )
+
+                df_af_calc = df_af_calc.sort_values(by='ACTIVIDAD FRECUENTE', ascending=False).reset_index(drop=True)
+
+                tot_disp_af = val_disp_af.sum()
+                tot_af = int(df_af_calc['ACTIVAS FRECUENTES'].sum())
+                tot_pct_af = (tot_af / tot_disp_af * 100.0) if tot_disp_af > 0 else 0.0
+
+                row_tot_af = pd.DataFrame([{
+                    'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                    'ACTIVAS FRECUENTES': tot_af,
+                    'ACTIVIDAD FRECUENTE': tot_pct_af
+                }])
+                df_af_final = pd.concat([df_af_calc, row_tot_af], ignore_index=True)
+
+                df_af_formatted = df_af_final[['LÍDER DE NEGOCIOS', 'ACTIVAS FRECUENTES', 'ACTIVIDAD FRECUENTE']].copy()
+                df_af_formatted['ACTIVAS FRECUENTES'] = df_af_formatted['ACTIVAS FRECUENTES'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_af_formatted['ACTIVIDAD FRECUENTE'] = df_af_formatted['ACTIVIDAD FRECUENTE'].apply(lambda v: f"{v:.1f}%")
+
+                def _estilo_actividad_frecuente(val_str):
+                    try:
+                        num = float(str(val_str).replace('%', '').strip())
+                        if num >= 55.0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num >= 50.0:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                styler_af = df_af_formatted.style
+                if hasattr(styler_af, 'map'):
+                    styler_af = styler_af.map(_estilo_actividad_frecuente, subset=['ACTIVIDAD FRECUENTE'])
+                elif hasattr(styler_af, 'applymap'):
+                    styler_af = styler_af.applymap(_estilo_actividad_frecuente, subset=['ACTIVIDAD FRECUENTE'])
+
+                st.dataframe(styler_af, use_container_width=True)
+
     st.markdown("---")
 
-    # --- 6. MÓDULO DE COMPARTIR POR WHATSAPP ---
-    st.markdown("#### 📲 6. Módulo para Compartir Resumen por WhatsApp")
+    # --- 9. MÓDULO DE COMPARTIR POR WHATSAPP ---
+    st.markdown("#### 📲 9. Módulo para Compartir Resumen por WhatsApp")
     st.caption("Selecciona una Líder para generar su reporte en formato texto listo para copiar o enviar directamente por WhatsApp Web / Móvil.")
     
     lider_sel = None
@@ -2851,7 +3087,9 @@ with tab_exportar:
                 'Activas': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Color', 'Real Activas', 'Objetivo Activas', 'Cumplimiento Activas'] if c in df_filtrado.columns]],
                 'Facturacion': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Real Facturación', 'Objetivo Facturación', 'Cumplimiento Facturación', 'Falta para el 100%'] if c in df_filtrado.columns]],
                 'Saldos': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Saldo', 'Potencializador_Pct', 'Ganancia estimada'] if c in df_filtrado.columns]],
-                'Disponibles': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos'] if c in df_filtrado.columns]]
+                'Disponibles': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Inicios', 'Reinicios', 'Recuperos'] if c in df_filtrado.columns]],
+                'Retención': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Inactiva 2', 'Inactiva 3'] if c in df_filtrado.columns]],
+                'Actividad Frecuente': df_filtrado[[c for c in ['Nombre de consultora', 'Nombre Setor', 'Disponibles', 'Real Activas', 'Recuperos', 'Inicios', 'Reinicios', 'Activas Frecuentes', '%Actividad Frecuente'] if c in df_filtrado.columns]]
             })
             st.download_button(
                 label="📗 Metas a Colores (.xlsx)",

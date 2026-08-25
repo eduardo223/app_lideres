@@ -102,15 +102,12 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
                 df_prev = normalizar_columnas(df_prev)
                 
                 col_id = 'Código de consultora' if 'Código de consultora' in df_prev.columns else df_prev.columns[0]
-                cols_prev = [c for c in [col_id, 'Cumplimiento Facturación', 'Real Facturación'] if c in df_prev.columns]
+                cols_prev = [c for c in [col_id, 'Cumplimiento Facturación', 'Real Facturación', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3', 'Inactivas 1', 'Inactivas 2', 'Inactivas 3'] if c in df_prev.columns]
                 
-                if col_id in cols_prev and 'Cumplimiento Facturación' in cols_prev:
+                if col_id in cols_prev:
                     df_prev_sub = df_prev[cols_prev].drop_duplicates(subset=[col_id])
-                    df_prev_sub = df_prev_sub.rename(columns={
-                        'Cumplimiento Facturación': 'Cumplimiento Facturación_anterior',
-                        'Real Facturación': 'Real Facturación_anterior'
-                    })
-                    
+                    renames_prev = {c_p: f"{c_p}_anterior" for c_p in cols_prev if c_p != col_id}
+                    df_prev_sub = df_prev_sub.rename(columns=renames_prev)
                     df = pd.merge(df, df_prev_sub, on=col_id, how='left')
         except Exception as e:
             print(f"Nota: No se pudo cargar la hoja 'Como vamos anterior': {e}")
