@@ -1410,74 +1410,11 @@ def exportar_tabla_pdf(df, titulo="Reporte Ejecutivo - Panel Matices", subtitulo
 
 RUTA_COMENTARIOS = 'comentarios_lideres.json'
 
-DICCIONARIO_CORRECCIONES_ESPANOL = {
-    # Errores ortográficos comunes y tildes
-    'desicion': 'decisión', 'desiciones': 'decisiones',
-    'nesecita': 'necesita', 'nesecito': 'necesito', 'nesecitan': 'necesitan', 'nesesita': 'necesita',
-    'hasi': 'así', 'asi': 'así', 'tambien': 'también', 'ademas': 'además',
-    'despues': 'después', 'aqui': 'aquí', 'alli': 'allí', 'alla': 'allá',
-    'abono': 'abonó', 'cancelo': 'canceló', 'consigno': 'consignó',
-    'quedo': 'quedó', 'llamo': 'llamó', 'contacto': 'contactó', 'contesto': 'contestó',
-    'pago': 'pagó', 'pagara': 'pagará', 'pasara': 'pasará', 'llamara': 'llamará', 'consignara': 'consignará',
-    'manana': 'mañana', 'sabado': 'sábado', 'miercoles': 'miércoles',
-    'telefono': 'teléfono', 'telefonos': 'teléfonos', 'celular': 'celular',
-    'numero': 'número', 'numeros': 'números',
-    'credito': 'crédito', 'creditos': 'créditos', 'debito': 'débito',
-    'corazon': 'corazón', 'melon': 'melón', 'cancion': 'canción', 'camion': 'camión',
-    'balon': 'balón', 'salon': 'salón', 'boton': 'botón', 'avion': 'avión',
-    'limon': 'limón', 'cajon': 'cajón', 'perdon': 'perdón', 'rincon': 'rincón',
-    'lider': 'líder', 'lideres': 'líderes', 'gerente': 'gerente', 'consultora': 'consultora',
-    'proximo': 'próximo', 'proxima': 'próxima', 'proximos': 'próximos', 'proximas': 'próximas',
-    'ultimo': 'último', 'ultima': 'última', 'ultimos': 'últimos', 'ultimas': 'últimas',
-    'facil': 'fácil', 'dificil': 'difícil', 'valido': 'válido', 'valida': 'válida',
-    # Marcas y medios de pago
-    'natura': 'Natura', 'avon': 'Avon', 'whatsapp': 'WhatsApp', 'nequi': 'Nequi',
-    'daviplata': 'Daviplata', 'bancolombia': 'Bancolombia', 'pse': 'PSE', 'efecty': 'Efecty'
-}
-
 def autocorregir_texto_espanol(texto):
     """
-    Normaliza y autocorrige ortografía, tildes comunes, reglas morfológicas (-ción, -sión, -lógica)
-    y capitalización de notas de gestión.
+    Normaliza el texto de notas eliminando espacios innecesarios.
     """
-    if not texto or not isinstance(texto, str):
-        return ''
-    s = texto.strip()
-    if not s:
-        return ''
-    
-    # 1. Correcciones de palabras exactas y errores ortográficos
-    for err, corr in DICCIONARIO_CORRECCIONES_ESPANOL.items():
-        patron = re.compile(rf'\b{re.escape(err)}\b', re.IGNORECASE)
-        def repl(match, c=corr):
-            m_text = match.group(0)
-            if m_text.isupper():
-                return c.upper()
-            elif m_text[0].isupper():
-                return c.capitalize()
-            else:
-                return c.lower() if c.islower() else c
-        s = patron.sub(repl, s)
-        
-    # 2. Regla morfológica general: Palabras terminadas en -cion, -sion -> -ción, -sión (ej. opresion, constitucion, etc.)
-    def repl_cion(match):
-        prefix = match.group(1)
-        cs = match.group(2)
-        end = 'IÓN' if match.group(0).isupper() else 'ión'
-        return f'{prefix}{cs}{end}'
-    s = re.sub(r'\b([a-zA-ZáéíóúñÁÉÍÓÚÑ]{2,})(c|s)ion\b', repl_cion, s, flags=re.IGNORECASE)
-    
-    # 3. Regla morfológica general: Palabras terminadas en -logica, -logico -> -lógica, -lógico (ej. sicologica, psicologica, etc.)
-    def repl_logic(match):
-        prefix = match.group(1)
-        suf = match.group(2)
-        end = 'ÓGIC' if match.group(0).isupper() else 'ógic'
-        return f'{prefix}l{end}{suf}'
-    s = re.sub(r'\b([a-zA-ZáéíóúñÁÉÍÓÚÑ]{2,})logic([ao]s?)\b', repl_logic, s, flags=re.IGNORECASE)
-
-    # 4. Capitalizar primera letra de cada frase u oración tras punto
-    s = re.sub(r'(^|[.!?]\s+)([a-záéíóúñ])', lambda m: m.group(1) + m.group(2).upper(), s)
-    return s
+    return str(texto).strip() if texto else ""
 
 def cargar_comentarios_lideres():
     """
@@ -1493,11 +1430,11 @@ def cargar_comentarios_lideres():
 
 def guardar_comentario_lider(codigo_cb, comentario):
     """
-    Guarda o actualiza el comentario de una consultora por su Código CB en el JSON persistente con autocorrección.
+    Guarda o actualiza el comentario de una consultora por su Código CB en el JSON persistente.
     """
     comentarios = cargar_comentarios_lideres()
     codigo_str = str(codigo_cb).strip()
-    nota_limpia = autocorregir_texto_espanol(str(comentario).strip())
+    nota_limpia = str(comentario).strip()
     comentarios[codigo_str] = nota_limpia
     try:
         with open(RUTA_COMENTARIOS, 'w', encoding='utf-8') as f:
@@ -1510,15 +1447,14 @@ def guardar_comentario_lider(codigo_cb, comentario):
 def guardar_todos_comentarios(dict_comentarios):
     """
     Guarda masivamente un diccionario de comentarios {codigo_cb: comentario}.
-    Aplica autocorrección ortográfica y actualiza tanto 'comentarios_lideres.json' como la base SQLite 'consultoras_tableau'.
+    Actualiza de forma directa y liviana tanto 'comentarios_lideres.json' como la base SQLite 'consultoras_tableau'.
     """
     comentarios = cargar_comentarios_lideres()
-    dict_corregido = {}
+    dict_limpio = {}
     for cb, nota in dict_comentarios.items():
         cb_str = str(cb).strip()
-        nota_raw = str(nota).strip()
-        nota_str = autocorregir_texto_espanol(nota_raw) if nota_raw else ""
-        dict_corregido[cb_str] = nota_str
+        nota_str = str(nota).strip()
+        dict_limpio[cb_str] = nota_str
         if nota_str:
             comentarios[cb_str] = nota_str
         elif cb_str in comentarios and nota_str == "":
@@ -1533,7 +1469,7 @@ def guardar_todos_comentarios(dict_comentarios):
     try:
         conn = obtener_conexion_db()
         cursor = conn.cursor()
-        for cb, nota_str in dict_corregido.items():
+        for cb, nota_str in dict_limpio.items():
             cursor.execute("UPDATE consultoras_tableau SET notas_lider = ? WHERE codigo_cb = ?", (nota_str, cb))
         conn.commit()
         conn.close()

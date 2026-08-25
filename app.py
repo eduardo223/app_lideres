@@ -941,7 +941,7 @@ if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
         del st.session_state['msg_timeout']
     st.rerun()
 
-# Inactivador automático en cliente tras 15 minutos sin interacción
+# Inactivador automático en cliente tras 15 minutos sin interacción y activador de corrector nativo
 st.markdown("""
 <script>
     (function() {
@@ -958,6 +958,18 @@ st.markdown("""
         ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(function(evt) {
             window.addEventListener(evt, reiniciarReloj, { passive: true });
         });
+
+        // Habilitar corrector ortográfico nativo del explorador en celdas y campos editables
+        function activarCorrectorExplorador(el) {
+            if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
+                el.setAttribute('spellcheck', 'true');
+                el.setAttribute('lang', 'es');
+                el.spellcheck = true;
+            }
+        }
+        document.addEventListener('focusin', function(e) {
+            activarCorrectorExplorador(e.target);
+        }, true);
 
         reiniciarReloj();
     })();
@@ -1773,7 +1785,7 @@ with tab_tableau:
 
             # Editor de Comentarios en Masa / Guardar Comentarios
             st.markdown("##### 📝 Comentarios y Notas Persistentes de la Líder")
-            st.caption("Escribe las notas de gestión por cada asesora. Se guardarán automáticamente por `Codigo CB` con **corrección ortográfica automática** (tildes, mayúsculas y marcas) y se mantendrán aunque actualices Tableau.")
+            st.caption("Escribe las notas de gestión por cada asesora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
 
             # Limpiar, ordenar y estandarizar columnas para que coincidan exactamente con la base canónica (16 columnas)
             df_edit_view = limpiar_y_ordenar_columnas_tableau(df_tab_filt, mapa_lideres_tab)
@@ -1847,10 +1859,10 @@ with tab_tableau:
                             dict_guardar[codigo_key] = nota_val
                     
                     if guardar_todos_comentarios(dict_guardar):
-                        st.success("✅ ¡Todas las notas han sido corregidas y guardadas exitosamente!")
+                        st.success("✅ ¡Todas las notas han sido guardadas exitosamente!")
                         st.rerun()
             with col_save2:
-                st.caption("🟢 **Auto-guardado & Corrector Ortográfico activo**: Al editar una nota y presionar `Enter` o cambiar de fila, se autocorrigen las tildes/mayúsculas y se guarda en segundo plano.")
+                st.caption("🟢 **Guardado en segundo plano activo**: Al escribir una nota y presionar `Enter` o cambiar de fila, se guarda de forma instantánea y liviana.")
 
             # --- BARRA DE DESCARGAS DINÁMICAS (XLSX Y CSV CON FILTROS Y ORDEN EXACTO) ---
             st.markdown("---")
