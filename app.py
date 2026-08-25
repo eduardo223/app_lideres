@@ -1834,6 +1834,7 @@ with tab_tableau:
                 if dict_autoguardar:
                     guardar_todos_comentarios(dict_autoguardar)
                     st.toast(f"💾 Auto-guardado & Ortografía: {len(dict_autoguardar)} nota(s) corregida(s) y guardada(s)", icon="✨")
+                    st.rerun()
 
             # Barra de control y respaldo manual
             col_save1, col_save2 = st.columns([1.5, 2.5])

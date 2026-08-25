@@ -1411,24 +1411,22 @@ def exportar_tabla_pdf(df, titulo="Reporte Ejecutivo - Panel Matices", subtitulo
 RUTA_COMENTARIOS = 'comentarios_lideres.json'
 
 DICCIONARIO_CORRECCIONES_ESPANOL = {
-    # Palabras con tildes comunes
-    'corazon': 'corazón', 'melon': 'melón', 'cancion': 'canción', 'atencion': 'atención',
+    # Errores ortográficos comunes y tildes
+    'desicion': 'decisión', 'desiciones': 'decisiones',
+    'nesecita': 'necesita', 'nesecito': 'necesito', 'nesecitan': 'necesitan', 'nesesita': 'necesita',
+    'hasi': 'así', 'asi': 'así', 'tambien': 'también', 'ademas': 'además',
+    'despues': 'después', 'aqui': 'aquí', 'alli': 'allí', 'alla': 'allá',
+    'abono': 'abonó', 'cancelo': 'canceló', 'consigno': 'consignó',
+    'quedo': 'quedó', 'llamo': 'llamó', 'contacto': 'contactó', 'contesto': 'contestó',
+    'pago': 'pagó', 'pagara': 'pagará', 'pasara': 'pasará', 'llamara': 'llamará', 'consignara': 'consignará',
     'manana': 'mañana', 'sabado': 'sábado', 'miercoles': 'miércoles',
-    'telefono': 'teléfono', 'telefonos': 'teléfonos',
+    'telefono': 'teléfono', 'telefonos': 'teléfonos', 'celular': 'celular',
     'numero': 'número', 'numeros': 'números',
-    'direccion': 'dirección', 'direcciones': 'direcciones',
-    'gestion': 'gestión', 'comunicacion': 'comunicación', 'informacion': 'información',
-    'confirmacion': 'confirmación', 'facturacion': 'facturación', 'retencion': 'retención',
     'credito': 'crédito', 'creditos': 'créditos', 'debito': 'débito',
-    'tambien': 'también', 'ademas': 'además', 'despues': 'después', 'aqui': 'aquí', 'alli': 'allí',
-    'dia': 'día', 'dias': 'días', 'guia': 'guía', 'guias': 'guías', 'envio': 'envío', 'envios': 'envíos',
-    'habia': 'había', 'quedo': 'quedó', 'llamo': 'llamó', 'contacto': 'contactó',
-    'contesto': 'contestó', 'abono': 'abonó', 'abonos': 'abonos', 'cancelo': 'canceló',
-    'consigno': 'consignó', 'prometio': 'prometió', 'respondio': 'respondió',
-    'transfirio': 'transfirió', 'recupero': 'recuperó', 'recuperos': 'recuperos',
-    'paso': 'pasó', 'aviso': 'avisó', 'cobro': 'cobró', 'pago': 'pagó',
-    'pagara': 'pagará', 'pasara': 'pasará', 'llamara': 'llamará', 'consignara': 'consignará',
-    'lider': 'líder', 'lideres': 'líderes',
+    'corazon': 'corazón', 'melon': 'melón', 'cancion': 'canción', 'camion': 'camión',
+    'balon': 'balón', 'salon': 'salón', 'boton': 'botón', 'avion': 'avión',
+    'limon': 'limón', 'cajon': 'cajón', 'perdon': 'perdón', 'rincon': 'rincón',
+    'lider': 'líder', 'lideres': 'líderes', 'gerente': 'gerente', 'consultora': 'consultora',
     'proximo': 'próximo', 'proxima': 'próxima', 'proximos': 'próximos', 'proximas': 'próximas',
     'ultimo': 'último', 'ultima': 'última', 'ultimos': 'últimos', 'ultimas': 'últimas',
     'facil': 'fácil', 'dificil': 'difícil', 'valido': 'válido', 'valida': 'válida',
@@ -1439,7 +1437,8 @@ DICCIONARIO_CORRECCIONES_ESPANOL = {
 
 def autocorregir_texto_espanol(texto):
     """
-    Normaliza y autocorrige ortografía, tildes comunes y capitalización de notas de gestión.
+    Normaliza y autocorrige ortografía, tildes comunes, reglas morfológicas (-ción, -sión, -lógica)
+    y capitalización de notas de gestión.
     """
     if not texto or not isinstance(texto, str):
         return ''
@@ -1447,19 +1446,36 @@ def autocorregir_texto_espanol(texto):
     if not s:
         return ''
     
+    # 1. Correcciones de palabras exactas y errores ortográficos
     for err, corr in DICCIONARIO_CORRECCIONES_ESPANOL.items():
         patron = re.compile(rf'\b{re.escape(err)}\b', re.IGNORECASE)
-        def repl(match):
+        def repl(match, c=corr):
             m_text = match.group(0)
             if m_text.isupper():
-                return corr.upper()
+                return c.upper()
             elif m_text[0].isupper():
-                return corr.capitalize()
+                return c.capitalize()
             else:
-                return corr.lower() if corr.islower() else corr
+                return c.lower() if c.islower() else c
         s = patron.sub(repl, s)
         
-    # Capitalizar primera letra de cada frase u oración tras punto
+    # 2. Regla morfológica general: Palabras terminadas en -cion, -sion -> -ción, -sión (ej. opresion, constitucion, etc.)
+    def repl_cion(match):
+        prefix = match.group(1)
+        cs = match.group(2)
+        end = 'IÓN' if match.group(0).isupper() else 'ión'
+        return f'{prefix}{cs}{end}'
+    s = re.sub(r'\b([a-zA-ZáéíóúñÁÉÍÓÚÑ]{2,})(c|s)ion\b', repl_cion, s, flags=re.IGNORECASE)
+    
+    # 3. Regla morfológica general: Palabras terminadas en -logica, -logico -> -lógica, -lógico (ej. sicologica, psicologica, etc.)
+    def repl_logic(match):
+        prefix = match.group(1)
+        suf = match.group(2)
+        end = 'ÓGIC' if match.group(0).isupper() else 'ógic'
+        return f'{prefix}l{end}{suf}'
+    s = re.sub(r'\b([a-zA-ZáéíóúñÁÉÍÓÚÑ]{2,})logic([ao]s?)\b', repl_logic, s, flags=re.IGNORECASE)
+
+    # 4. Capitalizar primera letra de cada frase u oración tras punto
     s = re.sub(r'(^|[.!?]\s+)([a-záéíóúñ])', lambda m: m.group(1) + m.group(2).upper(), s)
     return s
 
