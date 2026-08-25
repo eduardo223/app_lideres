@@ -1430,8 +1430,8 @@ with tab_tableau:
     
     # Subidor de administración visible para Gerencia y Super Admin
     if user_rol in ['gerente', 'superadmin']:
-        with st.expander("⚙️ Opciones de Administración (Actualizar Base Tableau, Sit. Comercial & Activas)", expanded=False):
-            col_adm1, col_adm2, col_adm3 = st.columns(3)
+        with st.expander("⚙️ Opciones de Administración (Actualizar Base Tableau & Activas)", expanded=False):
+            col_adm1, col_adm2 = st.columns(2)
             with col_adm1:
                 st.markdown("###### 📁 1. Base Tableau Completa (`Base de Datos.xlsx`)")
                 archivo_tableau = st.file_uploader("Selecciona `Base de Datos.xlsx`", type=["xlsx"], key="tableau_uploader")
@@ -1469,38 +1469,45 @@ with tab_tableau:
                     else:
                         st.success("✅ ¡Base de datos activa y cargada exitosamente!")
 
+            # =========================================================================
+            # [BLOQUE COMENTADO TEMPORALMENTE: OPCIÓN MI_GRUPO.XLS]
+            # Si se requiere reactivar en el futuro:
+            # 1. Cambiar st.columns(2) arriba a st.columns(3) -> col_adm1, col_adm2, col_adm3
+            # 2. Descomentar todo este bloque 'with col_adm2:'
+            # 3. Renombrar la sección de activas abajo a 'with col_adm3:' y número '3.'
+            # =========================================================================
+            # with col_adm2:
+            #     st.markdown("###### 🔄 2. Actualizar Sit. Comercial (`mi_grupo.xls`)")
+            #     st.caption("Vincula por Código CB y actualiza la Situación Comercial de cada consultora.")
+            #     file_mg = st.file_uploader("Selecciona `mi_grupo.xls`", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
+            #     
+            #     # Botón directo si ya existe mi_grupo.xls en la carpeta local
+            #     if os.path.exists("mi_grupo.xls"):
+            #         if st.button("⚡ Cruzar desde 'mi_grupo.xls' local", type="secondary", key="btn_mg_local"):
+            #             res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
+            #             if res_mg.get('exito'):
+            #                 st.success(f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.")
+            #                 if res_mg['cambios'] > 0 and res_mg.get('detalles'):
+            #                     st.markdown("##### 📋 Resumen de Asesoras que cambiaron de Estado Comercial:")
+            #                     st.dataframe(pd.DataFrame(res_mg['detalles']), use_container_width=True)
+            #                 st.rerun()
+            #             else:
+            #                 st.error(f"Error: {res_mg.get('error')}")
+            # 
+            #     if file_mg is not None:
+            #         if st.button("🚀 Actualizar desde archivo subido", type="primary", key="btn_mg_subido"):
+            #             res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
+            #             if res_mg.get('exito'):
+            #                 st.success(f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.")
+            #                 if res_mg['cambios'] > 0 and res_mg.get('detalles'):
+            #                     st.markdown("##### 📋 Resumen de Asesoras que cambiaron de Estado Comercial:")
+            #                     st.dataframe(pd.DataFrame(res_mg['detalles']), use_container_width=True)
+            #                 st.rerun()
+            #             else:
+            #                 st.error(f"Error: {res_mg.get('error')}")
+
             with col_adm2:
-                st.markdown("###### 🔄 2. Actualizar Sit. Comercial (`mi_grupo.xls`)")
-                st.caption("Vincula por Código CB y actualiza la Situación Comercial de cada consultora.")
-                file_mg = st.file_uploader("Selecciona `mi_grupo.xls`", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
-                
-                # Botón directo si ya existe mi_grupo.xls en la carpeta local
-                if os.path.exists("mi_grupo.xls"):
-                    if st.button("⚡ Cruzar desde 'mi_grupo.xls' local", type="secondary", key="btn_mg_local"):
-                        res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
-                        if res_mg.get('exito'):
-                            st.success(f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.")
-                            if res_mg['cambios'] > 0 and res_mg.get('detalles'):
-                                st.markdown("##### 📋 Resumen de Asesoras que cambiaron de Estado Comercial:")
-                                st.dataframe(pd.DataFrame(res_mg['detalles']), use_container_width=True)
-                            st.rerun()
-                        else:
-                            st.error(f"Error: {res_mg.get('error')}")
-
-                if file_mg is not None:
-                    if st.button("🚀 Actualizar desde archivo subido", type="primary", key="btn_mg_subido"):
-                        res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
-                        if res_mg.get('exito'):
-                            st.success(f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.")
-                            if res_mg['cambios'] > 0 and res_mg.get('detalles'):
-                                st.markdown("##### 📋 Resumen de Asesoras que cambiaron de Estado Comercial:")
-                                st.dataframe(pd.DataFrame(res_mg['detalles']), use_container_width=True)
-                            st.rerun()
-                        else:
-                            st.error(f"Error: {res_mg.get('error')}")
-
-            with col_adm3:
-                st.markdown("###### ⚡ 3. Cruzar / Complementar con `activas`")
+                st.markdown("###### ⚡ 2. Cruzar / Complementar con `activas`")
                 st.caption("Actualiza estados a 'Activa', pedidos, facturación y puntos vinculando por Código CB.")
                 file_act = st.file_uploader("Selecciona archivo `activas`", type=["xlsx", "xls", "csv"], key="activas_uploader_tab")
                 
@@ -3037,7 +3044,7 @@ with tab_usuarios:
             nuevo_permiso = st.toggle(
                 "🔓 Permitir a las Líderes de Negocio subir/actualizar archivos",
                 value=estado_permiso,
-                help="Si está activado, las Líderes podrán ver los botones para subir Base de Datos.xlsx y mi_grupo.xls en la barra lateral."
+                help="Si está activado, las Líderes podrán ver las opciones para subir y actualizar archivos permitidos."
             )
             
             if nuevo_permiso != estado_permiso:
