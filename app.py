@@ -17,6 +17,7 @@ from procesador import (
     procesar_base_tableau_manager,
     guardar_comentario_lider,
     guardar_todos_comentarios,
+    autocorregir_texto_espanol,
     color_nivel,
     color_situacion,
     color_deuda_mora,
@@ -1772,7 +1773,7 @@ with tab_tableau:
 
             # Editor de Comentarios en Masa / Guardar Comentarios
             st.markdown("##### 📝 Comentarios y Notas Persistentes de la Líder")
-            st.caption("Escribe las notas de gestión por cada asesora. Se guardarán automáticamente por `Codigo CB` y se mantendrán aunque actualices la base con nuevos cortes de Tableau.")
+            st.caption("Escribe las notas de gestión por cada asesora. Se guardarán automáticamente por `Codigo CB` con **corrección ortográfica automática** (tildes, mayúsculas y marcas) y se mantendrán aunque actualices Tableau.")
 
             # Limpiar, ordenar y estandarizar columnas para que coincidan exactamente con la base canónica (16 columnas)
             df_edit_view = limpiar_y_ordenar_columnas_tableau(df_tab_filt, mapa_lideres_tab)
@@ -1832,7 +1833,7 @@ with tab_tableau:
                 
                 if dict_autoguardar:
                     guardar_todos_comentarios(dict_autoguardar)
-                    st.toast(f"💾 Auto-guardado: {len(dict_autoguardar)} nota(s) actualizada(s)", icon="✅")
+                    st.toast(f"💾 Auto-guardado & Ortografía: {len(dict_autoguardar)} nota(s) corregida(s) y guardada(s)", icon="✨")
 
             # Barra de control y respaldo manual
             col_save1, col_save2 = st.columns([1.5, 2.5])
@@ -1846,10 +1847,10 @@ with tab_tableau:
                             dict_guardar[codigo_key] = nota_val
                     
                     if guardar_todos_comentarios(dict_guardar):
-                        st.success("✅ ¡Todas las notas han sido guardadas exitosamente!")
+                        st.success("✅ ¡Todas las notas han sido corregidas y guardadas exitosamente!")
                         st.rerun()
             with col_save2:
-                st.caption("🟢 **Auto-guardado activo**: Al editar una nota y presionar `Enter` o cambiar de fila, se guarda automáticamente en segundo plano.")
+                st.caption("🟢 **Auto-guardado & Corrector Ortográfico activo**: Al editar una nota y presionar `Enter` o cambiar de fila, se autocorrigen las tildes/mayúsculas y se guarda en segundo plano.")
 
             # --- BARRA DE DESCARGAS DINÁMICAS (XLSX Y CSV CON FILTROS Y ORDEN EXACTO) ---
             st.markdown("---")
