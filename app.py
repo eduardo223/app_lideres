@@ -1801,18 +1801,44 @@ with tab_tableau:
                 key="editor_tabla_tableau"
             )
 
-            # Botón para guardar los cambios de comentarios
-            if st.button("💾 Guardar Cambios en Notas de la Líder", type="primary"):
-                dict_guardar = {}
-                for idx, row in edited_df.iterrows():
-                    codigo_key = str(row.get('Código CB', '')).strip()
-                    nota_val = str(row.get('Notas / Comentarios Líder', '')).strip()
-                    if codigo_key:
-                        dict_guardar[codigo_key] = nota_val
+            # Auto-guardado inteligente en segundo plano al modificar cualquier celda
+            editor_state = st.session_state.get("editor_tabla_tableau", {})
+            edited_rows = editor_state.get("edited_rows", {})
+            
+            if edited_rows:
+                dict_autoguardar = {}
+                for row_idx_str, row_changes in edited_rows.items():
+                    if "Notas / Comentarios Líder" in row_changes:
+                        try:
+                            row_idx = int(row_idx_str)
+                            if row_idx < len(df_edit_view):
+                                codigo_key = str(df_edit_view.iloc[row_idx].get('Código CB', '')).strip()
+                                nueva_nota = str(row_changes["Notas / Comentarios Líder"]).strip()
+                                if codigo_key:
+                                    dict_autoguardar[codigo_key] = nueva_nota
+                        except Exception:
+                            pass
                 
-                if guardar_todos_comentarios(dict_guardar):
-                    st.success("✅ ¡Comentarios guardados exitosamente!")
-                    st.rerun()
+                if dict_autoguardar:
+                    guardar_todos_comentarios(dict_autoguardar)
+                    st.toast(f"💾 Auto-guardado: {len(dict_autoguardar)} nota(s) actualizada(s)", icon="✅")
+
+            # Barra de control y respaldo manual
+            col_save1, col_save2 = st.columns([1.5, 2.5])
+            with col_save1:
+                if st.button("💾 Guardar Manualmente", type="primary", use_container_width=True):
+                    dict_guardar = {}
+                    for idx, row in edited_df.iterrows():
+                        codigo_key = str(row.get('Código CB', '')).strip()
+                        nota_val = str(row.get('Notas / Comentarios Líder', '')).strip()
+                        if codigo_key:
+                            dict_guardar[codigo_key] = nota_val
+                    
+                    if guardar_todos_comentarios(dict_guardar):
+                        st.success("✅ ¡Todas las notas han sido guardadas exitosamente!")
+                        st.rerun()
+            with col_save2:
+                st.caption("🟢 **Auto-guardado activo**: Al editar una nota y presionar `Enter` o cambiar de fila, se guarda automáticamente en segundo plano.")
 
             # --- BARRA DE DESCARGAS DINÁMICAS (XLSX Y CSV CON FILTROS Y ORDEN EXACTO) ---
             st.markdown("---")

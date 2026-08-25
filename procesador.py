@@ -1439,6 +1439,7 @@ def guardar_comentario_lider(codigo_cb, comentario):
 def guardar_todos_comentarios(dict_comentarios):
     """
     Guarda masivamente un diccionario de comentarios {codigo_cb: comentario}.
+    Actualiza tanto 'comentarios_lideres.json' como la base SQLite 'consultoras_tableau'.
     """
     comentarios = cargar_comentarios_lideres()
     for cb, nota in dict_comentarios.items():
@@ -1448,13 +1449,26 @@ def guardar_todos_comentarios(dict_comentarios):
             comentarios[cb_str] = nota_str
         elif cb_str in comentarios and nota_str == "":
             comentarios.pop(cb_str, None)
+    
     try:
         with open(RUTA_COMENTARIOS, 'w', encoding='utf-8') as f:
             json.dump(comentarios, f, ensure_ascii=False, indent=2)
-        return True
     except Exception as e:
-        print(f"Error guardando comentarios masivos: {e}")
-        return False
+        print(f"Error guardando comentarios masivos en JSON: {e}")
+
+    try:
+        conn = obtener_conexion_db()
+        cursor = conn.cursor()
+        for cb, nota in dict_comentarios.items():
+            cb_str = str(cb).strip()
+            nota_str = str(nota).strip()
+            cursor.execute("UPDATE consultoras_tableau SET notas_lider = ? WHERE codigo_cb = ?", (nota_str, cb_str))
+        conn.commit()
+        conn.close()
+    except Exception as e_sql:
+        print(f"Nota actualizando SQLite en guardar_todos_comentarios: {e_sql}")
+
+    return True
 
 def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
     """
