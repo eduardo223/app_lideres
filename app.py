@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import io
 import os
 import time
+import urllib.parse
 import importlib
 import contextlib
 import procesador
@@ -1756,10 +1757,11 @@ with tab_tableau:
 
 
         # Subpestañas internas dentro de Informe Tableau Cam
-        tab_tab_main, tab_tab_pago, tab_tab_niveles = st.tabs([
+        tab_tab_main, tab_tab_pago, tab_tab_niveles, tab_tab_whatsapp = st.tabs([
             "📋 Base Maestra Gestionable",
             "⌛ Aguardando Pago / Pendientes",
-            "🎨 Análisis por Nivel & Estado"
+            "🎨 Análisis por Nivel & Estado",
+            "📲 Asistente & Campañas WhatsApp"
         ])
 
         # --- SUBPESTAÑA 1: BASE MAESTRA GESTIONABLE ---
@@ -1979,6 +1981,18 @@ with tab_tableau:
                     )
                     st.text_area("📋 Mensaje listo para copiar:", msg_pago, height=140)
 
+                    # Botón de enlace directo a WhatsApp
+                    tel_p = str(row_p.get('celular', '')).strip().replace(' ', '').replace('-', '').replace('+', '')
+                    if tel_p and len(tel_p) >= 10:
+                        url_wa_p = f"https://wa.me/57{tel_p}?text={urllib.parse.quote(msg_pago)}"
+                        st.markdown(f"""
+                        <div style="margin-top: 8px; margin-bottom: 12px;">
+                            <a href="{url_wa_p}" target="_blank" style="display: inline-block; background-color: #25D366; color: white; padding: 9px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.12);">
+                                📲 Abrir WhatsApp y Enviar Mensaje a {nombre_p}
+                            </a>
+                        </div>
+                        """, unsafe_allow_html=True)
+
         # --- SUBPESTAÑA 3: ANÁLISIS POR NIVEL Y ESTADO COMERCIAL ---
         with tab_tab_niveles:
             st.markdown("##### 🎨 Clasificación por Niveles y Estado Comercial")
@@ -2009,6 +2023,149 @@ with tab_tableau:
                         .map(color_deuda_mora, subset=['Total_Deuda_Mora'] if 'Total_Deuda_Mora' in df_sit_group.columns else []),
                         use_container_width=True
                     )
+
+        # --- SUBPESTAÑA 4: ASISTENTE & CAMPAÑAS WHATSAPP ---
+        with tab_tab_whatsapp:
+            st.markdown("##### 📲 Centro de Gestión & Campañas de WhatsApp")
+            st.caption("Genera mensajes comerciales hiper-personalizados y envíalos de inmediato a través de WhatsApp Web / Móvil o expórtalos para plataformas masivas.")
+
+            col_camp1, col_camp2 = st.columns([1.5, 2.5])
+            with col_camp1:
+                tipo_camp = st.selectbox(
+                    "🎯 Tipo de Campaña / Objetivo:",
+                    options=[
+                        "💳 1. Cobro de Cartera en Mora",
+                        "⌛ 2. Liberación de Pedidos Retenidos",
+                        "🌟 3. Impulso de Puntos & Ascenso de Nivel",
+                        "🌸 4. Reactivación de Consultoras Inactivas",
+                        "✍️ 5. Mensaje Libre / Personalizado"
+                    ],
+                    key="tipo_camp_sel_tab"
+                )
+
+                # Segmentación automática según tipo de campaña
+                if "1. Cobro" in tipo_camp:
+                    df_wa_target = df_tab_filt[(df_tab_filt['Deuda Mora'] > 0) | (df_tab_filt['Deuda Total'] > 0)].copy()
+                    plantilla_def = (
+                        "Hola *{primer_nombre}* 🌸, te saluda tu Líder de *Natura & Avon*.\n\n"
+                        "Queremos recordarte que tienes un saldo pendiente de *{deuda_mora}* (Total: {deuda_total}).\n\n"
+                        "Te invitamos a realizar tu pago hoy para liberar tu cupo de crédito y seguir disfrutando de tus beneficios. ¡Escríbeme si necesitas apoyo con tu código de pago! 💳✨"
+                    )
+                elif "2. Liberación" in tipo_camp:
+                    df_wa_target = df_tab_filt[(df_tab_filt['Ped. Pendientes'] > 0) | (df_tab_filt['Ped. Mora'] > 0)].copy()
+                    plantilla_def = (
+                        "Hola *{primer_nombre}* 🛍️, te saluda tu Líder de *Natura & Avon*.\n\n"
+                        "Tienes *{pedidos} pedido(s)* en espera de liberación por saldo de *{deuda_mora}*.\n\n"
+                        "Al poner al día tu pago hoy, tu pedido saldrá de inmediato para despacho. ¡Quedo atenta para ayudarte! 📦✨"
+                    )
+                elif "3. Impulso" in tipo_camp:
+                    df_wa_target = df_tab_filt[(df_tab_filt['Pts Acum'] > 0) | (df_tab_filt['Pts Asc'] > 0)].copy()
+                    plantilla_def = (
+                        "¡Hola *{primer_nombre}*! 🌟 Felicitaciones por tus *{pts_acum} puntos* acumulados en tu nivel *{nivel}*.\n\n"
+                        "Estás muy cerca de tu siguiente meta de premios y beneficios exclusivos de este ciclo. ¡Pasa tu pedido y gana más con Natura & Avon! 🎁✨"
+                    )
+                elif "4. Reactivación" in tipo_camp:
+                    df_wa_target = df_tab_filt[df_tab_filt['Sit. Comercial'].astype(str).str.contains('Inactiva', case=False, na=False)].copy()
+                    plantilla_def = (
+                        "¡Hola *{primer_nombre}*! 🌸 Te extrañamos mucho en nuestro grupo de *Natura & Avon*.\n\n"
+                        "En este ciclo tenemos promociones exclusivas, descuentos especiales y kits de reinicio pensados para ti.\n\n"
+                        "¿Te gustaría que te comparta el catálogo virtual interactivo de este ciclo? 📖✨"
+                    )
+                else:
+                    df_wa_target = df_tab_filt.copy()
+                    plantilla_def = (
+                        "Hola *{primer_nombre}* 🌸, te saluda tu Líder de *Natura & Avon*.\n\n"
+                        "Queremos desearte muchos éxitos en este ciclo. ¡Cuenta con nosotras para tus pedidos y metas comerciales! ✨"
+                    )
+
+                st.metric("👥 Consultoras en este Segmento", f"{len(df_wa_target):,} personas".replace(",", "."))
+
+            with col_camp2:
+                plantilla_txt = st.text_area(
+                    "✏️ Plantilla del Mensaje (Variables: `{primer_nombre}`, `{nombre}`, `{deuda_mora}`, `{deuda_total}`, `{pedidos}`, `{nivel}`, `{pts_acum}`, `{credito_disp}`):",
+                    value=plantilla_def,
+                    height=160,
+                    key=f"plantilla_txt_{tipo_camp[:2]}"
+                )
+
+            st.markdown("---")
+
+            if df_wa_target.empty:
+                st.info("ℹ️ No hay consultoras que cumplan con el criterio del segmento seleccionado.")
+            else:
+                st.markdown(f"###### 📋 Listado de Contacto para Campaña ({len(df_wa_target)} Asesoras)")
+                st.caption("Haz clic en el enlace verde de WhatsApp de cada fila para abrir el chat instantáneo con el mensaje ya escrito:")
+
+                # Construir tabla con enlaces directos de WhatsApp
+                filas_wa = []
+                for idx, r in df_wa_target.iterrows():
+                    nom_full = str(r.get('Nombre', r.get('Asesora / Consultora', ''))).strip()
+                    primer_n = nom_full.split()[0].title() if nom_full else "Consultora"
+                    cel = str(r.get('celular', '')).strip().replace(' ', '').replace('-', '').replace('+', '')
+                    
+                    deuda_m = formato_cop(r.get('Deuda Mora', 0))
+                    deuda_t = formato_cop(r.get('Deuda Total', 0))
+                    cred_d = formato_cop(r.get('Credito Disponible', 0))
+                    ped_val = int(limpiar_numero(r.get('Ped. Pendientes', 0)))
+                    pts_val = int(limpiar_numero(r.get('Pts Acum', 0)))
+                    col_nivel = str(r.get('Color', r.get('Nivel / Color', 'Consultora')))
+
+                    # Reemplazar variables en plantilla
+                    msg_personalizado = (
+                        plantilla_txt
+                        .replace("{primer_nombre}", primer_n)
+                        .replace("{nombre}", nom_full.title())
+                        .replace("{deuda_mora}", deuda_m)
+                        .replace("{deuda_total}", deuda_t)
+                        .replace("{credito_disp}", cred_d)
+                        .replace("{pedidos}", str(ped_val))
+                        .replace("{pts_acum}", str(pts_val))
+                        .replace("{nivel}", col_nivel)
+                    )
+
+                    link_wa = f"https://wa.me/57{cel}?text={urllib.parse.quote(msg_personalizado)}" if cel and len(cel) >= 10 else ""
+
+                    filas_wa.append({
+                        'Código CB': str(r.get('Codigo CB', r.get('Código CB', ''))),
+                        'Asesora': nom_full,
+                        'Grupo': str(r.get('Grupo', '')),
+                        'Celular': cel if cel else "Sin registrar",
+                        'Sit. Comercial': str(r.get('Sit. Comercial', '')),
+                        'Deuda Mora': deuda_m,
+                        'Ped. Pendientes': ped_val,
+                        'Mensaje Generado': msg_personalizado,
+                        'Enlace WhatsApp': link_wa
+                    })
+
+                df_wa_table = pd.DataFrame(filas_wa)
+
+                # Mostrar con column_config LinkColumn
+                st.dataframe(
+                    df_wa_table[['Código CB', 'Asesora', 'Grupo', 'Celular', 'Sit. Comercial', 'Deuda Mora', 'Ped. Pendientes', 'Enlace WhatsApp']],
+                    column_config={
+                        "Enlace WhatsApp": st.column_config.LinkColumn(
+                            "📲 Chat WhatsApp",
+                            help="Haz clic para abrir WhatsApp Web o App con el mensaje listo",
+                            display_text="📲 Enviar WA"
+                        )
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+
+                # Botón de Descarga Masiva para plataformas (UltraMsg / Evolution API / Python)
+                col_exp1, col_exp2 = st.columns([1.5, 2.5])
+                with col_exp1:
+                    csv_wa_bytes = df_wa_table.to_csv(index=False).encode('utf-8-sig')
+                    st.download_button(
+                        label="📥 Exportar Base para Envíos Masivos (CSV)",
+                        data=csv_wa_bytes,
+                        file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.csv",
+                        mime="text/csv",
+                        use_container_width=True
+                    )
+                with col_exp2:
+                    st.caption("💡 **Tip de Productividad**: Puedes usar este archivo CSV con herramientas como UltraMsg, Evolution API o Meta Cloud API para despachar cientos de mensajes en segundos sin riesgo de baneo.")
 
 st.markdown("---")
 
