@@ -513,16 +513,27 @@ def crear_tacometro_360(titulo, valor_pct, meta_val, real_val):
 def crear_ranking_lideres_fig(df_metas):
     if df_metas is None or df_metas.empty:
         return None
-    col_grp = 'Código de grupo' if 'Código de grupo' in df_metas.columns else 'Cód. Grupo'
     col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else 'Nombre Consultora'
     col_cump = 'Cumplimiento Facturación' if 'Cumplimiento Facturación' in df_metas.columns else 'cump_facturacion'
     
     df_rank = df_metas.copy()
-    if col_cump not in df_rank.columns:
+    if col_cump not in df_rank.columns or col_nom not in df_rank.columns:
         return None
     
     df_rank['Cumplimiento_Pct'] = df_rank[col_cump].apply(lambda v: limpiar_numero(v, 0.0))
-    df_rank['Etiqueta_Lider'] = df_rank.apply(lambda r: f"Grupo {r.get(col_grp, '')} - {str(r.get(col_nom, ''))[:18]}", axis=1)
+    
+    def _limpiar_nombre_lider_solo(val):
+        s = str(val).strip()
+        if ' - ' in s:
+            s = s.split(' - ', 1)[1].strip()
+        if s.lower().startswith('grupo '):
+            partes = s.split(' ', 2)
+            if len(partes) > 2:
+                s = partes[2].strip()
+        return s[:30]
+
+    df_rank['Etiqueta_Lider'] = df_rank[col_nom].apply(_limpiar_nombre_lider_solo)
+    df_rank = df_rank[~df_rank['Etiqueta_Lider'].str.lower().isin(['nan', 'none', '-', ''])]
     df_rank = df_rank.sort_values(by='Cumplimiento_Pct', ascending=True).tail(12)
     
     fig = px.bar(
@@ -530,8 +541,8 @@ def crear_ranking_lideres_fig(df_metas):
         x='Cumplimiento_Pct',
         y='Etiqueta_Lider',
         orientation='h',
-        title="<b>🏆 Ranking de Cumplimiento de Facturación por Grupo/Líder</b>",
-        labels={'Cumplimiento_Pct': '% Cumplimiento', 'Etiqueta_Lider': 'Líder / Grupo'},
+        title="<b>🏆 Ranking de Cumplimiento de Facturación por Líder</b>",
+        labels={'Cumplimiento_Pct': '% Cumplimiento', 'Etiqueta_Lider': 'Líder de Negocio'},
         color='Cumplimiento_Pct',
         color_continuous_scale=[
             [0.0, '#EF4444'],
