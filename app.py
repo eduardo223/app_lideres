@@ -2654,9 +2654,8 @@ with tab_diagnostico:
 
                 df_i2_calc['META RETENCIÓN I2'] = (val_disp2 * 0.08).round().astype(int)
                 df_i2_calc['FALTA I2 ACTIVARSE'] = (val_i2 - df_i2_calc['META RETENCIÓN I2']).round().astype(int)
-                df_i2_calc['% RETENCIÓN META 8%'] = df_i2_calc.apply(
-                    lambda r, idx=df_i2_prep.index: (val_i2[idx] / val_disp2[idx] * 100.0) if val_disp2[idx] > 0 else 0.0
-                )
+                df_i2_calc['% RETENCIÓN META 8%'] = (val_i2 / val_disp2.replace(0, pd.NA) * 100.0).fillna(0.0)
+
                 if col_i2_ant:
                     val_i2_ant = df_i2_prep[col_i2_ant].apply(lambda v: limpiar_numero(v, 0.0))
                     df_i2_calc['AVANCE RETENCION I2'] = (val_i2_ant - val_i2).fillna(0).astype(int)
@@ -2665,8 +2664,8 @@ with tab_diagnostico:
 
                 df_i2_calc = df_i2_calc.sort_values(by='% RETENCIÓN META 8%', ascending=True).reset_index(drop=True)
 
-                tot_disp_i2 = val_disp2.sum()
-                tot_i2 = val_i2.sum()
+                tot_disp_i2 = float(val_disp2.sum())
+                tot_i2 = float(val_i2.sum())
                 tot_meta_i2 = int(df_i2_calc['META RETENCIÓN I2'].sum())
                 tot_falta_i2 = int(df_i2_calc['FALTA I2 ACTIVARSE'].sum())
                 tot_pct_i2 = (tot_i2 / tot_disp_i2 * 100.0) if tot_disp_i2 > 0 else 0.0
@@ -2739,9 +2738,8 @@ with tab_diagnostico:
 
                 df_i3_calc['META RETENCIÓN I3'] = (val_disp3 * 0.06).round().astype(int)
                 df_i3_calc['FALTA I3 ACTIVARSE'] = (val_i3 - df_i3_calc['META RETENCIÓN I3']).round().astype(int)
-                df_i3_calc['% RETENCIÓN META 6%'] = df_i3_calc.apply(
-                    lambda r, idx=df_i3_prep.index: (val_i3[idx] / val_disp3[idx] * 100.0) if val_disp3[idx] > 0 else 0.0
-                )
+                df_i3_calc['% RETENCIÓN META 6%'] = (val_i3 / val_disp3.replace(0, pd.NA) * 100.0).fillna(0.0)
+
                 if col_i3_ant:
                     val_i3_ant = df_i3_prep[col_i3_ant].apply(lambda v: limpiar_numero(v, 0.0))
                     df_i3_calc['AVANCE RETENCION I3'] = (val_i3_ant - val_i3).fillna(0).astype(int)
@@ -2750,8 +2748,8 @@ with tab_diagnostico:
 
                 df_i3_calc = df_i3_calc.sort_values(by='% RETENCIÓN META 6%', ascending=True).reset_index(drop=True)
 
-                tot_disp_i3 = val_disp3.sum()
-                tot_i3 = val_i3.sum()
+                tot_disp_i3 = float(val_disp3.sum())
+                tot_i3 = float(val_i3.sum())
                 tot_meta_i3 = int(df_i3_calc['META RETENCIÓN I3'].sum())
                 tot_falta_i3 = int(df_i3_calc['FALTA I3 ACTIVARSE'].sum())
                 tot_pct_i3 = (tot_i3 / tot_disp_i3 * 100.0) if tot_disp_i3 > 0 else 0.0
@@ -2829,13 +2827,11 @@ with tab_diagnostico:
                 if col_pct_af_directa:
                     df_af_calc['ACTIVIDAD FRECUENTE'] = df_af_prep[col_pct_af_directa].apply(lambda v: limpiar_numero(v, 0.0) if limpiar_numero(v, 0.0) > 1.0 else limpiar_numero(v, 0.0) * 100.0)
                 else:
-                    df_af_calc['ACTIVIDAD FRECUENTE'] = df_af_calc.apply(
-                        lambda r, idx=df_af_prep.index: (val_act_frec[idx] / val_disp_af[idx] * 100.0) if val_disp_af[idx] > 0 else 0.0
-                    )
+                    df_af_calc['ACTIVIDAD FRECUENTE'] = (val_act_frec / val_disp_af.replace(0, pd.NA) * 100.0).fillna(0.0)
 
                 df_af_calc = df_af_calc.sort_values(by='ACTIVIDAD FRECUENTE', ascending=False).reset_index(drop=True)
 
-                tot_disp_af = val_disp_af.sum()
+                tot_disp_af = float(val_disp_af.sum())
                 tot_af = int(df_af_calc['ACTIVAS FRECUENTES'].sum())
                 tot_pct_af = (tot_af / tot_disp_af * 100.0) if tot_disp_af > 0 else 0.0
 
