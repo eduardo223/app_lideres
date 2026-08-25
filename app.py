@@ -2462,7 +2462,7 @@ with tab_diagnostico:
         col_hdr_disp, col_num_dia = st.columns([3.2, 1.8])
         with col_hdr_disp:
             st.markdown("#### 📋 3. Cuadro Resumen de Disponibles (Desafío vs. Avance por Día)")
-            st.caption("Fórmulas del modelo 'Cómo Vamos C12': `% Cump LN = (Día / Desafío) * 100` y `falta = Desafío - Día`.")
+            st.caption("Fórmulas del modelo: Desafío extraído de `Objetivos Arte.xlsx` (Desafíos LNN), `% Cump LN = (Día / Desafío) * 100` y `falta = Desafío - Día`.")
         with col_num_dia:
             dia_corte = st.number_input("📅 Día de Avance (Editable):", min_value=1, max_value=21, value=14, step=1, key="dia_avance_corte_14_key")
 
@@ -2470,14 +2470,33 @@ with tab_diagnostico:
 
         if col_lider and col_lider in df_diag.columns:
             df_disp_prep = df_diag.copy()
-            col_desafio = 'Objetivo Activas' if 'Objetivo Activas' in df_disp_prep.columns else ('Disponibles' if 'Disponibles' in df_disp_prep.columns else None)
-            col_real = 'Real Activas' if 'Real Activas' in df_disp_prep.columns else None
+            col_grp_diag = next((c for c in df_disp_prep.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'cód. grupo', 'cod grupo', 'grupo'])), None)
+            
+            mapa_arte_disp = cargar_objetivos_arte()
+            mapa_grp_disp = mapa_arte_disp.get('por_grupo', {})
+            mapa_nom_disp = mapa_arte_disp.get('por_nombre', {})
 
-            if col_desafio and col_real:
+            col_disp_actual = 'Disponibles' if 'Disponibles' in df_disp_prep.columns else ('Real Activas' if 'Real Activas' in df_disp_prep.columns else None)
+
+            if col_disp_actual:
                 df_disp_calc = pd.DataFrame()
                 df_disp_calc['LÍDER DE NEGOCIOS'] = df_disp_prep[col_lider].astype(str)
-                df_disp_calc['Desafío esperadas'] = df_disp_prep[col_desafio].apply(lambda v: int(limpiar_numero(v, 0)))
-                df_disp_calc[nombre_col_dia] = df_disp_prep[col_real].apply(lambda v: int(limpiar_numero(v, 0)))
+
+                def _obtener_desafio_disp_row(row):
+                    g = str(row.get(col_grp_diag, '')).strip().split('.')[0] if col_grp_diag else ''
+                    nom = str(row.get(col_lider, '')).strip().lower()
+                    target = mapa_grp_disp.get(g) or mapa_nom_disp.get(nom)
+                    if target:
+                        val = target.get('disponibles_esperadas', 0) or target.get('disponibles_proyectadas', 0)
+                        if val > 0:
+                            return int(val)
+                    if 'Meta Disponibles Esperadas' in row and int(limpiar_numero(row['Meta Disponibles Esperadas'], 0)) > 0:
+                        return int(limpiar_numero(row['Meta Disponibles Esperadas'], 0))
+                    # Fallback a disponibles actuales si no existe meta cargada
+                    return int(limpiar_numero(row.get(col_disp_actual, 0), 0))
+
+                df_disp_calc['Desafío esperadas'] = df_disp_prep.apply(_obtener_desafio_disp_row, axis=1)
+                df_disp_calc[nombre_col_dia] = df_disp_prep[col_disp_actual].apply(lambda v: int(limpiar_numero(v, 0)))
                 
                 # Fórmulas del Cuadro
                 df_disp_calc['% Cump LN'] = df_disp_calc.apply(

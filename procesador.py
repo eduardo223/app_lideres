@@ -199,8 +199,26 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
                 return target.get('meta_recuperos', 0)
             return 0
 
+        def _obtener_meta_disp(row):
+            g = str(row.get(col_cv_grp, '')).strip().split('.')[0] if col_cv_grp else ''
+            nom = str(row.get(col_cv_nom, '')).strip().lower() if col_cv_nom else ''
+            target = mapa_grp.get(g) or mapa_nom.get(nom)
+            if target:
+                return target.get('disponibles_esperadas', 0) or target.get('disponibles_proyectadas', 0)
+            return 0
+
+        def _obtener_desafio_act(row):
+            g = str(row.get(col_cv_grp, '')).strip().split('.')[0] if col_cv_grp else ''
+            nom = str(row.get(col_cv_nom, '')).strip().lower() if col_cv_nom else ''
+            target = mapa_grp.get(g) or mapa_nom.get(nom)
+            if target:
+                return target.get('desafio_activas', 0)
+            return 0
+
         df['Meta Inicios + Reinicios'] = df.apply(_obtener_meta_ini, axis=1)
         df['Meta Recuperos'] = df.apply(_obtener_meta_rec, axis=1)
+        df['Meta Disponibles Esperadas'] = df.apply(_obtener_meta_disp, axis=1)
+        df['Desafío Activas Arte'] = df.apply(_obtener_desafio_act, axis=1)
     except Exception as e_arte:
         safe_print(f"Nota al integrar Objetivos Arte en calcular_metas_ciclo: {e_arte}")
 
@@ -297,7 +315,12 @@ def procesar_archivo_objetivos_arte(origen_arte, ruta_guardar_excel='Objetivos A
                     break
 
         col_grp = next((c for c in df_raw.columns if any(k in str(c).lower() for k in ['cód. grupo', 'cod grupo', 'cód grupo', 'grupo', 'codigo grupo'])), None)
-        col_lider = next((c for c in df_raw.columns if any(k in str(c).lower() for k in ['nombre líder', 'nombre lider', 'lider', 'líder'])), None)
+        
+        # Priorizar Nombre de Líder exacto evitando 'Cód. Líder'
+        col_lider = next((c for c in df_raw.columns if 'nombre' in str(c).lower() and ('lider' in str(c).lower() or 'líder' in str(c).lower())), None)
+        if not col_lider:
+            col_lider = next((c for c in df_raw.columns if ('lider' in str(c).lower() or 'líder' in str(c).lower()) and 'cód' not in str(c).lower() and 'cod' not in str(c).lower()), None)
+            
         col_sec = next((c for c in df_raw.columns if str(c).lower() in ['sector', 'nombre setor', 'nombre sector']), None)
         
         col_ini_meta = next((c for c in df_raw.columns if 'inicios + reinicios' in str(c).lower() or ('inicio' in str(c).lower() and 'meta' in str(c).lower())), None)
@@ -305,6 +328,14 @@ def procesar_archivo_objetivos_arte(origen_arte, ruta_guardar_excel='Objetivos A
             col_ini_meta = next((c for c in df_raw.columns if 'inicios' in str(c).lower() and 'reinicio' in str(c).lower()), None)
         
         col_rec_meta = next((c for c in df_raw.columns if 'recupero' in str(c).lower()), None)
+        
+        col_disp_esp = next((c for c in df_raw.columns if 'disponibles esperadas' in str(c).lower() and '202612' in str(c).lower()), None)
+        if not col_disp_esp:
+            col_disp_esp = next((c for c in df_raw.columns if 'disponibles esperadas' in str(c).lower()), None)
+            
+        col_disp_proy = next((c for c in df_raw.columns if 'disponibles proyectadas' in str(c).lower()), None)
+        col_desafio_act = next((c for c in df_raw.columns if 'desafío de activas' in str(c).lower() or 'desafio de activas' in str(c).lower() or 'desafio activas' in str(c).lower() or 'desafío activas' in str(c).lower()), None)
+        col_desafio_fact = next((c for c in df_raw.columns if 'desafío facturación' in str(c).lower() or 'desafio facturacion' in str(c).lower() or 'desafio facturación' in str(c).lower()), None)
 
         if not col_grp and not col_lider:
             return {'exito': False, 'error': "No se identificó la columna de Grupo o Líder en la hoja 'Desafíos LNN'."}
@@ -322,19 +353,31 @@ def procesar_archivo_objetivos_arte(origen_arte, ruta_guardar_excel='Objetivos A
 
             val_ini = int(round(limpiar_numero(row.get(col_ini_meta, 0), 0))) if col_ini_meta else 0
             val_rec = int(round(limpiar_numero(row.get(col_rec_meta, 0), 0))) if col_rec_meta else 0
+            val_disp_esp = int(round(limpiar_numero(row.get(col_disp_esp, 0), 0))) if col_disp_esp else 0
+            val_disp_proy = int(round(limpiar_numero(row.get(col_disp_proy, 0), 0))) if col_disp_proy else 0
+            val_desafio_act = int(round(limpiar_numero(row.get(col_desafio_act, 0), 0))) if col_desafio_act else 0
+            val_desafio_fact = float(limpiar_numero(row.get(col_desafio_fact, 0), 0.0)) if col_desafio_fact else 0.0
+
+            nom_limpio = nom
+            if ' - ' in nom_limpio:
+                nom_limpio = nom_limpio.split(' - ', 1)[1].strip()
 
             data_lider = {
                 'meta_inicios_reinicios': val_ini,
                 'meta_recuperos': val_rec,
-                'nombre_lider': nom,
+                'disponibles_esperadas': val_disp_esp if val_disp_esp > 0 else val_disp_proy,
+                'disponibles_proyectadas': val_disp_proy,
+                'desafio_activas': val_desafio_act,
+                'desafio_facturacion': val_desafio_fact,
+                'nombre_lider': nom_limpio,
                 'grupo': g_raw,
                 'sector': sec
             }
 
             if g_raw and g_raw not in ['-', 'nan', '']:
                 mapa_por_grupo[g_raw] = data_lider
-            if nom and nom not in ['-', 'nan', '']:
-                mapa_por_nombre[nom.lower()] = data_lider
+            if nom_limpio and nom_limpio not in ['-', 'nan', '']:
+                mapa_por_nombre[nom_limpio.lower()] = data_lider
 
         dict_final = {
             'por_grupo': mapa_por_grupo,
