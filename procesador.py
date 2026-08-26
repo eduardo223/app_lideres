@@ -891,8 +891,8 @@ def exportar_excel_con_colores(df_dict, buffer_salida=None):
 
 COLUMNAS_ORDEN_TABLEAU = [
     'Código CB',
-    'Asesora / Consultora',
     'Líder / Grupo',
+    'Asesora / Consultora',
     'Nivel / Color',
     'Sit. Comercial',
     'Pts Acum',
@@ -1326,7 +1326,7 @@ def exportar_tabla_pdf(df, titulo="Reporte Ejecutivo - Panel Matices", subtitulo
         cols_usar = [c for c in columnas if c in df.columns]
     else:
         cols_prioritarias = [
-            'Código CB', 'Asesora / Consultora', 'Líder / Grupo', 'Nivel / Color', 'Sit. Comercial',
+            'Código CB', 'Líder / Grupo', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial',
             'Pts Acum', 'Deuda Total', 'Deuda Mora', 'Credito Disponible', 'Ped. Pendientes', 'Notas / Comentarios Líder'
         ]
         cols_usar = [c for c in cols_prioritarias if c in df.columns]

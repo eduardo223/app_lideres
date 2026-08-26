@@ -1302,7 +1302,7 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
         if df_tab_app.empty:
             st.info("No se encontraron registros de consultoras para esta vista.")
         else:
-            cols_show = [c for c in ['Código CB', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial', 'Pts Acum', 'Deuda Mora', 'Ped. Pendientes', 'Notas / Comentarios'] if c in df_tab_app.columns]
+            cols_show = [c for c in ['Código CB', 'Líder / Grupo', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial', 'Pts Acum', 'Deuda Mora', 'Ped. Pendientes', 'Notas / Comentarios'] if c in df_tab_app.columns]
             st.dataframe(
                 df_tab_app[cols_show] if cols_show else df_tab_app,
                 use_container_width=True,

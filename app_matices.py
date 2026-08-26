@@ -177,7 +177,7 @@ with t_mob1:
     if df_tab.empty:
         st.info("No hay datos cargados.")
     else:
-        cols_m = [c for c in ['Código CB', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial', 'Pts Acum', 'Deuda Mora', 'Ped. Pendientes'] if c in df_tab.columns]
+        cols_m = [c for c in ['Código CB', 'Líder / Grupo', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial', 'Pts Acum', 'Deuda Mora', 'Ped. Pendientes'] if c in df_tab.columns]
         st.dataframe(df_tab[cols_m] if cols_m else df_tab, use_container_width=True, height=400)
 
 with t_mob2:
