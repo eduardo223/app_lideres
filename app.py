@@ -2664,12 +2664,12 @@ with tab_diagnostico:
 
         st.dataframe(styler_act, use_container_width=True)
 
-        # --- 3. CUADRO RESUMEN DE DISPONIBLES (Desafío esperadas, Día XX, % Cump LN, falta) ---
+        # --- 3. CUADRO RESUMEN DE DISPONIBLES (Disponibles Proyectadas, Día XX, % Cump LN, falta) ---
         st.markdown("---")
         col_hdr_disp, col_num_dia = st.columns([3.2, 1.8])
         with col_hdr_disp:
             st.markdown("#### 📋 3. Cuadro Resumen de Disponibles (Desafío vs. Avance por Día)")
-            st.caption("Fórmulas del modelo: Desafío extraído de `Objetivos Arte.xlsx` (Desafíos LNN), `% Cump LN = (Día / Desafío) * 100` y `falta = Desafío - Día`.")
+            st.caption("Fórmulas del modelo: Disponibles Proyectadas extraídas de `Objetivos Arte.xlsx` (Desafíos LNN), `% Cump LN = (Día / Proyectadas) * 100` y `falta = Proyectadas - Día`.")
         with col_num_dia:
             dia_corte = st.number_input("📅 Día de Avance (Editable):", min_value=1, max_value=21, value=14, step=1, key="dia_avance_corte_14_key")
 
@@ -2694,7 +2694,7 @@ with tab_diagnostico:
                     nom = str(row.get(col_lider, '')).strip().lower()
                     target = mapa_grp_disp.get(g) or mapa_nom_disp.get(nom)
                     if target:
-                        val = target.get('disponibles_esperadas', 0) or target.get('disponibles_proyectadas', 0)
+                        val = target.get('disponibles_proyectadas', 0) or target.get('disponibles_esperadas', 0)
                         if val > 0:
                             return int(val)
                     if 'Meta Disponibles Esperadas' in row and int(limpiar_numero(row['Meta Disponibles Esperadas'], 0)) > 0:
@@ -2702,16 +2702,16 @@ with tab_diagnostico:
                     # Fallback a disponibles actuales si no existe meta cargada
                     return int(limpiar_numero(row.get(col_disp_actual, 0), 0))
 
-                df_disp_calc['Desafío esperadas'] = df_disp_prep.apply(_obtener_desafio_disp_row, axis=1)
+                df_disp_calc['Disponibles Proyectadas'] = df_disp_prep.apply(_obtener_desafio_disp_row, axis=1)
                 df_disp_calc[nombre_col_dia] = df_disp_prep[col_disp_actual].apply(lambda v: int(limpiar_numero(v, 0)))
                 
                 # Fórmulas del Cuadro
                 df_disp_calc['% Cump LN'] = df_disp_calc.apply(
-                    lambda r: (r[nombre_col_dia] / r['Desafío esperadas'] * 100.0) if r['Desafío esperadas'] > 0 else 0.0,
+                    lambda r: (r[nombre_col_dia] / r['Disponibles Proyectadas'] * 100.0) if r['Disponibles Proyectadas'] > 0 else 0.0,
                     axis=1
                 )
                 df_disp_calc['falta'] = df_disp_calc.apply(
-                    lambda r: max(0, r['Desafío esperadas'] - r[nombre_col_dia]),
+                    lambda r: max(0, r['Disponibles Proyectadas'] - r[nombre_col_dia]),
                     axis=1
                 )
 
@@ -2719,14 +2719,14 @@ with tab_diagnostico:
                 df_disp_calc = df_disp_calc.sort_values(by='% Cump LN', ascending=False).reset_index(drop=True)
 
                 # Fila de Totales
-                tot_desafios = int(df_disp_calc['Desafío esperadas'].sum())
+                tot_desafios = int(df_disp_calc['Disponibles Proyectadas'].sum())
                 tot_dia = int(df_disp_calc[nombre_col_dia].sum())
                 tot_cump = (tot_dia / tot_desafios * 100.0) if tot_desafios > 0 else 0.0
                 tot_falta = max(0, tot_desafios - tot_dia)
 
                 row_total = pd.DataFrame([{
                     'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
-                    'Desafío esperadas': tot_desafios,
+                    'Disponibles Proyectadas': tot_desafios,
                     nombre_col_dia: tot_dia,
                     '% Cump LN': tot_cump,
                     'falta': tot_falta
@@ -2735,7 +2735,7 @@ with tab_diagnostico:
 
                 # Formatear valores para visualización limpiando ceros e incluyendo %
                 df_disp_formatted = df_disp_final.copy()
-                df_disp_formatted['Desafío esperadas'] = df_disp_formatted['Desafío esperadas'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_disp_formatted['Disponibles Proyectadas'] = df_disp_formatted['Disponibles Proyectadas'].apply(lambda v: f"{int(v):,}".replace(",", "."))
                 df_disp_formatted[nombre_col_dia] = df_disp_formatted[nombre_col_dia].apply(lambda v: f"{int(v):,}".replace(",", "."))
                 df_disp_formatted['% Cump LN'] = df_disp_formatted['% Cump LN'].apply(lambda v: f"{v:.1f}%")
                 df_disp_formatted['falta'] = df_disp_formatted['falta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
@@ -3098,7 +3098,6 @@ with tab_diagnostico:
             col_ini_af = 'Inicios' if 'Inicios' in df_af_prep.columns else None
             col_rei_af = 'Reinicios' if 'Reinicios' in df_af_prep.columns else None
             col_af_directa = next((c for c in df_af_prep.columns if 'activas frecuentes' in str(c).lower() or 'activas_frecuentes' in str(c).lower()), None)
-            col_pct_af_directa = next((c for c in df_af_prep.columns if '%actividad frecuente' in str(c).lower() or 'actividad frecuente' in str(c).lower()), None)
 
             if col_disp_af:
                 df_af_calc = pd.DataFrame()
@@ -3106,23 +3105,20 @@ with tab_diagnostico:
 
                 val_disp_af = df_af_prep[col_disp_af].apply(lambda v: limpiar_numero(v, 0.0))
 
-                if col_af_directa:
-                    val_act_frec = df_af_prep[col_af_directa].apply(lambda v: limpiar_numero(v, 0.0))
-                elif col_real_act:
+                if col_real_act:
                     r_act = df_af_prep[col_real_act].apply(lambda v: limpiar_numero(v, 0.0))
                     r_rec = df_af_prep[col_rec_af].apply(lambda v: limpiar_numero(v, 0.0)) if col_rec_af else 0
                     r_ini = df_af_prep[col_ini_af].apply(lambda v: limpiar_numero(v, 0.0)) if col_ini_af else 0
                     r_rei = df_af_prep[col_rei_af].apply(lambda v: limpiar_numero(v, 0.0)) if col_rei_af else 0
                     val_act_frec = (r_act - r_rec - r_ini - r_rei).apply(lambda v: max(0, v))
+                elif col_af_directa:
+                    val_act_frec = df_af_prep[col_af_directa].apply(lambda v: limpiar_numero(v, 0.0))
                 else:
                     val_act_frec = pd.Series(0, index=df_af_prep.index)
 
                 df_af_calc['ACTIVAS FRECUENTES'] = val_act_frec.round().astype(int)
-
-                if col_pct_af_directa:
-                    df_af_calc['ACTIVIDAD FRECUENTE'] = df_af_prep[col_pct_af_directa].apply(lambda v: limpiar_numero(v, 0.0) if limpiar_numero(v, 0.0) > 1.0 else limpiar_numero(v, 0.0) * 100.0)
-                else:
-                    df_af_calc['ACTIVIDAD FRECUENTE'] = (val_act_frec / val_disp_af.replace(0, pd.NA) * 100.0).fillna(0.0)
+                # Cálculo de Actividad Frecuente (%) según fórmula oficial: (Activas Frecuentes / Disponibles) * 100
+                df_af_calc['ACTIVIDAD FRECUENTE'] = (val_act_frec / val_disp_af.replace(0, pd.NA) * 100.0).fillna(0.0)
 
                 df_af_calc = df_af_calc.sort_values(by='ACTIVIDAD FRECUENTE', ascending=False).reset_index(drop=True)
 

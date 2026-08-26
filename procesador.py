@@ -172,6 +172,17 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
         c_a = pd.to_numeric(df['Cumplimiento Activas'], errors='coerce')
         df['Cumplimiento Activas'] = c_a.apply(lambda v: v * 100.0 if pd.notna(v) and 0 < v <= 2.5 else (v if pd.notna(v) else 0.0))
 
+    # Cálculo dinámico de Activas Frecuentes y % Actividad Frecuente
+    if 'Real Activas' in df.columns:
+        r_act = pd.to_numeric(df['Real Activas'], errors='coerce').fillna(0.0)
+        r_rec = pd.to_numeric(df['Recuperos'], errors='coerce').fillna(0.0) if 'Recuperos' in df.columns else 0.0
+        r_ini = pd.to_numeric(df['Inicios'], errors='coerce').fillna(0.0) if 'Inicios' in df.columns else 0.0
+        r_rei = pd.to_numeric(df['Reinicios'], errors='coerce').fillna(0.0) if 'Reinicios' in df.columns else 0.0
+        df['Activas Frecuentes'] = (r_act - r_rec - r_ini - r_rei).clip(lower=0)
+        if 'Disponibles' in df.columns:
+            disp_s = pd.to_numeric(df['Disponibles'], errors='coerce').fillna(0.0)
+            df['%Actividad Frecuente'] = (df['Activas Frecuentes'] / disp_s.replace(0, pd.NA) * 100.0).fillna(0.0)
+
     # Cálculo dinámico de Ganancia Estimada según Matriz y Potencializador de Saldo
     df = calcular_ganancia_estimada_df(df)
 
@@ -205,7 +216,7 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
             nom = str(row.get(col_cv_nom, '')).strip().lower() if col_cv_nom else ''
             target = mapa_grp.get(g) or mapa_nom.get(nom)
             if target:
-                return target.get('disponibles_esperadas', 0) or target.get('disponibles_proyectadas', 0)
+                return target.get('disponibles_proyectadas', 0) or target.get('disponibles_esperadas', 0)
             return 0
 
         def _obtener_desafio_act(row):

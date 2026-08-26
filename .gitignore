@@ -10,3 +10,7 @@ venv/
 # Archivos temporales o de configuración personal
 .DS_Store
 *.log
+*.bak
+~$*
+Authorizations_*.csv
+Resultado_Metas_Procesadas.xlsx
