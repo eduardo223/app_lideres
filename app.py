@@ -550,43 +550,46 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         st.balloons()
         st.session_state['balloons_cumple_shown'] = True
 
-    # Estilos según el estado de cumpleaños
+    # Estilos según el estado de cumpleaños (Fondo de alto contraste y legibilidad total en temas Claro y Oscuro)
     if len(hoy_list) > 0:
-        card_gradient = "linear-gradient(135deg, rgba(255, 107, 0, 0.16) 0%, rgba(227, 0, 123, 0.22) 50%, rgba(245, 158, 11, 0.20) 100%)"
-        border_color = "rgba(251, 191, 36, 0.7)"
-        badge_bg = "linear-gradient(135deg, #FF6B00 0%, #E3007B 100%)"
+        card_gradient = "linear-gradient(135deg, #C2185B 0%, #E3007B 50%, #FF6B00 100%)"
+        border_color = "rgba(255, 215, 0, 0.8)"
+        badge_bg = "rgba(0, 0, 0, 0.28)"
         badge_color = "#FFFFFF"
+        badge_border = "1px solid rgba(255, 255, 255, 0.6)"
         badge_txt = f"🎉 ¡HOY CELEBRAMOS! • {len(hoy_list)} CUMPLEAÑERA{'S' if len(hoy_list) > 1 else ''}"
         icon_main = "🎂"
         expanded_default = True
     elif len(semana_list) > 0:
-        card_gradient = "linear-gradient(135deg, rgba(255, 107, 0, 0.10) 0%, rgba(227, 0, 123, 0.14) 100%)"
-        border_color = "rgba(227, 0, 123, 0.45)"
-        badge_bg = "rgba(227, 0, 123, 0.25)"
-        badge_color = "#FFAA66"
+        card_gradient = "linear-gradient(135deg, #831843 0%, #9D174D 45%, #C026D3 100%)"
+        border_color = "rgba(244, 114, 182, 0.7)"
+        badge_bg = "linear-gradient(135deg, #FF6B00 0%, #E3007B 100%)"
+        badge_color = "#FFFFFF"
+        badge_border = "1px solid rgba(255, 255, 255, 0.45)"
         badge_txt = f"📅 PRÓXIMOS 7 DÍAS • {len(semana_list)} ASESORA{'S' if len(semana_list) > 1 else ''}"
         icon_main = "🎁"
         expanded_default = True
     else:
-        card_gradient = "linear-gradient(135deg, rgba(255, 107, 0, 0.06) 0%, rgba(227, 0, 123, 0.06) 100%)"
-        border_color = "rgba(255, 107, 0, 0.3)"
-        badge_bg = "rgba(255, 107, 0, 0.18)"
-        badge_color = "#FFAA66"
+        card_gradient = "linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%)"
+        border_color = "rgba(129, 140, 248, 0.6)"
+        badge_bg = "rgba(255, 255, 255, 0.18)"
+        badge_color = "#FFFFFF"
+        badge_border = "1px solid rgba(255, 255, 255, 0.35)"
         badge_txt = f"🗓️ CUMPLEAÑOS DE {nombre_mes.upper()} • {total_mes} EN TOTAL"
         icon_main = "🗓️"
         expanded_default = False
 
     st.markdown(f"""
-<div style="background: {card_gradient}; border: 1.5px solid {border_color}; border-radius: 14px; padding: 10px 16px; margin-bottom: 12px; backdrop-filter: blur(10px);">
+<div style="background: {card_gradient}; border: 1.5px solid {border_color}; border-radius: 14px; padding: 10px 18px; margin-bottom: 12px; box-shadow: 0 6px 20px -4px rgba(0,0,0,0.25);">
     <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
         <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 1.4rem;">{icon_main}</span>
+            <span style="font-size: 1.4rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">{icon_main}</span>
             <div>
-                <span style="background: {badge_bg}; color: {badge_color}; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px;">{badge_txt}</span>
-                <span style="font-size: 0.95rem; font-weight: 700; color: #FFFFFF; margin-left: 8px;">Recordatorio de Cumpleaños</span>
+                <span style="background: {badge_bg}; color: {badge_color}; border: {badge_border}; font-size: 0.74rem; font-weight: 800; padding: 3px 12px; border-radius: 9999px; letter-spacing: 0.03em; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">{badge_txt}</span>
+                <span style="font-size: 0.96rem; font-weight: 800; color: #FFFFFF; text-shadow: 0 1px 3px rgba(0,0,0,0.4); margin-left: 8px;">Recordatorio de Cumpleaños</span>
             </div>
         </div>
-        <div style="font-size: 0.82rem; color: #E2E8F0; opacity: 0.9;">
+        <div style="font-size: 0.85rem; color: #FFFFFF; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.3); opacity: 0.95;">
             🌸 Equipo de <b>{user_nombre}</b> {f'• Grupo {user_grupo}' if user_grupo else ''}
         </div>
     </div>
@@ -613,18 +616,18 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                     tag_t = item.get('etiqueta_tiempo', f"Día {item['dia']}")
                     bg_t = "#10B981" if es_hoy else ("#F59E0B" if item.get('dias_falta', 99) <= 2 else "#6366F1")
                     
-                    # Tarjeta compacta visual (sin sangrías para evitar bloques de código)
+                    # Tarjeta compacta visual con alto contraste garantizado
                     st.markdown(f"""
-<div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(227, 0, 123, 0.35); border-radius: 12px; padding: 10px 14px 8px 14px; margin-bottom: 6px;">
+<div style="background: #1E293B; border: 1px solid rgba(227, 0, 123, 0.45); border-radius: 12px; padding: 10px 14px 8px 14px; margin-bottom: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.2);">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
         <span style="font-size: 1rem; font-weight: 700; color: #FFFFFF;">🌸 {item['nombre']}</span>
         <span style="background: {bg_t}; color: #FFFFFF; font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-radius: 9999px;">{tag_t}</span>
     </div>
-    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.78rem; color: #CBD5E1;">
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.78rem; color: #E2E8F0;">
         <span style="{nivel_style} padding: 1px 7px; border-radius: 4px; font-weight: 700;">{item['nivel']}</span>
-        <span>CB: <b>{item['codigo_cb']}</b></span>
-        <span>• Grupo: <b>{item['grupo']}</b></span>
-        <span>• {item['sit_comercial']}</span>
+        <span>CB: <b style='color:#FFFFFF;'>{item['codigo_cb']}</b></span>
+        <span>• Grupo: <b style='color:#FFFFFF;'>{item['grupo']}</b></span>
+        <span>• <span style='color:#CBD5E1;'>{item['sit_comercial']}</span></span>
     </div>
 </div>
 """, unsafe_allow_html=True)
