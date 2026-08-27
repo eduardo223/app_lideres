@@ -539,42 +539,21 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         expanded_default = False
 
     st.markdown(f"""
-    <div style="
-        background: {card_gradient};
-        border: 1.5px solid {border_color};
-        border-radius: 18px;
-        padding: 16px 22px;
-        margin-bottom: 20px;
-        backdrop-filter: blur(14px);
-        box-shadow: 0 10px 28px -6px rgba(227, 0, 123, 0.2);
-    ">
-        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
-            <div style="display: flex; align-items: center; gap: 14px;">
-                <span style="font-size: 2.2rem; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));">{icon_main}</span>
-                <div>
-                    <span style="
-                        background: {badge_bg};
-                        color: {badge_color};
-                        font-size: 0.75rem;
-                        font-weight: 800;
-                        padding: 4px 14px;
-                        border-radius: 9999px;
-                        letter-spacing: 0.05em;
-                        display: inline-block;
-                        margin-bottom: 4px;
-                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-                    ">{badge_txt}</span>
-                    <div style="font-size: 1.15rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">
-                        Recordatorio & Felicitaciones a tu Red Comercial
-                    </div>
-                </div>
-            </div>
-            <div style="font-size: 0.88rem; color: #F1F5F9; opacity: 0.95; font-weight: 500;">
-                🌸 Equipo de <b>{user_nombre}</b> {f'• Grupo {user_grupo}' if user_grupo else ''}
+<div style="background: {card_gradient}; border: 1.5px solid {border_color}; border-radius: 14px; padding: 10px 16px; margin-bottom: 12px; backdrop-filter: blur(10px);">
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 1.4rem;">{icon_main}</span>
+            <div>
+                <span style="background: {badge_bg}; color: {badge_color}; font-size: 0.72rem; font-weight: 800; padding: 2px 10px; border-radius: 9999px;">{badge_txt}</span>
+                <span style="font-size: 0.95rem; font-weight: 700; color: #FFFFFF; margin-left: 8px;">Recordatorio de Cumpleaños</span>
             </div>
         </div>
+        <div style="font-size: 0.82rem; color: #E2E8F0; opacity: 0.9;">
+            🌸 Equipo de <b>{user_nombre}</b> {f'• Grupo {user_grupo}' if user_grupo else ''}
+        </div>
     </div>
-    """, unsafe_allow_html=True)
+</div>
+""", unsafe_allow_html=True)
 
     with st.expander(f"✨ Ver Listado de Cumpleaños & Enviar Felicitaciones por WhatsApp ({total_mes} en {nombre_mes})", expanded=expanded_default):
         tab_c_hoy, tab_c_sem, tab_c_mes, tab_c_edit = st.tabs([
@@ -586,7 +565,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         
         def _render_cards_cumple(items_list, es_hoy=False):
             if not items_list:
-                st.info("No hay cumpleaños en este rango actualmente.")
+                st.info("🌸 No hay cumpleaños en este rango actualmente.")
                 return
                 
             cols_grid = st.columns(2 if len(items_list) > 1 else 1)
@@ -596,65 +575,32 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                     tag_t = item.get('etiqueta_tiempo', f"Día {item['dia']}")
                     bg_t = "#10B981" if es_hoy else ("#F59E0B" if item.get('dias_falta', 99) <= 2 else "#6366F1")
                     
+                    # Tarjeta compacta visual (sin sangrías para evitar bloques de código)
                     st.markdown(f"""
-                    <div style="
-                        background: rgba(15, 23, 42, 0.45);
-                        border: 1px solid rgba(227, 0, 123, 0.25);
-                        border-radius: 14px;
-                        padding: 14px 16px;
-                        margin-bottom: 12px;
-                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-                    ">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
-                            <div>
-                                <div style="font-size: 1.02rem; font-weight: 700; color: #F8FAFC;">
-                                    🌸 {item['nombre']}
-                                </div>
-                                <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 2px;">
-                                    CB: <b>{item['codigo_cb']}</b> • Grupo: <b>{item['grupo']}</b> • {item['sit_comercial']}
-                                </div>
-                            </div>
-                            <span style="
-                                background: {bg_t};
-                                color: #FFFFFF;
-                                font-size: 0.72rem;
-                                font-weight: 800;
-                                padding: 3px 10px;
-                                border-radius: 9999px;
-                                white-space: nowrap;
-                            ">
-                                {tag_t}
-                            </span>
-                        </div>
-                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
-                            <span style="{nivel_style} padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;">
-                                {item['nivel']}
-                            </span>
-                            {f"<span style='color: #F87171; background: rgba(239,68,68,0.15); padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;'>⚠️ Mora: ${item['deuda_mora']:,.0f}</span>" if item['deuda_mora'] > 0 else "<span style='color: #34D399; background: rgba(16,185,129,0.12); padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;'>✅ Al día</span>"}
-                        </div>
-                        <div>
-                            {f'''
-                            <a href="{item['link_wa']}" target="_blank" style="
-                                display: inline-flex;
-                                align-items: center;
-                                justify-content: center;
-                                width: 100%;
-                                background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-                                color: #FFFFFF !important;
-                                text-decoration: none;
-                                font-weight: 700;
-                                font-size: 0.85rem;
-                                padding: 8px 14px;
-                                border-radius: 10px;
-                                box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
-                                text-align: center;
-                            ">
-                                📲 Felicitar por WhatsApp
-                            </a>
-                            ''' if item['link_wa'] else '<span style="color: #94A3B8; font-size: 0.8rem;">(Sin número celular registrado)</span>'}
-                        </div>
-                    </div>
-                    """, unsafe_allow_html=True)
+<div style="background: rgba(15, 23, 42, 0.6); border: 1px solid rgba(227, 0, 123, 0.35); border-radius: 12px; padding: 10px 14px 8px 14px; margin-bottom: 6px;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <span style="font-size: 1rem; font-weight: 700; color: #FFFFFF;">🌸 {item['nombre']}</span>
+        <span style="background: {bg_t}; color: #FFFFFF; font-size: 0.72rem; font-weight: 800; padding: 2px 9px; border-radius: 9999px;">{tag_t}</span>
+    </div>
+    <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 0.78rem; color: #CBD5E1;">
+        <span style="{nivel_style} padding: 1px 7px; border-radius: 4px; font-weight: 700;">{item['nivel']}</span>
+        <span>CB: <b>{item['codigo_cb']}</b></span>
+        <span>• Grupo: <b>{item['grupo']}</b></span>
+        <span>• {item['sit_comercial']}</span>
+    </div>
+</div>
+""", unsafe_allow_html=True)
+                    
+                    # Botón nativo de WhatsApp 1-clic directo
+                    if item.get('link_wa'):
+                        st.link_button(
+                            f"📲 Felicitar a {item['primer_nombre']} por WhatsApp",
+                            url=item['link_wa'],
+                            use_container_width=True
+                        )
+                    else:
+                        st.caption("📵 *Sin número de celular registrado*")
+                    st.write("")
                     
         with tab_c_hoy:
             if hoy_list:
