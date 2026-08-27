@@ -3845,7 +3845,7 @@ def obtener_cumpleanos_equipo(df_tableau, user_nombre="Líder", plantilla_wa=Non
             .replace("{nombre_lider}", str(user_nombre))
             .replace("{lider}", str(user_nombre))
         )
-        link_wa = f"https://wa.me/57{cel_clean}?text={urllib.parse.quote(msg_wa)}" if len(cel_clean) >= 10 else ""
+        link_wa = f"https://api.whatsapp.com/send?phone=57{cel_clean}&text={urllib.parse.quote(msg_wa)}" if len(cel_clean) >= 10 else ""
         
         item = {
             'codigo_cb': str(row.get(col_cb, '')),

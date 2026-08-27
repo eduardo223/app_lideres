@@ -2196,7 +2196,7 @@ with tab_tableau:
                     # Botón de enlace directo a WhatsApp
                     tel_p = str(row_p.get('celular', '')).strip().replace(' ', '').replace('-', '').replace('+', '')
                     if tel_p and len(tel_p) >= 10:
-                        url_wa_p = f"https://wa.me/57{tel_p}?text={urllib.parse.quote(msg_pago)}"
+                        url_wa_p = f"https://api.whatsapp.com/send?phone=57{tel_p}&text={urllib.parse.quote(msg_pago)}"
                         st.markdown(f"""
                         <div style="margin-top: 8px; margin-bottom: 12px;">
                             <a href="{url_wa_p}" target="_blank" style="display: inline-block; background-color: #25D366; color: white; padding: 9px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.12);">
@@ -2335,7 +2335,7 @@ with tab_tableau:
                         .replace("{nivel}", col_nivel)
                     )
 
-                    link_wa = f"https://wa.me/57{cel}?text={urllib.parse.quote(msg_personalizado)}" if cel and len(cel) >= 10 else ""
+                    link_wa = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_personalizado)}" if cel and len(cel) >= 10 else ""
 
                     filas_wa.append({
                         'Código CB': str(r.get('Codigo CB', r.get('Código CB', ''))),
