@@ -117,53 +117,128 @@ st.markdown("""
     }
 
     /* Gradient Brand Text Headers */
+    /* ========================================================= */
+    /* SISTEMA DE DISEÑO ULTRA-RESPONSIVO (LAPTOPS, TABLETS, PC) */
+    /* ========================================================= */
+    
+    .block-container {
+        padding-top: clamp(1.2rem, 2.2vw, 2.2rem) !important;
+        padding-bottom: clamp(2rem, 3vw, 3.5rem) !important;
+        padding-left: clamp(1rem, 2vw, 2.8rem) !important;
+        padding-right: clamp(1rem, 2vw, 2.8rem) !important;
+        max-width: 100% !important;
+    }
+
     .main-header {
-        font-size: 2.3rem;
+        font-size: clamp(1.5rem, 2.2vw, 2.3rem) !important;
         font-weight: 800;
         background: linear-gradient(135deg, #FF6B00 0%, #F58220 30%, #E3007B 70%, #9B0053 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         margin-bottom: 0.2rem;
         letter-spacing: -0.02em;
+        line-height: 1.2;
     }
     
     .sub-header {
-        font-size: 1.05rem;
+        font-size: clamp(0.82rem, 1vw, 1.02rem) !important;
         opacity: 0.85;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1.2rem;
         font-weight: 500;
+        line-height: 1.4;
     }
 
-    /* Streamlit Metric Cards - Natura & Avon Theme Adaptive (Light & Dark) */
+    /* Streamlit Metric Cards - Fluidas y Adaptables a Portátiles y Pantallas */
     [data-testid="stMetric"] {
         background: linear-gradient(135deg, rgba(255, 107, 0, 0.07) 0%, rgba(227, 0, 123, 0.07) 100%) !important;
         border: 1px solid rgba(227, 0, 123, 0.25) !important;
-        border-radius: 18px !important;
-        padding: 18px 22px !important;
+        border-radius: 16px !important;
+        padding: clamp(10px, 1.1vw, 16px) clamp(10px, 1.2vw, 18px) !important;
         box-shadow: 0 8px 20px -4px rgba(227, 0, 123, 0.12) !important;
         backdrop-filter: blur(14px) !important;
         transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        min-width: 0 !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: center !important;
     }
 
     [data-testid="stMetric"]:hover {
-        transform: translateY(-3px);
-        box-shadow: 0 14px 28px -4px rgba(255, 107, 0, 0.25) !important;
+        transform: translateY(-2px);
+        box-shadow: 0 12px 24px -4px rgba(255, 107, 0, 0.22) !important;
         border-color: rgba(255, 107, 0, 0.6) !important;
     }
 
     [data-testid="stMetricLabel"] p {
-        font-size: 0.92rem !important;
+        font-size: clamp(0.72rem, 0.85vw, 0.88rem) !important;
         font-weight: 700 !important;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.01em;
         opacity: 0.9;
+        white-space: nowrap !important;
+        text-overflow: ellipsis !important;
+        overflow: hidden !important;
+        line-height: 1.2 !important;
+        margin: 0 0 2px 0 !important;
     }
 
     [data-testid="stMetricValue"] div {
-        font-size: 1.9rem !important;
+        font-size: clamp(1.1rem, 1.5vw, 1.7rem) !important;
         font-weight: 800 !important;
         background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
+        white-space: nowrap !important;
+        text-overflow: ellipsis !important;
+        overflow: hidden !important;
+        line-height: 1.2 !important;
+    }
+
+    [data-testid="stMetricDelta"] div {
+        font-size: clamp(0.66rem, 0.76vw, 0.8rem) !important;
+        font-weight: 600 !important;
+        white-space: nowrap !important;
+        text-overflow: ellipsis !important;
+        overflow: hidden !important;
+        line-height: 1.2 !important;
+    }
+
+    /* Auto-Wrapping inteligente de columnas Streamlit para Portátiles */
+    div[data-testid="stHorizontalBlock"] {
+        display: flex !important;
+        flex-wrap: wrap !important;
+        gap: clamp(8px, 1vw, 14px) !important;
+        align-items: stretch !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+        min-width: 0 !important;
+        box-sizing: border-box !important;
+    }
+
+    /* Reglas de Breakpoints para Portátiles / Laptops (1280px - 1440px) */
+    @media (max-width: 1366px) {
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            flex: 1 1 calc(33.333% - 10px) !important;
+            min-width: 170px !important;
+        }
+    }
+
+    /* Tablets y Pantallas Medianas (768px - 1024px) */
+    @media (max-width: 1024px) {
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            flex: 1 1 calc(50% - 10px) !important;
+            min-width: 150px !important;
+        }
+    }
+
+    /* Móviles (< 640px) */
+    @media (max-width: 640px) {
+        div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
+            flex: 1 1 100% !important;
+            min-width: 100% !important;
+        }
     }
 
     /* Expanders & Cards */
@@ -1406,13 +1481,15 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
             background: linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(30, 41, 59, 0.9));
             border: 1px solid rgba(56, 189, 248, 0.3);
             border-radius: 16px;
-            padding: 16px;
+            padding: clamp(10px, 1.2vw, 16px);
             text-align: center;
             box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            min-width: 0 !important;
+            box-sizing: border-box !important;
         }
-        .hero-title { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
-        .hero-val { font-size: 26px; font-weight: 800; color: #38bdf8; margin: 4px 0; }
-        .hero-sub { font-size: 12px; color: #10b981; font-weight: 600; }
+        .hero-title { font-size: clamp(10px, 0.8vw, 12px); color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+        .hero-val { font-size: clamp(16px, 1.6vw, 24px); font-weight: 800; color: #38bdf8; margin: 4px 0; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+        .hero-sub { font-size: clamp(10px, 0.8vw, 12px); color: #10b981; font-weight: 600; white-space: nowrap; }
         </style>
         """
     else:
@@ -1423,13 +1500,15 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
             background: linear-gradient(135deg, #ffffff, #f1f5f9);
             border: 1px solid #cbd5e1;
             border-radius: 16px;
-            padding: 16px;
+            padding: clamp(10px, 1.2vw, 16px);
             text-align: center;
             box-shadow: 0 4px 20px 0 rgba(0, 0, 0, 0.06);
+            min-width: 0 !important;
+            box-sizing: border-box !important;
         }
-        .hero-title { font-size: 12px; color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
-        .hero-val { font-size: 26px; font-weight: 800; color: #0284c7; margin: 4px 0; }
-        .hero-sub { font-size: 12px; color: #059669; font-weight: 600; }
+        .hero-title { font-size: clamp(10px, 0.8vw, 12px); color: #64748b; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+        .hero-val { font-size: clamp(16px, 1.6vw, 24px); font-weight: 800; color: #0284c7; margin: 4px 0; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+        .hero-sub { font-size: clamp(10px, 0.8vw, 12px); color: #059669; font-weight: 600; white-space: nowrap; }
         </style>
         """
     st.markdown(css_theme, unsafe_allow_html=True)
@@ -1651,16 +1730,17 @@ else:
         )
 
     with kpi4:
+        gan_txt = f"${ganancia_total/1e6:.2f}M COP" if abs(ganancia_total) >= 1_000_000 else f"${ganancia_total:,.0f}".replace(",", ".")
         st.metric(
-            "💵 Ganancia Estimada Total LN",
-            f"${ganancia_total:,.0f}".replace(",", ".")
+            "💵 Ganancia Estimada LN",
+            gan_txt
         )
 
     with kpi5:
         st.metric(
             "🚀 Inicios / Reinicios",
             f"{int(inicios_totales + reinicios_totales)}",
-            f"↑ {inicios_totales:.1f} Inicios | {reinicios_totales:.1f} Reinicios"
+            f"↑ {int(inicios_totales)} Inic. | {int(reinicios_totales)} Rein."
         )
 
     st.markdown("---")
