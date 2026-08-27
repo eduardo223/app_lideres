@@ -405,7 +405,7 @@ def formato_cop(val):
     num = limpiar_numero(val, 0.0)
     return f"${num:,.0f}".replace(",", ".")
 
-from frases import obtener_frase_motivacional_diaria
+# from frases import obtener_frase_motivacional_diaria
 
 def formato_cop_signo(val):
     num = limpiar_numero(val, 0.0)
@@ -457,105 +457,67 @@ def aplicar_estilo_styler(styler, func, subset):
         return styler.applymap(func, subset=subset)
     return styler
 
-def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo):
-    info = obtener_frase_motivacional_diaria(cumplimiento_pct, nombre_lider, codigo_grupo)
-    frase_txt = info['frase']
-    autor_txt = info['autor']
-    subtitulo = info['subtitulo']
-    cat = info['categoria']
-    
-    if cat == 'excelencia':
-        gradient = "linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
-        border_color = "rgba(16, 185, 129, 0.4)"
-        badge_bg = "rgba(16, 185, 129, 0.2)"
-        badge_color = "#34D399"
-        badge_txt = f"🌟 LIDERAZGO IMPARABLE • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
-    elif cat == 'aceleracion':
-        gradient = "linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
-        border_color = "rgba(245, 158, 11, 0.4)"
-        badge_bg = "rgba(245, 158, 11, 0.2)"
-        badge_color = "#FBBF24"
-        badge_txt = f"🎯 ZONA DE ACELERACIÓN • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
-    else:
-        gradient = "linear-gradient(135deg, rgba(139, 92, 246, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
-        border_color = "rgba(139, 92, 246, 0.4)"
-        badge_bg = "rgba(139, 92, 246, 0.2)"
-        badge_color = "#C084FC"
-        badge_txt = f"💪 TRANSFORMANDO CAMPAÑA • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
-        
-    st.markdown(f"""
-    <style>
-    @keyframes desaparecerBanner {{
-        0% {{
-            opacity: 1;
-            transform: translateY(0);
-            max-height: 300px;
-            margin-bottom: 22px;
-        }}
-        85% {{
-            opacity: 1;
-            transform: translateY(0);
-            max-height: 300px;
-            margin-bottom: 22px;
-        }}
-        98% {{
-            opacity: 0;
-            transform: translateY(-15px);
-            max-height: 300px;
-            margin-bottom: 22px;
-        }}
-        100% {{
-            opacity: 0;
-            transform: translateY(-20px);
-            max-height: 0px;
-            margin-bottom: 0px;
-            padding-top: 0px;
-            padding-bottom: 0px;
-            border: none;
-            overflow: hidden;
-            visibility: hidden;
-        }}
-    }}
-    .banner-animado-10s {{
-        animation: desaparecerBanner 10s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        overflow: hidden;
-    }}
-    </style>
-    <div class="banner-animado-10s" style="
-        background: {gradient};
-        border: 1px solid {border_color};
-        border-radius: 16px;
-        padding: 20px 24px;
-        margin-bottom: 22px;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
-    ">
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
-            <span style="
-                background: {badge_bg};
-                color: {badge_color};
-                border: 1px solid {border_color};
-                font-size: 0.75rem;
-                font-weight: 700;
-                padding: 4px 14px;
-                border-radius: 9999px;
-                letter-spacing: 0.05em;
-            ">{badge_txt}</span>
-            <span style="color: #94A3B8; font-size: 0.82rem; font-weight: 500;">✨ Inspiración Diaria para {nombre_lider}</span>
-        </div>
-        <div style="font-size: 1.15rem; font-weight: 600; color: #F8FAFC; line-height: 1.5; font-style: italic; margin-bottom: 8px;">
-            "{frase_txt}"
-        </div>
-        <div style="display: flex; align-items: center; justify-content: space-between;">
-            <div style="color: #CBD5E1; font-size: 0.88rem; font-weight: 700;">
-                — {autor_txt}
-            </div>
-            <div style="color: #94A3B8; font-size: 0.83rem; font-weight: 500;">
-                {subtitulo}
-            </div>
-        </div>
-    </div>
-    """, unsafe_allow_html=True)
+# def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo):
+#     info = obtener_frase_motivacional_diaria(cumplimiento_pct, nombre_lider, codigo_grupo)
+#     frase_txt = info['frase']
+#     autor_txt = info['autor']
+#     subtitulo = info['subtitulo']
+#     cat = info['categoria']
+#     
+#     if cat == 'excelencia':
+#         gradient = "linear-gradient(135deg, rgba(16, 185, 129, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
+#         border_color = "rgba(16, 185, 129, 0.4)"
+#         badge_bg = "rgba(16, 185, 129, 0.2)"
+#         badge_color = "#34D399"
+#         badge_txt = f"🌟 LIDERAZGO IMPARABLE • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
+#     elif cat == 'aceleracion':
+#         gradient = "linear-gradient(135deg, rgba(245, 158, 11, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
+#         border_color = "rgba(245, 158, 11, 0.4)"
+#         badge_bg = "rgba(245, 158, 11, 0.2)"
+#         badge_color = "#FBBF24"
+#         badge_txt = f"🎯 ZONA DE ACELERACIÓN • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
+#     else:
+#         gradient = "linear-gradient(135deg, rgba(139, 92, 246, 0.22) 0%, rgba(15, 23, 42, 0.85) 100%)"
+#         border_color = "rgba(139, 92, 246, 0.4)"
+#         badge_bg = "rgba(139, 92, 246, 0.2)"
+#         badge_color = "#C084FC"
+#         badge_txt = f"💪 TRANSFORMANDO CAMPAÑA • CUMPLIMIENTO {cumplimiento_pct:.1f}%"
+#         
+#     st.markdown(f"""
+#     <style>
+#     @keyframes desaparecerBanner {{
+#         0% {{ opacity: 1; transform: translateY(0); max-height: 300px; margin-bottom: 22px; }}
+#         85% {{ opacity: 1; transform: translateY(0); max-height: 300px; margin-bottom: 22px; }}
+#         98% {{ opacity: 0; transform: translateY(-15px); max-height: 300px; margin-bottom: 22px; }}
+#         100% {{ opacity: 0; transform: translateY(-20px); max-height: 0px; margin-bottom: 0px; padding-top: 0px; padding-bottom: 0px; border: none; overflow: hidden; visibility: hidden; }}
+#     }}
+#     .banner-animado-10s {{
+#         animation: desaparecerBanner 10s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+#         overflow: hidden;
+#     }}
+#     </style>
+#     <div class="banner-animado-10s" style="
+#         background: {gradient};
+#         border: 1px solid {border_color};
+#         border-radius: 16px;
+#         padding: 20px 24px;
+#         margin-bottom: 22px;
+#         backdrop-filter: blur(12px);
+#         box-shadow: 0 10px 25px -5px rgba(0,0,0,0.3);
+#     ">
+#         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px;">
+#             <span style="background: {badge_bg}; color: {badge_color}; border: 1px solid {border_color}; font-size: 0.75rem; font-weight: 700; padding: 4px 14px; border-radius: 9999px; letter-spacing: 0.05em;">{badge_txt}</span>
+#             <span style="color: #94A3B8; font-size: 0.82rem; font-weight: 500;">✨ Inspiración Diaria para {nombre_lider}</span>
+#         </div>
+#         <div style="font-size: 1.15rem; font-weight: 600; color: #F8FAFC; line-height: 1.5; font-style: italic; margin-bottom: 8px;">
+#             "{frase_txt}"
+#         </div>
+#         <div style="display: flex; align-items: center; justify-content: space-between;">
+#             <div style="color: #CBD5E1; font-size: 0.88rem; font-weight: 700;">— {autor_txt}</div>
+#             <div style="color: #94A3B8; font-size: 0.83rem; font-weight: 500;">{subtitulo}</div>
+#         </div>
+#     </div>
+#     """, unsafe_allow_html=True)
 
 def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, user_sector, key_suffix="top"):
     """
@@ -1704,7 +1666,7 @@ else:
     # 4. TARJETAS DE KPIS SUPERIORES (VISTA COMPLETA)
     kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
-    renderizar_banner_motivacional(cump_fact, user_nombre, user_grupo)
+    # renderizar_banner_motivacional(cump_fact, user_nombre, user_grupo)
 
     # Recordatorio y Banner de Cumpleaños para Líderes y Gerentes
     grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
