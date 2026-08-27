@@ -68,7 +68,10 @@ from procesador import (
     cargar_objetivos_arte,
     cargar_catalogo_sectores,
     extraer_catalogo_sectores_desde_arte,
-    limpiar_nombre_sector_solo
+    limpiar_nombre_sector_solo,
+    obtener_cumpleanos_equipo,
+    MESES_ESPANOL,
+    PLANTILLA_CUMPLEANOS_DEFAULT
 )
 
 # 1. Configuración de la página
@@ -478,6 +481,259 @@ def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo)
         </div>
     </div>
     """, unsafe_allow_html=True)
+
+def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, user_sector):
+    """
+    Renderiza el módulo y recordatorio de cumpleaños para las líderes y gerentes.
+    Identifica de forma automática las asesoras de cumpleaños HOY, en los próximos 7 días
+    y en el mes en curso, con botón de felicitación directa 1-clic por WhatsApp.
+    """
+    if df_tableau is None or df_tableau.empty:
+        return
+
+    plantilla_wa = st.session_state.get('plantilla_wa_cumpleanos', PLANTILLA_CUMPLEANOS_DEFAULT)
+    data_cumple = obtener_cumpleanos_equipo(
+        df_tableau,
+        user_nombre=user_nombre,
+        plantilla_wa=plantilla_wa
+    )
+    
+    hoy_list = data_cumple['hoy']
+    semana_list = data_cumple['semana']
+    mes_list = data_cumple['mes']
+    total_mes = data_cumple['total_mes']
+    nombre_mes = data_cumple['nombre_mes']
+    
+    if total_mes == 0:
+        return
+
+    # Globos automáticos si hoy hay cumpleañeras (1 sola vez por sesión)
+    if len(hoy_list) > 0 and 'balloons_cumple_shown' not in st.session_state:
+        st.balloons()
+        st.session_state['balloons_cumple_shown'] = True
+
+    # Estilos según el estado de cumpleaños
+    if len(hoy_list) > 0:
+        card_gradient = "linear-gradient(135deg, rgba(255, 107, 0, 0.16) 0%, rgba(227, 0, 123, 0.22) 50%, rgba(245, 158, 11, 0.20) 100%)"
+        border_color = "rgba(251, 191, 36, 0.7)"
+        badge_bg = "linear-gradient(135deg, #FF6B00 0%, #E3007B 100%)"
+        badge_color = "#FFFFFF"
+        badge_txt = f"🎉 ¡HOY CELEBRAMOS! • {len(hoy_list)} CUMPLEAÑERA{'S' if len(hoy_list) > 1 else ''}"
+        icon_main = "🎂"
+        expanded_default = True
+    elif len(semana_list) > 0:
+        card_gradient = "linear-gradient(135deg, rgba(255, 107, 0, 0.10) 0%, rgba(227, 0, 123, 0.14) 100%)"
+        border_color = "rgba(227, 0, 123, 0.45)"
+        badge_bg = "rgba(227, 0, 123, 0.25)"
+        badge_color = "#FFAA66"
+        badge_txt = f"📅 PRÓXIMOS 7 DÍAS • {len(semana_list)} ASESORA{'S' if len(semana_list) > 1 else ''}"
+        icon_main = "🎁"
+        expanded_default = True
+    else:
+        card_gradient = "linear-gradient(135deg, rgba(255, 107, 0, 0.06) 0%, rgba(227, 0, 123, 0.06) 100%)"
+        border_color = "rgba(255, 107, 0, 0.3)"
+        badge_bg = "rgba(255, 107, 0, 0.18)"
+        badge_color = "#FFAA66"
+        badge_txt = f"🗓️ CUMPLEAÑOS DE {nombre_mes.upper()} • {total_mes} EN TOTAL"
+        icon_main = "🗓️"
+        expanded_default = False
+
+    st.markdown(f"""
+    <div style="
+        background: {card_gradient};
+        border: 1.5px solid {border_color};
+        border-radius: 18px;
+        padding: 16px 22px;
+        margin-bottom: 20px;
+        backdrop-filter: blur(14px);
+        box-shadow: 0 10px 28px -6px rgba(227, 0, 123, 0.2);
+    ">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 14px;">
+                <span style="font-size: 2.2rem; filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));">{icon_main}</span>
+                <div>
+                    <span style="
+                        background: {badge_bg};
+                        color: {badge_color};
+                        font-size: 0.75rem;
+                        font-weight: 800;
+                        padding: 4px 14px;
+                        border-radius: 9999px;
+                        letter-spacing: 0.05em;
+                        display: inline-block;
+                        margin-bottom: 4px;
+                        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+                    ">{badge_txt}</span>
+                    <div style="font-size: 1.15rem; font-weight: 800; color: #FFFFFF; letter-spacing: -0.01em;">
+                        Recordatorio & Felicitaciones a tu Red Comercial
+                    </div>
+                </div>
+            </div>
+            <div style="font-size: 0.88rem; color: #F1F5F9; opacity: 0.95; font-weight: 500;">
+                🌸 Equipo de <b>{user_nombre}</b> {f'• Grupo {user_grupo}' if user_grupo else ''}
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    with st.expander(f"✨ Ver Listado de Cumpleaños & Enviar Felicitaciones por WhatsApp ({total_mes} en {nombre_mes})", expanded=expanded_default):
+        tab_c_hoy, tab_c_sem, tab_c_mes, tab_c_edit = st.tabs([
+            f"🎈 Hoy ({len(hoy_list)})",
+            f"📅 Próximos 7 Días ({len(semana_list)})",
+            f"🗓️ Todo el Mes ({total_mes})",
+            "✍️ Personalizar Felicitación"
+        ])
+        
+        def _render_cards_cumple(items_list, es_hoy=False):
+            if not items_list:
+                st.info("No hay cumpleaños en este rango actualmente.")
+                return
+                
+            cols_grid = st.columns(2 if len(items_list) > 1 else 1)
+            for idx, item in enumerate(items_list):
+                with cols_grid[idx % 2]:
+                    nivel_style = color_nivel(item['nivel'])
+                    tag_t = item.get('etiqueta_tiempo', f"Día {item['dia']}")
+                    bg_t = "#10B981" if es_hoy else ("#F59E0B" if item.get('dias_falta', 99) <= 2 else "#6366F1")
+                    
+                    st.markdown(f"""
+                    <div style="
+                        background: rgba(15, 23, 42, 0.45);
+                        border: 1px solid rgba(227, 0, 123, 0.25);
+                        border-radius: 14px;
+                        padding: 14px 16px;
+                        margin-bottom: 12px;
+                        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    ">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
+                            <div>
+                                <div style="font-size: 1.02rem; font-weight: 700; color: #F8FAFC;">
+                                    🌸 {item['nombre']}
+                                </div>
+                                <div style="font-size: 0.78rem; color: #94A3B8; margin-top: 2px;">
+                                    CB: <b>{item['codigo_cb']}</b> • Grupo: <b>{item['grupo']}</b> • {item['sit_comercial']}
+                                </div>
+                            </div>
+                            <span style="
+                                background: {bg_t};
+                                color: #FFFFFF;
+                                font-size: 0.72rem;
+                                font-weight: 800;
+                                padding: 3px 10px;
+                                border-radius: 9999px;
+                                white-space: nowrap;
+                            ">
+                                {tag_t}
+                            </span>
+                        </div>
+                        <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px;">
+                            <span style="{nivel_style} padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;">
+                                {item['nivel']}
+                            </span>
+                            {f"<span style='color: #F87171; background: rgba(239,68,68,0.15); padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;'>⚠️ Mora: ${item['deuda_mora']:,.0f}</span>" if item['deuda_mora'] > 0 else "<span style='color: #34D399; background: rgba(16,185,129,0.12); padding: 2px 8px; border-radius: 6px; font-size: 0.75rem;'>✅ Al día</span>"}
+                        </div>
+                        <div>
+                            {f'''
+                            <a href="{item['link_wa']}" target="_blank" style="
+                                display: inline-flex;
+                                align-items: center;
+                                justify-content: center;
+                                width: 100%;
+                                background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+                                color: #FFFFFF !important;
+                                text-decoration: none;
+                                font-weight: 700;
+                                font-size: 0.85rem;
+                                padding: 8px 14px;
+                                border-radius: 10px;
+                                box-shadow: 0 4px 12px rgba(37, 211, 102, 0.3);
+                                text-align: center;
+                            ">
+                                📲 Felicitar por WhatsApp
+                            </a>
+                            ''' if item['link_wa'] else '<span style="color: #94A3B8; font-size: 0.8rem;">(Sin número celular registrado)</span>'}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+        with tab_c_hoy:
+            if hoy_list:
+                st.success(f"🎂 **¡Hoy tenemos {len(hoy_list)} cumpleañera{'s' if len(hoy_list) > 1 else ''} en tu equipo!** Toca el botón para enviarles el mensaje personalizado por WhatsApp:")
+                _render_cards_cumple(hoy_list, es_hoy=True)
+                col_b1, col_b2 = st.columns([2, 2])
+                with col_b1:
+                    if st.button("🎈 Volver a lanzar globos", key="btn_globos_tab"):
+                        st.balloons()
+            else:
+                st.info("🌸 Hoy no hay cumpleaños en tu equipo. ¡Revisa la pestaña de los **Próximos 7 Días** para prepararte!")
+                
+        with tab_c_sem:
+            if semana_list:
+                st.markdown(f"###### 📅 Cumpleaños en los próximos 7 días ({len(semana_list)} asesoras):")
+                _render_cards_cumple(semana_list, es_hoy=False)
+            else:
+                st.info("📅 No hay cumpleaños registrados en los próximos 7 días.")
+                
+        with tab_c_mes:
+            if mes_list:
+                st.markdown(f"###### 🗓️ Todas las cumpleañeras del mes de {nombre_mes} ({len(mes_list)} en total):")
+                df_mes_vista = pd.DataFrame([
+                    {
+                        'Día': f"{it['dia']} de {nombre_mes}",
+                        'Asesora': it['nombre'],
+                        'Nivel': it['nivel'],
+                        'Grupo': it['grupo'],
+                        'Código CB': it['codigo_cb'],
+                        'Celular': it['celular'] if it['celular'] else 'Sin Celular',
+                        'Situación': it['sit_comercial'],
+                        'Enlace WhatsApp': it['link_wa']
+                    }
+                    for it in mes_list
+                ])
+                st.dataframe(
+                    df_mes_vista,
+                    column_config={
+                        "Enlace WhatsApp": st.column_config.LinkColumn(
+                            "📲 Chat WhatsApp",
+                            help="Clic para abrir WhatsApp con el mensaje de cumpleaños",
+                            display_text="📲 Enviar WA"
+                        )
+                    },
+                    use_container_width=True,
+                    hide_index=True
+                )
+                csv_cumple = df_mes_vista.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label=f"📥 Descargar Lista de Cumpleaños de {nombre_mes} (CSV)",
+                    data=csv_cumple,
+                    file_name=f"Cumpleaños_{nombre_mes}_{user_grupo if user_grupo else 'Sector'}.csv",
+                    mime="text/csv",
+                    key="btn_descargar_cumple_mes"
+                )
+            else:
+                st.info(f"No hay registros de cumpleaños para {nombre_mes}.")
+                
+        with tab_c_edit:
+            st.markdown("###### ✍️ Personalizar Mensaje Predeterminado de WhatsApp")
+            st.caption("Modifica el mensaje que se enviará automáticamente. Etiquetas disponibles: `{primer_nombre}`, `{nombre}`, `{nivel}`, `{lider}`.")
+            
+            nueva_plantilla = st.text_area(
+                "Plantilla de Felicitación:",
+                value=plantilla_wa,
+                height=130,
+                key="txt_plantilla_wa_cumple"
+            )
+            col_p1, col_p2 = st.columns(2)
+            with col_p1:
+                if st.button("💾 Guardar Plantilla", key="btn_guardar_plantilla_cumple"):
+                    st.session_state['plantilla_wa_cumpleanos'] = nueva_plantilla
+                    st.success("✅ Plantilla actualizada para esta sesión.")
+                    st.rerun()
+            with col_p2:
+                if st.button("🔄 Restaurar Predeterminada", key="btn_reset_plantilla_cumple"):
+                    st.session_state['plantilla_wa_cumpleanos'] = PLANTILLA_CUMPLEANOS_DEFAULT
+                    st.success("✅ Mensaje restaurado al original.")
+                    st.rerun()
 
 # --- COMPONENTES GRÁFICOS INTERACTIVOS (LA JOYA DEL PASTEL) ---
 def crear_tacometro_360(titulo, valor_pct, meta_val, real_val):
@@ -1289,6 +1545,9 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
         </div>
         """.replace(",", "."), unsafe_allow_html=True)
 
+    # Recordatorio y Banner de Cumpleaños en Modo Minimalista
+    renderizar_banner_cumpleanos(df_tab_app, user_rol, user_nombre, user_grupo, user_sector)
+
     st.markdown("<br>", unsafe_allow_html=True)
 
     tab_app1, tab_app2, tab_app3 = st.tabs([
@@ -1421,6 +1680,12 @@ else:
     kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
     renderizar_banner_motivacional(cump_fact, user_nombre, user_grupo)
+
+    # Recordatorio y Banner de Cumpleaños para Líderes y Gerentes
+    grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
+    sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
+    df_tableau_cumple = consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
+    renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector)
 
     with kpi1:
         st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
@@ -1757,11 +2022,12 @@ with tab_tableau:
 
 
         # Subpestañas internas dentro de Informe Tableau Cam
-        tab_tab_main, tab_tab_pago, tab_tab_niveles, tab_tab_whatsapp = st.tabs([
+        tab_tab_main, tab_tab_pago, tab_tab_niveles, tab_tab_whatsapp, tab_tab_cumple = st.tabs([
             "📋 Base Maestra Gestionable",
             "⌛ Aguardando Pago / Pendientes",
             "🎨 Análisis por Nivel & Estado",
-            "📲 Asistente & Campañas WhatsApp"
+            "📲 Asistente & Campañas WhatsApp",
+            "🎂 Cumpleaños & Reconocimiento"
         ])
 
         # --- SUBPESTAÑA 1: BASE MAESTRA GESTIONABLE ---
@@ -2166,6 +2432,12 @@ with tab_tableau:
                     )
                 with col_exp2:
                     st.caption("💡 **Tip de Productividad**: Puedes usar este archivo CSV con herramientas como UltraMsg, Evolution API o Meta Cloud API para despachar cientos de mensajes en segundos sin riesgo de baneo.")
+
+        # --- SUBPESTAÑA 5: CUMPLEAÑOS Y RECONOCIMIENTO ---
+        with tab_tab_cumple:
+            st.subheader("🎂 Calendario & Reconocimiento de Cumpleaños")
+            st.markdown("Seguimiento de fechas especiales para fortalecer el vínculo comercial y humano con las asesoras de tu red.")
+            renderizar_banner_cumpleanos(df_tab_filt, user_rol, user_nombre, user_grupo, user_sector)
 
 st.markdown("---")
 

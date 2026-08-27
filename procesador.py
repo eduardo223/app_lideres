@@ -4,6 +4,8 @@ import io
 import sys
 import json
 import re
+import urllib.parse
+from datetime import datetime, date
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try:
@@ -3742,6 +3744,160 @@ def vaciar_base_datos_completa(vaciar_usuarios=False, eliminar_archivos_excel=Tr
         res['archivos_excel_eliminados'] = borrados_archivos
 
     return res
+
+# ---------------------------------------------------------
+# MÓDULO DE CUMPLEAÑOS Y RECONOCIMIENTO DE ASESORAS / LÍDERES
+# ---------------------------------------------------------
+MESES_ESPANOL = {
+    1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
+    5: 'Mayo', 6: 'Junio', 7: 'Julio', 8: 'Agosto',
+    9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
+}
+
+PLANTILLA_CUMPLEANOS_DEFAULT = (
+    "¡Hola {primer_nombre}! 🎂✨ Te deseo un muy Feliz Cumpleaños 🎉🎁. "
+    "Que hoy pases un día maravilloso lleno de bendiciones, salud y grandes alegrías. "
+    "¡Gracias por ser parte fundamental de nuestro equipo en Natura & Avon! "
+    "Te mando un fuerte abrazo con mucho cariño. 💕 — Tu Líder {nombre_lider}"
+)
+
+def parse_dia_mes_fecha(fecha_val):
+    """
+    Extrae (día, mes) de cadenas de texto en diversos formatos:
+    '15/10/1985', '1/5/1990', '1990-05-01', '1990/05/01 00:00:00', etc.
+    """
+    if pd.isna(fecha_val) or not str(fecha_val).strip():
+        return None, None
+    s = str(fecha_val).strip()
+    if ' ' in s:
+        s = s.split(' ')[0]
+    for sep in ['/', '-']:
+        if sep in s:
+            parts = s.split(sep)
+            if len(parts) >= 2:
+                try:
+                    if len(parts[0]) <= 2 and len(parts[1]) <= 2:
+                        return int(parts[0]), int(parts[1])
+                    elif len(parts[0]) == 4:
+                        return int(parts[2]), int(parts[1])
+                except Exception:
+                    pass
+    return None, None
+
+def obtener_cumpleanos_equipo(df_tableau, user_nombre="Líder", plantilla_wa=None, fecha_referencia=None):
+    """
+    Filtra y clasifica las asesoras según su fecha de cumpleaños:
+    - 'hoy': Asesoras que cumplen años exactamente hoy.
+    - 'semana': Asesoras que cumplen en los próximos 7 días.
+    - 'mes': Todas las asesoras que cumplen en el mes en curso.
+    Genera el mensaje personalizado y enlace de WhatsApp directo para cada una.
+    """
+    if df_tableau is None or df_tableau.empty:
+        return {'hoy': [], 'semana': [], 'mes': [], 'total_mes': 0, 'nombre_mes': ''}
+    
+    hoy = fecha_referencia if fecha_referencia else date.today()
+    dia_actual = hoy.day
+    mes_actual = hoy.month
+    ano_actual = hoy.year
+    nombre_mes = MESES_ESPANOL.get(mes_actual, 'Mes Actual')
+    
+    plantilla = plantilla_wa if (plantilla_wa and str(plantilla_wa).strip()) else PLANTILLA_CUMPLEANOS_DEFAULT
+    
+    col_fecha = next((c for c in ['Fecha De Nacimiento', 'fecha_nacimiento', 'Fecha Nacimiento'] if c in df_tableau.columns), None)
+    col_nombre = next((c for c in ['Asesora / Consultora', 'nombre', 'Nombre de consultora', 'Nombre'] if c in df_tableau.columns), 'Nombre')
+    col_cel = next((c for c in ['celular', 'Celular', 'Telefono', 'Teléfono'] if c in df_tableau.columns), 'celular')
+    col_cb = next((c for c in ['Código CB', 'codigo_cb', 'Codigo CB'] if c in df_tableau.columns), 'Código CB')
+    col_grupo = next((c for c in ['Grupo', 'grupo', 'Código de grupo'] if c in df_tableau.columns), 'Grupo')
+    col_nivel = next((c for c in ['Nivel / Color', 'color', 'Color', 'Nivel'] if c in df_tableau.columns), 'Nivel / Color')
+    col_sit = next((c for c in ['Sit. Comercial', 'sit_comercial', 'Situación'] if c in df_tableau.columns), 'Sit. Comercial')
+    col_ped = next((c for c in ['Ped. Pendientes', 'pedidos_pendientes', 'Pedidos Pendientes'] if c in df_tableau.columns), None)
+    col_deuda = next((c for c in ['Deuda Mora', 'deuda_mora', 'Deuda Total'] if c in df_tableau.columns), None)
+    
+    if not col_fecha:
+        return {'hoy': [], 'semana': [], 'mes': [], 'total_mes': 0, 'nombre_mes': nombre_mes}
+        
+    registros_hoy = []
+    registros_semana = []
+    registros_mes = []
+    
+    for _, row in df_tableau.iterrows():
+        f_val = row.get(col_fecha, '')
+        d, m = parse_dia_mes_fecha(f_val)
+        if not d or not m:
+            continue
+            
+        nom = str(row.get(col_nombre, '')).strip()
+        primer_n = nom.split()[0].title() if nom else "Consultora"
+        nom_formateado = nom.title()
+        cel = str(row.get(col_cel, '')).replace('.0', '').strip()
+        cel_clean = "".join(ch for ch in cel if ch.isdigit())
+        nivel_val = str(row.get(col_nivel, 'Consultora')).strip()
+        sit_val = str(row.get(col_sit, '')).strip()
+        ped_val = int(row.get(col_ped, 0)) if col_ped and pd.notna(row.get(col_ped)) else 0
+        deuda_val = float(row.get(col_deuda, 0.0)) if col_deuda and pd.notna(row.get(col_deuda)) else 0.0
+        
+        # Formatear mensaje WhatsApp
+        msg_wa = (
+            plantilla
+            .replace("{primer_nombre}", primer_n)
+            .replace("{nombre}", nom_formateado)
+            .replace("{nivel}", nivel_val)
+            .replace("{nombre_lider}", str(user_nombre))
+            .replace("{lider}", str(user_nombre))
+        )
+        link_wa = f"https://wa.me/57{cel_clean}?text={urllib.parse.quote(msg_wa)}" if len(cel_clean) >= 10 else ""
+        
+        item = {
+            'codigo_cb': str(row.get(col_cb, '')),
+            'nombre': nom_formateado,
+            'primer_nombre': primer_n,
+            'grupo': str(row.get(col_grupo, '')),
+            'celular': cel_clean,
+            'nivel': nivel_val if nivel_val else "Consultora",
+            'sit_comercial': sit_val,
+            'pedidos_pendientes': ped_val,
+            'deuda_mora': deuda_val,
+            'dia': d,
+            'mes': m,
+            'fecha_nacimiento_raw': str(f_val),
+            'nombre_mes': MESES_ESPANOL.get(m, str(m)),
+            'link_wa': link_wa,
+            'msg_wa': msg_wa
+        }
+        
+        # Cumpleaños Hoy
+        if d == dia_actual and m == mes_actual:
+            item['dias_falta'] = 0
+            item['etiqueta_tiempo'] = "🎉 ¡HOY!"
+            registros_hoy.append(item)
+            
+        # Cumpleaños en los próximos 7 días
+        try:
+            target_year = ano_actual if m >= mes_actual else ano_actual + 1
+            fecha_cumple = date(target_year, m, d)
+            diff = (fecha_cumple - hoy).days
+            if 0 < diff <= 7:
+                item['dias_falta'] = diff
+                item['etiqueta_tiempo'] = "Mañana 🎁" if diff == 1 else f"En {diff} días ({d} {MESES_ESPANOL.get(m, '')[:3]})"
+                registros_semana.append(item)
+        except Exception:
+            pass
+            
+        # Cumpleaños del Mes en curso
+        if m == mes_actual:
+            item['etiqueta_mes'] = f"Día {d} ({MESES_ESPANOL.get(m, '')})"
+            registros_mes.append(item)
+            
+    registros_semana.sort(key=lambda x: x['dias_falta'])
+    registros_mes.sort(key=lambda x: x['dia'])
+    
+    return {
+        'hoy': registros_hoy,
+        'semana': registros_semana,
+        'mes': registros_mes,
+        'total_mes': len(registros_mes),
+        'nombre_mes': nombre_mes
+    }
 
 # Ejecutamos la función si se invoca el script directamente
 if __name__ == "__main__":

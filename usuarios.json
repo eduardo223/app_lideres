@@ -1,9 +1,10 @@
 {
   "admin": {
     "nombre": "Super Administrador del Sistema",
-    "password_hash": "e34f92a20532a873cb3184398070b4b82a8fa29cf48572c203dc5f0fa6158231",
+    "password_hash": "8c6976e5b5410415bde908bd4dee15dfb167a9c873fc4bb8a81f6f2ab448a918",
     "rol": "superadmin",
-    "codigo_grupo": "000001",
+    "codigo_grupo": null,
+    "debe_cambiar_password": false,
     "nombre_sector": "Gestión Corporativa Global"
   },
   "gerente": {
@@ -172,6 +173,17 @@
     "rol": "lider",
     "codigo_grupo": "9400",
     "debe_cambiar_password": true,
+    "codigo_sector": "700000459",
+    "nombre_sector": "MATICES CLERY",
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": "2026-09-05T19:22:00.085093"
+  },
+  "lider177": {
+    "nombre": "Líder Grupo 177",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "177",
+    "debe_cambiar_password": false,
     "codigo_sector": "700000459",
     "nombre_sector": "MATICES CLERY",
     "estado_suscripcion": "prueba",
