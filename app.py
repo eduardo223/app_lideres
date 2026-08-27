@@ -28,6 +28,7 @@ from procesador import (
     cargar_usuarios,
     registrar_o_actualizar_usuario,
     cambiar_password_usuario,
+    restablecer_password_usuario,
     cargar_configuracion,
     guardar_configuracion,
     DEFAULT_PERMISOS_PESTANAS,
@@ -1722,6 +1723,8 @@ tabs_definidas = [
 
 if user_rol == 'superadmin':
     tabs_definidas.append(("tab_usuarios", "🔑 Gestión de Usuarios, Roles & Permisos"))
+elif user_rol == 'gerente':
+    tabs_definidas.append(("tab_lideres_gerente", "👥 Mis Líderes & Accesos"))
 
 tabs_permitidas = []
 for key_tab, label_tab in tabs_definidas:
@@ -1756,6 +1759,7 @@ else:
     tab_detalle = tab_objs.get("tab_detalle") or HiddenTab()
     tab_exportar = tab_objs.get("tab_exportar") or HiddenTab()
     tab_usuarios = tab_objs.get("tab_usuarios") or HiddenTab()
+    tab_lideres_gerente = tab_objs.get("tab_lideres_gerente") or HiddenTab()
 
 # --- TAB 0: INFORME TABLEAU MANAGER ("INFORME TABLEAU CAM") ---
 with tab_tableau:
@@ -3732,7 +3736,7 @@ with tab_usuarios:
                 )
 
         st.markdown("---")
-        st.subheader("👥 Gestión de Cuentas y Creación de Usuarios")
+        st.subheader("👥 Gestión de Cuentas, Directorio & Restablecimiento de Claves")
         col_u1, col_u2 = st.columns([1.2, 1])
 
         with col_u1:
@@ -3749,11 +3753,66 @@ with tab_usuarios:
                     "Nombre Sector": udata.get("nombre_sector") or "N/A",
                     "Estado": udata.get("estado_suscripcion") or "activo"
                 })
-            st.dataframe(pd.DataFrame(list_u), use_container_width=True)
+            df_u_all = pd.DataFrame(list_u)
+            st.dataframe(df_u_all, use_container_width=True)
+
+            csv_all_users = df_u_all.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Descargar Directorio de Cuentas Completo (CSV / Excel)",
+                data=csv_all_users,
+                file_name="Directorio_General_Usuarios_App.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="btn_descarga_csv_admin_users"
+            )
 
         with col_u2:
-            tab_crear_u, tab_eliminar_u = st.tabs(["➕ Crear / Editar Usuario", "🗑️ Eliminar Perfil"])
+            tab_reseteo_u, tab_crear_u, tab_eliminar_u = st.tabs(["⚡ Reseteo Rápido & WA", "➕ Crear / Editar", "🗑️ Eliminar"])
             
+            with tab_reseteo_u:
+                st.markdown("##### ⚡ Restablecer Contraseña")
+                st.caption("Selecciona cualquier usuario para restaurar su clave a **'lider123'** o la que prefieras:")
+                with st.form("form_reseteo_rapido_admin"):
+                    u_sel_reset = st.selectbox(
+                        "Selecciona el usuario:",
+                        options=list(users_dict.keys()),
+                        format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} ({users_dict[u].get('rol', '')})"
+                    )
+                    pass_nueva_admin = st.text_input("Nueva Contraseña:", value="lider123")
+                    chk_forzar_admin = st.checkbox("Pedir cambio de clave al iniciar sesión", value=False)
+                    btn_run_reset_admin = st.form_submit_button("🔄 Restablecer Contraseña Ahora", type="primary", use_container_width=True)
+                    
+                    if btn_run_reset_admin:
+                        ok_r_a, msg_r_a = restablecer_password_usuario(u_sel_reset, pass_nueva_admin, debe_cambiar=chk_forzar_admin)
+                        if ok_r_a:
+                            st.success(f"✅ ¡Éxito! Contraseña de **{u_sel_reset}** actualizada a: `{pass_nueva_admin}`")
+                            st.session_state['ultimo_reseteo_admin'] = {
+                                'usuario': u_sel_reset,
+                                'nombre': users_dict[u_sel_reset].get('nombre', ''),
+                                'password': pass_nueva_admin
+                            }
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_r_a}")
+                
+                # Compartir accesos por WhatsApp
+                ult_a = st.session_state.get('ultimo_reseteo_admin')
+                if ult_a:
+                    st.markdown("---")
+                    st.markdown("###### 📲 Compartir Accesos por WhatsApp")
+                    tel_a_in = st.text_input("Número celular (10 dígitos):", placeholder="ej. 3123456789", key="tel_a_in_reset")
+                    msg_wa_admin = (
+                        f"🌸 ¡Hola {ult_a['nombre'].split()[0].title() if ult_a['nombre'] else 'Líder'}! Te comparto tus credenciales de acceso al Sistema de Gestión:\n\n"
+                        f"👤 *Usuario:* `{ult_a['usuario']}`\n"
+                        f"🔑 *Contraseña:* `{ult_a['password']}`\n\n"
+                        f"🌐 *Enlace:* https://app-lideres-production.up.railway.app\n\n"
+                        f"¡Muchos éxitos! ✨"
+                    )
+                    st.text_area("Mensaje listo para enviar:", msg_wa_admin, height=120, key="txt_wa_admin_box")
+                    if tel_a_in and len(tel_a_in.strip()) >= 10:
+                        link_wa_a = f"https://api.whatsapp.com/send?phone=57{tel_a_in.strip()}&text={urllib.parse.quote(msg_wa_admin)}"
+                        st.link_button("📲 Enviar Credenciales por WhatsApp", url=link_wa_a, use_container_width=True)
+
             with tab_crear_u:
                 st.markdown("##### 👤 Crear o Modificar Cuenta")
                 with st.form("form_nuevo_usuario"):
@@ -3934,6 +3993,101 @@ with tab_usuarios:
             guardar_configuracion(config_actual)
             st.success("✅ ¡Permisos de visibilidad por pestaña actualizados exitosamente!")
             st.rerun()
+
+# --- TAB: DIRECTORIO & GESTIÓN DE MIS LÍDERES (EXCLUSIVO GERENTES) ---
+with tab_lideres_gerente:
+    st.subheader(f"👥 Directorio de Mis Líderes & Gestión de Accesos")
+    st.markdown(f"Administración centralizada de usuarios para las líderes de tu Sector **{user_sector if user_sector else 'General'}** (*{user_nombre}*). Consulta sus datos de acceso, descarga el archivo de respaldo o restablece contraseñas en 1 clic.")
+
+    users_dict = cargar_usuarios()
+    # Filtrar líderes de este sector
+    lideres_sector = []
+    for uname, udata in users_dict.items():
+        es_de_sector = True if not user_sector else (str(udata.get("codigo_sector", "")).strip() == str(user_sector).strip())
+        if udata.get("rol") == "lider" and es_de_sector:
+            lideres_sector.append({
+                "Usuario (Login)": uname,
+                "Nombre Líder": udata.get("nombre", ""),
+                "Código de Grupo": str(udata.get("codigo_grupo", "")),
+                "Estado Suscripción": udata.get("estado_suscripcion", "activo"),
+                "Debe Cambiar Clave": "Sí" if udata.get("debe_cambiar_password") else "No"
+            })
+
+    col_ger_u1, col_ger_u2 = st.columns([1.3, 1])
+
+    with col_ger_u1:
+        st.markdown("##### 📋 Listado de Líderes Registradas en tu Sector")
+        if lideres_sector:
+            df_lid_sec = pd.DataFrame(lideres_sector)
+            st.dataframe(df_lid_sec, use_container_width=True, hide_index=True)
+
+            csv_lid = df_lid_sec.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Descargar Directorio de Mis Líderes (CSV / Excel)",
+                data=csv_lid,
+                file_name=f"Directorio_Lideres_Sector_{user_sector if user_sector else 'General'}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="btn_descargar_lideres_gerente"
+            )
+        else:
+            st.info(f"No hay cuentas de líderes registradas asociadas al código de sector {user_sector}.")
+
+    with col_ger_u2:
+        st.markdown("##### ⚡ Restablecer Contraseña de una Líder")
+        st.caption("Si una líder olvidó su contraseña o perdió sus datos, selecciónala y restablécela a **'lider123'** de inmediato:")
+
+        if lideres_sector:
+            with st.form("form_reset_gerente"):
+                u_sel_ger = st.selectbox(
+                    "Selecciona la Líder a gestionar:",
+                    options=[l["Usuario (Login)"] for l in lideres_sector],
+                    format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} (Grupo {users_dict[u].get('codigo_grupo', '')})"
+                )
+                pass_nueva_ger = st.text_input("Nueva Contraseña:", value="lider123")
+                btn_reset_ger = st.form_submit_button("🔄 Restablecer Contraseña", type="primary", use_container_width=True)
+
+                if btn_reset_ger:
+                    ok_r_g, msg_r_g = restablecer_password_usuario(u_sel_ger, pass_nueva_ger, debe_cambiar=False)
+                    if ok_r_g:
+                        st.success(f"✅ ¡Listo! La contraseña de **{u_sel_ger}** ahora es: `{pass_nueva_ger}`")
+                        st.session_state['ultimo_reseteo_gerente'] = {
+                            'usuario': u_sel_ger,
+                            'nombre': users_dict[u_sel_ger].get('nombre', ''),
+                            'grupo': users_dict[u_sel_ger].get('codigo_grupo', ''),
+                            'password': pass_nueva_ger
+                        }
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg_r_g}")
+
+            # Sub-panel de WhatsApp directo
+            ult_g = st.session_state.get('ultimo_reseteo_gerente')
+            if ult_g:
+                st.markdown("---")
+                st.markdown("###### 📲 Enviar Credenciales a la Líder por WhatsApp")
+                # Intentar buscar celular de la líder desde df_tableau
+                cel_auto = ""
+                if 'df_tableau' in locals() and df_tableau is not None and not df_tableau.empty:
+                    match_l = df_tableau[df_tableau['Grupo'].astype(str) == str(ult_g['grupo'])]
+                    if not match_l.empty and 'celular' in match_l.columns:
+                        cel_val = str(match_l['celular'].iloc[0]).replace('.0', '').strip()
+                        cel_auto = "".join(ch for ch in cel_val if ch.isdigit())
+
+                tel_ger_in = st.text_input("Número celular de la líder (10 dígitos):", value=cel_auto, key="tel_ger_reset_in")
+                msg_wa_ger = (
+                    f"🌸 ¡Hola {ult_g['nombre'].split()[0].title() if ult_g['nombre'] else 'Líder'}! Te comparto tus credenciales de acceso al Sistema de Gestión Natura & Avon:\n\n"
+                    f"👤 *Usuario:* `{ult_g['usuario']}`\n"
+                    f"🔑 *Contraseña:* `{ult_g['password']}`\n\n"
+                    f"🌐 *Enlace de Ingreso:* https://app-lideres-production.up.railway.app\n\n"
+                    f"¡Muchos éxitos! ✨ — Tu Gerente {user_nombre}"
+                )
+                st.text_area("Mensaje listo para WhatsApp:", msg_wa_ger, height=120, key="txt_wa_ger_msg")
+                if tel_ger_in and len(tel_ger_in.strip()) >= 10:
+                    link_wa_g = f"https://api.whatsapp.com/send?phone=57{tel_ger_in.strip()}&text={urllib.parse.quote(msg_wa_ger)}"
+                    st.link_button("📲 Enviar Datos por WhatsApp a la Líder", url=link_wa_g, use_container_width=True)
+                else:
+                    st.caption("💡 Ingresa el número celular para habilitar el botón de WhatsApp.")
 
 # Footer
 st.markdown("---")

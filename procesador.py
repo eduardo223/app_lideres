@@ -2735,6 +2735,23 @@ def cambiar_password_usuario(username, nueva_password):
             return True, "¡Contraseña actualizada exitosamente! Ya puedes navegar por el sistema."
     return False, "Error al guardar la nueva contraseña."
 
+def restablecer_password_usuario(username, nueva_password="lider123", debe_cambiar=False):
+    """
+    Restablece la contraseña de un usuario a un valor por defecto o especificado
+    y sincroniza usuarios.json con la base SQLite.
+    """
+    u_clean = str(username).strip().lower()
+    usuarios = cargar_usuarios()
+    if u_clean not in usuarios:
+        return False, f"El usuario '{u_clean}' no existe en el sistema."
+        
+    usuarios[u_clean]["password_hash"] = hashlib_sha256(nueva_password)
+    usuarios[u_clean]["debe_cambiar_password"] = debe_cambiar
+    if guardar_usuarios(usuarios):
+        sincronizar_usuarios_a_sqlite()
+        return True, f"¡Contraseña del usuario '{u_clean}' restablecida exitosamente a '{nueva_password}'!"
+    return False, "Error al guardar el archivo de usuarios."
+
 def registrar_o_actualizar_usuario(username, nombre, password=None, rol="lider", codigo_grupo=None, codigo_sector=None, debe_cambiar_password=None, nombre_sector=None):
     """
     Permite al Gerente o Superadmin crear o actualizar un usuario.
