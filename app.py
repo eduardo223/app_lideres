@@ -482,7 +482,7 @@ def renderizar_banner_motivacional(cumplimiento_pct, nombre_lider, codigo_grupo)
     </div>
     """, unsafe_allow_html=True)
 
-def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, user_sector):
+def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, user_sector, key_suffix="top"):
     """
     Renderiza el módulo y recordatorio de cumpleaños para las líderes y gerentes.
     Identifica de forma automática las asesoras de cumpleaños HOY, en los próximos 7 días
@@ -662,7 +662,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                 _render_cards_cumple(hoy_list, es_hoy=True)
                 col_b1, col_b2 = st.columns([2, 2])
                 with col_b1:
-                    if st.button("🎈 Volver a lanzar globos", key="btn_globos_tab"):
+                    if st.button("🎈 Volver a lanzar globos", key=f"btn_globos_tab_{key_suffix}"):
                         st.balloons()
             else:
                 st.info("🌸 Hoy no hay cumpleaños en tu equipo. ¡Revisa la pestaña de los **Próximos 7 Días** para prepararte!")
@@ -708,7 +708,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                     data=csv_cumple,
                     file_name=f"Cumpleaños_{nombre_mes}_{user_grupo if user_grupo else 'Sector'}.csv",
                     mime="text/csv",
-                    key="btn_descargar_cumple_mes"
+                    key=f"btn_descargar_cumple_mes_{key_suffix}"
                 )
             else:
                 st.info(f"No hay registros de cumpleaños para {nombre_mes}.")
@@ -721,16 +721,16 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                 "Plantilla de Felicitación:",
                 value=plantilla_wa,
                 height=130,
-                key="txt_plantilla_wa_cumple"
+                key=f"txt_plantilla_wa_cumple_{key_suffix}"
             )
             col_p1, col_p2 = st.columns(2)
             with col_p1:
-                if st.button("💾 Guardar Plantilla", key="btn_guardar_plantilla_cumple"):
+                if st.button("💾 Guardar Plantilla", key=f"btn_guardar_plantilla_cumple_{key_suffix}"):
                     st.session_state['plantilla_wa_cumpleanos'] = nueva_plantilla
                     st.success("✅ Plantilla actualizada para esta sesión.")
                     st.rerun()
             with col_p2:
-                if st.button("🔄 Restaurar Predeterminada", key="btn_reset_plantilla_cumple"):
+                if st.button("🔄 Restaurar Predeterminada", key=f"btn_reset_plantilla_cumple_{key_suffix}"):
                     st.session_state['plantilla_wa_cumpleanos'] = PLANTILLA_CUMPLEANOS_DEFAULT
                     st.success("✅ Mensaje restaurado al original.")
                     st.rerun()
@@ -1546,7 +1546,7 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
         """.replace(",", "."), unsafe_allow_html=True)
 
     # Recordatorio y Banner de Cumpleaños en Modo Minimalista
-    renderizar_banner_cumpleanos(df_tab_app, user_rol, user_nombre, user_grupo, user_sector)
+    renderizar_banner_cumpleanos(df_tab_app, user_rol, user_nombre, user_grupo, user_sector, key_suffix="app_mini")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -1685,7 +1685,7 @@ else:
     grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
     sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
     df_tableau_cumple = consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
-    renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector)
+    renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector, key_suffix="full_top")
 
     with kpi1:
         st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
@@ -2437,7 +2437,7 @@ with tab_tableau:
         with tab_tab_cumple:
             st.subheader("🎂 Calendario & Reconocimiento de Cumpleaños")
             st.markdown("Seguimiento de fechas especiales para fortalecer el vínculo comercial y humano con las asesoras de tu red.")
-            renderizar_banner_cumpleanos(df_tab_filt, user_rol, user_nombre, user_grupo, user_sector)
+            renderizar_banner_cumpleanos(df_tab_filt, user_rol, user_nombre, user_grupo, user_sector, key_suffix="tableau_tab")
 
 st.markdown("---")
 
