@@ -185,7 +185,7 @@
     "password_hash": "be733997ec9beec98b4db13e555fb8f0f19e02ca871f20a92e9e071223bea9ef",
     "rol": "gerente",
     "codigo_grupo": null,
-    "debe_cambiar_password": true,
+    "debe_cambiar_password": false,
     "codigo_sector": "700000466",
     "nombre_sector": "EMOCIONES DOLLY"
   }

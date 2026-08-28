@@ -1310,10 +1310,17 @@ if current_user.get('debe_cambiar_password', False):
                     if ok_p:
                         current_user['debe_cambiar_password'] = False
                         st.session_state['user'] = current_user
+                        st.query_params.clear()
                         st.success("✅ " + msg_p)
                         st.rerun()
                     else:
                         st.error("❌ " + msg_p)
+                        
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚪 Cancelar y Cerrar Sesión", key="btn_cancel_pwd_change", use_container_width=True):
+            st.session_state['user'] = None
+            st.query_params.clear()
+            st.rerun()
     st.stop()
 
 # 3. BARRA LATERAL (Perfil de Usuario, Logout y Opciones según Rol)
