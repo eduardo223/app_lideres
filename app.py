@@ -2685,7 +2685,7 @@ with tab_geral:
 
         # 4. CRONOGRAMA DE PROYECCIÓN Y VISTAS RÁPIDAS (ORDENADO DE MAYOR A MENOR DEUDA Y CON COLORES ARMÓNICOS)
         st.markdown("##### 📋 Cronograma de Cartera & Gestión por Tramo de Vencimiento")
-        st.caption("Ordenado de mayor a menor deuda con semáforo armónico: 🔴 **Deuda Alta / Mora** (>= $300k) | 🟠 **Deuda Media** ($150k - $300k) | 🟢 **Deuda Controlada** (< $150k)")
+        st.caption(r"Ordenado de mayor a menor deuda con semáforo armónico: 🔴 **Deuda Alta / Mora** (>= \$300.000 COP) | 🟠 **Deuda Media** (\$150.000 - \$300.000 COP) | 🟢 **Deuda Controlada** (< \$150.000 COP)")
 
         tab_v_manana, tab_v_pasado, tab_v_mora, tab_v_7d, tab_v_todas, tab_v_pagadas = st.tabs([
             f"🟡 Vencen Mañana ({len(df_manana)})",
@@ -2725,6 +2725,8 @@ with tab_geral:
                 return 'background-color: rgba(239, 68, 68, 0.20); color: #DC2626; font-weight: 700; border-radius: 4px;'
             elif 'Media' in val_str:
                 return 'background-color: rgba(245, 158, 11, 0.20); color: #D97706; font-weight: 700; border-radius: 4px;'
+            elif 'Pagado' in val_str or 'Al Día' in val_str:
+                return 'background-color: rgba(59, 130, 246, 0.18); color: #2563EB; font-weight: 700; border-radius: 4px;'
             else:
                 return 'background-color: rgba(16, 185, 129, 0.18); color: #059669; font-weight: 700; border-radius: 4px;'
 
@@ -2736,6 +2738,8 @@ with tab_geral:
                 return 'background-color: rgba(249, 115, 22, 0.20); color: #EA580C; font-weight: 700;'
             elif 'Mañana' in val_str or '🟡' in val_str:
                 return 'background-color: rgba(234, 179, 8, 0.20); color: #D97706; font-weight: 700;'
+            elif 'Pagado' in val_str or '✅' in val_str:
+                return 'background-color: rgba(16, 185, 129, 0.18); color: #059669; font-weight: 700;'
             else:
                 return 'background-color: rgba(16, 185, 129, 0.15); color: #059669; font-weight: 600;'
 
@@ -2744,13 +2748,20 @@ with tab_geral:
                 st.info("🎉 No hay facturas en esta categoría actualmente.")
                 return None
 
-            # 1. Ordenar de mayor a menor deuda (saldo_total descendente)
-            df_ordenado = df_in.sort_values(by=['saldo_total', 'dias_para_vencer'], ascending=[False, True]).copy()
+            # 1. Ordenar de mayor a menor deuda de forma segura
+            cols_sort = [c for c in ['saldo_total', 'dias_para_vencer'] if c in df_in.columns]
+            if cols_sort:
+                df_ordenado = df_in.sort_values(by=cols_sort, ascending=[False] * len(cols_sort)).copy()
+            else:
+                df_ordenado = df_in.copy()
 
             # 2. Asignar Nivel de Deuda
             def calcular_etiqueta_nivel(r):
+                sit = str(r.get('situacion', '')).strip()
+                if sit.lower() == 'pagado':
+                    return "✅ Pagado / Al Día"
                 s = float(limpiar_numero(r.get('saldo_total', 0)))
-                d = float(limpiar_numero(r.get('dias_para_vencer', 0)))
+                d = float(limpiar_numero(r.get('dias_para_vencer', 0))) if 'dias_para_vencer' in r else 0.0
                 if d < 0:
                     return "🔴 En Mora"
                 elif s >= 300000:
@@ -2764,17 +2775,23 @@ with tab_geral:
 
             # 3. Limpiar Días Restantes
             def formatear_dias_legibles(r):
-                d = int(limpiar_numero(r.get('dias_para_vencer', 0)))
-                if d < 0:
-                    return f"🔴 {abs(d)} d. mora"
-                elif d == 0:
-                    return "🚨 Vence Hoy"
-                elif d == 1:
-                    return "🟡 Vence Mañana"
-                elif 2 <= d <= 3:
-                    return f"🟢 En {d} días"
+                sit = str(r.get('situacion', '')).strip()
+                if sit.lower() == 'pagado':
+                    return "✅ Al Día"
+                if 'dias_para_vencer' in r:
+                    d = int(limpiar_numero(r.get('dias_para_vencer', 0)))
+                    if d < 0:
+                        return f"🔴 {abs(d)} d. mora"
+                    elif d == 0:
+                        return "🚨 Vence Hoy"
+                    elif d == 1:
+                        return "🟡 Vence Mañana"
+                    elif 2 <= d <= 3:
+                        return f"🟢 En {d} días"
+                    else:
+                        return f"📅 En {d} días"
                 else:
-                    return f"📅 En {d} días"
+                    return "📅 Programado"
 
             df_ordenado['Estado Vencimiento'] = df_ordenado.apply(formatear_dias_legibles, axis=1)
 
