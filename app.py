@@ -36,6 +36,10 @@ from procesador import (
     consultar_tableau_sql,
     sincronizar_excel_tableau_a_sqlite,
     sincronizar_excel_metas_a_sqlite,
+    sincronizar_excel_geral_a_sqlite,
+    consultar_geral_sql,
+    procesar_analisis_geral_cobranza,
+    generar_mensaje_whatsapp_cobranza,
     MATRIZ_GANANCIA,
     ETIQUETAS_ACTIVAS,
     ETIQUETAS_FACTURACION,
@@ -1716,6 +1720,7 @@ permisos_tab_config = app_config.get("permisos_pestanas", DEFAULT_PERMISOS_PESTA
 
 tabs_definidas = [
     ("tab_tableau", "📊 Informe Tableau Cam"),
+    ("tab_geral", "💳 Geral_Credito&Cobranza"),
     ("tab_resumen", "📊 Resumen & KPIs"),
     ("tab_ganancia", "💵 Simulador de Ganancia"),
     ("tab_diagnostico", "🔎 Diagnóstico 'Cómo Vamos'"),
@@ -1755,6 +1760,7 @@ else:
     tab_objs = {key: obj for (key, _), obj in zip(tabs_permitidas, list_tab_objects)}
     
     tab_tableau = tab_objs.get("tab_tableau") or HiddenTab()
+    tab_geral = tab_objs.get("tab_geral") or HiddenTab()
     tab_resumen = tab_objs.get("tab_resumen") or HiddenTab()
     tab_ganancia = tab_objs.get("tab_ganancia") or HiddenTab()
     tab_diagnostico = tab_objs.get("tab_diagnostico") or HiddenTab()
@@ -2433,6 +2439,288 @@ with tab_tableau:
             st.subheader("🎂 Calendario & Reconocimiento de Cumpleaños")
             st.markdown("Seguimiento de fechas especiales para fortalecer el vínculo comercial y humano con las asesoras de tu red.")
             renderizar_banner_cumpleanos(df_tab_filt, user_rol, user_nombre, user_grupo, user_sector, key_suffix="tableau_tab")
+
+st.markdown("---")
+
+# --- TAB GERAL: CRÉDITO & COBRANZA PREVENTIVA Y CARTERA ("Geral_Credito&Cobranza") ---
+with tab_geral:
+    st.subheader("💳 Geral: Crédito & Cobranza Inteligente")
+    st.markdown("Control dinámico de cartera Natura & Avon, alertas de vencimiento preventivo (*Mañana*, *Pasado Mañana*), semáforo de mora y despachador de WhatsApp con 1 clic.")
+
+    # 1. EXPANDER DE CARGA DINÁMICA DE ARCHIVO Geral.xlsx
+    with st.expander("📤 Cargar / Actualizar Archivo 'Geral.xlsx'", expanded=False):
+        st.markdown("##### 📂 Subida de Archivo Maestro de Crédito & Cobranza")
+        st.caption("Carga el archivo Excel descargado del sistema oficial para actualizar las deudas, facturas y fechas de vencimiento de las asesoras.")
+        
+        file_geral_subido = st.file_uploader(
+            "Selecciona o arrastra el archivo Geral.xlsx:",
+            type=["xlsx", "xls"],
+            key="uploader_geral_excel"
+        )
+        
+        if file_geral_subido is not None:
+            col_u_g1, col_u_g2 = st.columns([2, 1])
+            with col_u_g1:
+                st.info(f"📄 Archivo seleccionado: **{file_geral_subido.name}** ({file_geral_subido.size / 1024:.1f} KB)")
+            with col_u_g2:
+                btn_procesar_geral = st.button("🚀 Procesar & Sincronizar Base Geral", type="primary", use_container_width=True, key="btn_proc_geral_up")
+                
+            if btn_procesar_geral:
+                with st.spinner("⏳ Analizando estructura y sincronizando registros en SQLite..."):
+                    sec_para_validar = user_sector if user_rol == 'gerente' else None
+                    ok_g, num_g, msg_g = sincronizar_excel_geral_a_sqlite(file_geral_subido, sector_esperado=sec_para_validar)
+                    if ok_g:
+                        st.success(f"✅ {msg_g}")
+                        st.cache_data.clear()
+                        st.rerun()
+                    else:
+                        st.error(f"❌ Error al procesar: {msg_g}")
+
+    # 2. CONSULTA DE DATOS DESDE SQLITE CON AUTO-RECUPERACIÓN
+    sec_filtro_g = user_sector if user_rol == 'gerente' else None
+    grp_filtro_g = user_grupo if user_rol == 'lider' else None
+    
+    df_geral_raw = consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
+    
+    # Si SQLite está vacío pero existe Geral.xlsx local en disco, sincronizar automáticamente
+    if (df_geral_raw is None or df_geral_raw.empty) and os.path.exists("Geral.xlsx"):
+        sincronizar_excel_geral_a_sqlite("Geral.xlsx")
+        df_geral_raw = consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
+        
+    if df_geral_raw is None or df_geral_raw.empty:
+        st.info("ℹ️ No hay registros de crédito y cobranza en el sistema. Por favor sube el archivo **Geral.xlsx** en el botón de arriba.")
+    else:
+        # Procesar análisis financiero
+        analisis_g = procesar_analisis_geral_cobranza(df_geral_raw)
+        kpis_g = analisis_g['kpis']
+        df_pendientes = analisis_g['df_pendientes']
+        df_manana = analisis_g['df_vence_manana']
+        df_pasado = analisis_g['df_pasado_manana']
+        df_mora = analisis_g['df_en_mora']
+        df_7d = analisis_g['df_proximos_7d']
+        heatmap_df = analisis_g['heatmap_data']
+        
+        # 3. FILA DE KPIS EJECUTIVOS FINANCIEROS
+        kg1, kg2, kg3, kg4, kg5 = st.columns(5)
+        with kg1:
+            st.metric(
+                "💰 Cartera Total Viva",
+                f"${kpis_g['total_cartera']/1e6:.2f}M COP" if kpis_g['total_cartera'] >= 1e6 else f"${kpis_g['total_cartera']:,.0f}".replace(",", "."),
+                f"{kpis_g['total_facturas_pendientes']} Facturas"
+            )
+        with kg2:
+            st.metric(
+                "🟡 Vence MAÑANA",
+                f"${kpis_g['total_manana']/1e6:.2f}M COP" if kpis_g['total_manana'] >= 1e6 else f"${kpis_g['total_manana']:,.0f}".replace(",", "."),
+                f"{kpis_g['facturas_manana']} Facturas (Prioridad)",
+                delta_color="normal"
+            )
+        with kg3:
+            st.metric(
+                "🟢 Próximos 7 Días",
+                f"${kpis_g['total_7d']/1e6:.2f}M COP" if kpis_g['total_7d'] >= 1e6 else f"${kpis_g['total_7d']:,.0f}".replace(",", "."),
+                f"{kpis_g['facturas_7d']} Facturas"
+            )
+        with kg4:
+            st.metric(
+                "🚨 Cartera en Mora",
+                f"${kpis_g['total_mora']/1e6:.2f}M COP" if kpis_g['total_mora'] >= 1e6 else f"${kpis_g['total_mora']:,.0f}".replace(",", "."),
+                f"{kpis_g['facturas_mora']} Vencidas",
+                delta_color="inverse"
+            )
+        with kg5:
+            st.metric(
+                "👥 Consultoras con Deuda",
+                f"{kpis_g['consultoras_unicas']}",
+                f"{len(df_geral_raw[df_geral_raw['situacion'] == 'Pagado'])} Pagadas / Al Día"
+            )
+
+        st.markdown("---")
+
+        # 4. MAPA DE CALOR / CRONOGRAMA TÉRMICO DE VENCIMIENTOS
+        if not heatmap_df.empty:
+            st.markdown("##### 🔥 Mapa de Calor: Concentración de Vencimientos por Día del Mes")
+            st.caption("Identifica los días pico donde se concentra el mayor volumen de dinero por vencer para organizar las jornadas de cobranza.")
+            
+            import plotly.express as px
+            
+            heatmap_df['Monto_Millones'] = heatmap_df['Saldo_Total'] / 1e6
+            fig_heat = px.bar(
+                heatmap_df,
+                x='fecha_vencimiento',
+                y='Monto_Millones',
+                color='Monto_Millones',
+                color_continuous_scale='Turbo',
+                labels={'fecha_vencimiento': 'Fecha de Vencimiento', 'Monto_Millones': 'Total Vence (Millones COP)'},
+                hover_data={'Total_Facturas': True, 'Consultoras': True, 'Monto_Millones': ':.2f'}
+            )
+            fig_heat.update_layout(
+                margin=dict(l=10, r=10, t=30, b=10),
+                height=320,
+                paper_bgcolor='rgba(0,0,0,0)',
+                plot_bgcolor='rgba(0,0,0,0)',
+                font=dict(color='#FFFFFF')
+            )
+            st.plotly_chart(fig_heat, use_container_width=True)
+            st.markdown("---")
+
+        # 5. CRONOGRAMA DE PROYECCIÓN Y VISTAS RÁPIDAS
+        st.markdown("##### 📋 Cronograma de Cartera & Gestión por Tramo de Vencimiento")
+        
+        tab_v_manana, tab_v_pasado, tab_v_mora, tab_v_7d, tab_v_todas, tab_v_pagadas = st.tabs([
+            f"🟡 Vencen Mañana ({len(df_manana)})",
+            f"🟢 Pasado Mañana (+2 a +3d) ({len(df_pasado)})",
+            f"🚨 En Mora ({len(df_mora)})",
+            f"📅 Próximos 7 Días ({len(df_7d)})",
+            f"🗓️ Todas las Pendientes ({len(df_pendientes)})",
+            f"✅ Historial Pagados ({len(df_geral_raw[df_geral_raw['situacion'] == 'Pagado'])})"
+        ])
+        
+        def _formatear_tabla_geral(df_in):
+            if df_in is None or df_in.empty:
+                st.info("🎉 No hay facturas en esta categoría actualmente.")
+                return None
+                
+            cols_mostrar = [
+                'nombre', 'codigo_cb', 'grupo', 'numero_factura', 'numero_pedido',
+                'fecha_vencimiento', 'dias_para_vencer', 'saldo_principal', 'saldo_financiero',
+                'saldo_total', 'plan_recibimiento', 'telefono_movil'
+            ]
+            cols_existentes = [c for c in cols_mostrar if c in df_in.columns]
+            df_disp = df_in[cols_existentes].copy()
+            
+            rename_dict = {
+                'nombre': 'Consultora',
+                'codigo_cb': 'Código CB',
+                'grupo': 'Grupo',
+                'numero_factura': 'Factura',
+                'numero_pedido': 'Pedido',
+                'fecha_vencimiento': 'Vencimiento',
+                'dias_para_vencer': 'Días Restantes',
+                'saldo_principal': 'Saldo Capital',
+                'saldo_financiero': 'Saldo Financiero',
+                'saldo_total': 'Saldo Total',
+                'plan_recibimiento': 'Plan de Pago',
+                'telefono_movil': 'Celular'
+            }
+            df_disp = df_disp.rename(columns=rename_dict)
+            
+            if 'Saldo Capital' in df_disp.columns:
+                df_disp['Saldo Capital'] = df_disp['Saldo Capital'].apply(lambda v: f"${v:,.0f} COP".replace(",", "."))
+            if 'Saldo Financiero' in df_disp.columns:
+                df_disp['Saldo Financiero'] = df_disp['Saldo Financiero'].apply(lambda v: f"${v:,.0f} COP".replace(",", "."))
+            if 'Saldo Total' in df_disp.columns:
+                df_disp['Saldo Total'] = df_disp['Saldo Total'].apply(lambda v: f"${v:,.0f} COP".replace(",", "."))
+                
+            return df_disp
+
+        with tab_v_manana:
+            st.markdown("###### 🟡 Facturas que Vencen Mañana (Recordatorio Preventivo)")
+            st.caption("Envía el recordatorio preventivo con mucho cariño para que la consultora pague a tiempo y mantenga su crédito activo.")
+            df_m_disp = _formatear_tabla_geral(df_manana)
+            if df_m_disp is not None:
+                st.dataframe(df_m_disp, use_container_width=True, hide_index=True)
+
+        with tab_v_pasado:
+            st.markdown("###### 🟢 Facturas que Vencen Pasado Mañana (+2 y +3 Días)")
+            df_p_disp = _formatear_tabla_geral(df_pasado)
+            if df_p_disp is not None:
+                st.dataframe(df_p_disp, use_container_width=True, hide_index=True)
+
+        with tab_v_mora:
+            st.markdown("###### 🚨 Cartera Vencida (En Mora)")
+            st.caption("Asesoras con días de retraso vencidos. Incluye cobro de recargos financieros acumulados.")
+            df_mo_disp = _formatear_tabla_geral(df_mora)
+            if df_mo_disp is not None:
+                st.dataframe(df_mo_disp, use_container_width=True, hide_index=True)
+
+        with tab_v_7d:
+            st.markdown("###### 📅 Proyección de Vencimientos en los Próximos 7 Días")
+            df_7d_disp = _formatear_tabla_geral(df_7d)
+            if df_7d_disp is not None:
+                st.dataframe(df_7d_disp, use_container_width=True, hide_index=True)
+
+        with tab_v_todas:
+            st.markdown("###### 🗓️ Todas las Facturas Pendientes de Cobro")
+            df_t_disp = _formatear_tabla_geral(df_pendientes)
+            if df_t_disp is not None:
+                st.dataframe(df_t_disp, use_container_width=True, hide_index=True)
+
+        with tab_v_pagadas:
+            st.markdown("###### ✅ Títulos Pagados y Conciliados (Excluidos de Cartera)")
+            df_pagados = df_geral_raw[df_geral_raw['situacion'] == 'Pagado']
+            df_pag_disp = _formatear_tabla_geral(df_pagados)
+            if df_pag_disp is not None:
+                st.dataframe(df_pag_disp, use_container_width=True, hide_index=True)
+
+        st.markdown("---")
+
+        # 6. CENTRO DE COMANDO: DESPACHADOR DIRECTO DE WHATSAPP CON 1 CLIC
+        st.markdown("##### 📲 Centro de Envío Directo por WhatsApp")
+        col_w1, col_w2 = st.columns([1.2, 1.8])
+        
+        with col_w1:
+            st.markdown("###### 1. Selecciona la Consultora:")
+            consultoras_opt = df_pendientes[['titulo', 'nombre', 'numero_factura', 'saldo_total', 'tramo_vencimiento']].copy()
+            if not consultoras_opt.empty:
+                sel_titulo_wa = st.selectbox(
+                    "Elige la factura / consultora a notificar:",
+                    options=consultoras_opt['titulo'].tolist(),
+                    format_func=lambda t: f"{consultoras_opt[consultoras_opt['titulo']==t]['nombre'].iloc[0]} — Fact. {consultoras_opt[consultoras_opt['titulo']==t]['numero_factura'].iloc[0]} (${consultoras_opt[consultoras_opt['titulo']==t]['saldo_total'].iloc[0]:,.0f})",
+                    key="sel_factura_wa_geral"
+                )
+                
+                row_sel_wa = df_pendientes[df_pendientes['titulo'] == sel_titulo_wa].iloc[0]
+                
+                tipo_msg_sugerido = 'manana' if row_sel_wa['dias_para_vencer'] == 1 else ('hoy' if row_sel_wa['dias_para_vencer'] == 0 else ('mora' if row_sel_wa['dias_para_vencer'] < 0 else 'general'))
+                
+                tipo_msg_sel = st.radio(
+                    "Tipo de Mensaje a Enviar:",
+                    options=['manana', 'hoy', 'mora', 'general'],
+                    index=['manana', 'hoy', 'mora', 'general'].index(tipo_msg_sugerido),
+                    format_func=lambda x: {'manana': '🎁 Vence Mañana (Preventivo Cordial)', 'hoy': '🚨 Vence Hoy (Urgente)', 'mora': '⚠️ En Mora (Cobranza con Recargos)', 'general': '🌸 Recordatorio General'}.get(x, x),
+                    key="radio_tipo_msg_geral"
+                )
+            else:
+                st.info("No hay consultoras con saldo pendiente.")
+                row_sel_wa = None
+
+        with col_w2:
+            if row_sel_wa is not None:
+                st.markdown("###### 2. Mensaje Listo & Envío Directo:")
+                msg_gen = generar_mensaje_whatsapp_cobranza(
+                    row_sel_wa,
+                    tipo=tipo_msg_sel,
+                    nombre_remitente=user_nombre if user_nombre else "Tu Líder"
+                )
+                
+                txt_msg_edit = st.text_area("Vista previa del mensaje:", value=msg_gen, height=150, key="txt_area_wa_geral")
+                
+                cel_dest = str(row_sel_wa.get('telefono_movil', '')).strip()
+                cel_in = st.text_input("Número Celular Asesora (10 dígitos):", value=cel_dest, key="input_cel_wa_geral")
+                
+                if cel_in and len(cel_in.strip()) >= 10:
+                    link_wa_final = f"https://api.whatsapp.com/send?phone=57{cel_in.strip()}&text={urllib.parse.quote(txt_msg_edit)}"
+                    st.link_button(
+                        f"📲 Enviar WhatsApp a {str(row_sel_wa.get('nombre')).split()[0].title()}",
+                        url=link_wa_final,
+                        use_container_width=True
+                    )
+                else:
+                    st.warning("⚠️ Ingresa un número de celular de 10 dígitos para habilitar el botón de WhatsApp.")
+
+        st.markdown("---")
+
+        # 7. BOTÓN DE DESCARGA EXCEL / CSV
+        csv_geral_exp = df_pendientes.to_csv(index=False).encode('utf-8-sig')
+        st.download_button(
+            label="📥 Descargar Listado de Cartera Pendiente (CSV / Excel)",
+            data=csv_geral_exp,
+            file_name=f"Cartera_Geral_Pendiente_{datetime.now().strftime('%Y%m%d')}.csv",
+            mime="text/csv",
+            use_container_width=True,
+            key="btn_descargar_cartera_geral_csv"
+        )
 
 st.markdown("---")
 

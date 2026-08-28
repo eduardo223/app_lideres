@@ -3092,6 +3092,7 @@ RUTA_CONFIG = 'configuracion.json'
 
 DEFAULT_PERMISOS_PESTANAS = {
     "tab_tableau": {"nombre": "📊 Informe Tableau Cam", "gerente": True, "lider": True, "asesor": True},
+    "tab_geral": {"nombre": "💳 Geral: Crédito & Cobranza", "gerente": True, "lider": True, "asesor": False},
     "tab_resumen": {"nombre": "📊 Resumen & KPIs", "gerente": True, "lider": True, "asesor": True},
     "tab_ganancia": {"nombre": "💵 Simulador de Ganancia", "gerente": True, "lider": True, "asesor": True},
     "tab_diagnostico": {"nombre": "🔎 Diagnóstico 'Cómo Vamos'", "gerente": True, "lider": True, "asesor": True},
@@ -3285,6 +3286,45 @@ def inicializar_db_sqlite():
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_metas_grupo ON metas_como_vamos (codigo_grupo)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_metas_sector ON metas_como_vamos (nombre_sector)")
+
+    # 5. Tabla de Cartera Geral (Crédito & Cobranza)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS cartera_geral (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        titulo TEXT,
+        cuota INTEGER,
+        numero_pedido TEXT,
+        ciclo_captacion TEXT,
+        ciclo_indicador TEXT,
+        grupo TEXT,
+        numero_factura TEXT,
+        fecha_pedido TEXT,
+        fecha_vencimiento_original TEXT,
+        fecha_vencimiento TEXT,
+        valor_titulo REAL,
+        saldo_principal REAL,
+        saldo_financiero REAL,
+        saldo_total REAL,
+        saldo_actualizado REAL,
+        situacion TEXT,
+        dias_retraso REAL,
+        fase_cobro TEXT,
+        cod_sector TEXT,
+        sector TEXT,
+        codigo_cb TEXT,
+        nombre TEXT,
+        direccion TEXT,
+        telefono_movil TEXT,
+        correo TEXT,
+        plan_recibimiento TEXT,
+        origen_empresa TEXT,
+        fecha_carga TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_grupo ON cartera_geral (grupo)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_cod_sector ON cartera_geral (cod_sector)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_situacion ON cartera_geral (situacion)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_fecha_venc ON cartera_geral (fecha_vencimiento)")
 
     conn.commit()
 
@@ -3624,6 +3664,390 @@ def consultar_tableau_sql(grupo=None, sector=None):
         df['Comentarios_Lider'] = df['Notas / Comentarios Líder']
 
     return df
+
+# --- MOTOR DE CRÉDITO & COBRANZA (Geral.xlsx) ---
+
+def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=None, conn=None):
+    """
+    Lee el archivo Geral.xlsx (o buffer subido), valida sus columnas esenciales,
+    y guarda o reemplaza los registros en la tabla relacional 'cartera_geral' de SQLite.
+    Retorna (exito: bool, num_registros: int, mensaje: str).
+    """
+    import unicodedata
+    
+    if origen_file is None:
+        return False, 0, "No se proporcionó ningún archivo para procesar."
+        
+    try:
+        if isinstance(origen_file, str):
+            if not os.path.exists(origen_file):
+                return False, 0, f"El archivo '{origen_file}' no existe en el disco."
+            df_raw = pd.read_excel(origen_file, sheet_name=0)
+        else:
+            df_raw = pd.read_excel(origen_file, sheet_name=0)
+    except Exception as e_read:
+        return False, 0, f"Error al abrir el archivo Excel: {e_read}"
+
+    if df_raw is None or df_raw.empty:
+        return False, 0, "El archivo subido no contiene registros válidos."
+
+    # Normalizar nombres de columnas
+    def _norm_txt(t):
+        if not t:
+            return ""
+        nfkd = unicodedata.normalize('NFKD', str(t))
+        return "".join([c for c in nfkd if not unicodedata.combining(c)]).lower().strip()
+
+    clean_cols = {}
+    for col in df_raw.columns:
+        norm = _norm_txt(col)
+        norm = "".join(c if c.isalnum() or c.isspace() else " " for c in norm)
+        
+        if 'titulo' in norm and 'valor' not in norm:
+            clean_cols[col] = 'titulo'
+        elif 'cuota' in norm:
+            clean_cols[col] = 'cuota'
+        elif 'pedido' in norm and ('numero' in norm or 'num' in norm):
+            clean_cols[col] = 'numero_pedido'
+        elif 'factura' in norm and ('numero' in norm or 'num' in norm):
+            clean_cols[col] = 'numero_factura'
+        elif 'captacion' in norm:
+            clean_cols[col] = 'ciclo_captacion'
+        elif 'indicador' in norm:
+            clean_cols[col] = 'ciclo_indicador'
+        elif 'grupo' in norm:
+            clean_cols[col] = 'grupo'
+        elif 'fechapedido' in norm or ('fecha' in norm and 'pedido' in norm):
+            clean_cols[col] = 'fecha_pedido'
+        elif 'vencimiento' in norm and 'orig' in norm:
+            clean_cols[col] = 'fecha_vencimiento_original'
+        elif 'vencimiento' in norm and 'orig' not in norm:
+            clean_cols[col] = 'fecha_vencimiento'
+        elif 'valor' in norm and 'titulo' in norm:
+            clean_cols[col] = 'valor_titulo'
+        elif 'saldo' in norm and 'principal' in norm:
+            clean_cols[col] = 'saldo_principal'
+        elif 'saldo' in norm and 'financiero' in norm:
+            clean_cols[col] = 'saldo_financiero'
+        elif 'saldo' in norm and 'total' in norm:
+            clean_cols[col] = 'saldo_total'
+        elif 'saldo' in norm and 'actualizado' in norm:
+            clean_cols[col] = 'saldo_actualizado'
+        elif 'situacion' in norm:
+            clean_cols[col] = 'situacion'
+        elif 'retraso' in norm:
+            clean_cols[col] = 'dias_retraso'
+        elif 'fase' in norm:
+            clean_cols[col] = 'fase_cobro'
+        elif 'estructura' in norm and 'padre' not in norm and ('cod' in norm or 'cd' in norm):
+            clean_cols[col] = 'cod_sector'
+        elif 'estructura' in norm and 'padre' not in norm and 'cod' not in norm:
+            clean_cols[col] = 'sector'
+        elif 'persona' in norm and ('codigo' in norm or 'cod' in norm):
+            clean_cols[col] = 'codigo_cb'
+        elif 'nombre' in norm:
+            clean_cols[col] = 'nombre'
+        elif 'direccion' in norm:
+            clean_cols[col] = 'direccion'
+        elif 'movil' in norm or 'celular' in norm:
+            clean_cols[col] = 'telefono_movil'
+        elif 'residencial' in norm or 'telefono' in norm:
+            if 'telefono_movil' not in clean_cols.values():
+                clean_cols[col] = 'telefono_movil'
+        elif 'correo' in norm or 'email' in norm:
+            clean_cols[col] = 'correo'
+        elif 'plan' in norm:
+            clean_cols[col] = 'plan_recibimiento'
+        elif 'origen' in norm:
+            clean_cols[col] = 'origen_empresa'
+
+    df = df_raw.rename(columns=clean_cols)
+    
+    # Validar columnas mínimas requeridas
+    columnas_minimas = ['titulo', 'numero_factura', 'fecha_vencimiento', 'saldo_total', 'situacion', 'nombre']
+    faltantes = [c for c in columnas_minimas if c not in df.columns]
+    if faltantes:
+        return False, 0, f"El archivo no contiene las siguientes columnas requeridas: {', '.join(faltantes)}"
+
+    # Validar sector si se especificó
+    if sector_esperado and 'cod_sector' in df.columns:
+        sec_esp_str = str(sector_esperado).strip()
+        secs_encontrados = df['cod_sector'].dropna().astype(str).str.split('.').str[0].unique()
+        if len(secs_encontrados) > 0 and sec_esp_str not in secs_encontrados:
+            return False, 0, f"❌ El archivo subido pertenece al Sector '{secs_encontrados[0]}', el cual no coincide con tu Sector asignado ({sec_esp_str})."
+
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db()
+        close_at_end = True
+        
+    cursor = conn.cursor()
+    
+    # Si viene con sector específico, borrar solo los registros de ese sector
+    if 'cod_sector' in df.columns and not df['cod_sector'].dropna().empty:
+        cod_sec_val = str(df['cod_sector'].dropna().iloc[0]).strip().split('.')[0]
+        cursor.execute("DELETE FROM cartera_geral WHERE cod_sector = ? OR sector LIKE ?", (cod_sec_val, f"%{cod_sec_val}%"))
+    else:
+        cursor.execute("DELETE FROM cartera_geral")
+        
+    fecha_carga_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
+    registros_insertar = []
+    for _, row in df.iterrows():
+        tit = str(row.get('titulo', '')).strip().split('.')[0]
+        if not tit or tit.lower() in ['nan', 'none', '']:
+            continue
+            
+        f_venc = str(row.get('fecha_vencimiento', ''))[:10] if pd.notna(row.get('fecha_vencimiento')) else ''
+        f_orig = str(row.get('fecha_vencimiento_original', ''))[:10] if pd.notna(row.get('fecha_vencimiento_original')) else ''
+        f_ped = str(row.get('fecha_pedido', ''))[:10] if pd.notna(row.get('fecha_pedido')) else ''
+        
+        # Limpiar teléfono
+        tel = str(row.get('telefono_movil', '')).strip().replace('.0', '')
+        tel_clean = "".join(c for c in tel if c.isdigit())
+        
+        # Limpiar números
+        val_tit = float(limpiar_numero(row.get('valor_titulo', 0.0)))
+        s_prin = float(limpiar_numero(row.get('saldo_principal', 0.0)))
+        s_fin = float(limpiar_numero(row.get('saldo_financiero', 0.0)))
+        s_tot = float(limpiar_numero(row.get('saldo_total', 0.0)))
+        if s_tot == 0.0 and s_prin > 0.0:
+            s_tot = s_prin + s_fin
+        s_act = float(limpiar_numero(row.get('saldo_actualizado', s_tot)))
+        
+        grp = str(row.get('grupo', '')).strip().split('.')[0]
+        cod_sec = str(row.get('cod_sector', '')).strip().split('.')[0]
+        
+        registros_insertar.append((
+            tit,
+            int(limpiar_numero(row.get('cuota', 1))),
+            str(row.get('numero_pedido', '')).strip().split('.')[0],
+            str(row.get('ciclo_captacion', '')).strip(),
+            str(row.get('ciclo_indicador', '')).strip(),
+            grp,
+            str(row.get('numero_factura', '')).strip().split('.')[0],
+            f_ped,
+            f_orig,
+            f_venc,
+            val_tit,
+            s_prin,
+            s_fin,
+            s_tot,
+            s_act,
+            str(row.get('situacion', 'Pendiente')).strip(),
+            float(limpiar_numero(row.get('dias_retraso', 0.0))),
+            str(row.get('fase_cobro', '')).strip(),
+            cod_sec,
+            str(row.get('sector', '')).strip(),
+            str(row.get('codigo_cb', '')).strip().split('.')[0],
+            str(row.get('nombre', '')).strip(),
+            str(row.get('direccion', '')).strip(),
+            tel_clean,
+            str(row.get('correo', '')).strip(),
+            str(row.get('plan_recibimiento', '')).strip(),
+            str(row.get('origen_empresa', 'Natura')).strip(),
+            fecha_carga_actual
+        ))
+        
+    cursor.executemany("""
+    INSERT INTO cartera_geral (
+        titulo, cuota, numero_pedido, ciclo_captacion, ciclo_indicador, grupo, numero_factura,
+        fecha_pedido, fecha_vencimiento_original, fecha_vencimiento, valor_titulo, saldo_principal,
+        saldo_financiero, saldo_total, saldo_actualizado, situacion, dias_retraso, fase_cobro,
+        cod_sector, sector, codigo_cb, nombre, direccion, telefono_movil, correo,
+        plan_recibimiento, origen_empresa, fecha_carga
+    ) VALUES (
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?
+    )
+    """, registros_insertar)
+    
+    conn.commit()
+    if close_at_end:
+        conn.close()
+        
+    return True, len(registros_insertar), f"¡Se sincronizaron exitosamente {len(registros_insertar)} títulos comerciales en la base de Crédito & Cobranza!"
+
+def consultar_geral_sql(grupo=None, sector=None, situacion=None):
+    """
+    Consulta la base relacional de cartera_geral en SQLite con filtros de seguridad y rendimiento.
+    """
+    conn = obtener_conexion_db()
+    query = "SELECT * FROM cartera_geral"
+    where_clauses = []
+    params = []
+    
+    if situacion:
+        where_clauses.append("situacion = ?")
+        params.append(str(situacion).strip())
+        
+    if grupo:
+        grp_str = str(grupo).strip()
+        where_clauses.append("(grupo = ? OR grupo LIKE ?)")
+        params.extend([grp_str, f"%{grp_str}%"])
+        
+    if sector and str(sector).strip():
+        sec_str = str(sector).strip()
+        where_clauses.append("(cod_sector = ? OR sector LIKE ?)")
+        params.extend([sec_str, f"%{sec_str}%"])
+        
+    if where_clauses:
+        query += " WHERE " + " AND ".join(where_clauses)
+        
+    query += " ORDER BY fecha_vencimiento ASC, saldo_total DESC"
+    
+    df = pd.read_sql_query(query, conn, params=params)
+    conn.close()
+    return df
+
+def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
+    """
+    Procesa el DataFrame de cartera_geral calculando proyecciones temporales,
+    semáforos de mora y vencimiento preventivo, sumatorias financieras y datos para el heatmap.
+    """
+    if df_geral is None or df_geral.empty:
+        return {
+            'df_completo': pd.DataFrame(),
+            'df_pendientes': pd.DataFrame(),
+            'df_vence_manana': pd.DataFrame(),
+            'df_pasado_manana': pd.DataFrame(),
+            'df_en_mora': pd.DataFrame(),
+            'df_proximos_7d': pd.DataFrame(),
+            'kpis': {
+                'total_cartera': 0.0,
+                'total_facturas_pendientes': 0,
+                'total_mora': 0.0,
+                'facturas_mora': 0,
+                'total_manana': 0.0,
+                'facturas_manana': 0,
+                'total_7d': 0.0,
+                'facturas_7d': 0,
+                'consultoras_unicas': 0
+            },
+            'heatmap_data': pd.DataFrame()
+        }
+        
+    df = df_geral.copy()
+    hoy = fecha_base if fecha_base is not None else date.today()
+    hoy_ts = pd.to_datetime(hoy)
+    
+    # Conversión de fecha de vencimiento
+    df['fecha_venc_dt'] = pd.to_datetime(df['fecha_vencimiento'], errors='coerce')
+    df['dias_para_vencer'] = (df['fecha_venc_dt'] - hoy_ts).dt.days
+    
+    # Clasificación de tramos
+    def _clasificar(d, sit, saldo):
+        if str(sit).strip().lower() == 'pagado' or saldo <= 0:
+            return "Pagado / Sin Deuda"
+        if pd.isna(d):
+            return "Sin Fecha"
+        d = int(d)
+        if d < 0:
+            return "Vencida / En Mora"
+        elif d == 0:
+            return "Vence Hoy"
+        elif d == 1:
+            return "Vence Mañana"
+        elif d in [2, 3]:
+            return "Pasado Mañana (+2 a +3 d)"
+        elif 4 <= d <= 7:
+            return "Próximos 4 a 7 días"
+        elif 8 <= d <= 15:
+            return "Próximos 8 a 15 días"
+        else:
+            return "Más de 15 días"
+
+    df['tramo_vencimiento'] = df.apply(lambda r: _clasificar(r['dias_para_vencer'], r.get('situacion'), r.get('saldo_total', 0)), axis=1)
+    
+    # Cartera viva y pendiente (excluye pagados y saldo $0)
+    df_pendientes = df[(df['situacion'] == 'Pendiente') & (df['saldo_total'] > 0)].copy()
+    
+    # Sub-segmentos
+    df_manana = df_pendientes[df_pendientes['dias_para_vencer'] == 1].copy()
+    df_pasado = df_pendientes[df_pendientes['dias_para_vencer'].isin([2, 3])].copy()
+    df_mora = df_pendientes[df_pendientes['dias_para_vencer'] < 0].copy()
+    df_7d = df_pendientes[(df_pendientes['dias_para_vencer'] >= 0) & (df_pendientes['dias_para_vencer'] <= 7)].copy()
+    
+    # KPIs
+    kpis = {
+        'total_cartera': float(df_pendientes['saldo_total'].sum()),
+        'total_facturas_pendientes': len(df_pendientes),
+        'total_mora': float(df_mora['saldo_total'].sum()),
+        'facturas_mora': len(df_mora),
+        'total_manana': float(df_manana['saldo_total'].sum()),
+        'facturas_manana': len(df_manana),
+        'total_7d': float(df_7d['saldo_total'].sum()),
+        'facturas_7d': len(df_7d),
+        'consultoras_unicas': df_pendientes['nombre'].nunique() if 'nombre' in df_pendientes.columns else len(df_pendientes)
+    }
+    
+    # Datos para el Heatmap / Calendario térmico
+    df_heat = df_pendientes.dropna(subset=['fecha_venc_dt']).copy()
+    if not df_heat.empty:
+        heatmap_data = df_heat.groupby('fecha_vencimiento').agg(
+            Saldo_Total=('saldo_total', 'sum'),
+            Total_Facturas=('titulo', 'count'),
+            Consultoras=('nombre', 'nunique')
+        ).reset_index().sort_values('fecha_vencimiento')
+    else:
+        heatmap_data = pd.DataFrame()
+        
+    return {
+        'df_completo': df,
+        'df_pendientes': df_pendientes,
+        'df_vence_manana': df_manana,
+        'df_pasado_manana': df_pasado,
+        'df_en_mora': df_mora,
+        'df_proximos_7d': df_7d,
+        'kpis': kpis,
+        'heatmap_data': heatmap_data
+    }
+
+def generar_mensaje_whatsapp_cobranza(row, tipo='manana', nombre_remitente='Tu Líder'):
+    """
+    Genera el texto formateado para el mensaje de WhatsApp de recordatorio de cobro.
+    """
+    nombre = str(row.get('nombre', 'Consultora')).split()[0].title()
+    factura = str(row.get('numero_factura', '')).split('.')[0]
+    pedido = str(row.get('numero_pedido', '')).split('.')[0]
+    f_venc = str(row.get('fecha_vencimiento', ''))[:10]
+    saldo_tot = float(row.get('saldo_total', 0.0))
+    saldo_prin = float(row.get('saldo_principal', saldo_tot))
+    saldo_fin = float(row.get('saldo_financiero', 0.0))
+    dias_ret = int(row.get('dias_retraso', 0)) if pd.notna(row.get('dias_retraso')) else 0
+    saldo_fmt = f"${saldo_tot:,.0f} COP".replace(",", ".")
+    
+    if tipo == 'manana':
+        msg = (
+            f"🌸 ¡Hola {nombre}! Te saluda {nombre_remitente} de Natura & Avon.\n\n"
+            f"Queremos recordarte con mucho cariño que el día de *mañana ({f_venc})* vence tu factura *N° {factura}* (Pedido #{pedido}) por un valor de *{saldo_fmt}*.\n\n"
+            f"💡 *Recuerda:* Realizar tu pago a tiempo te permite mantener tu crédito activo y seguir recibiendo tus pedidos sin retrasos. ✨\n\n"
+            f"Puedes cancelar fácilmente por Nequi, Daviplata o PSE. ¡Que tengas un excelente día! 💕"
+        )
+    elif tipo == 'hoy':
+        msg = (
+            f"🚨 ¡Hola {nombre}! Te recordamos que *HOY ({f_venc})* es la fecha límite para el pago de tu factura *N° {factura}* por un valor de *{saldo_fmt}*.\n\n"
+            f"Evita recargos financieros y bloqueos en tus próximos pedidos pagando hoy antes de las 9:00 PM. ✨\n\n"
+            f"Cualquier duda con tu pago, con gusto te apoyo. — {nombre_remitente} 📲"
+        )
+    elif tipo == 'mora':
+        msg = (
+            f"⚠️ Estimada {nombre}, te informamos que tu factura *N° {factura}* presenta *{dias_ret} días de vencida* con un saldo pendiente de *{saldo_fmt}*.\n\n"
+            f"📌 *Detalle de la obligación:*\n"
+            f"• Saldo Capital: ${saldo_prin:,.0f} COP\n"
+            f"• Saldo Financiero: ${saldo_fin:,.0f} COP\n"
+            f"• Saldo Total a Pagar: *{saldo_fmt}*\n\n"
+            f"Por favor reporta tu comprobante de pago a la brevedad para normalizar tu estado de cuenta. Estamos para apoyarte. — {nombre_remitente} 📲"
+        )
+    else: # preventivo general
+        msg = (
+            f"🌸 ¡Hola {nombre}! Te recordamos que tienes una factura programada para vencer el *{f_venc}* (Factura N° {factura}) por valor de *{saldo_fmt}*.\n\n"
+            f"¡Muchos éxitos en tu negocio! ✨ — {nombre_remitente}"
+        )
+    return msg
 
 def eliminar_datos_por_grupo_o_usuario(codigo_grupo, eliminar_cuenta=False):
     """
