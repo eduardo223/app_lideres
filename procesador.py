@@ -3225,12 +3225,16 @@ def obtener_conexion_db():
         pass
     return conn
 
-def inicializar_db_sqlite():
+def inicializar_db_sqlite(conn=None):
     """
     Inicializa la base de datos relacional SQLite 'base_matices.db' y crea las tablas indexadas.
     Sincroniza automáticamente los datos de Excel y JSON si la base se crea por primera vez.
     """
-    conn = obtener_conexion_db()
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db()
+        close_at_end = True
+
     cursor = conn.cursor()
 
     # 1. Tabla de Usuarios
@@ -3263,12 +3267,22 @@ def inicializar_db_sqlite():
     CREATE TABLE IF NOT EXISTS consultoras_tableau (
         codigo_cb TEXT PRIMARY KEY,
         nombre TEXT,
+        tipo_documento TEXT,
+        numero_documento TEXT,
+        grupo TEXT,
+        cod_sector TEXT,
+        sector TEXT,
+        estado_actividad TEXT,
+        segmento_actual TEXT,
+        saldo_vencido REAL,
+        credito_disponible REAL,
+        pedidos_pendientes INTEGER,
+        pedidos_mora INTEGER,
+        celular TEXT,
+        correo TEXT,
         documento_gpp TEXT,
         cod_gerencia TEXT,
         gerencia TEXT,
-        cod_sector TEXT,
-        sector TEXT,
-        grupo TEXT,
         ciclo INTEGER,
         color TEXT,
         ascenso_cb TEXT,
@@ -3297,11 +3311,6 @@ def inicializar_db_sqlite():
         deuda_total REAL,
         deuda_mora REAL,
         credito_total REAL,
-        credito_disponible REAL,
-        pedidos_pendientes INTEGER,
-        pedidos_mora INTEGER,
-        celular TEXT,
-        correo TEXT,
         dpto_residencia TEXT,
         ciudad_residencia TEXT,
         barrio_residencia TEXT,
@@ -3320,10 +3329,6 @@ def inicializar_db_sqlite():
         indicador TEXT
     )
     """)
-    try:
-        cursor.execute("ALTER TABLE consultoras_tableau ADD COLUMN indicador TEXT")
-    except Exception:
-        pass
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_grupo ON consultoras_tableau (grupo)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_sector ON consultoras_tableau (sector)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_cod_sector ON consultoras_tableau (cod_sector)")
@@ -3383,6 +3388,7 @@ def inicializar_db_sqlite():
         nombre TEXT,
         direccion TEXT,
         telefono_movil TEXT,
+        telefono_movil_2 TEXT,
         correo TEXT,
         plan_recibimiento TEXT,
         origen_empresa TEXT,
@@ -3400,7 +3406,8 @@ def inicializar_db_sqlite():
     sincronizar_usuarios_a_sqlite(conn)
     sincronizar_configuracion_a_sqlite(conn)
 
-    conn.close()
+    if close_at_end:
+        conn.close()
 
 def sincronizar_usuarios_a_sqlite(conn=None):
     close_at_end = False
@@ -3735,6 +3742,63 @@ def consultar_tableau_sql(grupo=None, sector=None):
 
     return df
 
+def extraer_telefonos_colombia(val_raw):
+    """
+    Limpia el teléfono móvil eliminando ceros a la izquierda hasta encontrar
+    el primer dígito '3' (formato estándar móvil Colombia de 10 dígitos: 3XXXXXXXXX).
+    Si contiene más de 10 dígitos o números concatenados, extrae el segundo en 'movil2'.
+    Retorna (movil1: str, movil2: str).
+    """
+    if val_raw is None:
+        return "", ""
+        
+    s = str(val_raw).strip()
+    if '.' in s:
+        s = s.split('.')[0]
+        
+    digitos = re.sub(r'\D', '', s)
+    if not digitos:
+        return "", ""
+        
+    if digitos.startswith('57') and len(digitos) in [12, 24] and len(digitos) >= 3 and digitos[2] == '3':
+        digitos = digitos[2:]
+
+    pos_3 = digitos.find('3')
+    if pos_3 != -1:
+        digitos_utiles = digitos[pos_3:]
+    else:
+        digitos_utiles = digitos.lstrip('0')
+        
+    matches = re.findall(r'3\d{9}', digitos_utiles)
+    
+    movil1 = ""
+    movil2 = ""
+    
+    if matches:
+        movil1 = matches[0]
+        if len(matches) > 1:
+            movil2 = matches[1] if matches[1] != movil1 else ""
+    else:
+        if digitos_utiles.startswith('3'):
+            movil1 = digitos_utiles[:10]
+            resto = digitos_utiles[10:]
+            p2 = resto.find('3')
+            if p2 != -1 and len(resto[p2:]) >= 10:
+                c2 = resto[p2:p2+10]
+                movil2 = c2 if c2 != movil1 else ""
+        elif len(digitos_utiles) >= 10:
+            movil1 = digitos_utiles[:10]
+            if len(digitos_utiles) >= 20:
+                c2 = digitos_utiles[10:20]
+                movil2 = c2 if c2 != movil1 else ""
+        else:
+            movil1 = digitos_utiles
+
+    if movil1 == movil2:
+        movil2 = ""
+
+    return movil1, movil2
+
 # --- MOTOR DE CRÉDITO & COBRANZA (Geral.xlsx) ---
 
 def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=None, conn=None):
@@ -3852,6 +3916,11 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
         close_at_end = True
         
     cursor = conn.cursor()
+    try:
+        cursor.execute("ALTER TABLE cartera_geral ADD COLUMN telefono_movil_2 TEXT")
+        conn.commit()
+    except Exception:
+        pass
     
     # Si viene con sector específico, borrar solo los registros de ese sector
     if 'cod_sector' in df.columns and not df['cod_sector'].dropna().empty:
@@ -3872,9 +3941,9 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
         f_orig = str(row.get('fecha_vencimiento_original', ''))[:10] if pd.notna(row.get('fecha_vencimiento_original')) else ''
         f_ped = str(row.get('fecha_pedido', ''))[:10] if pd.notna(row.get('fecha_pedido')) else ''
         
-        # Limpiar teléfono
-        tel = str(row.get('telefono_movil', '')).strip().replace('.0', '')
-        tel_clean = "".join(c for c in tel if c.isdigit())
+        # Limpiar teléfono con extraer_telefonos_colombia
+        tel_raw = str(row.get('telefono_movil', '')).strip()
+        m1, m2 = extraer_telefonos_colombia(tel_raw)
         
         # Limpiar números
         val_tit = float(limpiar_numero(row.get('valor_titulo', 0.0)))
@@ -3912,7 +3981,8 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             str(row.get('codigo_cb', '')).strip().split('.')[0],
             str(row.get('nombre', '')).strip(),
             str(row.get('direccion', '')).strip(),
-            tel_clean,
+            m1,
+            m2,
             str(row.get('correo', '')).strip(),
             str(row.get('plan_recibimiento', '')).strip(),
             str(row.get('origen_empresa', 'Natura')).strip(),
@@ -3924,13 +3994,13 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
         titulo, cuota, numero_pedido, ciclo_captacion, ciclo_indicador, grupo, numero_factura,
         fecha_pedido, fecha_vencimiento_original, fecha_vencimiento, valor_titulo, saldo_principal,
         saldo_financiero, saldo_total, saldo_actualizado, situacion, dias_retraso, fase_cobro,
-        cod_sector, sector, codigo_cb, nombre, direccion, telefono_movil, correo,
+        cod_sector, sector, codigo_cb, nombre, direccion, telefono_movil, telefono_movil_2, correo,
         plan_recibimiento, origen_empresa, fecha_carga
     ) VALUES (
         ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?,
         ?, ?, ?, ?, ?, ?,
-        ?, ?, ?, ?, ?, ?, ?,
+        ?, ?, ?, ?, ?, ?, ?, ?,
         ?, ?, ?
     )
     """, registros_insertar)
@@ -4038,7 +4108,18 @@ def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
     df = df_geral.copy()
     hoy = fecha_base if fecha_base is not None else date.today()
     hoy_ts = pd.to_datetime(hoy)
-    
+
+    # Limpieza estandarizada de teléfonos móviles (10 dígitos Colombia empezando por 3 y segundo móvil)
+    if 'telefono_movil' in df.columns:
+        tels_tuple = df['telefono_movil'].apply(extraer_telefonos_colombia)
+        df['telefono_movil'] = [t[0] for t in tels_tuple]
+        if 'telefono_movil_2' not in df.columns:
+            df['telefono_movil_2'] = [t[1] for t in tels_tuple]
+        else:
+            df['telefono_movil_2'] = df['telefono_movil_2'].fillna('').astype(str).replace('None', '').replace('nan', '')
+            # Si telefono_movil_2 está vacío y la tupla trajo un segundo móvil, asignarlo
+            df['telefono_movil_2'] = [t[1] if (not m2 or m2 == '') else m2 for t, m2 in zip(tels_tuple, df['telefono_movil_2'])]
+
     # Conversión de fecha de vencimiento
     df['fecha_venc_dt'] = pd.to_datetime(df['fecha_vencimiento'], errors='coerce')
     df['dias_para_vencer'] = (df['fecha_venc_dt'] - hoy_ts).dt.days

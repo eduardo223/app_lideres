@@ -2802,7 +2802,7 @@ with tab_geral:
             cols_mostrar = [
                 'nombre', 'codigo_cb', 'grupo', 'numero_factura', 'fecha_vencimiento',
                 'Estado Vencimiento', 'Nivel Deuda', 'saldo_principal', 'saldo_financiero',
-                'saldo_total', 'plan_recibimiento', 'telefono_movil'
+                'saldo_total', 'plan_recibimiento', 'telefono_movil', 'telefono_movil_2'
             ]
             cols_existentes = [c for c in cols_mostrar if c in df_ordenado.columns]
             df_disp = df_ordenado[cols_existentes].copy()
@@ -2817,7 +2817,8 @@ with tab_geral:
                 'saldo_financiero': 'Saldo Financiero',
                 'saldo_total': 'Saldo Total',
                 'plan_recibimiento': 'Plan de Pago',
-                'telefono_movil': 'Celular'
+                'telefono_movil': 'Celular',
+                'telefono_movil_2': 'Movil 2'
             }
             df_disp = df_disp.rename(columns=rename_dict)
 
@@ -2961,20 +2962,25 @@ with tab_geral:
                     t_msg = 'manana' if d_r == 1 else ('hoy' if d_r == 0 else ('mora' if d_r < 0 else 'general'))
                     
                 msg_ind = generar_mensaje_whatsapp_cobranza(r, tipo=t_msg, nombre_remitente=nombre_remit_masivo)
-                cel = str(r.get('telefono_movil', '')).strip().replace(' ', '').replace('-', '').replace('+', '')
-                link_w = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_ind)}" if cel and len(cel) >= 10 else ""
+                cel = str(r.get('telefono_movil', '')).strip()
+                cel2 = str(r.get('telefono_movil_2', '')).strip()
+                
+                link_w1 = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_ind)}" if cel and len(cel) >= 10 else ""
+                link_w2 = f"https://api.whatsapp.com/send?phone=57{cel2}&text={urllib.parse.quote(msg_ind)}" if cel2 and len(cel2) >= 10 else ""
                 
                 filas_campana.append({
                     'Asesora': r.get('nombre'),
                     'Código CB': r.get('codigo_cb'),
                     'Grupo': r.get('grupo'),
                     'Celular': cel if cel else "Sin celular",
+                    'Movil 2': cel2 if cel2 else "",
                     'Factura': r.get('numero_factura'),
                     'Vencimiento': r.get('fecha_vencimiento'),
                     'Días Restantes': r.get('dias_para_vencer'),
                     'Saldo Total': f"${r.get('saldo_total'):,.0f} COP".replace(",", "."),
                     'Mensaje Personalizado': msg_ind,
-                    'Enlace Directo': link_w
+                    'Enlace Directo WhatsApp': link_w1,
+                    'Enlace Móvil 2': link_w2
                 })
                 
             df_campana_out = pd.DataFrame(filas_campana)
