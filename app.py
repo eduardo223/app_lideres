@@ -2683,35 +2683,9 @@ with tab_geral:
 
         st.markdown("---")
 
-        # 4. MAPA DE CALOR / CRONOGRAMA TÉRMICO DE VENCIMIENTOS
-        if not heatmap_df.empty:
-            st.markdown("##### 🔥 Mapa de Calor: Concentración de Vencimientos por Día del Mes")
-            st.caption("Identifica los días pico donde se concentra el mayor volumen de dinero por vencer para organizar las jornadas de cobranza.")
-            
-            import plotly.express as px
-            
-            heatmap_df['Monto_Millones'] = heatmap_df['Saldo_Total'] / 1e6
-            fig_heat = px.bar(
-                heatmap_df,
-                x='fecha_vencimiento',
-                y='Monto_Millones',
-                color='Monto_Millones',
-                color_continuous_scale='Turbo',
-                labels={'fecha_vencimiento': 'Fecha de Vencimiento', 'Monto_Millones': 'Total Vence (Millones COP)'},
-                hover_data={'Total_Facturas': True, 'Consultoras': True, 'Monto_Millones': ':.2f'}
-            )
-            fig_heat.update_layout(
-                margin=dict(l=10, r=10, t=30, b=10),
-                height=320,
-                paper_bgcolor='rgba(0,0,0,0)',
-                plot_bgcolor='rgba(0,0,0,0)',
-                font=dict(color='#FFFFFF')
-            )
-            st.plotly_chart(fig_heat, use_container_width=True)
-            st.markdown("---")
-
-        # 5. CRONOGRAMA DE PROYECCIÓN Y VISTAS RÁPIDAS
+        # 4. CRONOGRAMA DE PROYECCIÓN Y VISTAS RÁPIDAS (CON COLORES CONDICIONALES EN LAS FILAS)
         st.markdown("##### 📋 Cronograma de Cartera & Gestión por Tramo de Vencimiento")
+        st.caption("Semáforo visual en cada fila: 🔴 **En Mora** (<0 días) | 🟠 **Vence Hoy** (0 días) | 🟡 **Vence Mañana** (+1 día) | 🟢 **Pasado Mañana / Próximos 7 días** (+2 a +7 días)")
         
         tab_v_manana, tab_v_pasado, tab_v_mora, tab_v_7d, tab_v_todas, tab_v_pagadas = st.tabs([
             f"🟡 Vencen Mañana ({len(df_manana)})",
@@ -2721,6 +2695,31 @@ with tab_geral:
             f"🗓️ Todas las Pendientes ({len(df_pendientes)})",
             f"✅ Historial Pagados ({len(df_geral_raw[df_geral_raw['situacion'] == 'Pagado'])})"
         ])
+        
+        def _aplicar_estilo_fila_geral(row):
+            dias = row.get('Días Restantes', 999)
+            try:
+                dias_num = float(dias)
+            except Exception:
+                dias_num = 999
+                
+            if dias_num < 0:
+                # Rojo mora
+                return ['background-color: rgba(239, 68, 68, 0.18); color: #FCA5A5; font-weight: 500;'] * len(row)
+            elif dias_num == 0:
+                # Naranja vence hoy
+                return ['background-color: rgba(249, 115, 22, 0.22); color: #FDBA74; font-weight: 600;'] * len(row)
+            elif dias_num == 1:
+                # Amarillo vence mañana
+                return ['background-color: rgba(234, 179, 8, 0.20); color: #FDE047; font-weight: 600;'] * len(row)
+            elif 2 <= dias_num <= 3:
+                # Verde lima pasado mañana
+                return ['background-color: rgba(132, 204, 22, 0.14); color: #BEF264;'] * len(row)
+            elif 4 <= dias_num <= 7:
+                # Verde esmeralda próximos 7 días
+                return ['background-color: rgba(16, 185, 129, 0.10); color: #6EE7B7;'] * len(row)
+            else:
+                return [''] * len(row)
         
         def _formatear_tabla_geral(df_in):
             if df_in is None or df_in.empty:
@@ -2751,14 +2750,18 @@ with tab_geral:
             }
             df_disp = df_disp.rename(columns=rename_dict)
             
+            styler = df_disp.style.apply(_aplicar_estilo_fila_geral, axis=1)
+            
+            format_dict = {}
             if 'Saldo Capital' in df_disp.columns:
-                df_disp['Saldo Capital'] = df_disp['Saldo Capital'].apply(lambda v: f"${v:,.0f} COP".replace(",", "."))
+                format_dict['Saldo Capital'] = lambda v: f"${v:,.0f} COP".replace(",", ".")
             if 'Saldo Financiero' in df_disp.columns:
-                df_disp['Saldo Financiero'] = df_disp['Saldo Financiero'].apply(lambda v: f"${v:,.0f} COP".replace(",", "."))
+                format_dict['Saldo Financiero'] = lambda v: f"${v:,.0f} COP".replace(",", ".")
             if 'Saldo Total' in df_disp.columns:
-                df_disp['Saldo Total'] = df_disp['Saldo Total'].apply(lambda v: f"${v:,.0f} COP".replace(",", "."))
+                format_dict['Saldo Total'] = lambda v: f"${v:,.0f} COP".replace(",", ".")
                 
-            return df_disp
+            styler = styler.format(format_dict)
+            return styler
 
         with tab_v_manana:
             st.markdown("###### 🟡 Facturas que Vencen Mañana (Recordatorio Preventivo)")
@@ -2801,66 +2804,205 @@ with tab_geral:
 
         st.markdown("---")
 
-        # 6. CENTRO DE COMANDO: DESPACHADOR DIRECTO DE WHATSAPP CON 1 CLIC
-        st.markdown("##### 📲 Centro de Envío Directo por WhatsApp")
-        col_w1, col_w2 = st.columns([1.2, 1.8])
+        # 5. SELECCIÓN MÚLTIPLE & DESPACHADOR MASIVO DE WHATSAPP
+        st.markdown("##### 📢 Envío Masivo & Recordatorios de Cobranza por WhatsApp")
+        st.caption("Selecciona una, varias o todas las consultoras de un tramo para generar sus mensajes personalizados en lote y enviarlos con 1 clic o conectarte con un API.")
         
-        with col_w1:
-            st.markdown("###### 1. Selecciona la Consultora:")
-            consultoras_opt = df_pendientes[['titulo', 'nombre', 'numero_factura', 'saldo_total', 'tramo_vencimiento']].copy()
-            if not consultoras_opt.empty:
-                sel_titulo_wa = st.selectbox(
-                    "Elige la factura / consultora a notificar:",
-                    options=consultoras_opt['titulo'].tolist(),
-                    format_func=lambda t: f"{consultoras_opt[consultoras_opt['titulo']==t]['nombre'].iloc[0]} — Fact. {consultoras_opt[consultoras_opt['titulo']==t]['numero_factura'].iloc[0]} (${consultoras_opt[consultoras_opt['titulo']==t]['saldo_total'].iloc[0]:,.0f})",
-                    key="sel_factura_wa_geral"
-                )
-                
-                row_sel_wa = df_pendientes[df_pendientes['titulo'] == sel_titulo_wa].iloc[0]
-                
-                tipo_msg_sugerido = 'manana' if row_sel_wa['dias_para_vencer'] == 1 else ('hoy' if row_sel_wa['dias_para_vencer'] == 0 else ('mora' if row_sel_wa['dias_para_vencer'] < 0 else 'general'))
-                
-                tipo_msg_sel = st.radio(
-                    "Tipo de Mensaje a Enviar:",
-                    options=['manana', 'hoy', 'mora', 'general'],
-                    index=['manana', 'hoy', 'mora', 'general'].index(tipo_msg_sugerido),
-                    format_func=lambda x: {'manana': '🎁 Vence Mañana (Preventivo Cordial)', 'hoy': '🚨 Vence Hoy (Urgente)', 'mora': '⚠️ En Mora (Cobranza con Recargos)', 'general': '🌸 Recordatorio General'}.get(x, x),
-                    key="radio_tipo_msg_geral"
-                )
-            else:
-                st.info("No hay consultoras con saldo pendiente.")
-                row_sel_wa = None
+        # Botones de Carga Rápida de Lotes
+        col_btn_m1, col_btn_m2, col_btn_m3, col_btn_m4, col_btn_m5 = st.columns(5)
+        
+        if 'titulos_seleccionados_masivo' not in st.session_state:
+            st.session_state['titulos_seleccionados_masivo'] = df_manana['titulo'].tolist() if not df_manana.empty else []
+            
+        with col_btn_m1:
+            if st.button("🟡 Vencen Mañana", use_container_width=True):
+                st.session_state['titulos_seleccionados_masivo'] = df_manana['titulo'].tolist()
+                st.rerun()
+        with col_btn_m2:
+            if st.button("🚨 En Mora", use_container_width=True):
+                st.session_state['titulos_seleccionados_masivo'] = df_mora['titulo'].tolist()
+                st.rerun()
+        with col_btn_m3:
+            if st.button("🟢 Pasado Mañana", use_container_width=True):
+                st.session_state['titulos_seleccionados_masivo'] = df_pasado['titulo'].tolist()
+                st.rerun()
+        with col_btn_m4:
+            if st.button("📅 Próximos 7 Días", use_container_width=True):
+                st.session_state['titulos_seleccionados_masivo'] = df_7d['titulo'].tolist()
+                st.rerun()
+        with col_btn_m5:
+            if st.button("🧹 Limpiar Todo", use_container_width=True):
+                st.session_state['titulos_seleccionados_masivo'] = []
+                st.rerun()
 
-        with col_w2:
-            if row_sel_wa is not None:
-                st.markdown("###### 2. Mensaje Listo & Envío Directo:")
-                msg_gen = generar_mensaje_whatsapp_cobranza(
-                    row_sel_wa,
-                    tipo=tipo_msg_sel,
-                    nombre_remitente=user_nombre if user_nombre else "Tu Líder"
+        # Opciones para el multiselect
+        mapa_titulos_dict = {
+            row['titulo']: f"{row['nombre']} — Fact. {row['numero_factura']} (${row['saldo_total']:,.0f}) [Días: {row['dias_para_vencer']}]"
+            for _, row in df_pendientes.iterrows()
+        }
+        
+        # Multiselect de asesoras
+        sel_titulos_activos = st.multiselect(
+            "👥 Asesoras Seleccionadas para la Campaña:",
+            options=list(mapa_titulos_dict.keys()),
+            default=[t for t in st.session_state['titulos_seleccionados_masivo'] if t in mapa_titulos_dict],
+            format_func=lambda t: mapa_titulos_dict.get(t, t),
+            key="multiselect_geral_masivo"
+        )
+        
+        st.session_state['titulos_seleccionados_masivo'] = sel_titulos_activos
+        
+        if sel_titulos_activos:
+            df_target_masivo = df_pendientes[df_pendientes['titulo'].isin(sel_titulos_activos)].copy()
+            st.info(f"🎯 **{len(df_target_masivo)} asesora(s) seleccionada(s)** — Monto total de campaña: **${df_target_masivo['saldo_total'].sum():,.0f} COP**".replace(",", "."))
+            
+            col_cfg1, col_cfg2 = st.columns([1.2, 1.8])
+            with col_cfg1:
+                tipo_camp_sel = st.selectbox(
+                    "Tipo de Plantilla:",
+                    options=['auto', 'manana', 'hoy', 'mora', 'general'],
+                    format_func=lambda x: {
+                        'auto': '⚡ Automático (Detecta si vence mañana, hoy o mora)',
+                        'manana': '🎁 Vence Mañana (Preventivo Cordial)',
+                        'hoy': '🚨 Vence Hoy (Urgente sin recargos)',
+                        'mora': '⚠️ En Mora (Cobranza con Recargos)',
+                        'general': '🌸 Recordatorio General'
+                    }.get(x, x),
+                    key="sel_tipo_camp_masivo"
                 )
+                nombre_remit_masivo = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_masivo")
+
+            with col_cfg2:
+                st.caption("Variables que se reemplazan en cada mensaje: `{primer_nombre}`, `{nombre}`, `{factura}`, `{saldo_total}`, `{vencimiento}`")
                 
-                txt_msg_edit = st.text_area("Vista previa del mensaje:", value=msg_gen, height=150, key="txt_area_wa_geral")
+            # Generar tabla de mensajes
+            filas_campana = []
+            for _, r in df_target_masivo.iterrows():
+                t_msg = tipo_camp_sel
+                if t_msg == 'auto':
+                    d_r = r['dias_para_vencer']
+                    t_msg = 'manana' if d_r == 1 else ('hoy' if d_r == 0 else ('mora' if d_r < 0 else 'general'))
+                    
+                msg_ind = generar_mensaje_whatsapp_cobranza(r, tipo=t_msg, nombre_remitente=nombre_remit_masivo)
+                cel = str(r.get('telefono_movil', '')).strip().replace(' ', '').replace('-', '').replace('+', '')
+                link_w = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_ind)}" if cel and len(cel) >= 10 else ""
                 
-                cel_dest = str(row_sel_wa.get('telefono_movil', '')).strip()
-                cel_in = st.text_input("Número Celular Asesora (10 dígitos):", value=cel_dest, key="input_cel_wa_geral")
+                filas_campana.append({
+                    'Asesora': r.get('nombre'),
+                    'Código CB': r.get('codigo_cb'),
+                    'Grupo': r.get('grupo'),
+                    'Celular': cel if cel else "Sin celular",
+                    'Factura': r.get('numero_factura'),
+                    'Vencimiento': r.get('fecha_vencimiento'),
+                    'Días Restantes': r.get('dias_para_vencer'),
+                    'Saldo Total': f"${r.get('saldo_total'):,.0f} COP".replace(",", "."),
+                    'Mensaje Personalizado': msg_ind,
+                    'Enlace Directo': link_w
+                })
                 
-                if cel_in and len(cel_in.strip()) >= 10:
-                    link_wa_final = f"https://api.whatsapp.com/send?phone=57{cel_in.strip()}&text={urllib.parse.quote(txt_msg_edit)}"
-                    st.link_button(
-                        f"📲 Enviar WhatsApp a {str(row_sel_wa.get('nombre')).split()[0].title()}",
-                        url=link_wa_final,
-                        use_container_width=True
-                    )
+            df_campana_out = pd.DataFrame(filas_campana)
+            
+            # Vista previa del lote
+            st.dataframe(
+                df_campana_out[['Asesora', 'Grupo', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 'Saldo Total', 'Mensaje Personalizado']],
+                use_container_width=True,
+                hide_index=True
+            )
+            
+            col_d1, col_d2 = st.columns([1.5, 1.5])
+            with col_d1:
+                # Selector individual rápido dentro del lote
+                st.markdown("###### 📲 Despachar Asesora Individual:")
+                nom_sel_rapido = st.selectbox("Elige la asesora para enviar de inmediato:", options=df_campana_out['Asesora'].tolist(), key="sel_rapido_camp")
+                row_sel_rap = df_campana_out[df_campana_out['Asesora'] == nom_sel_rapido].iloc[0]
+                if row_sel_rap['Enlace Directo']:
+                    st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rapido).split()[0].title()}", url=row_sel_rap['Enlace Directo'], use_container_width=True)
                 else:
-                    st.warning("⚠️ Ingresa un número de celular de 10 dígitos para habilitar el botón de WhatsApp.")
+                    st.warning("⚠️ Esta asesora no tiene un número celular válido de 10 dígitos registrado.")
+                    
+            with col_d2:
+                st.markdown("###### 📥 Descargar Base de Campaña:")
+                csv_camp = df_campana_out.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label=f"📥 Descargar Campaña CSV ({len(df_campana_out)} Mensajes)",
+                    data=csv_camp,
+                    file_name=f"Campana_Cobranza_WA_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="btn_descargar_camp_wa"
+                )
+
+            # 6. INTEGRACIÓN Y PASARELAS PARA ENVÍOS AUTOMÁTICOS
+            with st.expander("🔌 Integración & Conexión con Pasarelas de WhatsApp (Envío Automático)", expanded=False):
+                st.markdown("##### 🚀 Pasarela de Envíos Masivos Automáticos")
+                st.markdown("""
+                Para enviar mensajes masivos a cientos de asesoras sin tocar tu teléfono 1 a 1, te recomendamos conectar una **API de WhatsApp**:
+                
+                * 👑 **Evolution API (Recomendada - 100% Gratuita & Open Source)**:
+                  * Puedes montarla en Railway o Docker en 2 minutos.
+                  * Escaneas el código QR con el WhatsApp de la Líder o Gerente.
+                  * Envía mensajes con variables, texto en negrita y emojis sin coste por mensaje.
+                * 🌐 **UltraMsg / Wassenger / Z-API (Cloud SaaS)**:
+                  * Plataforma en la nube lista para usar con API Key.
+                * 🏢 **WhatsApp Cloud API Oficial (Meta Graph API)**:
+                  * La solución corporativa de Meta para grandes volúmenes.
+                """)
+                
+                st.markdown("###### ⚙️ Despachador API en Vivo:")
+                col_api1, col_api2 = st.columns(2)
+                with col_api1:
+                    api_url_in = st.text_input("Endpoint / URL de la API:", placeholder="ej. https://mi-evolution-api.up.railway.app/message/sendText/mi_instancia", key="in_api_url_geral")
+                with col_api2:
+                    api_token_in = st.text_input("API Key / Bearer Token:", type="password", placeholder="ej. B6D711FCDE4D4FD5936544120E713976", key="in_api_token_geral")
+                    
+                btn_disparar_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_out)} Asesoras", type="primary", use_container_width=True, key="btn_disparar_api_geral")
+                
+                if btn_disparar_api:
+                    if not api_url_in.strip() or not api_token_in.strip():
+                        st.warning("⚠️ Ingresa la URL del Endpoint y el Token de tu API para iniciar el envío automático.")
+                    else:
+                        import requests
+                        progress_bar = st.progress(0.0)
+                        status_txt = st.empty()
+                        enviados_ok = 0
+                        errores_cnt = 0
+                        
+                        for i, r_c in enumerate(df_campana_out.iterrows()):
+                            r_c = r_c[1]
+                            cel_num = str(r_c['Celular']).strip()
+                            if cel_num and len(cel_num) >= 10:
+                                payload = {
+                                    "number": f"57{cel_num}",
+                                    "text": r_c['Mensaje Personalizado'],
+                                    "body": r_c['Mensaje Personalizado']
+                                }
+                                headers = {
+                                    "apikey": api_token_in.strip(),
+                                    "Authorization": f"Bearer {api_token_in.strip()}",
+                                    "Content-Type": "application/json"
+                                }
+                                try:
+                                    res = requests.post(api_url_in.strip(), json=payload, headers=headers, timeout=10)
+                                    if res.status_code in [200, 201]:
+                                        enviados_ok += 1
+                                    else:
+                                        errores_cnt += 1
+                                except Exception:
+                                    errores_cnt += 1
+                                    
+                            progress_bar.progress((i + 1) / len(df_campana_out))
+                            status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Asesora']}...")
+                            
+                        st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {enviados_ok} | Fallidos: {errores_cnt}")
+        else:
+            st.info("👆 Selecciona al menos una asesora arriba o usa los botones de carga rápida para armar la campaña.")
 
         st.markdown("---")
 
-        # 7. BOTÓN DE DESCARGA EXCEL / CSV
+        # 7. BOTÓN DE DESCARGA EXCEL / CSV DE CARTERA COMPLETA
         csv_geral_exp = df_pendientes.to_csv(index=False).encode('utf-8-sig')
         st.download_button(
-            label="📥 Descargar Listado de Cartera Pendiente (CSV / Excel)",
+            label="📥 Descargar Base Completa de Cartera Pendiente (CSV / Excel)",
             data=csv_geral_exp,
             file_name=f"Cartera_Geral_Pendiente_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
