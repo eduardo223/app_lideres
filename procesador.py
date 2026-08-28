@@ -3416,9 +3416,11 @@ def sincronizar_usuarios_a_sqlite(conn=None):
     except Exception:
         pass
 
+    cursor.execute("DELETE FROM usuarios")
+
     for uname, uinfo in usuarios.items():
         cursor.execute("""
-        INSERT OR REPLACE INTO usuarios (username, nombre, password_hash, rol, codigo_grupo, codigo_sector)
+        INSERT INTO usuarios (username, nombre, password_hash, rol, codigo_grupo, codigo_sector)
         VALUES (?, ?, ?, ?, ?, ?)
         """, (uname, uinfo.get("nombre"), uinfo.get("password_hash"), uinfo.get("rol"), uinfo.get("codigo_grupo"), uinfo.get("codigo_sector")))
     conn.commit()

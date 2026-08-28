@@ -18,18 +18,8 @@
     "ha_pagado": true,
     "estado": "activo",
     "fecha_vencimiento": null,
-    "correo_gerente": "dolly@gmail.com",
-    "telefono_gerente": "3113201145"
-  },
-  "700000003": {
-    "codigo_sector": "700000003",
-    "nombre_sector": "EMOCIONES DOLLY",
-    "primera_prueba_fecha": "2026-08-19T22:11:43.090516",
-    "ha_consumido_prueba": true,
-    "ha_pagado": false,
-    "estado": "prueba",
-    "fecha_vencimiento": "2026-09-03T22:11:43.090516",
-    "correo_gerente": "dolly@gmail.com",
-    "telefono_gerente": "3113201145"
+    "correo_gerente": "dolly.parra@natura.net",
+    "telefono_gerente": "3113201145",
+    "nombre_gerente": "Dolly Parra"
   }
 }

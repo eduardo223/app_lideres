@@ -15,15 +15,6 @@
     "codigo_sector": "700000459",
     "nombre_sector": "MATICES CLERY"
   },
-  "dolly@gmail.com": {
-    "nombre": "DOLLY Salgara",
-    "password_hash": "be733997ec9beec98b4db13e555fb8f0f19e02ca871f20a92e9e071223bea9ef",
-    "rol": "gerente",
-    "codigo_grupo": null,
-    "debe_cambiar_password": true,
-    "codigo_sector": "700000466",
-    "nombre_sector": "EMOCIONES DOLLY"
-  },
   "lider9640": {
     "nombre": "YENNY COROMOTO DIAZ PEREZ",
     "password_hash": "0cabe72e4aaade6b4491e5c49a47a2b179529b763099254b3d9297b9ba429f77",
@@ -188,5 +179,14 @@
     "nombre_sector": "MATICES CLERY",
     "estado_suscripcion": "prueba",
     "fecha_vencimiento": "2026-09-05T19:22:00.085093"
+  },
+  "dolly.parra@natura.net": {
+    "nombre": "Dolly Parra",
+    "password_hash": "be733997ec9beec98b4db13e555fb8f0f19e02ca871f20a92e9e071223bea9ef",
+    "rol": "gerente",
+    "codigo_grupo": null,
+    "debe_cambiar_password": true,
+    "codigo_sector": "700000466",
+    "nombre_sector": "EMOCIONES DOLLY"
   }
 }

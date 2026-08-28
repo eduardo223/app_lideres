@@ -1192,7 +1192,7 @@ if st.session_state['user'] is None:
             es_manual = (sec_seleccionado_label == "✏️ Otro Sector (Ingresar manualmente)")
 
             with st.form("form_registro_gerente"):
-                reg_nombre = st.text_input("👩‍💼 Nombre Completo", placeholder="Ej: Dolly Salgara o Clery Cuellar")
+                reg_nombre = st.text_input("👩‍💼 Nombre Completo", placeholder="Ej: Dolly Parra o Clery Cuellar")
                 reg_correo = st.text_input("✉️ Correo Electrónico (Será tu usuario de acceso)", placeholder="ejemplo@gmail.com")
                 reg_pass = st.text_input("🔒 Contraseña Segura", type="password", placeholder="Mínimo 6 caracteres")
                 reg_tel = st.text_input("📲 Celular / WhatsApp de Contacto", placeholder="Ej: 3113201145")
@@ -4253,8 +4253,8 @@ with tab_usuarios:
             with tab_crear_u:
                 st.markdown("##### 👤 Crear o Modificar Cuenta")
                 with st.form("form_nuevo_usuario"):
-                    nu_username = st.text_input("Usuario (Login)", placeholder="ej. gerente3 o lider9334")
-                    nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Dolly Salgara")
+                    nu_username = st.text_input("Usuario (Login)", placeholder="ej. dolly.parra@natura.net o lider9334")
+                    nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Dolly Parra")
                     nu_pass = st.text_input("Contraseña", type="password", placeholder="Dejar vacío para mantener contraseña actual")
                     nu_rol = st.selectbox("Rol de Acceso", options=["gerente", "lider", "superadmin", "asesor"])
                     nu_grupo = st.text_input("Código de Grupo (Para Líderes)", placeholder="ej. 9334")
