@@ -3356,7 +3356,7 @@ with tab_ganancia:
             st.caption("💡 **Meta Saldo**: Debe ser mayor o igual a **2**.")
         with col_bm_in3:
             nom_lider_display = df_filtrado.iloc[0].get('Nombre de consultora', user_nombre) if not df_filtrado.empty else user_nombre
-            st.info(f"👤 **Líder:** {nom_lider_display}\n\n🏷️ **Grupo:** {grupo_usuario if grupo_usuario else 'Seleccionado'}\n\n📅 **Período:** Ciclos 202612 - 202618")
+            st.info(f"👤 **Líder:** {nom_lider_display}\n\n🏷️ **Grupo:** {user_grupo if user_grupo else 'Seleccionado'}\n\n📅 **Período:** Ciclos 202612 - 202618")
 
         res_bm = calcular_bono_lider_mentora(bm_act_real, bm_act_obj, bm_saldo_real)
         
@@ -3402,8 +3402,8 @@ with tab_ganancia:
         st.markdown("##### 🔄 Proyección de Retención & Movimiento de Base (Ciclos 202612 - 202618)")
         st.caption("Analiza el comportamiento de tu base de consultoras (Activas, Inactivas 1 a 6) y simula el impacto en Actividad y Saldo al reactivarlas.")
         
-        grp_ret_target = str(df_filtrado.iloc[0].get('Codigo de grupo', grupo_usuario)).strip().split('.')[0] if not df_filtrado.empty else grupo_usuario
-        diag_ret = obtener_diagnostico_retencion_grupo(grupo=grp_ret_target, sector=codigo_sector_usuario)
+        grp_ret_target = str(df_filtrado.iloc[0].get('Codigo de grupo', user_grupo)).strip().split('.')[0] if not df_filtrado.empty else user_grupo
+        diag_ret = obtener_diagnostico_retencion_grupo(grupo=grp_ret_target, sector=user_sector)
         conteos_ret = diag_ret['conteos']
         
         c_act_ini = conteos_ret['Activa'] if conteos_ret['Activa'] > 0 else int(val_a_real)
