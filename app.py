@@ -2683,10 +2683,10 @@ with tab_geral:
 
         st.markdown("---")
 
-        # 4. CRONOGRAMA DE PROYECCIÓN Y VISTAS RÁPIDAS (CON COLORES CONDICIONALES EN LAS FILAS)
+        # 4. CRONOGRAMA DE PROYECCIÓN Y VISTAS RÁPIDAS (ORDENADO DE MAYOR A MENOR DEUDA Y CON COLORES ARMÓNICOS)
         st.markdown("##### 📋 Cronograma de Cartera & Gestión por Tramo de Vencimiento")
-        st.caption("Semáforo visual en cada fila: 🔴 **En Mora** (<0 días) | 🟠 **Vence Hoy** (0 días) | 🟡 **Vence Mañana** (+1 día) | 🟢 **Pasado Mañana / Próximos 7 días** (+2 a +7 días)")
-        
+        st.caption("Ordenado de mayor a menor deuda con semáforo armónico: 🔴 **Deuda Alta / Mora** (>= $300k) | 🟠 **Deuda Media** ($150k - $300k) | 🟢 **Deuda Controlada** (< $150k)")
+
         tab_v_manana, tab_v_pasado, tab_v_mora, tab_v_7d, tab_v_todas, tab_v_pagadas = st.tabs([
             f"🟡 Vencen Mañana ({len(df_manana)})",
             f"🟢 Pasado Mañana (+2 a +3d) ({len(df_pasado)})",
@@ -2695,53 +2695,107 @@ with tab_geral:
             f"🗓️ Todas las Pendientes ({len(df_pendientes)})",
             f"✅ Historial Pagados ({len(df_geral_raw[df_geral_raw['situacion'] == 'Pagado'])})"
         ])
-        
-        def _aplicar_estilo_fila_geral(row):
-            dias = row.get('Días Restantes', 999)
+
+        def _limpiar_texto_plan_pago(val):
+            val_str = str(val or '').strip()
+            if 'plan_recibimiento' in val_str:
+                parts = val_str.split('plan_recibimiento')
+                if len(parts) > 1:
+                    clean = parts[1].strip()
+                    for tok in ['26', '36', '47', 'Name:']:
+                        clean = clean.replace(tok, '').strip()
+                    return clean[:35].strip()
+            return val_str[:35].strip() if val_str else "Estándar"
+
+        def _color_saldo_total_armonico(val):
             try:
-                dias_num = float(dias)
+                num = float(limpiar_numero(val))
             except Exception:
-                dias_num = 999
-                
-            if dias_num < 0:
-                # Rojo mora
-                return ['background-color: rgba(239, 68, 68, 0.18); color: #FCA5A5; font-weight: 500;'] * len(row)
-            elif dias_num == 0:
-                # Naranja vence hoy
-                return ['background-color: rgba(249, 115, 22, 0.22); color: #FDBA74; font-weight: 600;'] * len(row)
-            elif dias_num == 1:
-                # Amarillo vence mañana
-                return ['background-color: rgba(234, 179, 8, 0.20); color: #FDE047; font-weight: 600;'] * len(row)
-            elif 2 <= dias_num <= 3:
-                # Verde lima pasado mañana
-                return ['background-color: rgba(132, 204, 22, 0.14); color: #BEF264;'] * len(row)
-            elif 4 <= dias_num <= 7:
-                # Verde esmeralda próximos 7 días
-                return ['background-color: rgba(16, 185, 129, 0.10); color: #6EE7B7;'] * len(row)
+                num = 0.0
+            if num >= 300000:
+                return 'background-color: rgba(239, 68, 68, 0.18); color: #DC2626; font-weight: 700;'
+            elif num >= 150000:
+                return 'background-color: rgba(245, 158, 11, 0.18); color: #D97706; font-weight: 700;'
             else:
-                return [''] * len(row)
-        
+                return 'background-color: rgba(16, 185, 129, 0.15); color: #059669; font-weight: 700;'
+
+        def _color_nivel_deuda_badge(val):
+            val_str = str(val)
+            if 'Alta' in val_str or 'Mora' in val_str:
+                return 'background-color: rgba(239, 68, 68, 0.20); color: #DC2626; font-weight: 700; border-radius: 4px;'
+            elif 'Media' in val_str:
+                return 'background-color: rgba(245, 158, 11, 0.20); color: #D97706; font-weight: 700; border-radius: 4px;'
+            else:
+                return 'background-color: rgba(16, 185, 129, 0.18); color: #059669; font-weight: 700; border-radius: 4px;'
+
+        def _color_dias_restantes_badge(val):
+            val_str = str(val)
+            if 'Mora' in val_str or '-' in val_str or '🔴' in val_str:
+                return 'background-color: rgba(239, 68, 68, 0.20); color: #DC2626; font-weight: 700;'
+            elif 'Hoy' in val_str or '🚨' in val_str:
+                return 'background-color: rgba(249, 115, 22, 0.20); color: #EA580C; font-weight: 700;'
+            elif 'Mañana' in val_str or '🟡' in val_str:
+                return 'background-color: rgba(234, 179, 8, 0.20); color: #D97706; font-weight: 700;'
+            else:
+                return 'background-color: rgba(16, 185, 129, 0.15); color: #059669; font-weight: 600;'
+
         def _formatear_tabla_geral(df_in):
             if df_in is None or df_in.empty:
                 st.info("🎉 No hay facturas en esta categoría actualmente.")
                 return None
-                
+
+            # 1. Ordenar de mayor a menor deuda (saldo_total descendente)
+            df_ordenado = df_in.sort_values(by=['saldo_total', 'dias_para_vencer'], ascending=[False, True]).copy()
+
+            # 2. Asignar Nivel de Deuda
+            def calcular_etiqueta_nivel(r):
+                s = float(limpiar_numero(r.get('saldo_total', 0)))
+                d = float(limpiar_numero(r.get('dias_para_vencer', 0)))
+                if d < 0:
+                    return "🔴 En Mora"
+                elif s >= 300000:
+                    return "🔴 Alta"
+                elif s >= 150000:
+                    return "🟠 Media"
+                else:
+                    return "🟢 Controlada"
+
+            df_ordenado['Nivel Deuda'] = df_ordenado.apply(calcular_etiqueta_nivel, axis=1)
+
+            # 3. Limpiar Días Restantes
+            def formatear_dias_legibles(r):
+                d = int(limpiar_numero(r.get('dias_para_vencer', 0)))
+                if d < 0:
+                    return f"🔴 {abs(d)} d. mora"
+                elif d == 0:
+                    return "🚨 Vence Hoy"
+                elif d == 1:
+                    return "🟡 Vence Mañana"
+                elif 2 <= d <= 3:
+                    return f"🟢 En {d} días"
+                else:
+                    return f"📅 En {d} días"
+
+            df_ordenado['Estado Vencimiento'] = df_ordenado.apply(formatear_dias_legibles, axis=1)
+
+            # 4. Limpiar Plan de Pago
+            if 'plan_recibimiento' in df_ordenado.columns:
+                df_ordenado['plan_recibimiento'] = df_ordenado['plan_recibimiento'].apply(_limpiar_texto_plan_pago)
+
             cols_mostrar = [
-                'nombre', 'codigo_cb', 'grupo', 'numero_factura', 'numero_pedido',
-                'fecha_vencimiento', 'dias_para_vencer', 'saldo_principal', 'saldo_financiero',
+                'nombre', 'codigo_cb', 'grupo', 'numero_factura', 'fecha_vencimiento',
+                'Estado Vencimiento', 'Nivel Deuda', 'saldo_principal', 'saldo_financiero',
                 'saldo_total', 'plan_recibimiento', 'telefono_movil'
             ]
-            cols_existentes = [c for c in cols_mostrar if c in df_in.columns]
-            df_disp = df_in[cols_existentes].copy()
-            
+            cols_existentes = [c for c in cols_mostrar if c in df_ordenado.columns]
+            df_disp = df_ordenado[cols_existentes].copy()
+
             rename_dict = {
                 'nombre': 'Consultora',
                 'codigo_cb': 'Código CB',
                 'grupo': 'Grupo',
                 'numero_factura': 'Factura',
-                'numero_pedido': 'Pedido',
                 'fecha_vencimiento': 'Vencimiento',
-                'dias_para_vencer': 'Días Restantes',
                 'saldo_principal': 'Saldo Capital',
                 'saldo_financiero': 'Saldo Financiero',
                 'saldo_total': 'Saldo Total',
@@ -2749,9 +2803,7 @@ with tab_geral:
                 'telefono_movil': 'Celular'
             }
             df_disp = df_disp.rename(columns=rename_dict)
-            
-            styler = df_disp.style.apply(_aplicar_estilo_fila_geral, axis=1)
-            
+
             format_dict = {}
             if 'Saldo Capital' in df_disp.columns:
                 format_dict['Saldo Capital'] = lambda v: f"${v:,.0f} COP".replace(",", ".")
@@ -2759,8 +2811,16 @@ with tab_geral:
                 format_dict['Saldo Financiero'] = lambda v: f"${v:,.0f} COP".replace(",", ".")
             if 'Saldo Total' in df_disp.columns:
                 format_dict['Saldo Total'] = lambda v: f"${v:,.0f} COP".replace(",", ".")
-                
-            styler = styler.format(format_dict)
+
+            styler = df_disp.style.format(format_dict)
+
+            if 'Saldo Total' in df_disp.columns:
+                styler = styler.map(_color_saldo_total_armonico, subset=['Saldo Total'])
+            if 'Nivel Deuda' in df_disp.columns:
+                styler = styler.map(_color_nivel_deuda_badge, subset=['Nivel Deuda'])
+            if 'Estado Vencimiento' in df_disp.columns:
+                styler = styler.map(_color_dias_restantes_badge, subset=['Estado Vencimiento'])
+
             return styler
 
         with tab_v_manana:
