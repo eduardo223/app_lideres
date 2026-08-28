@@ -88,6 +88,12 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Inicializar y verificar tablas relacionales de SQLite
+try:
+    inicializar_db_sqlite()
+except Exception as _e_init:
+    print(f"Nota de inicialización SQLite: {_e_init}")
+
 # Helper global para aplicar mapas de estilo con compatibilidad de versiones de pandas
 def aplicar_mapa_styler(styler, func, subset=None):
     try:

@@ -3942,8 +3942,24 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
 def consultar_geral_sql(grupo=None, sector=None, situacion=None):
     """
     Consulta la base relacional de cartera_geral en SQLite con filtros de seguridad y rendimiento.
+    Crea automáticamente la tabla si no existe o sincroniza desde Geral.xlsx si está disponible.
     """
+    try:
+        inicializar_db_sqlite()
+    except Exception:
+        pass
+
     conn = obtener_conexion_db()
+    
+    # Asegurar que la tabla exista
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cartera_geral'")
+        if not cursor.fetchone():
+            inicializar_db_sqlite()
+    except Exception:
+        pass
+
     query = "SELECT * FROM cartera_geral"
     where_clauses = []
     params = []
@@ -3967,8 +3983,27 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
         
     query += " ORDER BY fecha_vencimiento ASC, saldo_total DESC"
     
-    df = pd.read_sql_query(query, conn, params=params)
-    conn.close()
+    try:
+        df = pd.read_sql_query(query, conn, params=params)
+    except Exception as e:
+        inicializar_db_sqlite()
+        try:
+            df = pd.read_sql_query(query, conn, params=params)
+        except Exception:
+            df = pd.DataFrame()
+    finally:
+        conn.close()
+        
+    # Si la consulta viene vacía y existe Geral.xlsx en disco, auto-sincronizar
+    if (df is None or df.empty) and os.path.exists("Geral.xlsx"):
+        try:
+            sincronizar_excel_geral_a_sqlite("Geral.xlsx")
+            conn2 = obtener_conexion_db()
+            df = pd.read_sql_query(query, conn2, params=params)
+            conn2.close()
+        except Exception:
+            pass
+            
     return df
 
 def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
