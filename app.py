@@ -46,6 +46,9 @@ from procesador import (
     ETIQUETAS_ACTIVAS,
     ETIQUETAS_FACTURACION,
     calcular_matriz_ganancia,
+    calcular_bono_lider_mentora,
+    calcular_puntos_convencion_ciclo,
+    obtener_diagnostico_retencion_grupo,
     obtener_potencializador_saldo,
     obtener_indice_activas,
     obtener_indice_facturacion,
@@ -3321,6 +3324,213 @@ with tab_ganancia:
             "Ganancia Estimada Total",
             f"${ganancia_estimada_sim_total:,.0f}".replace(",", ".")
         )
+
+    st.markdown("---")
+    st.markdown("### 🌟 Simuladores Avanzados de Negocio & Proyección")
+    st.caption("Módulos oficiales del Simulador LN dinamizados en tiempo real con la data de tu grupo comercial:")
+
+    tab_sub_mentora, tab_sub_retencion, tab_sub_convencion = st.tabs([
+        "🎓 Bono Líder Mentora",
+        "🔄 Proyección de Retención & Actividad",
+        "🏆 Puntos a Convención Natura"
+    ])
+
+    # 1. BONO LÍDER MENTORA
+    with tab_sub_mentora:
+        st.markdown("##### 🎓 Simulador Bono Líder Mentora (Período 202612 - 202618)")
+        st.caption(r"Premia el crecimiento y consolidación de tu grupo con un bono de hasta **\$600.000 COP** sujeto al cumplimiento de dos habilitadores clave.")
+        
+        col_bm_in1, col_bm_in2, col_bm_in3 = st.columns(3)
+        with col_bm_in1:
+            bm_act_real = st.number_input("Activas Reales Logradas:", value=int(val_a_real), min_value=0, step=1, key=f"bm_act_r_{leader_key}")
+            bm_act_obj = st.number_input("Activas Meta / Desafío:", value=int(val_a_obj if val_a_obj > 0 else 100), min_value=1, step=1, key=f"bm_act_o_{leader_key}")
+        with col_bm_in2:
+            bm_saldo_real = st.number_input("Saldo Comercial Real:", value=int(val_saldo), min_value=-50, max_value=100, step=1, key=f"bm_sal_r_{leader_key}")
+            st.caption("💡 **Meta Saldo**: Debe ser mayor o igual a **2**.")
+        with col_bm_in3:
+            nom_lider_display = df_filtrado.iloc[0].get('Nombre de consultora', user_nombre) if not df_filtrado.empty else user_nombre
+            st.info(f"👤 **Líder:** {nom_lider_display}\n\n🏷️ **Grupo:** {grupo_usuario if grupo_usuario else 'Seleccionado'}\n\n📅 **Período:** Ciclos 202612 - 202618")
+
+        res_bm = calcular_bono_lider_mentora(bm_act_real, bm_act_obj, bm_saldo_real)
+        
+        col_bm_k1, col_bm_k2, col_bm_k3 = st.columns(3)
+        with col_bm_k1:
+            st.metric(
+                "Habilitador 1: % Activas (Meta ≥ 95%)",
+                f"{res_bm['pct_alcanzado_activas']*100:.1f}%",
+                "✅ Cumple Habilitador" if res_bm['cumple_activas'] else "❌ No Cumple (<95%)",
+                delta_color="normal" if res_bm['cumple_activas'] else "inverse"
+            )
+        with col_bm_k2:
+            st.metric(
+                "Habilitador 2: Saldo (Meta ≥ 2)",
+                f"{bm_saldo_real}",
+                "✅ Cumple Habilitador" if res_bm['cumple_saldo'] else "❌ No Cumple (<2)",
+                delta_color="normal" if res_bm['cumple_saldo'] else "inverse"
+            )
+        with col_bm_k3:
+            st.metric(
+                "Bono Líder Mentora Estimado",
+                f"${res_bm['bono_cop']:,.0f} COP".replace(",", "."),
+                f"Escala: {res_bm['rango_activas']}"
+            )
+            
+        if res_bm['cumple_ambos']:
+            st.success(res_bm['mensaje_estado'])
+        else:
+            st.warning(res_bm['mensaje_estado'])
+
+        with st.expander("📋 Ver Tabla Oficial de Escalas de Pago - Bono Mentora"):
+            df_escalas_bm = pd.DataFrame([
+                {"Rango de Activas": "Menos de 40", "Habilitador % Activas": "≥ 95%", "Habilitador Saldo": "≥ 2", "Bono Oficial": "$0 COP"},
+                {"Rango de Activas": "40 a 59", "Habilitador % Activas": "≥ 95%", "Habilitador Saldo": "≥ 2", "Bono Oficial": "$300.000 COP"},
+                {"Rango de Activas": "60 a 79", "Habilitador % Activas": "≥ 95%", "Habilitador Saldo": "≥ 2", "Bono Oficial": "$400.000 COP"},
+                {"Rango de Activas": "80 a 99", "Habilitador % Activas": "≥ 95%", "Habilitador Saldo": "≥ 2", "Bono Oficial": "$500.000 COP"},
+                {"Rango de Activas": "100 o más", "Habilitador % Activas": "≥ 95%", "Habilitador Saldo": "≥ 2", "Bono Oficial": "$600.000 COP"}
+            ])
+            st.table(df_escalas_bm)
+
+    # 2. PROYECCIÓN DE RETENCIÓN & ACTIVIDAD
+    with tab_sub_retencion:
+        st.markdown("##### 🔄 Proyección de Retención & Movimiento de Base (Ciclos 202612 - 202618)")
+        st.caption("Analiza el comportamiento de tu base de consultoras (Activas, Inactivas 1 a 6) y simula el impacto en Actividad y Saldo al reactivarlas.")
+        
+        grp_ret_target = str(df_filtrado.iloc[0].get('Codigo de grupo', grupo_usuario)).strip().split('.')[0] if not df_filtrado.empty else grupo_usuario
+        diag_ret = obtener_diagnostico_retencion_grupo(grupo=grp_ret_target, sector=codigo_sector_usuario)
+        conteos_ret = diag_ret['conteos']
+        
+        c_act_ini = conteos_ret['Activa'] if conteos_ret['Activa'] > 0 else int(val_a_real)
+        c_i1_ini = conteos_ret['Inactiva 1'] if conteos_ret['Inactiva 1'] > 0 else max(10, int(val_a_real * 0.35))
+        c_i2_ini = conteos_ret['Inactiva 2'] if conteos_ret['Inactiva 2'] > 0 else max(5, int(val_a_real * 0.15))
+        c_i3_ini = conteos_ret['Inactiva 3'] if conteos_ret['Inactiva 3'] > 0 else max(3, int(val_a_real * 0.08))
+        c_i4_ini = conteos_ret['Inactiva 4'] if conteos_ret['Inactiva 4'] > 0 else max(2, int(val_a_real * 0.05))
+        c_i5_ini = conteos_ret['Inactiva 5'] if conteos_ret['Inactiva 5'] > 0 else max(1, int(val_a_real * 0.03))
+        c_i6_ini = conteos_ret['Inactiva 6'] if conteos_ret['Inactiva 6'] > 0 else max(1, int(val_a_real * 0.02))
+        
+        col_ret_diag, col_ret_sim = st.columns([1.1, 1.9])
+        
+        with col_ret_diag:
+            st.markdown("###### 📊 Situación Actual de la Red")
+            df_base_sit = pd.DataFrame({
+                "Estado Comercial": ["Activas", "Inactivas 1", "Inactivas 2", "Inactivas 3", "Inactivas 4", "Inactivas 5", "Inactivas 6"],
+                "Consultoras": [c_act_ini, c_i1_ini, c_i2_ini, c_i3_ini, c_i4_ini, c_i5_ini, c_i6_ini]
+            })
+            st.dataframe(df_base_sit, use_container_width=True, hide_index=True)
+            
+            tot_disp_ini = c_act_ini + c_i1_ini + c_i2_ini + c_i3_ini
+            pct_act_ini = (c_act_ini / tot_disp_ini * 100.0) if tot_disp_ini > 0 else 0.0
+            
+            st.metric("Disponibles Base (Act + I1..I3)", f"{tot_disp_ini}")
+            st.metric("% Actividad Base Actual", f"{pct_act_ini:.1f}%")
+
+        with col_ret_sim:
+            st.markdown("###### 🎯 Simular Ciclo a Proyectar")
+            col_ciclo_sel, col_inicios_rei = st.columns(2)
+            with col_ciclo_sel:
+                ciclo_proy_sel = st.selectbox("¿Qué ciclo vas a proyectar?", options=["202613", "202614", "202615", "202616", "202617", "202618"], key=f"sel_ciclo_ret_{leader_key}")
+            with col_inicios_rei:
+                sim_ret_inicios = st.number_input("Inicios Nuevos Proyectados:", value=int(val_inicios), min_value=0, step=1, key=f"ret_ini_{leader_key}")
+                sim_ret_reinicios = st.number_input("Reinicios Proyectados:", value=2, min_value=0, step=1, key=f"ret_rei_{leader_key}")
+            
+            st.markdown("###### Proyección de Activación por Tramo:")
+            col_sl1, col_sl2 = st.columns(2)
+            with col_sl1:
+                p_act_retenidas = st.slider("Activas que repetirán pedido:", min_value=0, max_value=max(1, c_act_ini), value=min(c_act_ini, int(c_act_ini * 0.70)), key=f"sl_ret_act_{leader_key}")
+                p_i1_recup = st.slider("Inactivas 1 a reactivar:", min_value=0, max_value=max(1, c_i1_ini), value=min(c_i1_ini, int(c_i1_ini * 0.50)), key=f"sl_ret_i1_{leader_key}")
+            with col_sl2:
+                p_i2_recup = st.slider("Inactivas 2 a reactivar:", min_value=0, max_value=max(1, c_i2_ini), value=min(c_i2_ini, int(c_i2_ini * 0.30)), key=f"sl_ret_i2_{leader_key}")
+                p_i3_recup = st.slider("Inactivas 3 a reactivar:", min_value=0, max_value=max(1, c_i3_ini), value=min(c_i3_ini, int(c_i3_ini * 0.20)), key=f"sl_ret_i3_{leader_key}")
+
+            tot_act_proyectadas = p_act_retenidas + p_i1_recup + p_i2_recup + p_i3_recup + sim_ret_inicios + sim_ret_reinicios
+            sin_activar_total = (c_act_ini - p_act_retenidas) + (c_i1_ini - p_i1_recup) + (c_i2_ini - p_i2_recup) + (c_i3_ini - p_i3_recup)
+            tot_disp_proy = tot_act_proyectadas + sin_activar_total
+            pct_act_proy = (tot_act_proyectadas / tot_disp_proy * 100.0) if tot_disp_proy > 0 else 0.0
+            
+            saldo_proy_estimado = sim_ret_inicios + sim_ret_reinicios - (c_i3_ini - p_i3_recup)
+
+            st.markdown("---")
+            kr1, kr2, kr3 = st.columns(3)
+            with kr1:
+                st.metric("Total Activas Proyectadas", f"{tot_act_proyectadas}", f"+{sim_ret_inicios} Inicios / +{sim_ret_reinicios} Reinicios")
+            with kr2:
+                st.metric("% Actividad Proyectada", f"{pct_act_proy:.1f}%", f"{pct_act_proy - pct_act_ini:+.1f}% vs Actual")
+            with kr3:
+                st.metric("Saldo Proyectado Estimado", f"{saldo_proy_estimado:+d}", "Crecimiento de Red" if saldo_proy_estimado >= 0 else "Riesgo de decrecimiento", delta_color="normal" if saldo_proy_estimado >= 2 else "inverse")
+
+    # 3. SIMULADOR DE CONVENCIÓN NATURA
+    with tab_sub_convencion:
+        st.markdown("##### 🏆 Simulador de Puntos a Convención Natura (7 Ciclos: 202612 - 202618)")
+        st.caption("Calcula y proyecta tu puntaje oficial acumulado para clasificar a la Convención Nacional/Internacional Natura según el saldo de cada ciclo.")
+        
+        ciclos_conv = ["202612", "202613", "202614", "202615", "202616", "202617", "202618"]
+        
+        col_pres1, col_pres2, col_pres3, col_pres4 = st.columns(4)
+        if f'saldos_conv_{leader_key}' not in st.session_state:
+            st.session_state[f'saldos_conv_{leader_key}'] = [int(val_saldo)] + [3]*6
+
+        with col_pres1:
+            if st.button("🌱 Preset Conservador (Saldo 2)", use_container_width=True, key=f"p_cons_{leader_key}"):
+                st.session_state[f'saldos_conv_{leader_key}'] = [int(val_saldo)] + [2]*6
+                st.rerun()
+        with col_pres2:
+            if st.button("⭐ Preset Destacado (Saldo 4)", use_container_width=True, key=f"p_med_{leader_key}"):
+                st.session_state[f'saldos_conv_{leader_key}'] = [int(val_saldo)] + [4]*6
+                st.rerun()
+        with col_pres3:
+            if st.button("💎 Preset Diamante (Saldo 6+)", use_container_width=True, key=f"p_dia_{leader_key}"):
+                st.session_state[f'saldos_conv_{leader_key}'] = [int(val_saldo)] + [6]*6
+                st.rerun()
+        with col_pres4:
+            if st.button("🔄 Restablecer a Actual", use_container_width=True, key=f"p_rst_{leader_key}"):
+                st.session_state[f'saldos_conv_{leader_key}'] = [int(val_saldo)] * 7
+                st.rerun()
+
+        cols_ciclos = st.columns(7)
+        saldos_ingresados = []
+        puntos_ciclos = []
+        
+        for i, c_name in enumerate(ciclos_conv):
+            with cols_ciclos[i]:
+                st.markdown(f"**Ciclo {c_name}**" + (" 📍 *(Actual)*" if i == 0 else ""))
+                s_def = st.session_state[f'saldos_conv_{leader_key}'][i] if i < len(st.session_state[f'saldos_conv_{leader_key}']) else 3
+                s_val = st.number_input(f"Saldo {c_name}:", value=int(s_def), min_value=-20, max_value=50, step=1, key=f"conv_s_{c_name}_{leader_key}")
+                saldos_ingresados.append(s_val)
+                pts, r_txt = calcular_puntos_convencion_ciclo(s_val)
+                puntos_ciclos.append(pts)
+                
+                if pts >= 100:
+                    st.success(f"💎 **{pts} Pts**\n\n*(Saldo: {r_txt})*")
+                elif pts >= 60:
+                    st.info(f"⭐ **{pts} Pts**\n\n*(Saldo: {r_txt})*")
+                elif pts > 0:
+                    st.warning(f"🟡 **{pts} Pts**\n\n*(Saldo: {r_txt})*")
+                else:
+                    st.error(f"❌ **0 Pts**\n\n*(Saldo: <2)*")
+
+        st.session_state[f'saldos_conv_{leader_key}'] = saldos_ingresados
+        puntos_totales_conv = sum(puntos_ciclos)
+        
+        st.markdown("---")
+        kc1, kc2, kc3 = st.columns([1.5, 2, 1.5])
+        with kc1:
+            st.metric(
+                "Puntaje Total Proyectado",
+                f"{puntos_totales_conv} Pts",
+                f"Promedio: {puntos_totales_conv/7:.1f} pts/ciclo"
+            )
+        with kc2:
+            pct_meta_conv = min(1.0, puntos_totales_conv / 560.0)
+            st.markdown(f"**Termómetro de Clasificación a Convención:** ({puntos_totales_conv} / 560 Pts)")
+            st.progress(pct_meta_conv)
+            if puntos_totales_conv >= 700:
+                st.balloons()
+                st.success("🌟 **¡Nivel Excepcional!** Estás en posición privilegiada para ganar la Convención Nacional e Internacional.")
+            elif puntos_totales_conv >= 420:
+                st.info("✈️ **¡En Carrera de Clasificación!** Mantén este ritmo de saldo para asegurar tu cupo a la Convención.")
+            else:
+                st.warning("⚠️ **Atención:** Necesitas promediar al menos saldo 3 (60 pts) o saldo 4 (80 pts) en los ciclos restantes para clasificar.")
+        with kc3:
+            st.caption("📋 **Tabla Oficial de Puntos por Saldo:**\n* Saldo < 2: **0 Pts**\n* Saldo = 2: **40 Pts**\n* Saldo = 3: **60 Pts**\n* Saldo = 4: **80 Pts**\n* Saldo = 5: **100 Pts**\n* Saldo ≥ 6: **120 Pts**")
 
 # --- TAB 3: DIAGNÓSTICO 'CÓMO VAMOS' ---
 with tab_diagnostico:

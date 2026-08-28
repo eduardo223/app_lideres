@@ -551,6 +551,155 @@ def calcular_ganancia_estimada_df(df):
     
     return df
 
+def calcular_bono_lider_mentora(activas_reales, activas_desafio, saldo_real):
+    """
+    Calcula el Bono Líder Mentora oficial según la matriz de la hoja 'Bono Líder mentora'
+    y la tabla Datos!M20:O24.
+    Requiere dos habilitadores obligatorios:
+    1. % Cumplimiento Activas >= 95%
+    2. Saldo Real >= 2
+    Escalas de Pago:
+    - Menos de 40: $0 COP
+    - 40 a 59: $300.000 COP
+    - 60 a 79: $400.000 COP
+    - 80 a 99: $500.000 COP
+    - 100+: $600.000 COP
+    """
+    try:
+        act_r = float(limpiar_numero(activas_reales, 0.0))
+        act_d = float(limpiar_numero(activas_desafio, 0.0))
+        sal_r = float(limpiar_numero(saldo_real, 0.0))
+    except Exception:
+        act_r, act_d, sal_r = 0.0, 0.0, 0.0
+
+    pct_act = (act_r / act_d) if act_d > 0 else 0.0
+    cumple_act = pct_act >= 0.95
+    cumple_sal = sal_r >= 2.0
+    cumple_ambos = cumple_act and cumple_sal
+
+    bono_cop = 0.0
+    if act_r < 40:
+        rango_texto = "Menos de 40 Activas"
+        bono_base = 0.0
+    elif act_r < 60:
+        rango_texto = "40 a 59 Activas"
+        bono_base = 300000.0
+    elif act_r < 80:
+        rango_texto = "60 a 79 Activas"
+        bono_base = 400000.0
+    elif act_r < 100:
+        rango_texto = "80 a 99 Activas"
+        bono_base = 500000.0
+    else:
+        rango_texto = "100 o más Activas"
+        bono_base = 600000.0
+
+    if cumple_ambos:
+        bono_cop = bono_base
+        mensaje = f"🎉 ¡Felicitaciones! Cumples ambos habilitadores. Tu bono estimado es de ${bono_cop:,.0f} COP."
+    else:
+        faltantes = []
+        if not cumple_act:
+            falt_act = max(0, int(act_d * 0.95 - act_r) + 1)
+            faltantes.append(f"alcanzar el 95% de activas (te faltan {falt_act} activas)")
+        if not cumple_sal:
+            falt_sal = int(2 - sal_r)
+            faltantes.append(f"lograr un saldo de al menos 2 (te faltan {falt_sal} de saldo)")
+        mensaje = f"⚠️ Para habilitar el bono de ${bono_base:,.0f} COP requieres: " + " y ".join(faltantes) + "."
+
+    return {
+        'pct_alcanzado_activas': pct_act,
+        'cumple_activas': cumple_act,
+        'cumple_saldo': cumple_sal,
+        'cumple_ambos': cumple_ambos,
+        'rango_activas': rango_texto,
+        'bono_base_escala': bono_base,
+        'bono_cop': bono_cop,
+        'mensaje_estado': mensaje
+    }
+
+def calcular_puntos_convencion_ciclo(saldo_real):
+    """
+    Calcula los Puntos a Convención por ciclo según la tabla oficial Datos!D47:F52:
+    - Saldo < 2: 0 Pts
+    - Saldo = 2: 40 Pts
+    - Saldo = 3: 60 Pts
+    - Saldo = 4: 80 Pts
+    - Saldo = 5: 100 Pts
+    - Saldo >= 6: 120 Pts
+    """
+    try:
+        s = int(limpiar_numero(saldo_real, 0))
+    except Exception:
+        s = 0
+
+    if s < 2:
+        return 0, "Menor a 2"
+    elif s == 2:
+        return 40, "2"
+    elif s == 3:
+        return 60, "3"
+    elif s == 4:
+        return 80, "4"
+    elif s == 5:
+        return 100, "5"
+    else:
+        return 120, "6 o más"
+
+def obtener_diagnostico_retencion_grupo(grupo=None, sector=None):
+    """
+    Obtiene el conteo real de consultoras por estado comercial (Activa, Inactiva 1 a 6)
+    desde la base relacional consultoras_tableau en SQLite.
+    """
+    conn = obtener_conexion_db()
+    cursor = conn.cursor()
+    
+    query = "SELECT sit_comercial, COUNT(*) FROM consultoras_tableau"
+    where = []
+    params = []
+    if grupo and str(grupo).strip():
+        where.append("(grupo = ? OR grupo LIKE ?)")
+        params.extend([str(grupo).strip(), f"%{str(grupo).strip()}%"])
+    if sector and str(sector).strip():
+        where.append("(cod_sector = ? OR sector LIKE ?)")
+        params.extend([str(sector).strip(), f"%{str(sector).strip()}%"])
+        
+    if where:
+        query += " WHERE " + " AND ".join(where)
+    query += " GROUP BY sit_comercial"
+    
+    counts = {
+        'Activa': 0,
+        'Inactiva 1': 0,
+        'Inactiva 2': 0,
+        'Inactiva 3': 0,
+        'Inactiva 4': 0,
+        'Inactiva 5': 0,
+        'Inactiva 6': 0
+    }
+    
+    try:
+        cursor.execute(query, params)
+        for r in cursor.fetchall():
+            k = str(r[0] or '').strip()
+            if k in counts:
+                counts[k] = int(r[1])
+            elif 'activa' in k.lower() and '1' not in k and '2' not in k:
+                counts['Activa'] += int(r[1])
+    except Exception:
+        pass
+    finally:
+        conn.close()
+        
+    disp = counts['Activa'] + counts['Inactiva 1'] + counts['Inactiva 2'] + counts['Inactiva 3']
+    pct_act = (counts['Activa'] / disp * 100.0) if disp > 0 else 0.0
+    
+    return {
+        'conteos': counts,
+        'disponibles': disp,
+        'pct_actividad': pct_act
+    }
+
 
 def generar_analisis_como_vamos(df):
     """
