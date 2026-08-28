@@ -2706,12 +2706,69 @@ def obtener_resumen_suscripciones():
 
     return pd.DataFrame(filas)
 
+def buscar_cuenta_usuario(identificador):
+    """
+    Busca una cuenta en usuarios.json o en el histórico de sectores por:
+    1. Username exacto (ej. 'lider9334', 'gerente', 'dolly@gmail.com')
+    2. Correo electrónico (o prefijo de correo antes de @ o dominio)
+    3. Código de Grupo (ej. '9334' o 'lider9334')
+    4. Código de Sector (ej. '700000459' o '700000466')
+    5. Nombre de la persona (ej. 'Dolly', 'Clery', 'Yenny')
+    Retorna (encontrado: bool, user_data: dict, mensaje: str)
+    """
+    if not identificador:
+        return False, None, "Por favor ingresa tu usuario, correo o código."
+        
+    ident_clean = str(identificador).strip().lower()
+    usuarios = cargar_usuarios()
+    
+    # 1. Búsqueda directa por username
+    if ident_clean in usuarios:
+        u_info = usuarios[ident_clean].copy()
+        u_info['username'] = ident_clean
+        return True, u_info, "Cuenta encontrada por usuario oficial."
+        
+    # 2. Búsqueda por grupo (ej. '9334' -> lider9334)
+    grp_num = ident_clean.replace('lider', '').strip()
+    if grp_num.isdigit():
+        for u, data in usuarios.items():
+            if str(data.get('codigo_grupo', '')).strip() == grp_num:
+                u_info = data.copy()
+                u_info['username'] = u
+                return True, u_info, f"Cuenta encontrada por Código de Grupo {grp_num}."
+                
+    # 3. Búsqueda por código de sector (ej. '700000459', '700000466')
+    if ident_clean.isdigit() and len(ident_clean) >= 6:
+        for u, data in usuarios.items():
+            if str(data.get('codigo_sector', '')).strip() == ident_clean and data.get('rol') == 'gerente':
+                u_info = data.copy()
+                u_info['username'] = u
+                return True, u_info, f"Cuenta de Gerente encontrada por Código de Sector {ident_clean}."
+
+    # 4. Búsqueda por correo o coincidencia de nombre (ej. 'dolly.parra@natura.net' o 'dolly')
+    ident_part = ident_clean.split('@')[0].replace('.', '').replace('_', '')
+    for u, data in usuarios.items():
+        u_part = u.split('@')[0].replace('.', '').replace('_', '')
+        nom_part = str(data.get('nombre', '')).lower().replace(' ', '')
+        
+        # Coincidencia por correo o nombre
+        if (len(ident_part) >= 3 and (ident_part in u_part or u_part in ident_part)) or \
+           (len(ident_part) >= 4 and (ident_part in nom_part or ident_clean.split('.')[0] in nom_part)):
+            u_info = data.copy()
+            u_info['username'] = u
+            return True, u_info, f"Cuenta encontrada por coincidencia de datos ({data.get('nombre', u)})."
+            
+    return False, None, "No encontramos ninguna cuenta registrada con esos datos. Por favor verifica o contacta a Soporte."
+
 def autenticar_usuario(username, password):
     """
     Valida credenciales. Retorna el diccionario del usuario si es correcto o None.
+    Permite autenticarse por usuario oficial, correo o alias asociado.
     """
     u_clean = str(username).strip().lower()
     usuarios = cargar_usuarios()
+    
+    # 1. Intento directo por username exacto
     if u_clean in usuarios:
         user_info = usuarios[u_clean]
         p_hash = hashlib_sha256(password)
@@ -2719,6 +2776,17 @@ def autenticar_usuario(username, password):
             user_copy = user_info.copy()
             user_copy["username"] = u_clean
             return user_copy
+            
+    # 2. Intento por resolución de alias / correo / código de sector / grupo
+    ok_b, u_found, _ = buscar_cuenta_usuario(username)
+    if ok_b and u_found:
+        real_u = u_found['username']
+        p_hash = hashlib_sha256(password)
+        if u_found.get("password_hash") == p_hash:
+            user_copy = u_found.copy()
+            user_copy["username"] = real_u
+            return user_copy
+            
     return None
 
 def cambiar_password_usuario(username, nueva_password):

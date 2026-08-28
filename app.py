@@ -25,6 +25,7 @@ from procesador import (
     actualizar_situacion_comercial_desde_mi_grupo,
     actualizar_base_desde_activas,
     autenticar_usuario,
+    buscar_cuenta_usuario,
     cargar_usuarios,
     registrar_o_actualizar_usuario,
     cambiar_password_usuario,
@@ -987,15 +988,15 @@ if st.session_state['user'] is None:
         if st.session_state.get('msg_timeout'):
             st.warning(st.session_state['msg_timeout'])
 
-        tab_login_tab, tab_registro_tab = st.tabs(["🔑 Iniciar Sesión", "🚀 Probar Gratis (15 Días)"])
+        tab_login_tab, tab_recuperar_tab, tab_registro_tab = st.tabs(["🔑 Iniciar Sesión", "🆘 ¿Olvidaste tu Usuario o Clave?", "🚀 Probar Gratis (15 Días)"])
         
         with tab_login_tab:
             st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
             st.markdown("#### 🔑 Ingreso al Sistema")
-            st.caption("Ingresa con tu correo o usuario institucional.")
+            st.caption("Ingresa con tu correo, usuario institucional, o código de líder.")
             
             with st.form("form_login_modern"):
-                input_user = st.text_input("👤 Usuario o Correo", value="", placeholder="Ingresa tu correo o usuario...")
+                input_user = st.text_input("👤 Usuario o Correo", value="", placeholder="Ingresa tu correo, usuario o código...")
                 input_pass = st.text_input("🔒 Contraseña", type="password", value="", placeholder="••••••••")
                 btn_login = st.form_submit_button("🚀 Entrar al Sistema", type="primary", use_container_width=True)
                 
@@ -1010,7 +1011,145 @@ if st.session_state['user'] is None:
                         st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
                         st.rerun()
                     else:
-                        st.error("❌ Credenciales incorrectas. Verifica tu usuario y contraseña.")
+                        st.error("❌ Credenciales incorrectas. Si no recuerdas tu clave o usuario, puedes recuperarla en la pestaña '🆘 ¿Olvidaste tu Usuario o Clave?'.")
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+        with tab_recuperar_tab:
+            st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
+            st.markdown("#### 🆘 Recuperación de Acceso y Contraseñas")
+            st.caption("Ingresa tu correo, nombre, código de grupo (Líderes) o código de sector (Gerentes) para verificar tu cuenta y restaurar tu clave al instante.")
+            
+            with st.form("form_recuperar_acceso_step1"):
+                in_recuperar_id = st.text_input(
+                    "🔍 Identificador de Cuenta:",
+                    placeholder="ej: dolly.parra@natura.net, 9334, 700000466, o lider9640",
+                    key="in_recuperar_id_input"
+                )
+                btn_verificar_cuenta = st.form_submit_button("🔍 Verificar y Buscar mi Cuenta", type="primary", use_container_width=True)
+                
+                if btn_verificar_cuenta:
+                    if not in_recuperar_id.strip():
+                        st.warning("⚠️ Por favor escribe tu correo, usuario o código para buscar.")
+                    else:
+                        ok_find, data_find, msg_find = buscar_cuenta_usuario(in_recuperar_id)
+                        if ok_find:
+                            st.session_state['cuenta_recuperada_temp'] = data_find
+                            import random
+                            pin_gen = str(random.randint(100000, 999999))
+                            st.session_state['pin_recuperacion'] = pin_gen
+                            st.success("✅ ¡Cuenta encontrada exitosamente!")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_find}")
+                            
+            cuenta_rec = st.session_state.get('cuenta_recuperada_temp')
+            if cuenta_rec:
+                u_rec_name = cuenta_rec['username']
+                u_rec_nombre = cuenta_rec.get('nombre', '')
+                u_rec_rol = cuenta_rec.get('rol', '').capitalize()
+                u_rec_sector = cuenta_rec.get('nombre_sector', '') or cuenta_rec.get('codigo_sector', '')
+                u_rec_grp = cuenta_rec.get('codigo_grupo', '')
+                
+                st.markdown("---")
+                st.markdown(f"""
+                <div style="background: rgba(16, 185, 129, 0.12); border: 1.5px solid #10B981; border-radius: 12px; padding: 14px 18px; margin-bottom: 15px;">
+                    <div style="font-size: 1rem; font-weight: 700; color: #10B981; margin-bottom: 6px;">
+                        🌸 Verificación Exitosa de Cuenta
+                    </div>
+                    <div style="font-size: 0.88rem; color: #E2E8F0; line-height: 1.6;">
+                        • <b>Titular:</b> {u_rec_nombre}<br>
+                        • <b>Rol:</b> {u_rec_rol} {f'• Grupo {u_rec_grp}' if u_rec_grp else ''}<br>
+                        • <b>Sector:</b> {u_rec_sector}<br>
+                        • 👤 <b>Tu Usuario Oficial de Acceso es:</b> <span style="background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 4px; font-weight: 800; color: #FFFFFF;">{u_rec_name}</span>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                tab_rec_wa, tab_rec_pin = st.tabs(["📲 Restablecer & Enviar por WhatsApp", "🔑 Cambiar Contraseña Ahora"])
+                
+                with tab_rec_wa:
+                    st.caption("Restablece tu contraseña a una clave temporal y recíbela directamente en tu WhatsApp:")
+                    nueva_clave_sug = "lider123" if cuenta_rec.get('rol') == 'lider' else "admin123"
+                    
+                    with st.form("form_rec_wa_exec"):
+                        tel_rec_in = st.text_input("Ingresa tu número celular (10 dígitos):", placeholder="ej. 3123456789", key="tel_rec_in_wa")
+                        btn_reset_wa = st.form_submit_button("🔄 Restablecer a Clave Temporal & Generar WhatsApp", type="primary", use_container_width=True)
+                        
+                        if btn_reset_wa:
+                            ok_rst, msg_rst = restablecer_password_usuario(u_rec_name, nueva_clave_sug, debe_cambiar=True)
+                            if ok_rst:
+                                st.session_state['ultimo_reset_publico'] = {
+                                    'usuario': u_rec_name,
+                                    'nombre': u_rec_nombre,
+                                    'password': nueva_clave_sug,
+                                    'telefono': tel_rec_in
+                                }
+                                st.success(f"✅ ¡Contraseña restablecida exitosamente a: `{nueva_clave_sug}`!")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_rst}")
+                                
+                    ult_pub = st.session_state.get('ultimo_reset_publico')
+                    if ult_pub and ult_pub.get('usuario') == u_rec_name:
+                        msg_wa_recup = (
+                            f"🔐 *RECUPERACIÓN DE ACCESO - SISTEMA NATURA & AVON*\n\n"
+                            f"🌸 ¡Hola {ult_pub['nombre'].split()[0].title()}!\n"
+                            f"Tus datos de ingreso han sido verificados:\n\n"
+                            f"👤 *Usuario:* `{ult_pub['usuario']}`\n"
+                            f"🔑 *Contraseña Temporal:* `{ult_pub['password']}`\n\n"
+                            f"🌐 *Ingresa aquí:* https://metaseindicadores.up.railway.app\n\n"
+                            f"✨ *Nota:* Al iniciar sesión se te pedirá actualizar tu contraseña personal."
+                        )
+                        
+                        st.text_area("Mensaje de recuperación listo:", msg_wa_recup, height=140, key="txt_msg_rec_wa")
+                        
+                        tel_final = ult_pub.get('telefono', '').strip()
+                        if tel_final and len(tel_final) >= 10:
+                            link_wa_rec = f"https://api.whatsapp.com/send?phone=57{tel_final}&text={urllib.parse.quote(msg_wa_recup)}"
+                            st.link_button("📲 Abrir WhatsApp y Recibir mis Credenciales", url=link_wa_rec, use_container_width=True)
+                        else:
+                            st.caption("💡 Puedes copiar el mensaje anterior o ingresar tu número celular arriba para abrir WhatsApp directamente.")
+
+                with tab_rec_pin:
+                    st.caption("Crea una nueva contraseña inmediatamente con el PIN de verificación:")
+                    pin_esperado = st.session_state.get('pin_recuperacion', '123456')
+                    
+                    with st.form("form_rec_directo_nueva_pass"):
+                        st.info(f"💡 Tu código PIN de seguridad de verificación es: **{pin_esperado}**")
+                        pin_ingresado = st.text_input("Ingresa el PIN de seguridad:", placeholder="6 dígitos", key="pin_in_rec")
+                        nueva_pass_1 = st.text_input("Nueva Contraseña:", type="password", placeholder="Mínimo 6 caracteres", key="nueva_pass_1_in")
+                        nueva_pass_2 = st.text_input("Confirma la Nueva Contraseña:", type="password", placeholder="Repite tu contraseña", key="nueva_pass_2_in")
+                        
+                        btn_cambiar_pass_rec = st.form_submit_button("🔒 Guardar Nueva Contraseña e Iniciar Sesión", type="primary", use_container_width=True)
+                        
+                        if btn_cambiar_pass_rec:
+                            if pin_ingresado.strip() != pin_esperado.strip():
+                                st.error("❌ El PIN de seguridad ingresado no es correcto.")
+                            elif len(nueva_pass_1) < 6:
+                                st.warning("⚠️ La contraseña debe tener al menos 6 caracteres.")
+                            elif nueva_pass_1 != nueva_pass_2:
+                                st.error("❌ Las contraseñas no coinciden.")
+                            else:
+                                ok_ch, msg_ch = cambiar_password_usuario(u_rec_name, nueva_pass_1)
+                                if ok_ch:
+                                    st.success(f"🎉 ¡Contraseña actualizada exitosamente! Iniciando sesión...")
+                                    user_authed = autenticar_usuario(u_rec_name, nueva_pass_1)
+                                    if user_authed:
+                                        st.session_state['user'] = user_authed
+                                        st.session_state['ultimo_acceso'] = time.time()
+                                        if 'cuenta_recuperada_temp' in st.session_state:
+                                            del st.session_state['cuenta_recuperada_temp']
+                                        st.query_params['user'] = user_authed.get('username', u_rec_name)
+                                        st.rerun()
+                                else:
+                                    st.error(f"❌ {msg_ch}")
+                                    
+                st.markdown("---")
+                st.markdown("###### 💬 ¿Necesitas asistencia personalizada?")
+                msg_soporte = f"Hola Soporte Técnico, soy {u_rec_nombre} del Sector {u_rec_sector}. Necesito ayuda para recuperar mi acceso al usuario {u_rec_name}."
+                url_soporte_wa = f"https://api.whatsapp.com/send?phone=573057939537&text={urllib.parse.quote(msg_soporte)}"
+                st.link_button("👩‍💻 Contactar a Soporte por WhatsApp (3057939537)", url=url_soporte_wa, use_container_width=True)
+
             st.markdown('</div>', unsafe_allow_html=True)
             
         with tab_registro_tab:

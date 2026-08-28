@@ -17,10 +17,10 @@
   },
   "dolly@gmail.com": {
     "nombre": "DOLLY Salgara",
-    "password_hash": "082ae2a9fb01a5d5f034a3415d2bbc9dba9482dc9d97c704f1015f929d7431bb",
+    "password_hash": "be733997ec9beec98b4db13e555fb8f0f19e02ca871f20a92e9e071223bea9ef",
     "rol": "gerente",
     "codigo_grupo": null,
-    "debe_cambiar_password": false,
+    "debe_cambiar_password": true,
     "codigo_sector": "700000466",
     "nombre_sector": "EMOCIONES DOLLY"
   },
