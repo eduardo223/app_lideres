@@ -7,6 +7,12 @@
       "lider": true,
       "asesor": false
     },
+    "tab_geral": {
+      "nombre": "💳 Geral: Crédito & Cobranza",
+      "gerente": true,
+      "lider": true,
+      "asesor": false
+    },
     "tab_resumen": {
       "nombre": "📊 Resumen & KPIs",
       "gerente": true,
