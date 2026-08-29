@@ -1487,6 +1487,36 @@ else:
 st.markdown(f"<div class='main-header'>📈 Panel de Control - Estado de Ciclo {user_sector_nombre}</div>", unsafe_allow_html=True)
 st.markdown(f"<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento • {user_sector_nombre}</div>", unsafe_allow_html=True)
 
+# Diagnóstico informativo si no hay datos de metas en "Cómo Vamos" para el sector o rol activo
+if df.empty:
+    if user_rol == 'gerente':
+        sectores_existentes = []
+        if df_raw is not None and not df_raw.empty:
+            for col_s in ['Nombre Setor', 'Nombre Sector', 'Sector', 'Cd Setor']:
+                if col_s in df_raw.columns:
+                    sectores_existentes = [str(x) for x in df_raw[col_s].dropna().unique() if str(x).strip()]
+                    break
+        
+        info_sector_actual = f"**{user_sector_nombre}** (Cód: `{user_sector}`)"
+        info_sectores_arch = f"*{', '.join(sectores_existentes)}*" if sectores_existentes else "*otro sector*"
+        
+        st.warning(
+            f"ℹ️ **Diagnóstico de Datos para {info_sector_actual}:**\n\n"
+            f"El archivo actual de metas (**`Base para el como vamos.xlsx`**) contiene información de {info_sectores_arch}, "
+            f"pero **aún no incluye las metas del ciclo para tu sector**.\n\n"
+            f"✅ **Tus otros módulos se encuentran 100% operativos:**\n"
+            f"- Puedes gestionar tu red de consultoras en la pestaña **'📊 Informe Tableau Cam'**.\n"
+            f"- Puedes consultar los reportes de cartera y cobranza en **'💳 Geral_Credito&Cobranza'**.\n\n"
+            f"📥 **Para activar los tacómetros y gráficas de 'Cómo Vamos':**\n"
+            f"Sube o anexa el archivo Excel con las metas de tu sector desde la barra lateral izquierda en **'🔄 Rotación de Ciclo (Nuevo)'**."
+        )
+    elif user_rol == 'lider':
+        st.info(
+            f"ℹ️ **Información de Metas de Ciclo (Grupo {user_grupo}):**\n\n"
+            f"Aún no se encuentran cargadas las metas del ciclo actual en el archivo 'Cómo Vamos' para tu grupo. "
+            f"Puedes seguir consultando a tus consultoras y estados de cartera en las pestañas de **Tableau** y **Geral**."
+        )
+
 # Notificación de Cuentas de Nuevas Líderes Auto-Generadas
 if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_creadas_log']:
     with st.expander("✨ Cuentas de Nuevas Líderes Creadas Automáticamente", expanded=True):

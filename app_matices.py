@@ -417,7 +417,7 @@ with tab_cv:
     st.markdown("##### 📈 Desempeño & Cómo Vamos")
     
     if df_cv.empty:
-        st.info("ℹ️ No se encontraron registros de metas de ciclo para este grupo.")
+        st.info(f"ℹ️ **Metas del ciclo pendientes para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo actual de metas aún no contiene datos registrados para este grupo en el ciclo actual. Puedes gestionar tu red en **'📋 Red Tableau'** y consultar tu cartera en **'💳 Cobranza Hoy'**.")
     else:
         row_cv = df_cv.iloc[0]
         
