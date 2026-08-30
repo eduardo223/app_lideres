@@ -2039,8 +2039,8 @@ tabs_definidas = [
     ("tab_ganancia", "💵 Simulador de Ganancia"),
     ("tab_diagnostico", "👑 Mis Líderes"),
     ("tab_metas", "🎯 Metas de Crecimiento (Procesador)"),
-    ("tab_detalle", "👥 Detalle Completo"),
-    ("tab_exportar", "📤 Exportar Datos")
+    ("tab_detalle", "📑 Generador de Informes"),
+    # ("tab_exportar", "📤 Exportar Datos")
 ]
 
 if user_rol == 'superadmin':
@@ -4728,9 +4728,10 @@ with tab_metas:
 
     st.dataframe(styler_metas, use_container_width=True)
 
-# --- TAB 4: DETALLE COMPLETO ---
+# --- TAB 4: GENERADOR DE INFORMES PERSONALIZADOS ---
 with tab_detalle:
-    st.subheader("👥 Tabla Completa de Líderes / Consultoras")
+    st.subheader("📑 Generador de Informes Personalizados")
+    st.caption("Configura y visualiza tablas y reportes a medida seleccionando las columnas y métricas exactas que necesitas analizar.")
     
     # Selector de columnas para personalizar la vista
     columnas_disponibles = list(df_filtrado.columns)
