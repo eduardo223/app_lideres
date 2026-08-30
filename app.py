@@ -592,27 +592,66 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         badge_color = "#FFFFFF"
         badge_border = "1px solid rgba(255, 255, 255, 0.35)"
         badge_txt = f"🗓️ CUMPLEAÑOS DE {nombre_mes.upper()} • {total_mes} EN TOTAL"
-        icon_main = "🗓️"
-        expanded_default = False
+    # Formato unificado del título del expander
+    equipo_info = f" • Equipo de {user_nombre}" + (f" (Grupo {user_grupo})" if user_grupo else "")
+    titulo_expander = f"{icon_main} {badge_txt}  |  Recordatorio de Cumpleaños ({total_mes} en {nombre_mes}){equipo_info}"
 
+    # Estilización CSS del Expander Unificado de Cumpleaños
     st.markdown(f"""
-<div style="background: {card_gradient}; border: 1.5px solid {border_color}; border-radius: 14px; padding: 10px 18px; margin-bottom: 12px; box-shadow: 0 6px 20px -4px rgba(0,0,0,0.25);">
-    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
-        <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 1.4rem; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">{icon_main}</span>
-            <div>
-                <span style="background: {badge_bg}; color: {badge_color}; border: {badge_border}; font-size: 0.74rem; font-weight: 800; padding: 3px 12px; border-radius: 9999px; letter-spacing: 0.03em; box-shadow: 0 2px 6px rgba(0,0,0,0.2);">{badge_txt}</span>
-                <span style="font-size: 0.96rem; font-weight: 800; color: #FFFFFF; text-shadow: 0 1px 3px rgba(0,0,0,0.4); margin-left: 8px;">Recordatorio de Cumpleaños</span>
-            </div>
-        </div>
-        <div style="font-size: 0.85rem; color: #FFFFFF; font-weight: 600; text-shadow: 0 1px 3px rgba(0,0,0,0.3); opacity: 0.95;">
-            🌸 Equipo de <b>{user_nombre}</b> {f'• Grupo {user_grupo}' if user_grupo else ''}
-        </div>
-    </div>
-</div>
-""", unsafe_allow_html=True)
+    <style>
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] {{
+        border: 1.5px solid {border_color} !important;
+        border-radius: 14px !important;
+        background: rgba(15, 23, 42, 0.02) !important;
+        box-shadow: 0 6px 20px -4px rgba(0,0,0,0.22) !important;
+        margin-bottom: 14px !important;
+        overflow: hidden !important;
+    }}
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details {{
+        border: none !important;
+        background: transparent !important;
+    }}
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary {{
+        background: {card_gradient} !important;
+        border: none !important;
+        border-radius: 12px !important;
+        padding: 10px 18px !important;
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+        cursor: pointer !important;
+        transition: all 0.25s ease !important;
+    }}
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details[open] > summary {{
+        border-bottom-left-radius: 0px !important;
+        border-bottom-right-radius: 0px !important;
+        border-bottom: 1px solid rgba(255,255,255,0.25) !important;
+    }}
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary:hover {{
+        filter: brightness(1.08) !important;
+        box-shadow: inset 0 0 10px rgba(255,255,255,0.2) !important;
+    }}
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary p,
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary span {{
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+        font-size: 0.95rem !important;
+        letter-spacing: 0.01em !important;
+    }}
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary svg {{
+        fill: #FFFFFF !important;
+        color: #FFFFFF !important;
+        width: 1.25rem !important;
+        height: 1.25rem !important;
+    }}
+    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > div[data-testid="stExpanderDetails"] {{
+        padding: 14px 16px !important;
+        background: transparent !important;
+    }}
+    </style>
+    <div class="cumple-banner-unified"></div>
+    """, unsafe_allow_html=True)
 
-    with st.expander(f"✨ Ver Listado de Cumpleaños & Enviar Felicitaciones por WhatsApp ({total_mes} en {nombre_mes})", expanded=False):
+    with st.expander(titulo_expander, expanded=False):
         tab_c_hoy, tab_c_sem, tab_c_mes, tab_c_edit = st.tabs([
             f"🎈 Hoy ({len(hoy_list)})",
             f"📅 Próximos 7 Días ({len(semana_list)})",
