@@ -64,6 +64,7 @@ from procesador import (
     obtener_base_tableau_completa_original,
     limpiar_numero,
     validar_sector_archivo,
+    validar_archivo_como_vamos,
     auto_crear_usuarios_lideres_desde_bases,
     obtener_mapa_lideres,
     cargar_historico_sectores,
@@ -1396,7 +1397,7 @@ if puede_subir_archivos:
         if nuevo_ciclo_file is not None:
             if st.sidebar.button("🚀 Rotar Ciclo y Actualizar Histórico"):
                 try:
-                    valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(nuevo_ciclo_file, user_sector)
+                    valido, sec_enc, nom_sec, msg_val = validar_archivo_como_vamos(nuevo_ciclo_file, user_sector)
                     if not valido:
                         st.sidebar.error(msg_val)
                     else:
@@ -1507,6 +1508,21 @@ if df.empty:
             f"Aún no se encuentran cargadas las metas del ciclo actual en el archivo 'Cómo Vamos' para tu grupo. "
             f"Puedes seguir consultando a tus consultoras y estados de cartera en las pestañas de **Tableau** y **Geral**."
         )
+else:
+    # Alerta visual si se cargó un archivo sin metas financieras (ej. Reporte de Niveles en vez de Cómo Vamos)
+    if 'Objetivo Facturación' in df.columns and 'Real Facturación' in df.columns:
+        tot_obj_v = pd.to_numeric(df['Objetivo Facturación'], errors='coerce').fillna(0).sum()
+        tot_real_v = pd.to_numeric(df['Real Facturación'], errors='coerce').fillna(0).sum()
+        if tot_obj_v == 0 and tot_real_v == 0:
+            st.warning(
+                "⚠️ **Aviso Importante — Datos de Metas en $0 (Reporte Incompleto o de Niveles)**\n\n"
+                "Los datos cargados actualmente para tu sector muestran **todas las metas y ventas en `$0`** "
+                "(esto ocurre cuando se sube un **'Reporte de Niveles / Puntos'** en lugar del archivo oficial de **'Cómo Vamos'**).\n\n"
+                "💡 **¿Cómo ver tus ventas y metas reales?**:\n"
+                "1. Descarga el reporte oficial **'Cómo Vamos'** desde el portal de Natura.\n"
+                "2. Súbelo en la barra lateral izquierda en **'🔄 Rotación de Ciclo (Nuevo)'**.\n"
+                "3. El sistema actualizará al instante los tacómetros 360°, avances % y ganancias reales de cada líder."
+            )
 
 # Notificación de Cuentas de Nuevas Líderes Auto-Generadas
 if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_creadas_log']:

@@ -3330,6 +3330,74 @@ def validar_sector_archivo(origen_file, sector_esperado):
     )
     return False, ultimo_sec_encontrado, ultimo_nom_encontrado, msg
 
+def validar_archivo_como_vamos(origen_file, sector_esperado):
+    """
+    Realiza una validación completa para la subida de 'Cómo Vamos':
+    1. Verifica que pertenezca al sector del usuario en sesión.
+    2. Verifica que el archivo contenga columnas reales de metas y facturación (no un Reporte de Niveles).
+    Retorna (valido: bool, sector_encontrado: str, nombre_sector: str, mensaje: str).
+    """
+    valido_sec, sec_enc, nom_sec, msg_sec = validar_sector_archivo(origen_file, sector_esperado)
+    if not valido_sec:
+        return False, sec_enc, nom_sec, msg_sec
+
+    # Inspeccionar columnas para verificar si trae datos de facturación / metas
+    df_check = None
+    try:
+        if isinstance(origen_file, pd.DataFrame):
+            df_check = origen_file.head(5)
+        elif hasattr(origen_file, 'read'):
+            try:
+                origen_file.seek(0)
+            except Exception:
+                pass
+            xl = pd.ExcelFile(origen_file)
+            hoja_leer = xl.sheet_names[0]
+            for s in xl.sheet_names:
+                if 'como vamos' in s.lower() or 'base' in s.lower() or 'metas' in s.lower():
+                    hoja_leer = s
+                    break
+            df_check = pd.read_excel(origen_file, sheet_name=hoja_leer, nrows=5)
+            try:
+                origen_file.seek(0)
+            except Exception:
+                pass
+        elif isinstance(origen_file, str) and os.path.exists(origen_file):
+            xl = pd.ExcelFile(origen_file)
+            hoja_leer = xl.sheet_names[0]
+            for s in xl.sheet_names:
+                if 'como vamos' in s.lower() or 'base' in s.lower() or 'metas' in s.lower():
+                    hoja_leer = s
+                    break
+            df_check = pd.read_excel(origen_file, sheet_name=hoja_leer, nrows=5)
+    except Exception as e:
+        return False, sec_enc, nom_sec, f"Error al verificar la estructura del archivo: {e}"
+
+    if df_check is not None and not df_check.empty:
+        # Detectar si primera fila es Unnamed
+        if any('unnamed' in str(c).lower() for c in df_check.columns[:5]):
+            for r_idx in range(min(5, len(df_check))):
+                row_vals = [str(x).lower() for x in df_check.iloc[r_idx].values if pd.notna(x)]
+                if any('facturac' in x or 'objetivo' in x or 'real' in x or 'saldo' in x for x in row_vals):
+                    df_check.columns = [str(col_name).strip() for col_name in df_check.iloc[r_idx]]
+                    break
+
+        cols_str = ' '.join([str(c).lower() for c in df_check.columns])
+        tiene_facturacion = any(k in cols_str for k in ['facturac', 'objetivo facturacion', 'real facturacion', 'cumplimiento facturacion', 'objetivo activas', 'real activas', 'saldo', 'ganancia', 'falta para'])
+        
+        # Si parece ser un Reporte de Niveles sin metas de facturación
+        if not tiene_facturacion and any(k in cols_str for k in ['nivel', 'puntos', 'pts', 'color', 'camino', 'ascenso', 'cb']):
+            nom_arch = getattr(origen_file, 'name', 'Reporte')
+            msg = (
+                f"⚠️ **Archivo Incorrecto para 'Cómo Vamos'**\n\n"
+                f"El archivo que intentas subir (`{nom_arch}`) corresponde a un **Reporte de Niveles / Puntos**, "
+                f"pero **no contiene las columnas de metas ni ventas del ciclo** (`Objetivo Facturación`, `Real Facturación`, etc.).\n\n"
+                f"💡 **Solución**: Por favor solicita y sube el archivo oficial **'Cómo Vamos'** de Natura desde el portal para poder analizar los tacómetros y avances de facturación de tu sector."
+            )
+            return False, sec_enc, nom_sec, msg
+
+    return True, sec_enc, nom_sec, "Validación de sector y estructura exitosa."
+
 def generar_password_aleatoria(longitud=8):
     import random, string
     chars = string.ascii_letters + string.digits
