@@ -2253,7 +2253,7 @@ with tab_tableau:
             st.metric("⚠️ Deuda Mora Total", f"${tot_mora/1e6:.2f}M COP")
         with tc4:
             tot_cred = df_tab_filt['Credito Disponible'].sum() if 'Credito Disponible' in df_tab_filt.columns else 0
-            st.metric("💳 Crédito Dispon.", f"${tot_cred/1e6:.2f}M COP")
+            st.metric("💳 Crédito Dispon.", f"{int(tot_cred):,} pts".replace(",", "."))
         with tc5:
             tot_pago = len(df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]) if 'Ped. Pendientes' in df_tab_filt.columns else 0
             st.metric("⌛ Aguardando Pago", f"{tot_pago} pers.")
@@ -2497,10 +2497,11 @@ with tab_tableau:
             # Usar st.data_editor para permitir editar notas directamente en la tabla
             col_config = {}
             for col_name in df_edit_view.columns:
-                # Si es una columna de dinero o puntos, formatear como entero sin decimales
-                if 'Deuda' in col_name or 'Credito' in col_name or 'Fact.' in col_name:
+                # Si es una columna de dinero (Deuda o Facturación), formatear con $
+                if 'Deuda' in col_name or 'Fact.' in col_name:
                     col_config[col_name] = st.column_config.NumberColumn(col_name, format="$%d", disabled=True)
-                elif 'Pts' in col_name or 'Ped.' in col_name or 'Ciclos' in col_name:
+                # Si es una columna numérica (Pts, Crédito, Pedidos, Ciclos), formatear como número entero limpio sin $
+                elif 'Pts' in col_name or 'Ped.' in col_name or 'Ciclos' in col_name or 'Credito' in col_name or 'Crédito' in col_name:
                     col_config[col_name] = st.column_config.NumberColumn(col_name, format="%d", disabled=True)
                 else:
                     col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
@@ -2648,7 +2649,7 @@ with tab_tableau:
                 if 'Deuda Mora' in df_pago_formatted.columns:
                     df_pago_formatted['Deuda Mora'] = df_pago_formatted['Deuda Mora'].apply(formato_cop_signo)
                 if 'Credito Disponible' in df_pago_formatted.columns:
-                    df_pago_formatted['Credito Disponible'] = df_pago_formatted['Credito Disponible'].apply(formato_cop)
+                    df_pago_formatted['Credito Disponible'] = df_pago_formatted['Credito Disponible'].apply(lambda x: f"{int(limpiar_numero(x, 0)):,}".replace(",", "."))
 
                 st.dataframe(
                     df_pago_formatted.style
