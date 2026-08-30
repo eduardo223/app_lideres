@@ -2002,62 +2002,97 @@ with tab_tableau:
     if df_tableau is None or df_tableau.empty:
         st.warning("⚠️ No se encontró la base de datos `Base de Datos.xlsx`. Por favor, sube el archivo desde la barra lateral o el panel de administración.")
     else:
-        # Filtros de navegación rápida para Tableau Manager
-        col_t1, col_t2, col_t3, col_t4 = st.columns([1, 1, 1.2, 1])
-        
-        # 1. Filtro de Gerencia
-        gerencias_t = sorted([str(g) for g in df_tableau['Gerencia'].dropna().unique()]) if 'Gerencia' in df_tableau.columns else []
-        with col_t1:
-            ger_sel_t = st.selectbox("🏢 Gerencia (Tableau)", options=["Todas"] + gerencias_t, key="tab_ger_sel")
-        
         df_tab_filt = df_tableau.copy()
-        if ger_sel_t != "Todas" and 'Gerencia' in df_tab_filt.columns:
-            df_tab_filt = df_tab_filt[df_tab_filt['Gerencia'] == ger_sel_t]
-            
-        # 2. Filtro de Sector
-        sectores_t = sorted([str(s) for s in df_tab_filt['Sector'].dropna().unique()]) if 'Sector' in df_tab_filt.columns else []
-        with col_t2:
-            sec_sel_t = st.selectbox("📍 Sector (Tableau)", options=["Todos"] + sectores_t, key="tab_sec_sel")
-            
-        if sec_sel_t != "Todos" and 'Sector' in df_tab_filt.columns:
-            df_tab_filt = df_tab_filt[df_tab_filt['Sector'] == sec_sel_t]
-
-        # 3. Filtro Directo por Líder / Grupo [NUEVO PARA GERENCIA]
-        lista_grupos_t = sorted([str(g).strip() for g in df_tab_filt['Grupo'].dropna().unique()]) if 'Grupo' in df_tab_filt.columns else []
         mapa_lideres_tab = obtener_mapa_lideres()
 
         def format_lider_tab(g_val):
             if g_val == "Todas las Líderes (Consolidado Zona)":
-                return "🌟 Todas las Líderes (Consolidado Zona)"
+                return "🌟 Todas las Líderes (Consolidado)"
             nom = mapa_lideres_tab.get(str(g_val).strip())
             if nom:
                 return f"👩‍💼 Grupo {g_val} — {nom}"
             return f"👥 Grupo {g_val}"
 
-        with col_t3:
-            lider_sel_t = st.selectbox(
-                "👤 Selección de Líder / Grupo",
-                options=["Todas las Líderes (Consolidado Zona)"] + lista_grupos_t,
-                format_func=format_lider_tab,
-                key="tab_lider_grp_sel"
-            )
+        # Fila Única y Limpia de Filtros
+        if user_rol in ['gerente', 'superadmin']:
+            lista_grupos_t = sorted([str(g).strip() for g in df_tab_filt['Grupo'].dropna().unique()]) if 'Grupo' in df_tab_filt.columns else []
+            sits_disponibles = sorted([str(s) for s in df_tab_filt['Sit. Comercial'].dropna().unique()]) if 'Sit. Comercial' in df_tab_filt.columns else []
 
-        if lider_sel_t != "Todas las Líderes (Consolidado Zona)" and 'Grupo' in df_tab_filt.columns:
-            df_tab_filt = df_tab_filt[df_tab_filt['Grupo'].astype(str).str.strip() == str(lider_sel_t).strip()]
+            col_f1, col_f2, col_f3, col_f4 = st.columns([1.3, 1.2, 1.0, 1.3])
+            with col_f1:
+                lider_sel_t = st.selectbox(
+                    "👤 Selección de Líder / Grupo",
+                    options=["Todas las Líderes (Consolidado Zona)"] + lista_grupos_t,
+                    format_func=format_lider_tab,
+                    key="tab_lider_grp_sel"
+                )
+            if lider_sel_t != "Todas las Líderes (Consolidado Zona)" and 'Grupo' in df_tab_filt.columns:
+                df_tab_filt = df_tab_filt[df_tab_filt['Grupo'].astype(str).str.strip() == str(lider_sel_t).strip()]
 
-        # 4. Buscador de Asesora / Consultora
-        with col_t4:
-            busq_t = st.text_input("🔍 Buscar Asesora (Nombre / Código)", "", key="tab_busq")
-            
-        if busq_t.strip():
-            mask_t = pd.Series(False, index=df_tab_filt.index)
-            if 'Nombre' in df_tab_filt.columns:
-                mask_t = mask_t | df_tab_filt['Nombre'].astype(str).str.contains(busq_t, case=False, na=False)
-            if 'Codigo CB' in df_tab_filt.columns:
-                mask_t = mask_t | df_tab_filt['Codigo CB'].astype(str).str.contains(busq_t, case=False, na=False)
-            df_tab_filt = df_tab_filt[mask_t]
+            with col_f2:
+                sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
+            if sits_sel and 'Sit. Comercial' in df_tab_filt.columns:
+                df_tab_filt = df_tab_filt[df_tab_filt['Sit. Comercial'].astype(str).isin(sits_sel)]
 
-        # Tarjetas de resumen rápido Tableau (Visibles en la cabecera superior de Informe Tableau)
+            with col_f3:
+                f_mora_opt = st.selectbox(
+                    "⚠️ Deuda Mora",
+                    options=["Todas", "Con Deuda Mora (> $0)", "Sin Deuda Mora ($0)", "Mora Crítica (> $500k)"],
+                    key="filt_mora_opt"
+                )
+            if 'Deuda Mora' in df_tab_filt.columns:
+                if f_mora_opt == "Con Deuda Mora (> $0)":
+                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] > 0]
+                elif f_mora_opt == "Sin Deuda Mora ($0)":
+                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] <= 0]
+                elif f_mora_opt == "Mora Crítica (> $500k)":
+                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] > 500000]
+
+            with col_f4:
+                busq_t = st.text_input("🔍 Buscar Asesora (Nombre / Código)", "", key="tab_busq")
+            if busq_t.strip():
+                mask_t = pd.Series(False, index=df_tab_filt.index)
+                if 'Nombre' in df_tab_filt.columns:
+                    mask_t = mask_t | df_tab_filt['Nombre'].astype(str).str.contains(busq_t, case=False, na=False)
+                if 'Codigo CB' in df_tab_filt.columns:
+                    mask_t = mask_t | df_tab_filt['Codigo CB'].astype(str).str.contains(busq_t, case=False, na=False)
+                df_tab_filt = df_tab_filt[mask_t]
+
+        else:
+            # Vista para Líder (su grupo ya está fijado)
+            sits_disponibles = sorted([str(s) for s in df_tab_filt['Sit. Comercial'].dropna().unique()]) if 'Sit. Comercial' in df_tab_filt.columns else []
+
+            col_f1, col_f2, col_f3 = st.columns([1.4, 1.1, 1.4])
+            with col_f1:
+                sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
+            if sits_sel and 'Sit. Comercial' in df_tab_filt.columns:
+                df_tab_filt = df_tab_filt[df_tab_filt['Sit. Comercial'].astype(str).isin(sits_sel)]
+
+            with col_f2:
+                f_mora_opt = st.selectbox(
+                    "⚠️ Deuda Mora",
+                    options=["Todas", "Con Deuda Mora (> $0)", "Sin Deuda Mora ($0)", "Mora Crítica (> $500k)"],
+                    key="filt_mora_opt"
+                )
+            if 'Deuda Mora' in df_tab_filt.columns:
+                if f_mora_opt == "Con Deuda Mora (> $0)":
+                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] > 0]
+                elif f_mora_opt == "Sin Deuda Mora ($0)":
+                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] <= 0]
+                elif f_mora_opt == "Mora Crítica (> $500k)":
+                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] > 500000]
+
+            with col_f3:
+                busq_t = st.text_input("🔍 Buscar Asesora (Nombre / Código)", "", key="tab_busq")
+            if busq_t.strip():
+                mask_t = pd.Series(False, index=df_tab_filt.index)
+                if 'Nombre' in df_tab_filt.columns:
+                    mask_t = mask_t | df_tab_filt['Nombre'].astype(str).str.contains(busq_t, case=False, na=False)
+                if 'Codigo CB' in df_tab_filt.columns:
+                    mask_t = mask_t | df_tab_filt['Codigo CB'].astype(str).str.contains(busq_t, case=False, na=False)
+                df_tab_filt = df_tab_filt[mask_t]
+
+        # Tarjetas de resumen rápido Tableau (Inmediatamente bajo la fila de filtros)
         tc1, tc2, tc3, tc4, tc5 = st.columns(5)
         with tc1:
             st.metric("👥 Total cadastro", f"{len(df_tab_filt)}")
@@ -2082,64 +2117,7 @@ with tab_tableau:
             tot_pago = len(df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]) if 'Ped. Pendientes' in df_tab_filt.columns else 0
             st.metric("⌛ Aguardando Pago", f"{tot_pago} pers.")
 
-        # Filtros adicionales por columna en un expansor dedicado (colapsado por defecto)
-        with st.expander("🔍 Filtros Avanzados por Columna (Sit. Comercial, Nivel, Mora, Pedidos y Notas)", expanded=False):
-            fc1, fc2, fc3, fc4, fc5 = st.columns(5)
-
-            # 1. Filtro por Sit. Comercial
-            sits_disponibles = sorted([str(s) for s in df_tab_filt['Sit. Comercial'].dropna().unique()]) if 'Sit. Comercial' in df_tab_filt.columns else []
-            with fc1:
-                sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
-            if sits_sel and 'Sit. Comercial' in df_tab_filt.columns:
-                df_tab_filt = df_tab_filt[df_tab_filt['Sit. Comercial'].astype(str).isin(sits_sel)]
-
-            # 2. Filtro por Nivel / Color
-            colores_tab_disp = sorted([str(c) for c in df_tab_filt['Color'].dropna().unique()]) if 'Color' in df_tab_filt.columns else []
-            with fc2:
-                colores_tab_sel = st.multiselect("🏆 Nivel / Color", options=colores_tab_disp, default=[], key="filt_color_tab")
-            if colores_tab_sel and 'Color' in df_tab_filt.columns:
-                df_tab_filt = df_tab_filt[df_tab_filt['Color'].astype(str).isin(colores_tab_sel)]
-
-            # 3. Filtro por Deuda Mora
-            with fc3:
-                f_mora_opt = st.selectbox(
-                    "⚠️ Deuda Mora",
-                    options=["Todas", "Con Deuda Mora (> $0)", "Sin Deuda Mora ($0)", "Mora Crítica (> $500k)"],
-                    key="filt_mora_opt"
-                )
-            if 'Deuda Mora' in df_tab_filt.columns:
-                if f_mora_opt == "Con Deuda Mora (> $0)":
-                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] > 0]
-                elif f_mora_opt == "Sin Deuda Mora ($0)":
-                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] <= 0]
-                elif f_mora_opt == "Mora Crítica (> $500k)":
-                    df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] > 500000]
-
-            # 4. Filtro por Pedidos Pendientes
-            with fc4:
-                f_ped_opt = st.selectbox(
-                    "⌛ Ped. Pendientes",
-                    options=["Todos", "Con Pedidos Pendientes (> 0)", "Sin Pedidos Pendientes (0)"],
-                    key="filt_ped_opt"
-                )
-            if 'Ped. Pendientes' in df_tab_filt.columns:
-                if f_ped_opt == "Con Pedidos Pendientes (> 0)":
-                    df_tab_filt = df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]
-                elif f_ped_opt == "Sin Pedidos Pendientes (0)":
-                    df_tab_filt = df_tab_filt[df_tab_filt['Ped. Pendientes'] <= 0]
-
-            # 5. Filtro por Notas / Comentarios
-            with fc5:
-                f_notas_opt = st.selectbox(
-                    "📝 Notas / Comentarios",
-                    options=["Todos", "Con Notas / Comentarios", "Sin Notas"],
-                    key="filt_notas_opt"
-                )
-            if 'Comentarios_Lider' in df_tab_filt.columns:
-                if f_notas_opt == "Con Notas / Comentarios":
-                    df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() != ""]
-                elif f_notas_opt == "Sin Notas":
-                    df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() == ""]
+        st.markdown("---")
 
         # Opciones de administración (visible solo para Gerencia y SuperAdmin en expander colapsado)
         if user_rol in ['gerente', 'superadmin']:
