@@ -258,6 +258,99 @@ st.markdown("""
         }
     }
 
+    /* ========================================================================= */
+    /* SISTEMA DE PESTAÑAS (TABS) DE ALTO IMPACTO Y RESALTADO VISUAL (NATURA/AVON) */
+    /* ========================================================================= */
+    div[data-baseweb="tab-list"],
+    div[data-testid="stTabs"] [role="tablist"] {
+        gap: 10px !important;
+        padding: 6px 4px 16px 4px !important;
+        border-bottom: 2px solid rgba(227, 0, 123, 0.18) !important;
+        overflow-x: auto !important;
+        scrollbar-width: thin !important;
+    }
+
+    div[data-baseweb="tab-highlight"],
+    div[data-baseweb="tab-border"] {
+        display: none !important;
+    }
+
+    button[data-baseweb="tab"],
+    button[data-testid="stTab"] {
+        border-radius: 14px !important;
+        padding: 10px 20px !important;
+        font-weight: 700 !important;
+        font-size: clamp(0.88rem, 0.96vw, 1.05rem) !important;
+        letter-spacing: 0.01em !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        border: 1.5px solid rgba(227, 0, 123, 0.22) !important;
+        background: rgba(255, 255, 255, 0.9) !important;
+        color: #1e293b !important;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.05) !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+    }
+
+    button[data-baseweb="tab"]:hover,
+    button[data-testid="stTab"]:hover {
+        background: linear-gradient(135deg, rgba(255, 107, 0, 0.14), rgba(227, 0, 123, 0.14)) !important;
+        border-color: rgba(227, 0, 123, 0.55) !important;
+        color: #0f172a !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 18px rgba(227, 0, 123, 0.2) !important;
+    }
+
+    /* Pestaña ACTIVA: Gradiente Fucsia / Naranja Neón de Alto Impacto */
+    button[data-baseweb="tab"][aria-selected="true"],
+    button[data-testid="stTab"][aria-selected="true"] {
+        background: linear-gradient(135deg, #FF5500 0%, #E3007B 52%, #8B0053 100%) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.55) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 8px 24px rgba(227, 0, 123, 0.45), 0 3px 10px rgba(255, 85, 0, 0.35) !important;
+        transform: translateY(-2px) scale(1.03) !important;
+    }
+
+    button[data-baseweb="tab"][aria-selected="true"] p,
+    button[data-baseweb="tab"][aria-selected="true"] span,
+    button[data-baseweb="tab"][aria-selected="true"] div,
+    button[data-testid="stTab"][aria-selected="true"] p,
+    button[data-testid="stTab"][aria-selected="true"] span,
+    button[data-testid="stTab"][aria-selected="true"] div {
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.4) !important;
+    }
+
+    button[data-baseweb="tab"][aria-selected="false"] p,
+    button[data-baseweb="tab"][aria-selected="false"] span,
+    button[data-baseweb="tab"][aria-selected="false"] div,
+    button[data-testid="stTab"][aria-selected="false"] p,
+    button[data-testid="stTab"][aria-selected="false"] span,
+    button[data-testid="stTab"][aria-selected="false"] div {
+        color: #1e293b !important;
+        font-weight: 700 !important;
+        -webkit-text-fill-color: #1e293b !important;
+    }
+
+    @media (prefers-color-scheme: dark) {
+        button[data-baseweb="tab"][aria-selected="false"],
+        button[data-testid="stTab"][aria-selected="false"] {
+            background: rgba(30, 41, 59, 0.8) !important;
+            border-color: rgba(255, 255, 255, 0.16) !important;
+            color: #f8fafc !important;
+        }
+        button[data-baseweb="tab"][aria-selected="false"] p,
+        button[data-baseweb="tab"][aria-selected="false"] span,
+        button[data-baseweb="tab"][aria-selected="false"] div,
+        button[data-testid="stTab"][aria-selected="false"] p,
+        button[data-testid="stTab"][aria-selected="false"] span,
+        button[data-testid="stTab"][aria-selected="false"] div {
+            color: #f8fafc !important;
+            -webkit-text-fill-color: #f8fafc !important;
+        }
+    }
+
     /* Expanders & Cards */
     [data-testid="stExpander"] {
         background: rgba(255, 107, 0, 0.03) !important;
