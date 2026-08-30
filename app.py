@@ -1741,7 +1741,7 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
     tab_app1, tab_app2, tab_app3 = st.tabs([
         "📱 1. Puntos & Listado Consultoras",
         "⚡ 2. KPIs & Tacómetros 360°",
-        "📈 3. Tabla Facturación 'Cómo Vamos'"
+        "👑 3. Mis Líderes (Metas & Facturación)"
     ])
 
     with tab_app1:
@@ -1916,7 +1916,7 @@ tabs_definidas = [
     ("tab_geral", "💳 Geral_Credito&Cobranza"),
     ("tab_resumen", "📊 Resumen & KPIs"),
     ("tab_ganancia", "💵 Simulador de Ganancia"),
-    ("tab_diagnostico", "🔎 Diagnóstico 'Cómo Vamos'"),
+    ("tab_diagnostico", "👑 Mis Líderes"),
     ("tab_metas", "🎯 Metas de Crecimiento (Procesador)"),
     ("tab_detalle", "👥 Detalle Completo"),
     ("tab_exportar", "📤 Exportar Datos")
@@ -1925,7 +1925,7 @@ tabs_definidas = [
 if user_rol == 'superadmin':
     tabs_definidas.append(("tab_usuarios", "🔑 Gestión de Usuarios, Roles & Permisos"))
 elif user_rol == 'gerente':
-    tabs_definidas.append(("tab_lideres_gerente", "👥 Mis Líderes & Accesos"))
+    tabs_definidas.append(("tab_lideres_gerente", "🔑 Directorio & Accesos de Líderes"))
 
 tabs_permitidas = []
 for key_tab, label_tab in tabs_definidas:
@@ -2235,7 +2235,7 @@ with tab_tableau:
             # Tarjetas de resumen rápido
             tc1, tc2, tc3, tc4, tc5 = st.columns(5)
             with tc1:
-                st.metric("👥 Asesoras Activas", f"{len(df_tab_filt)}")
+                st.metric("👥 Total cadastro", f"{len(df_tab_filt)}")
             with tc2:
                 tot_pts = df_tab_filt['Pts Acum'].sum() if 'Pts Acum' in df_tab_filt.columns else 0
                 st.metric("🏆 Pts Acumulados", f"{int(tot_pts):,}".replace(",", "."))
@@ -3584,10 +3584,10 @@ with tab_ganancia:
         with kc3:
             st.caption("📋 **Tabla Oficial de Puntos por Saldo:**\n* Saldo < 2: **0 Pts**\n* Saldo = 2: **40 Pts**\n* Saldo = 3: **60 Pts**\n* Saldo = 4: **80 Pts**\n* Saldo = 5: **100 Pts**\n* Saldo ≥ 6: **120 Pts**")
 
-# --- TAB 3: DIAGNÓSTICO 'CÓMO VAMOS' ---
+# --- TAB 3: MIS LÍDERES ---
 with tab_diagnostico:
-    st.subheader("🔎 Tablas Dinámicas 'Cómo Vamos'")
-    st.markdown("Generación de tablas dinámicas automatizadas para medición y comparación comparativa entre todas las Líderes de Negocio.")
+    st.subheader("👑 Mis Líderes")
+    st.markdown("Generación de tablas dinámicas automatizadas para medición y seguimiento comparativo entre todas las Líderes de Negocio.")
     
     # Utilizar el conjunto de datos completo (df) para permitir la medición comparativa entre Líderes
     df_diag = df.copy()

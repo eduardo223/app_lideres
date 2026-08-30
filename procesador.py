@@ -3563,7 +3563,7 @@ DEFAULT_PERMISOS_PESTANAS = {
     "tab_geral": {"nombre": "💳 Geral: Crédito & Cobranza", "gerente": True, "lider": True, "asesor": False},
     "tab_resumen": {"nombre": "📊 Resumen & KPIs", "gerente": True, "lider": True, "asesor": True},
     "tab_ganancia": {"nombre": "💵 Simulador de Ganancia", "gerente": True, "lider": True, "asesor": True},
-    "tab_diagnostico": {"nombre": "🔎 Diagnóstico 'Cómo Vamos'", "gerente": True, "lider": True, "asesor": True},
+    "tab_diagnostico": {"nombre": "👑 Mis Líderes", "gerente": True, "lider": True, "asesor": True},
     "tab_metas": {"nombre": "🎯 Metas de Crecimiento", "gerente": True, "lider": True, "asesor": True},
     "tab_detalle": {"nombre": "👥 Detalle Completo", "gerente": True, "lider": True, "asesor": True},
     "tab_exportar": {"nombre": "📤 Exportar Datos", "gerente": True, "lider": True, "asesor": True}
