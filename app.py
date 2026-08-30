@@ -2240,6 +2240,33 @@ with tab_tableau:
 
 
 
+        # Tarjetas de resumen rápido Tableau (Visibles en la parte superior de Informe Tableau)
+        tc1, tc2, tc3, tc4, tc5 = st.columns(5)
+        with tc1:
+            st.metric("👥 Total cadastro", f"{len(df_tab_filt)}")
+        with tc2:
+            col_sit_check = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filt.columns else ('Situación' if 'Situación' in df_tab_filt.columns else None)
+            if col_sit_check and not df_tab_filt.empty:
+                s_vals_lower = df_tab_filt[col_sit_check].astype(str).str.strip().str.lower()
+                mask_disp = s_vals_lower.apply(
+                    lambda s: any(k in s for k in ['activa', 'activas', 'inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) and not any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6'])
+                )
+                tot_disponibles = int(mask_disp.sum())
+            else:
+                tot_disponibles = 0
+            st.metric("🎯 Total disponibles", f"{tot_disponibles}")
+        with tc3:
+            tot_mora = df_tab_filt['Deuda Mora'].sum() if 'Deuda Mora' in df_tab_filt.columns else 0
+            st.metric("⚠️ Deuda Mora Total", f"${tot_mora/1e6:.2f}M COP")
+        with tc4:
+            tot_cred = df_tab_filt['Credito Disponible'].sum() if 'Credito Disponible' in df_tab_filt.columns else 0
+            st.metric("💳 Crédito Dispon.", f"${tot_cred/1e6:.2f}M COP")
+        with tc5:
+            tot_pago = len(df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]) if 'Ped. Pendientes' in df_tab_filt.columns else 0
+            st.metric("⌛ Aguardando Pago", f"{tot_pago} pers.")
+
+        st.markdown("---")
+
         # Subpestañas internas dentro de Informe Tableau Cam
         tab_tab_main, tab_tab_pago, tab_tab_niveles, tab_tab_whatsapp, tab_tab_cumple = st.tabs([
             "📋 Base Maestra Gestionable",
@@ -2251,33 +2278,6 @@ with tab_tableau:
 
         # --- SUBPESTAÑA 1: BASE MAESTRA GESTIONABLE ---
         with tab_tab_main:
-            # Tarjetas de resumen rápido
-            tc1, tc2, tc3, tc4, tc5 = st.columns(5)
-            with tc1:
-                st.metric("👥 Total cadastro", f"{len(df_tab_filt)}")
-            with tc2:
-                col_sit_check = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filt.columns else ('Situación' if 'Situación' in df_tab_filt.columns else None)
-                if col_sit_check and not df_tab_filt.empty:
-                    s_vals_lower = df_tab_filt[col_sit_check].astype(str).str.strip().str.lower()
-                    mask_disp = s_vals_lower.apply(
-                        lambda s: any(k in s for k in ['activa', 'activas', 'inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) and not any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6'])
-                    )
-                    tot_disponibles = int(mask_disp.sum())
-                else:
-                    tot_disponibles = 0
-                st.metric("🎯 Total disponibles", f"{tot_disponibles}")
-            with tc3:
-                tot_mora = df_tab_filt['Deuda Mora'].sum() if 'Deuda Mora' in df_tab_filt.columns else 0
-                st.metric("⚠️ Deuda Mora Total", f"${tot_mora/1e6:.2f}M COP")
-            with tc4:
-                tot_cred = df_tab_filt['Credito Disponible'].sum() if 'Credito Disponible' in df_tab_filt.columns else 0
-                st.metric("💳 Crédito Dispon.", f"${tot_cred/1e6:.2f}M COP")
-            with tc5:
-                tot_pago = len(df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]) if 'Ped. Pendientes' in df_tab_filt.columns else 0
-                st.metric("⌛ Aguardando Pago", f"{tot_pago} pers.")
-
-            st.markdown("---")
-
             # Editor de Comentarios en Masa / Guardar Comentarios
             st.markdown("##### 📝 Comentarios y Notas Persistentes de la Líder")
             st.caption("Escribe las notas de gestión por cada asesora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
