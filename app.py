@@ -1993,145 +1993,14 @@ else:
 
 # --- TAB 0: INFORME TABLEAU MANAGER ("INFORME TABLEAU CAM") ---
 with tab_tableau:
-    st.subheader("📊 Informe Tableau Manager ('Informe Tableau Cam')")
-    st.markdown("Automatización de la Base Maestra de Tableau: Carga única, segmentación privada por Líder/Gerencia, seguimiento de Puntos/Deuda/Crédito y notas persistentes.")
-
     # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada aislada por sector/grupo)
     df_tableau = consultar_tableau_sql(
         grupo=(user_grupo if user_rol == 'lider' else None),
         sector=(user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
     )
     
-    # Subidor de administración visible para Gerencia y Super Admin
-    if user_rol in ['gerente', 'superadmin']:
-        with st.expander("⚙️ Opciones de Administración (Actualizar Base Tableau, mi_grupo & Activas)", expanded=False):
-            col_adm1, col_adm2, col_adm3 = st.columns(3)
-            with col_adm1:
-                st.markdown("###### 📁 1. Base Tableau Completa (`Base de Datos.xlsx`)")
-                archivo_tableau = st.file_uploader("Selecciona `Base de Datos.xlsx`", type=["xlsx"], key="tableau_uploader")
-                if archivo_tableau is not None:
-                    file_id = f"{archivo_tableau.name}_{archivo_tableau.size}"
-                    if st.session_state.get('last_processed_tableau') != file_id:
-                        valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(archivo_tableau, user_sector)
-                        if not valido:
-                            st.error(msg_val)
-                        else:
-                            try:
-                                with open("Base de Datos.xlsx", "wb") as f:
-                                    f.write(archivo_tableau.getbuffer())
-                                ok_sync = sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
-                                
-                                if ok_sync:
-                                    st.cache_data.clear()
-                                    st.session_state['last_processed_tableau'] = file_id
-                                    
-                                    # Actualizar DataFrame de Tableau en vivo para la vista actual
-                                    df_tableau = consultar_tableau_sql(
-                                        grupo=(user_grupo if user_rol == 'lider' else None),
-                                        sector=(user_sector if user_rol == 'gerente' else None)
-                                    )
-                                    
-                                    lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
-                                    if lideres_creadas:
-                                        st.session_state['lideres_creadas_log'] = lideres_creadas
-                                    st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
-                                    st.rerun()
-                                else:
-                                    st.error("⚠️ El archivo subido no corresponde a la Base Maestra de Tableau ('Base de Datos.xlsx'). Si deseas actualizar las metas de ciclo, súbelo en la barra lateral izquierda en '🔄 Rotación de Ciclo (Nuevo)'.")
-                            except Exception as e_up:
-                                st.error(f"Error al actualizar la base: {e_up}")
-                    else:
-                        st.success("✅ ¡Base de datos activa y cargada exitosamente!")
-
-            with col_adm2:
-                st.markdown("###### 🔄 2. Opción A: Cargar `mi_grupo`")
-                st.caption("Actualiza la Situación Comercial de cada consultora vinculando por Código CB.")
-                file_mg = st.file_uploader("Selecciona `mi_grupo.xls`", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
-                
-                # Botón directo si ya existe mi_grupo.xls en la carpeta local
-                if os.path.exists("mi_grupo.xls"):
-                    if st.button("⚡ Cruzar desde 'mi_grupo.xls' local", type="secondary", key="btn_mg_local"):
-                        res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
-                        if res_mg.get('exito'):
-                            st.cache_data.clear()
-                            st.session_state['res_mg_log'] = {
-                                'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
-                                'detalles': res_mg.get('detalles', [])
-                            }
-                            st.rerun()
-                        else:
-                            st.error(f"Error: {res_mg.get('error')}")
-
-                if file_mg is not None:
-                    if st.button("🚀 Actualizar desde 'mi_grupo'", type="primary", key="btn_mg_subido"):
-                        res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
-                        if res_mg.get('exito'):
-                            st.cache_data.clear()
-                            st.session_state['res_mg_log'] = {
-                                'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
-                                'detalles': res_mg.get('detalles', [])
-                            }
-                            st.rerun()
-                        else:
-                            st.error(f"Error: {res_mg.get('error')}")
-
-            with col_adm3:
-                st.markdown("###### ⚡ 3. Opción B: Cargar `activas`")
-                st.caption("Actualiza estados a 'Activa', pedidos, facturación y puntos vinculando por Código CB.")
-                file_act = st.file_uploader("Selecciona archivo `activas`", type=["xlsx", "xls", "csv"], key="activas_uploader_tab")
-                
-                # Botón directo si ya existe archivo activas en la carpeta local
-                local_act_path = next((p for p in ["activas.xlsx", "activas.xls", "activas.csv", "Activas.xlsx", "Activas.xls"] if os.path.exists(p)), None)
-                if local_act_path:
-                    if st.button(f"⚡ Cruzar desde '{local_act_path}' local", type="secondary", key="btn_act_local"):
-                        res_act = actualizar_base_desde_activas(local_act_path)
-                        if res_act.get('exito'):
-                            st.cache_data.clear()
-                            st.session_state['res_act_log'] = {
-                                'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
-                                'detalles': res_act.get('detalles', [])
-                            }
-                            st.rerun()
-                        else:
-                            st.error(f"Error: {res_act.get('error')}")
-
-                if file_act is not None:
-                    if st.button("🚀 Cruzar y Actualizar Activas", type="primary", key="btn_act_subido"):
-                        res_act = actualizar_base_desde_activas(file_act)
-                        if res_act.get('exito'):
-                            st.cache_data.clear()
-                            st.session_state['res_act_log'] = {
-                                'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
-                                'detalles': res_act.get('detalles', [])
-                            }
-                            st.rerun()
-                        else:
-                            st.error(f"Error: {res_act.get('error')}")
-
-            # Mostrar resumen persistente de mi_grupo si existe
-            if st.session_state.get('res_mg_log'):
-                log_mg = st.session_state['res_mg_log']
-                st.success(log_mg['msg'])
-                if log_mg.get('detalles'):
-                    with st.expander("📋 Ver detalle de Consultoras Actualizadas con mi_grupo", expanded=True):
-                        st.dataframe(pd.DataFrame(log_mg['detalles']), use_container_width=True)
-                if st.button("Cerrar notificación (mi_grupo)", key="btn_close_mg_log"):
-                    del st.session_state['res_mg_log']
-                    st.rerun()
-
-            # Mostrar resumen persistente de activas si existe
-            if st.session_state.get('res_act_log'):
-                log_data = st.session_state['res_act_log']
-                st.success(log_data['msg'])
-                if log_data.get('detalles'):
-                    with st.expander("📋 Ver detalle de Consultoras Actualizadas con Activas", expanded=True):
-                        st.dataframe(pd.DataFrame(log_data['detalles']), use_container_width=True)
-                if st.button("Cerrar notificación (activas)", key="btn_close_act_log"):
-                    del st.session_state['res_act_log']
-                    st.rerun()
-
     if df_tableau is None or df_tableau.empty:
-        st.warning("⚠️ No se encontró la base de datos `Base de Datos.xlsx`. Por favor, sube el archivo desde la barra lateral o el panel de administración superior.")
+        st.warning("⚠️ No se encontró la base de datos `Base de Datos.xlsx`. Por favor, sube el archivo desde la barra lateral o el panel de administración.")
     else:
         # Filtros de navegación rápida para Tableau Manager
         col_t1, col_t2, col_t3, col_t4 = st.columns([1, 1, 1.2, 1])
@@ -2271,6 +2140,130 @@ with tab_tableau:
                     df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() != ""]
                 elif f_notas_opt == "Sin Notas":
                     df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() == ""]
+
+        # Opciones de administración (visible solo para Gerencia y SuperAdmin en expander colapsado)
+        if user_rol in ['gerente', 'superadmin']:
+            with st.expander("⚙️ Opciones de Administración (Actualizar Base Tableau, mi_grupo & Activas)", expanded=False):
+                col_adm1, col_adm2, col_adm3 = st.columns(3)
+                with col_adm1:
+                    st.markdown("###### 📁 1. Base Tableau Completa (`Base de Datos.xlsx`)")
+                    archivo_tableau = st.file_uploader("Selecciona `Base de Datos.xlsx`", type=["xlsx"], key="tableau_uploader")
+                    if archivo_tableau is not None:
+                        file_id = f"{archivo_tableau.name}_{archivo_tableau.size}"
+                        if st.session_state.get('last_processed_tableau') != file_id:
+                            valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(archivo_tableau, user_sector)
+                            if not valido:
+                                st.error(msg_val)
+                            else:
+                                try:
+                                    with open("Base de Datos.xlsx", "wb") as f:
+                                        f.write(archivo_tableau.getbuffer())
+                                    ok_sync = sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
+                                    
+                                    if ok_sync:
+                                        st.cache_data.clear()
+                                        st.session_state['last_processed_tableau'] = file_id
+                                        
+                                        # Actualizar DataFrame de Tableau en vivo para la vista actual
+                                        df_tableau = consultar_tableau_sql(
+                                            grupo=(user_grupo if user_rol == 'lider' else None),
+                                            sector=(user_sector if user_rol == 'gerente' else None)
+                                        )
+                                        
+                                        lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
+                                        if lideres_creadas:
+                                            st.session_state['lideres_creadas_log'] = lideres_creadas
+                                        st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
+                                        st.rerun()
+                                    else:
+                                        st.error("⚠️ El archivo subido no corresponde a la Base Maestra de Tableau ('Base de Datos.xlsx'). Si deseas actualizar las metas de ciclo, súbelo en la barra lateral izquierda en '🔄 Rotación de Ciclo (Nuevo)'.")
+                                except Exception as e_up:
+                                    st.error(f"Error al actualizar la base: {e_up}")
+                        else:
+                            st.success("✅ ¡Base de datos activa y cargada exitosamente!")
+
+                with col_adm2:
+                    st.markdown("###### 🔄 2. Opción A: Cargar `mi_grupo`")
+                    st.caption("Actualiza la Situación Comercial de cada consultora vinculando por Código CB.")
+                    file_mg = st.file_uploader("Selecciona `mi_grupo.xls`", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
+                    
+                    if os.path.exists("mi_grupo.xls"):
+                        if st.button("⚡ Cruzar desde 'mi_grupo.xls' local", type="secondary", key="btn_mg_local"):
+                            res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
+                            if res_mg.get('exito'):
+                                st.cache_data.clear()
+                                st.session_state['res_mg_log'] = {
+                                    'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
+                                    'detalles': res_mg.get('detalles', [])
+                                }
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {res_mg.get('error')}")
+
+                    if file_mg is not None:
+                        if st.button("🚀 Actualizar desde 'mi_grupo'", type="primary", key="btn_mg_subido"):
+                            res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
+                            if res_mg.get('exito'):
+                                st.cache_data.clear()
+                                st.session_state['res_mg_log'] = {
+                                    'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
+                                    'detalles': res_mg.get('detalles', [])
+                                }
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {res_mg.get('error')}")
+
+                with col_adm3:
+                    st.markdown("###### ⚡ 3. Opción B: Cargar `activas`")
+                    st.caption("Actualiza estados a 'Activa', pedidos, facturación y puntos vinculando por Código CB.")
+                    file_act = st.file_uploader("Selecciona archivo `activas`", type=["xlsx", "xls", "csv"], key="activas_uploader_tab")
+                    
+                    local_act_path = next((p for p in ["activas.xlsx", "activas.xls", "activas.csv", "Activas.xlsx", "Activas.xls"] if os.path.exists(p)), None)
+                    if local_act_path:
+                        if st.button(f"⚡ Cruzar desde '{local_act_path}' local", type="secondary", key="btn_act_local"):
+                            res_act = actualizar_base_desde_activas(local_act_path)
+                            if res_act.get('exito'):
+                                st.cache_data.clear()
+                                st.session_state['res_act_log'] = {
+                                    'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
+                                    'detalles': res_act.get('detalles', [])
+                                }
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {res_act.get('error')}")
+
+                    if file_act is not None:
+                        if st.button("🚀 Cruzar y Actualizar Activas", type="primary", key="btn_act_subido"):
+                            res_act = actualizar_base_desde_activas(file_act)
+                            if res_act.get('exito'):
+                                st.cache_data.clear()
+                                st.session_state['res_act_log'] = {
+                                    'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
+                                    'detalles': res_act.get('detalles', [])
+                                }
+                                st.rerun()
+                            else:
+                                st.error(f"Error: {res_act.get('error')}")
+
+                if st.session_state.get('res_mg_log'):
+                    log_mg = st.session_state['res_mg_log']
+                    st.success(log_mg['msg'])
+                    if log_mg.get('detalles'):
+                        with st.expander("📋 Ver detalle de Consultoras Actualizadas con mi_grupo", expanded=True):
+                            st.dataframe(pd.DataFrame(log_mg['detalles']), use_container_width=True)
+                    if st.button("Cerrar notificación (mi_grupo)", key="btn_close_mg_log"):
+                        del st.session_state['res_mg_log']
+                        st.rerun()
+
+                if st.session_state.get('res_act_log'):
+                    log_data = st.session_state['res_act_log']
+                    st.success(log_data['msg'])
+                    if log_data.get('detalles'):
+                        with st.expander("📋 Ver detalle de Consultoras Actualizadas con Activas", expanded=True):
+                            st.dataframe(pd.DataFrame(log_data['detalles']), use_container_width=True)
+                    if st.button("Cerrar notificación (activas)", key="btn_close_act_log"):
+                        del st.session_state['res_act_log']
+                        st.rerun()
 
         st.markdown("---")
 
