@@ -3019,6 +3019,7 @@ with tab_geral:
                     'Días Restantes': r.get('dias_para_vencer'),
                     'Saldo Total': f"${r.get('saldo_total'):,.0f} COP".replace(",", "."),
                     'Mensaje Personalizado': msg_ind,
+                    'Enlace Directo': link_w1,
                     'Enlace Directo WhatsApp': link_w1,
                     'Enlace Móvil 2': link_w2
                 })
@@ -3038,8 +3039,9 @@ with tab_geral:
                 st.markdown("###### 📲 Despachar Asesora Individual:")
                 nom_sel_rapido = st.selectbox("Elige la asesora para enviar de inmediato:", options=df_campana_out['Asesora'].tolist(), key="sel_rapido_camp")
                 row_sel_rap = df_campana_out[df_campana_out['Asesora'] == nom_sel_rapido].iloc[0]
-                if row_sel_rap['Enlace Directo']:
-                    st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rapido).split()[0].title()}", url=row_sel_rap['Enlace Directo'], use_container_width=True)
+                link_wa_enviar = row_sel_rap.get('Enlace Directo') or row_sel_rap.get('Enlace Directo WhatsApp')
+                if link_wa_enviar:
+                    st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rapido).split()[0].title()}", url=link_wa_enviar, use_container_width=True)
                 else:
                     st.warning("⚠️ Esta asesora no tiene un número celular válido de 10 dígitos registrado.")
                     

@@ -831,39 +831,107 @@ def generar_analisis_como_vamos(df):
 
 def rotar_y_guardar_nuevo_ciclo(nuevo_excel_origen, ruta_destino='Base para el como vamos.xlsx'):
     """
-    Toma el archivo de datos del ciclo actual, convierte la hoja 'Base para el como vamos'
-    en la hoja 'Como vamos anterior', coloca los nuevos datos en la hoja 'Base para el como vamos'
-    y sobrescribe el archivo 'Base para el como vamos.xlsx'.
+    Toma el archivo de datos del ciclo actual para un sector (o varios),
+    actualiza la hoja 'Base para el como vamos' y 'Como vamos anterior' en 'Base para el como vamos.xlsx',
+    preservando de manera multi-tenant los datos de otros sectores para que ninguna gerente sobreescriba a otra.
     """
-    df_anterior = None
+    df_exist_act = None
+    df_exist_ant = None
     if os.path.exists(ruta_destino):
         try:
             xl_existente = pd.ExcelFile(ruta_destino)
             hojas_lower = {s.lower().strip(): s for s in xl_existente.sheet_names}
             if 'base para el como vamos' in hojas_lower:
-                df_anterior = pd.read_excel(ruta_destino, sheet_name=hojas_lower['base para el como vamos'])
+                df_exist_act = pd.read_excel(ruta_destino, sheet_name=hojas_lower['base para el como vamos'])
+            if 'como vamos anterior' in hojas_lower:
+                df_exist_ant = pd.read_excel(ruta_destino, sheet_name=hojas_lower['como vamos anterior'])
         except Exception as e:
             print(f"Advertencia al leer ciclo anterior de '{ruta_destino}': {e}")
 
     # Leer el nuevo archivo entregado
+    if hasattr(nuevo_excel_origen, 'seek'):
+        try:
+            nuevo_excel_origen.seek(0)
+        except Exception:
+            pass
+
     xl_nuevo = pd.ExcelFile(nuevo_excel_origen)
     hoja_nuevo = xl_nuevo.sheet_names[0]
     for s in xl_nuevo.sheet_names:
-        if 'base para el como vamos' in s.lower():
+        s_low = s.lower()
+        if 'base para el como vamos' in s_low:
             hoja_nuevo = s
             break
+        elif 'como vamos' in s_low or 'metas' in s_low:
+            hoja_nuevo = s
+            break
+
+    if hasattr(nuevo_excel_origen, 'seek'):
+        try:
+            nuevo_excel_origen.seek(0)
+        except Exception:
+            pass
+
     df_nuevo = pd.read_excel(nuevo_excel_origen, sheet_name=hoja_nuevo)
+
+    # Identificar columna y valores de sector del nuevo archivo
+    def _obtener_col_sector(df_in):
+        for c in df_in.columns:
+            c_low = str(c).lower().replace('ó', 'o')
+            if ('cod' in c_low or 'cd' in c_low or 'cód' in c_low) and ('sector' in c_low or 'setor' in c_low):
+                return c
+        for c in df_in.columns:
+            c_low = str(c).lower().replace('ó', 'o')
+            if 'sector' in c_low or 'setor' in c_low:
+                return c
+        return None
+
+    col_sec_nuevo = _obtener_col_sector(df_nuevo)
+    secs_nuevos = set()
+    if col_sec_nuevo:
+        secs_nuevos = set(df_nuevo[col_sec_nuevo].dropna().astype(str).str.strip().str.replace('.0', '', regex=False).unique())
+
+    # Separar datos de otros sectores vs este sector en el archivo actual
+    df_act_otros = pd.DataFrame()
+    df_act_este_sector = pd.DataFrame()
+    if df_exist_act is not None and not df_exist_act.empty:
+        col_sec_exist = _obtener_col_sector(df_exist_act)
+        if col_sec_exist and secs_nuevos:
+            vals_exist = df_exist_act[col_sec_exist].astype(str).str.strip().str.replace('.0', '', regex=False)
+            mask_este = vals_exist.isin(secs_nuevos)
+            df_act_este_sector = df_exist_act[mask_este]
+            df_act_otros = df_exist_act[~mask_este]
+        else:
+            df_act_este_sector = df_exist_act
+
+    # Separar datos de otros sectores en el archivo anterior
+    df_ant_otros = pd.DataFrame()
+    if df_exist_ant is not None and not df_exist_ant.empty:
+        col_sec_ant = _obtener_col_sector(df_exist_ant)
+        if col_sec_ant and secs_nuevos:
+            vals_ant = df_exist_ant[col_sec_ant].astype(str).str.strip().str.replace('.0', '', regex=False)
+            df_ant_otros = df_exist_ant[~vals_ant.isin(secs_nuevos)]
+
+    # Construir dataframes consolidados multi-tenant
+    df_final_actual = pd.concat([df_act_otros, df_nuevo], ignore_index=True) if not df_act_otros.empty else df_nuevo
+    
+    componentes_ant = []
+    if not df_ant_otros.empty:
+        componentes_ant.append(df_ant_otros)
+    if not df_act_este_sector.empty:
+        componentes_ant.append(df_act_este_sector)
+    df_final_anterior = pd.concat(componentes_ant, ignore_index=True) if componentes_ant else None
 
     # Guardar ambas hojas en el archivo destino
     try:
         with pd.ExcelWriter(ruta_destino, engine='openpyxl') as writer:
-            df_nuevo.to_excel(writer, sheet_name='Base para el como vamos', index=False)
-            if df_anterior is not None and not df_anterior.empty:
-                df_anterior.to_excel(writer, sheet_name='Como vamos anterior', index=False)
+            df_final_actual.to_excel(writer, sheet_name='Base para el como vamos', index=False)
+            if df_final_anterior is not None and not df_final_anterior.empty:
+                df_final_anterior.to_excel(writer, sheet_name='Como vamos anterior', index=False)
     except PermissionError:
         raise PermissionError(f"El archivo '{ruta_destino}' está abierto en Microsoft Excel. Por favor ciérralo en Excel y vuelve a presionar el botón.")
             
-    safe_print(f"[OK] ¡Ciclo rotado exitosamente en '{ruta_destino}'!")
+    safe_print(f"[OK] ¡Ciclo rotado exitosamente en '{ruta_destino}' preservando datos multi-sector!")
     return calcular_metas_ciclo(ruta_destino)
 
 # --- FUNCIONES DE FORMATO CONDICIONAL Y EXPORTACIÓN A COLORES ---
@@ -3073,82 +3141,194 @@ def eliminar_usuario_perfil(username, eliminar_sector_asociado=False):
 
 def validar_sector_archivo(origen_file, sector_esperado):
     """
-    Inspecciona un archivo subido (o ruta) en memoria y verifica que el Cod. Sector coincida con el sector del usuario en sesión.
+    Inspecciona un archivo subido (o ruta o DataFrame) y verifica de manera flexible y robusta
+    que el sector del archivo coincida con el sector del usuario en sesión (por código o por nombre).
+    Soporta múltiples hojas de cálculo, detección automática de cabeceras desplazadas,
+    y comparación por códigos (completos o cortos) y nombres/palabras clave del sector.
     Retorna (valido: bool, sector_encontrado: str, nombre_sector: str, mensaje: str).
     """
     if not sector_esperado:
         return False, None, None, "⚠️ Tu perfil de Gerente no tiene un código de sector configurado en el sistema. Por favor solicita la asignación de tu código de sector."
     
     sector_esp_str = str(sector_esperado).strip()
-    df_check = None
+    
+    # Obtener catálogo de sectores y usuarios para conocer todos los alias y nombres de este sector
+    sectores_cat = cargar_catalogo_sectores()
+    usuarios_todos = cargar_usuarios()
+    historico_sec = cargar_historico_sectores()
+    
+    nombres_esperados = set()
+    codigos_esperados = {sector_esp_str}
+    
+    # Extraer código corto si aplica (ej. 466 de 700000466)
+    if len(sector_esp_str) > 3 and sector_esp_str.startswith("700000"):
+        codigos_esperados.add(sector_esp_str[6:])
+        if sector_esp_str[6:].isdigit():
+            codigos_esperados.add(str(int(sector_esp_str[6:])))
+    
+    # Buscar nombres asociados al código de sector esperado
+    if sector_esp_str in sectores_cat:
+        info_cat = sectores_cat[sector_esp_str]
+        nom_sec_cat = info_cat.get("nombre_sector", "")
+        nom_orig_cat = info_cat.get("nombre_sector_original", "")
+        if nom_sec_cat:
+            nombres_esperados.add(nom_sec_cat.lower().strip())
+        if nom_orig_cat:
+            nombres_esperados.add(nom_orig_cat.lower().strip())
+            
+    if sector_esp_str in historico_sec:
+        nom_h = historico_sec[sector_esp_str].get("nombre_sector", "")
+        if nom_h:
+            nombres_esperados.add(nom_h.lower().strip())
+
+    for u_k, u_v in usuarios_todos.items():
+        if str(u_v.get("codigo_sector", "")).strip() == sector_esp_str:
+            nom_u_sec = u_v.get("nombre_sector", "")
+            if nom_u_sec:
+                nombres_esperados.add(nom_u_sec.lower().strip())
+            nom_u_persona = u_v.get("nombre", "")
+            if nom_u_persona:
+                nombres_esperados.add(nom_u_persona.lower().strip())
+
+    # Palabras clave individuales significativas (ej. 'dolly', 'emociones', 'matices', 'clery')
+    palabras_clave = set()
+    for ne in nombres_esperados:
+        for w in ne.replace("sector", "").replace("gerencia", "").split():
+            w_clean = w.strip().lower()
+            if len(w_clean) >= 3:
+                palabras_clave.add(w_clean)
+
+    # Identificar hojas a inspeccionar
+    dfs_a_inspeccionar = []
     
     try:
-        if isinstance(origen_file, str):
-            df_check = pd.read_excel(origen_file, nrows=10)
+        if isinstance(origen_file, pd.DataFrame):
+            dfs_a_inspeccionar.append(("DataFrame", origen_file.head(50)))
         elif hasattr(origen_file, 'read'):
             try:
                 origen_file.seek(0)
             except Exception:
                 pass
-            df_check = pd.read_excel(origen_file, nrows=10)
+            xl = pd.ExcelFile(origen_file)
+            hojas = xl.sheet_names
+            hojas_prioritarias = [s for s in hojas if any(k in s.lower() for k in ['como vamos', 'base', 'metas', 'desaf', 'datos', 'hoja1', 'sheet1'])]
+            if not hojas_prioritarias:
+                hojas_prioritarias = hojas[:2]
+            for h in hojas_prioritarias:
+                try:
+                    df_h = xl.parse(h, nrows=50)
+                    dfs_a_inspeccionar.append((h, df_h))
+                except Exception:
+                    pass
             try:
                 origen_file.seek(0)
             except Exception:
                 pass
-        elif isinstance(origen_file, pd.DataFrame):
-            df_check = origen_file.head(10)
+        elif isinstance(origen_file, str):
+            if os.path.exists(origen_file):
+                xl = pd.ExcelFile(origen_file)
+                hojas = xl.sheet_names
+                hojas_prioritarias = [s for s in hojas if any(k in s.lower() for k in ['como vamos', 'base', 'metas', 'desaf', 'datos', 'hoja1', 'sheet1'])]
+                if not hojas_prioritarias:
+                    hojas_prioritarias = hojas[:2]
+                for h in hojas_prioritarias:
+                    try:
+                        df_h = xl.parse(h, nrows=50)
+                        dfs_a_inspeccionar.append((h, df_h))
+                    except Exception:
+                        pass
     except Exception as e:
         return False, None, None, f"Error al leer la estructura del archivo para validación: {e}"
-        
-    if df_check is None or df_check.empty:
-        return False, None, None, "El archivo está vacío o no tiene datos válidos."
 
-    # Detectar si la primera fila contiene 'Unnamed' y promover la cabecera real
-    if any('unnamed' in str(c).lower() for c in df_check.columns[:5]):
-        for r_idx in range(min(5, len(df_check))):
-            row_vals = [str(x) for x in df_check.iloc[r_idx].values]
-            if any('sector' in x.lower() or 'setor' in x.lower() for x in row_vals):
-                df_check.columns = df_check.iloc[r_idx]
-                df_check = df_check.iloc[r_idx + 1:].reset_index(drop=True)
-                break
+    if not dfs_a_inspeccionar:
+        return False, None, None, "El archivo está vacío o no contiene hojas legibles."
 
-    # Buscar columna de sector
-    col_sec = None
-    col_nom_sec = None
-    for c in df_check.columns:
-        c_clean = str(c).replace('\ufffd', 'ó').strip()
-        c_low = c_clean.lower()
-        if ('cod' in c_low or 'cd' in c_low) and ('sector' in c_low or 'setor' in c_low):
-            col_sec = c
-        elif 'sector' in c_low or 'setor' in c_low:
-            if not col_sec:
-                col_sec = c
-            else:
-                col_nom_sec = c
-                
-    if not col_sec:
+    ultimo_sec_encontrado = None
+    ultimo_nom_encontrado = None
+    encontro_columna_sector = False
+
+    for nombre_hoja, df_check in dfs_a_inspeccionar:
+        if df_check is None or df_check.empty:
+            continue
+
+        # Detectar si la primera fila contiene 'Unnamed' y promover la cabecera real
+        if any('unnamed' in str(c).lower() for c in df_check.columns[:5]):
+            for r_idx in range(min(8, len(df_check))):
+                row_vals = [str(x).lower() for x in df_check.iloc[r_idx].values if pd.notna(x)]
+                if any('sector' in x or 'setor' in x or 'gerencia' in x or 'consultora' in x or 'grupo' in x for x in row_vals):
+                    df_check.columns = [str(col_name).strip() for col_name in df_check.iloc[r_idx]]
+                    df_check = df_check.iloc[r_idx + 1:].reset_index(drop=True)
+                    break
+
+        col_sec_cod = None
+        col_sec_nom = None
+
+        # Identificar columnas de código y de nombre de sector
+        for c in df_check.columns:
+            c_clean = str(c).replace('\ufffd', 'ó').strip()
+            c_low = c_clean.lower()
+            if ('cod' in c_low or 'cd' in c_low or 'cód' in c_low) and ('sector' in c_low or 'setor' in c_low):
+                col_sec_cod = c
+            elif ('nom' in c_low or 'nombre' in c_low) and ('sector' in c_low or 'setor' in c_low):
+                col_sec_nom = c
+            elif 'sector' in c_low or 'setor' in c_low:
+                if not col_sec_cod and not col_sec_nom:
+                    muestra = df_check[c].dropna().astype(str).str.strip()
+                    if not muestra.empty:
+                        primer_val = muestra.iloc[0]
+                        if primer_val.replace('.0', '').isdigit():
+                            col_sec_cod = c
+                        else:
+                            col_sec_nom = c
+
+        if col_sec_cod or col_sec_nom:
+            encontro_columna_sector = True
+
+        # Validar por código de sector
+        if col_sec_cod:
+            valores_cod = df_check[col_sec_cod].dropna().astype(str).str.strip().tolist()
+            for v in valores_cod:
+                v_clean = v.split('.')[0].strip()
+                if v_clean:
+                    ultimo_sec_encontrado = v_clean
+                    if v_clean in codigos_esperados:
+                        return True, v_clean, str(ultimo_nom_encontrado or ""), "Validación de sector exitosa."
+
+        # Validar por nombre de sector
+        if col_sec_nom:
+            valores_nom = df_check[col_sec_nom].dropna().astype(str).str.strip().tolist()
+            for v in valores_nom:
+                v_clean = v.strip()
+                if v_clean:
+                    ultimo_nom_encontrado = v_clean
+                    v_low = v_clean.lower()
+                    if any(ne in v_low for ne in nombres_esperados) or any(pk in v_low for pk in palabras_clave if len(pk) >= 4):
+                        return True, str(ultimo_sec_encontrado or sector_esp_str), v_clean, "Validación de sector exitosa."
+
+    # Si no se encontró ninguna columna de sector en ninguna hoja, permitir la carga
+    if not encontro_columna_sector:
         return True, None, None, "No se encontró columna explícita de sector para validar."
 
-    # Extraer el primer código de sector no nulo
-    s_val = df_check[col_sec].dropna().astype(str).str.strip()
-    if s_val.empty:
-        return True, None, None, "No se encontraron valores numéricos de sector en las primeras filas."
+    # Si se encontraron datos pero pertenecían a otro sector
+    nom_sec_mostrar = f" ({ultimo_nom_encontrado})" if ultimo_nom_encontrado else ""
+    cod_sec_mostrar = f"`{ultimo_sec_encontrado}`" if ultimo_sec_encontrado else ""
+    
+    # Nombre del sector del usuario
+    nombre_usuario_sec = ""
+    for ne in nombres_esperados:
+        if len(ne) > len(nombre_usuario_sec):
+            nombre_usuario_sec = ne.title()
+    if not nombre_usuario_sec:
+        nombre_usuario_sec = sector_esp_str
 
-    val_encontrado = s_val.iloc[0].split('.')[0]
-    nom_encontrado = ""
-    if col_nom_sec and not df_check[col_nom_sec].dropna().empty:
-        nom_encontrado = str(df_check[col_nom_sec].dropna().iloc[0]).strip()
-
-    if val_encontrado != sector_esp_str:
-        msg = (
-            f"❌ **Acceso Denegado - Validación de Sector**\n\n"
-            f"El archivo subido pertenece a una Gerencia de otro Sector.\n\n"
-            f"Se canceló la carga para proteger y evitar sobreescribir la información de tu sector.\n\n"
-            f"📲 **¿Necesitas ayuda?** Por favor comunícate con el servicio de Soporte por WhatsApp al **3057939537**."
-        )
-        return False, val_encontrado, nom_encontrado, msg
-
-    return True, val_encontrado, nom_encontrado, "Validación de sector exitosa."
+    msg = (
+        f"❌ **Acceso Denegado - Validación de Sector**\n\n"
+        f"El archivo subido contiene datos de otro Sector: **{cod_sec_mostrar}{nom_sec_mostrar}**.\n"
+        f"Tu perfil de Gerente está configurado para el sector **{nombre_usuario_sec}** (`{sector_esp_str}`).\n\n"
+        f"Se canceló la carga para proteger y evitar sobreescribir la información de tu sector.\n\n"
+        f"📲 **¿Necesitas ayuda?** Por favor comunícate con el servicio de Soporte por WhatsApp al **3057939537**."
+    )
+    return False, ultimo_sec_encontrado, ultimo_nom_encontrado, msg
 
 def generar_password_aleatoria(longitud=8):
     import random, string
@@ -3186,11 +3366,14 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
     # Extraer código de sector si existe en los archivos
     sec_detectado = None
     if df_tab is not None:
-        col_s_tab = next((c for c in ['Cod. Sector', 'cod_sector', 'Codigo Sector'] if c in df_tab.columns), None)
+        col_s_tab = next((c for c in ['Cod. Sector', 'cod_sector', 'Codigo Sector', 'Cd Setor', 'Cd Sector', 'Sector'] if c in df_tab.columns), None)
         if col_s_tab and not df_tab[col_s_tab].dropna().empty:
             sec_detectado = str(df_tab[col_s_tab].dropna().iloc[0]).split('.')[0].strip()
-    if not sec_detectado and 'Cod. Sector' in df_metas.columns and not df_metas['Cod. Sector'].dropna().empty:
-        sec_detectado = str(df_metas['Cod. Sector'].dropna().iloc[0]).split('.')[0].strip()
+    if not sec_detectado:
+        for c_m in ['Cd Setor', 'Cd Sector', 'Cod. Sector', 'Codigo Sector', 'Cod Sector', 'Sector']:
+            if c_m in df_metas.columns and not df_metas[c_m].dropna().empty:
+                sec_detectado = str(df_metas[c_m].dropna().iloc[0]).split('.')[0].strip()
+                break
 
     grupos_procesados = set()
     usuarios_existentes = cargar_usuarios()
@@ -4055,8 +4238,16 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
     # Validar sector si se especificó
     if sector_esperado and 'cod_sector' in df.columns:
         sec_esp_str = str(sector_esperado).strip()
-        secs_encontrados = df['cod_sector'].dropna().astype(str).str.split('.').str[0].unique()
-        if len(secs_encontrados) > 0 and sec_esp_str not in secs_encontrados:
+        secs_encontrados = [str(x).strip().split('.')[0] for x in df['cod_sector'].dropna().unique() if str(x).strip()]
+        
+        # Códigos válidos aceptados (código completo o código corto)
+        codigos_validos = {sec_esp_str}
+        if len(sec_esp_str) > 3 and sec_esp_str.startswith("700000"):
+            codigos_validos.add(sec_esp_str[6:])
+            if sec_esp_str[6:].isdigit():
+                codigos_validos.add(str(int(sec_esp_str[6:])))
+                
+        if secs_encontrados and not any(s in codigos_validos for s in secs_encontrados):
             return False, 0, f"❌ El archivo subido pertenece al Sector '{secs_encontrados[0]}', el cual no coincide con tu Sector asignado ({sec_esp_str})."
 
     close_at_end = False
@@ -4073,8 +4264,9 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
     
     # Si viene con sector específico, borrar solo los registros de ese sector
     if 'cod_sector' in df.columns and not df['cod_sector'].dropna().empty:
-        cod_sec_val = str(df['cod_sector'].dropna().iloc[0]).strip().split('.')[0]
-        cursor.execute("DELETE FROM cartera_geral WHERE cod_sector = ? OR sector LIKE ?", (cod_sec_val, f"%{cod_sec_val}%"))
+        secs_a_borrar = [str(x).strip().split('.')[0] for x in df['cod_sector'].dropna().unique() if str(x).strip()]
+        for cod_sec_val in secs_a_borrar:
+            cursor.execute("DELETE FROM cartera_geral WHERE cod_sector = ? OR cod_sector = ? OR sector LIKE ?", (cod_sec_val, f"700000{cod_sec_val}", f"%{cod_sec_val}%"))
     else:
         cursor.execute("DELETE FROM cartera_geral")
         
