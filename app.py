@@ -213,12 +213,12 @@ st.markdown("""
     }
 
     [data-testid="stMetricDelta"] div {
-        font-size: clamp(0.66rem, 0.76vw, 0.8rem) !important;
-        font-weight: 600 !important;
-        white-space: nowrap !important;
-        text-overflow: ellipsis !important;
-        overflow: hidden !important;
-        line-height: 1.2 !important;
+        font-size: clamp(0.7rem, 0.8vw, 0.84rem) !important;
+        font-weight: 700 !important;
+        white-space: normal !important;
+        text-overflow: clip !important;
+        overflow: visible !important;
+        line-height: 1.25 !important;
     }
 
     /* Auto-Wrapping inteligente de columnas Streamlit para Portátiles */
@@ -2005,75 +2005,117 @@ if user_rol == 'lider':
     fact_meta = float(arte_lider.get('desafio_facturacion', obj_fact)) if arte_lider.get('desafio_facturacion') else float(obj_fact)
     fact_pct = (fact_real / fact_meta * 100.0) if fact_meta > 0 else 0.0
 
-    # 4. Saldo Comercial (Real vs Meta Desafío >= +2)
+    # 4. Ganancia Estimada LN
+    gan_txt = f"${ganancia_total/1e6:.2f}M COP" if abs(ganancia_total) >= 1_000_000 else f"${ganancia_total:,.0f}".replace(",", ".")
+
+    # 5. Saldo Comercial (Real vs Meta Desafío >= +2)
     saldo_real = int(df_filtrado['Saldo'].sum()) if 'Saldo' in df_filtrado.columns else 0
     saldo_meta = int(arte_lider.get('saldo_meta', 2))
     brecha_saldo = saldo_meta - saldo_real
 
-    # 5. Inicios + Reinicios (Desafío Inicios + Reinicios Arte vs Real)
+    # 6. Inicios + Reinicios (Desafío Inicios + Reinicios Arte vs Real)
     inicios_real = int(inicios_totales)
     reinicios_real = int(reinicios_totales)
     ini_rei_real = inicios_real + reinicios_real
     ini_rei_meta = int(arte_lider.get('meta_inicios_reinicios', 0))
     ini_rei_pct = (ini_rei_real / ini_rei_meta * 100.0) if ini_rei_meta > 0 else 0.0
 
-    # 6. Inactivas & Recuperos (I1, I2, I3 y Meta Recuperos)
+    # Variables de Inactivas y Recuperos para desglose abierto
     i1_val = int(df_filtrado['Inactiva 1'].sum()) if 'Inactiva 1' in df_filtrado.columns else 0
     i2_val = int(df_filtrado['Inactiva 2'].sum()) if 'Inactiva 2' in df_filtrado.columns else 0
     i3_val = int(df_filtrado['Inactiva 3'].sum()) if 'Inactiva 3' in df_filtrado.columns else 0
-    tot_inactivas_rec = i1_val + i2_val + i3_val
     recup_real = int(df_filtrado['Recuperos'].sum()) if 'Recuperos' in df_filtrado.columns else 0
     recup_meta = int(arte_lider.get('meta_recuperos', 0))
     recup_pct = (recup_real / recup_meta * 100.0) if recup_meta > 0 else 0.0
 
+    # FILA 1: LAS 6 TARJETAS PRINCIPALES DEL NEGOCIO
     lkpi1, lkpi2, lkpi3, lkpi4, lkpi5, lkpi6 = st.columns(6)
 
     with lkpi1:
         st.metric(
             "🎯 Disponibles Proy.",
             f"{disp_real}",
-            f"🎯 Desafío: {disp_meta} ({disp_pct:.1f}%)" if disp_meta > 0 else "Sin Meta Arte",
-            delta_color="normal" if disp_pct >= 100 else "off"
+            f"{disp_pct:.1f}% Desafío ({disp_meta})" if disp_meta > 0 else None,
+            delta_color="normal"
         )
 
     with lkpi2:
         st.metric(
-            "👥 Activas (Real / Desafío)",
+            "👥 Activas",
             f"{act_real}",
-            f"↑ {act_pct:.1f}% (Desafío: {act_meta})" if act_meta > 0 else f"{act_real} Activas",
-            delta_color="normal" if act_pct >= 100 else "off"
+            f"{act_pct:.1f}% Desafío ({act_meta})" if act_meta > 0 else None,
+            delta_color="normal"
         )
 
     with lkpi3:
         st.metric(
             "💰 Facturación Total",
             f"${fact_real/1e6:.1f}M COP",
-            f"↑ {fact_pct:.1f}% (Desafío: ${fact_meta/1e6:.1f}M)" if fact_meta > 0 else "0.0%",
-            delta_color="normal" if fact_pct >= 100 else "off"
+            f"{fact_pct:.1f}% Desafío (${fact_meta/1e6:.1f}M)" if fact_meta > 0 else None,
+            delta_color="normal"
         )
 
     with lkpi4:
         st.metric(
-            "⚖️ Saldo Comercial",
-            f"{saldo_real:+d}",
-            f"✅ Meta lograda (+{saldo_meta})" if saldo_real >= saldo_meta else f"⚠️ Meta: +{saldo_meta} (Falta {brecha_saldo:+d})",
-            delta_color="normal" if saldo_real >= saldo_meta else "inverse"
+            "💵 Ganancia Estimada LN",
+            gan_txt
         )
 
     with lkpi5:
         st.metric(
-            "🚀 Inicios + Reinicios",
-            f"{ini_rei_real}",
-            f"↑ {ini_rei_pct:.1f}% (Desafío: {ini_rei_meta} | {inicios_real} Inic. / {reinicios_real} Rein.)" if ini_rei_meta > 0 else f"↑ {inicios_real} Inic. | {reinicios_real} Rein.",
-            delta_color="normal" if ini_rei_pct >= 100 else "off"
+            "⚖️ Saldo Comercial",
+            f"{saldo_real:+d}",
+            f"Meta: +{saldo_meta} (Falta {brecha_saldo:+d})" if saldo_real < saldo_meta else f"Meta lograda (+{saldo_meta})",
+            delta_color="normal" if saldo_real >= saldo_meta else "inverse"
         )
 
     with lkpi6:
         st.metric(
-            "🌸 Inactivas & Recup.",
-            f"{tot_inactivas_rec} cons.",
-            f"🎯 Recup: {recup_real} de {recup_meta} ({recup_pct:.0f}%) | I1:{i1_val} I2:{i2_val} I3:{i3_val}" if recup_meta > 0 else f"I1: {i1_val} • I2: {i2_val} • I3: {i3_val}",
-            delta_color="normal" if recup_pct >= 100 else "off"
+            "🚀 Inicios + Reinicios",
+            f"{ini_rei_real}",
+            f"{ini_rei_pct:.1f}% Desafío ({ini_rei_meta})" if ini_rei_meta > 0 else f"{inicios_real} Inic. | {reinicios_real} Rein.",
+            delta_color="normal"
+        )
+
+    # FILA 2: BOLSA DE RECUPERACIÓN DE RED ABIERTA Y DESGLOSADA (I1, I2, I3 Y RECUPEROS)
+    st.markdown(
+        "<div style='font-size:0.92rem; font-weight:800; color:#E3007B; margin: 10px 0 6px 2px; display:flex; align-items:center; gap:6px;'>"
+        "<span>🌸 Bolsa de Recuperación de Red (Inactivas & Recuperos)</span>"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    rcol1, rcol2, rcol3, rcol4 = st.columns(4)
+
+    with rcol1:
+        st.metric(
+            "🌸 Inactiva 1 (I1)",
+            f"{i1_val}",
+            "1 ciclo sin pedido",
+            delta_color="normal"
+        )
+
+    with rcol2:
+        st.metric(
+            "🌸 Inactiva 2 (I2)",
+            f"{i2_val}",
+            "2 ciclos sin pedido",
+            delta_color="normal"
+        )
+
+    with rcol3:
+        st.metric(
+            "⚠️ Inactiva 3 (I3)",
+            f"{i3_val}",
+            "¡Riesgo Fuga a I4!",
+            delta_color="inverse"
+        )
+
+    with rcol4:
+        st.metric(
+            "🎯 Recuperos Logrados",
+            f"{recup_real} de {recup_meta}" if recup_meta > 0 else f"{recup_real}",
+            f"{recup_pct:.1f}% Meta Arte" if recup_meta > 0 else None,
+            delta_color="normal"
         )
 
 else:
