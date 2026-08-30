@@ -1984,38 +1984,132 @@ sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) el
 df_tableau_cumple = consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
 renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector, key_suffix="full_top")
 
-kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+if user_rol == 'lider':
+    # --- CUADRO DE MANDO DE DESAFÍOS OPERATIVOS EXCLUSIVO PARA LÍDERES ---
+    mapa_arte_global = cargar_objetivos_arte()
+    arte_por_grupo = mapa_arte_global.get('por_grupo', {})
+    arte_lider = arte_por_grupo.get(str(user_grupo).strip(), {}) if user_grupo else {}
 
-with kpi1:
-    st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
+    # 1. Disponibles (Proyectadas de Arte vs Real)
+    disp_real = int(df_filtrado['Disponibles'].sum()) if 'Disponibles' in df_filtrado.columns else 0
+    disp_meta = int(arte_lider.get('disponibles_proyectadas', 0))
+    disp_pct = (disp_real / disp_meta * 100.0) if disp_meta > 0 else 0.0
 
-with kpi2:
-    st.metric(
-        "👥 Activas (Real / Obj)",
-        f"{int(real_activas)}",
-        f"↑ {cump_activas:.1f}% Cumplimiento" if obj_activas > 0 else "0.0%"
-    )
+    # 2. Activas (Desafío de Activas de Arte vs Real)
+    act_real = int(real_activas)
+    act_meta = int(arte_lider.get('desafio_activas', obj_activas)) if arte_lider.get('desafio_activas') else int(obj_activas)
+    act_pct = (act_real / act_meta * 100.0) if act_meta > 0 else 0.0
 
-with kpi3:
-    st.metric(
-        "💰 Facturación Total",
-        f"${real_fact/1e6:.1f}M COP",
-        f"↑ {cump_fact:.1f}% Cumplimiento" if obj_fact > 0 else "0.0%"
-    )
+    # 3. Facturación (Desafío Facturación de Arte vs Real)
+    fact_real = real_fact
+    fact_meta = float(arte_lider.get('desafio_facturacion', obj_fact)) if arte_lider.get('desafio_facturacion') else float(obj_fact)
+    fact_pct = (fact_real / fact_meta * 100.0) if fact_meta > 0 else 0.0
 
-with kpi4:
-    gan_txt = f"${ganancia_total/1e6:.2f}M COP" if abs(ganancia_total) >= 1_000_000 else f"${ganancia_total:,.0f}".replace(",", ".")
-    st.metric(
-        "💵 Ganancia Estimada LN",
-        gan_txt
-    )
+    # 4. Saldo Comercial (Real vs Meta Desafío >= +2)
+    saldo_real = int(df_filtrado['Saldo'].sum()) if 'Saldo' in df_filtrado.columns else 0
+    saldo_meta = int(arte_lider.get('saldo_meta', 2))
+    brecha_saldo = saldo_meta - saldo_real
 
-with kpi5:
-    st.metric(
-        "🚀 Inicios / Reinicios",
-        f"{int(inicios_totales + reinicios_totales)}",
-        f"↑ {int(inicios_totales)} Inic. | {int(reinicios_totales)} Rein."
-    )
+    # 5. Inicios + Reinicios (Desafío Inicios + Reinicios Arte vs Real)
+    inicios_real = int(inicios_totales)
+    reinicios_real = int(reinicios_totales)
+    ini_rei_real = inicios_real + reinicios_real
+    ini_rei_meta = int(arte_lider.get('meta_inicios_reinicios', 0))
+    ini_rei_pct = (ini_rei_real / ini_rei_meta * 100.0) if ini_rei_meta > 0 else 0.0
+
+    # 6. Inactivas & Recuperos (I1, I2, I3 y Meta Recuperos)
+    i1_val = int(df_filtrado['Inactiva 1'].sum()) if 'Inactiva 1' in df_filtrado.columns else 0
+    i2_val = int(df_filtrado['Inactiva 2'].sum()) if 'Inactiva 2' in df_filtrado.columns else 0
+    i3_val = int(df_filtrado['Inactiva 3'].sum()) if 'Inactiva 3' in df_filtrado.columns else 0
+    tot_inactivas_rec = i1_val + i2_val + i3_val
+    recup_real = int(df_filtrado['Recuperos'].sum()) if 'Recuperos' in df_filtrado.columns else 0
+    recup_meta = int(arte_lider.get('meta_recuperos', 0))
+    recup_pct = (recup_real / recup_meta * 100.0) if recup_meta > 0 else 0.0
+
+    lkpi1, lkpi2, lkpi3, lkpi4, lkpi5, lkpi6 = st.columns(6)
+
+    with lkpi1:
+        st.metric(
+            "🎯 Disponibles Proy.",
+            f"{disp_real}",
+            f"🎯 Desafío: {disp_meta} ({disp_pct:.1f}%)" if disp_meta > 0 else "Sin Meta Arte",
+            delta_color="normal" if disp_pct >= 100 else "off"
+        )
+
+    with lkpi2:
+        st.metric(
+            "👥 Activas (Real / Desafío)",
+            f"{act_real}",
+            f"↑ {act_pct:.1f}% (Desafío: {act_meta})" if act_meta > 0 else f"{act_real} Activas",
+            delta_color="normal" if act_pct >= 100 else "off"
+        )
+
+    with lkpi3:
+        st.metric(
+            "💰 Facturación Total",
+            f"${fact_real/1e6:.1f}M COP",
+            f"↑ {fact_pct:.1f}% (Desafío: ${fact_meta/1e6:.1f}M)" if fact_meta > 0 else "0.0%",
+            delta_color="normal" if fact_pct >= 100 else "off"
+        )
+
+    with lkpi4:
+        st.metric(
+            "⚖️ Saldo Comercial",
+            f"{saldo_real:+d}",
+            f"✅ Meta lograda (+{saldo_meta})" if saldo_real >= saldo_meta else f"⚠️ Meta: +{saldo_meta} (Falta {brecha_saldo:+d})",
+            delta_color="normal" if saldo_real >= saldo_meta else "inverse"
+        )
+
+    with lkpi5:
+        st.metric(
+            "🚀 Inicios + Reinicios",
+            f"{ini_rei_real}",
+            f"↑ {ini_rei_pct:.1f}% (Desafío: {ini_rei_meta} | {inicios_real} Inic. / {reinicios_real} Rein.)" if ini_rei_meta > 0 else f"↑ {inicios_real} Inic. | {reinicios_real} Rein.",
+            delta_color="normal" if ini_rei_pct >= 100 else "off"
+        )
+
+    with lkpi6:
+        st.metric(
+            "🌸 Inactivas & Recup.",
+            f"{tot_inactivas_rec} cons.",
+            f"🎯 Recup: {recup_real} de {recup_meta} ({recup_pct:.0f}%) | I1:{i1_val} I2:{i2_val} I3:{i3_val}" if recup_meta > 0 else f"I1: {i1_val} • I2: {i2_val} • I3: {i3_val}",
+            delta_color="normal" if recup_pct >= 100 else "off"
+        )
+
+else:
+    # --- CUADRO DE MANDO CONSOLIDADO PARA GERENTES Y SUPERADMIN ---
+    kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+
+    with kpi1:
+        st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
+
+    with kpi2:
+        st.metric(
+            "👥 Activas (Real / Obj)",
+            f"{int(real_activas)}",
+            f"↑ {cump_activas:.1f}% Cumplimiento" if obj_activas > 0 else "0.0%"
+        )
+
+    with kpi3:
+        st.metric(
+            "💰 Facturación Total",
+            f"${real_fact/1e6:.1f}M COP",
+            f"↑ {cump_fact:.1f}% Cumplimiento" if obj_fact > 0 else "0.0%"
+        )
+
+    with kpi4:
+        gan_txt = f"${ganancia_total/1e6:.2f}M COP" if abs(ganancia_total) >= 1_000_000 else f"${ganancia_total:,.0f}".replace(",", ".")
+        st.metric(
+            "💵 Ganancia Estimada LN",
+            gan_txt
+        )
+
+    with kpi5:
+        st.metric(
+            "🚀 Inicios / Reinicios",
+            f"{int(inicios_totales + reinicios_totales)}",
+            f"↑ {int(inicios_totales)} Inic. | {int(reinicios_totales)} Rein."
+        )
 
 st.markdown("---")
 

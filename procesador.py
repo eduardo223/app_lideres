@@ -350,6 +350,10 @@ def procesar_archivo_objetivos_arte(origen_arte, ruta_guardar_excel='Objetivos A
         col_disp_proy = next((c for c in df_raw.columns if 'disponibles proyectadas' in str(c).lower()), None)
         col_desafio_act = next((c for c in df_raw.columns if 'desafío de activas' in str(c).lower() or 'desafio de activas' in str(c).lower() or 'desafio activas' in str(c).lower() or 'desafío activas' in str(c).lower()), None)
         col_desafio_fact = next((c for c in df_raw.columns if 'desafío facturación' in str(c).lower() or 'desafio facturacion' in str(c).lower() or 'desafio facturación' in str(c).lower()), None)
+        col_saldo_meta = next((c for c in df_raw.columns if str(c).strip().lower() == 'saldo'), None)
+        col_i1 = next((c for c in df_raw.columns if str(c).strip().lower() == 'inactiva 1'), None)
+        col_i2 = next((c for c in df_raw.columns if str(c).strip().lower() == 'inactiva 2'), None)
+        col_i3 = next((c for c in df_raw.columns if str(c).strip().lower() == 'inactiva 3'), None)
 
         if not col_grp and not col_lider:
             return {'exito': False, 'error': "No se identificó la columna de Grupo o Líder en la hoja 'Desafíos LNN'."}
@@ -371,6 +375,10 @@ def procesar_archivo_objetivos_arte(origen_arte, ruta_guardar_excel='Objetivos A
             val_disp_proy = int(round(limpiar_numero(row.get(col_disp_proy, 0), 0))) if col_disp_proy else 0
             val_desafio_act = int(round(limpiar_numero(row.get(col_desafio_act, 0), 0))) if col_desafio_act else 0
             val_desafio_fact = float(limpiar_numero(row.get(col_desafio_fact, 0), 0.0)) if col_desafio_fact else 0.0
+            val_saldo_meta = int(round(limpiar_numero(row.get(col_saldo_meta, 2), 2))) if col_saldo_meta else 2
+            val_i1 = int(round(limpiar_numero(row.get(col_i1, 0), 0))) if col_i1 else 0
+            val_i2 = int(round(limpiar_numero(row.get(col_i2, 0), 0))) if col_i2 else 0
+            val_i3 = int(round(limpiar_numero(row.get(col_i3, 0), 0))) if col_i3 else 0
 
             nom_limpio = nom
             if ' - ' in nom_limpio:
@@ -380,9 +388,13 @@ def procesar_archivo_objetivos_arte(origen_arte, ruta_guardar_excel='Objetivos A
                 'meta_inicios_reinicios': val_ini,
                 'meta_recuperos': val_rec,
                 'disponibles_esperadas': val_disp_esp if val_disp_esp > 0 else val_disp_proy,
-                'disponibles_proyectadas': val_disp_proy,
+                'disponibles_proyectadas': val_disp_proy if val_disp_proy > 0 else val_disp_esp,
                 'desafio_activas': val_desafio_act,
                 'desafio_facturacion': val_desafio_fact,
+                'saldo_meta': val_saldo_meta,
+                'inactiva_1_meta': val_i1,
+                'inactiva_2_meta': val_i2,
+                'inactiva_3_meta': val_i3,
                 'nombre_lider': nom_limpio,
                 'grupo': g_raw,
                 'sector': sec
