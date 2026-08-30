@@ -2013,6 +2013,10 @@ with tab_tableau:
         if sits_sel_init and 'Sit. Comercial' in df_tab_filt.columns:
             df_tab_filt = df_tab_filt[df_tab_filt['Sit. Comercial'].astype(str).isin(sits_sel_init)]
 
+        colores_sel_init = st.session_state.get("filt_color_tab", [])
+        if colores_sel_init and 'Color' in df_tab_filt.columns:
+            df_tab_filt = df_tab_filt[df_tab_filt['Color'].astype(str).isin(colores_sel_init)]
+
         f_mora_init = st.session_state.get("filt_mora_opt", "Todas")
         if 'Deuda Mora' in df_tab_filt.columns:
             if f_mora_init == "Con Deuda Mora (> $0)":
@@ -2021,6 +2025,20 @@ with tab_tableau:
                 df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] <= 0]
             elif f_mora_init == "Mora Crítica (> $500k)":
                 df_tab_filt = df_tab_filt[df_tab_filt['Deuda Mora'] > 500000]
+
+        f_ped_init = st.session_state.get("filt_ped_opt", "Todos")
+        if 'Ped. Pendientes' in df_tab_filt.columns:
+            if f_ped_init == "Con Pedidos Pendientes (> 0)":
+                df_tab_filt = df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]
+            elif f_ped_init == "Sin Pedidos Pendientes (0)":
+                df_tab_filt = df_tab_filt[df_tab_filt['Ped. Pendientes'] <= 0]
+
+        f_notas_init = st.session_state.get("filt_notas_opt", "Todos")
+        if 'Comentarios_Lider' in df_tab_filt.columns:
+            if f_notas_init == "Con Notas / Comentarios":
+                df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() != ""]
+            elif f_notas_init == "Sin Notas":
+                df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() == ""]
 
         busq_init = st.session_state.get("tab_busq", "").strip()
         if busq_init:
@@ -2190,14 +2208,16 @@ with tab_tableau:
                 return f"👩‍💼 Grupo {g_val} — {nom}"
             return f"👥 Grupo {g_val}"
 
+        sits_disponibles = sorted([str(s) for s in df_tableau['Sit. Comercial'].dropna().unique()]) if 'Sit. Comercial' in df_tableau.columns else []
+        colores_tab_disp = sorted([str(c) for c in df_tableau['Color'].dropna().unique()]) if 'Color' in df_tableau.columns else []
+
         if user_rol in ['gerente', 'superadmin']:
             lista_grupos_t = sorted([str(g).strip() for g in df_tableau['Grupo'].dropna().unique()]) if 'Grupo' in df_tableau.columns else []
-            sits_disponibles = sorted([str(s) for s in df_tableau['Sit. Comercial'].dropna().unique()]) if 'Sit. Comercial' in df_tableau.columns else []
 
-            col_f1, col_f2, col_f3, col_f4 = st.columns([1.3, 1.2, 1.0, 1.3])
+            col_f1, col_f2, col_f3, col_f4, col_f5, col_f6, col_f7 = st.columns([1.3, 1.1, 1.0, 1.0, 0.95, 0.95, 1.2])
             with col_f1:
                 lider_sel_t = st.selectbox(
-                    "👤 Selección de Líder / Grupo",
+                    "👤 Líder / Grupo",
                     options=["Todas las Líderes (Consolidado Zona)"] + lista_grupos_t,
                     format_func=format_lider_tab,
                     key="tab_lider_grp_sel"
@@ -2207,6 +2227,41 @@ with tab_tableau:
                 sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
 
             with col_f3:
+                colores_tab_sel = st.multiselect("🏆 Nivel / Color", options=colores_tab_disp, default=[], key="filt_color_tab")
+
+            with col_f4:
+                f_mora_opt = st.selectbox(
+                    "⚠️ Deuda Mora",
+                    options=["Todas", "Con Deuda Mora (> $0)", "Sin Deuda Mora ($0)", "Mora Crítica (> $500k)"],
+                    key="filt_mora_opt"
+                )
+
+            with col_f5:
+                f_ped_opt = st.selectbox(
+                    "⌛ Ped. Pend.",
+                    options=["Todos", "Con Pedidos (> 0)", "Sin Pedidos (0)"],
+                    key="filt_ped_opt"
+                )
+
+            with col_f6:
+                f_notas_opt = st.selectbox(
+                    "📝 Notas",
+                    options=["Todos", "Con Notas", "Sin Notas"],
+                    key="filt_notas_opt"
+                )
+
+            with col_f7:
+                busq_t = st.text_input("🔍 Buscar Asesora", "", key="tab_busq")
+
+        else:
+            col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns([1.2, 1.1, 1.0, 1.0, 1.0, 1.3])
+            with col_f1:
+                sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
+
+            with col_f2:
+                colores_tab_sel = st.multiselect("🏆 Nivel / Color", options=colores_tab_disp, default=[], key="filt_color_tab")
+
+            with col_f3:
                 f_mora_opt = st.selectbox(
                     "⚠️ Deuda Mora",
                     options=["Todas", "Con Deuda Mora (> $0)", "Sin Deuda Mora ($0)", "Mora Crítica (> $500k)"],
@@ -2214,24 +2269,21 @@ with tab_tableau:
                 )
 
             with col_f4:
-                busq_t = st.text_input("🔍 Buscar Asesora (Nombre / Código)", "", key="tab_busq")
-
-        else:
-            sits_disponibles = sorted([str(s) for s in df_tableau['Sit. Comercial'].dropna().unique()]) if 'Sit. Comercial' in df_tableau.columns else []
-
-            col_f1, col_f2, col_f3 = st.columns([1.4, 1.1, 1.4])
-            with col_f1:
-                sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
-
-            with col_f2:
-                f_mora_opt = st.selectbox(
-                    "⚠️ Deuda Mora",
-                    options=["Todas", "Con Deuda Mora (> $0)", "Sin Deuda Mora ($0)", "Mora Crítica (> $500k)"],
-                    key="filt_mora_opt"
+                f_ped_opt = st.selectbox(
+                    "⌛ Ped. Pend.",
+                    options=["Todos", "Con Pedidos (> 0)", "Sin Pedidos (0)"],
+                    key="filt_ped_opt"
                 )
 
-            with col_f3:
-                busq_t = st.text_input("🔍 Buscar Asesora (Nombre / Código)", "", key="tab_busq")
+            with col_f5:
+                f_notas_opt = st.selectbox(
+                    "📝 Notas",
+                    options=["Todos", "Con Notas", "Sin Notas"],
+                    key="filt_notas_opt"
+                )
+
+            with col_f6:
+                busq_t = st.text_input("🔍 Buscar Asesora", "", key="tab_busq")
 
         st.markdown("---")
 
