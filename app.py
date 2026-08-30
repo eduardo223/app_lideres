@@ -1389,6 +1389,15 @@ if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
         del st.session_state['msg_timeout']
     st.rerun()
 
+modo_tema = st.sidebar.radio(
+    "🎨 Tema Visual",
+    options=["🌙 Oscuro Neón", "☀️ Modo Claro"],
+    index=0,
+    horizontal=True,
+    key="app_theme_mode_selector"
+)
+is_dark_theme = (modo_tema == "🌙 Oscuro Neón")
+
 # Inactivador automático en cliente tras 15 minutos sin interacción y activador de corrector nativo
 st.markdown("""
 <script>
@@ -1876,80 +1885,47 @@ ganancia_total = float(df_filtrado['Ganancia estimada'].sum()) if 'Ganancia esti
 inicios_totales = float(df_filtrado['Inicios'].sum()) if 'Inicios' in df_filtrado.columns else 0.0
 reinicios_totales = float(df_filtrado['Reinicios'].sum()) if 'Reinicios' in df_filtrado.columns else 0.0
 
-# Comprobación de parámetro URL ?app=matices o ?app=mobile para Streamlit Cloud
-param_app = str(st.query_params.get("app", "")).lower()
-param_vista = str(st.query_params.get("vista", "")).lower()
-is_mobile_url = (param_app in ["matices", "mobile", "movil", "app"] or param_vista in ["movil", "app"])
+# 4. TARJETAS DE KPIS SUPERIORES (VISTA COMPLETA)
+# Recordatorio y Banner de Cumpleaños para Líderes y Gerentes
+grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
+sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
+df_tableau_cumple = consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
+renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector, key_suffix="full_top")
 
-idx_default_vista = 1 if is_mobile_url else 0
+kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
-# Selector Superior de Modo de Vista & Tema
-col_ctrl1, col_ctrl2 = st.columns([2.2, 1.8])
-with col_ctrl1:
-    modo_vista = st.radio(
-        "📱 Modo de Experiencia",
-        options=["🖥️ Vista Tablero Completo (Tradicional)", "📱 Modo App Minimalista"],
-        index=idx_default_vista,
-        horizontal=True,
-        key="app_view_mode_selector"
-    )
-with col_ctrl2:
-    modo_tema = st.radio(
-        "🎨 Tema Visual",
-        options=["🌙 Oscuro Neón", "☀️ Modo Claro"],
-        index=0,
-        horizontal=True,
-        key="app_theme_mode_selector"
+with kpi1:
+    st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
+
+with kpi2:
+    st.metric(
+        "👥 Activas (Real / Obj)",
+        f"{int(real_activas)}",
+        f"↑ {cump_activas:.1f}% Cumplimiento" if obj_activas > 0 else "0.0%"
     )
 
-is_dark_theme = (modo_tema == "🌙 Oscuro Neón")
+with kpi3:
+    st.metric(
+        "💰 Facturación Total",
+        f"${real_fact/1e6:.1f}M COP",
+        f"↑ {cump_fact:.1f}% Cumplimiento" if obj_fact > 0 else "0.0%"
+    )
 
-if modo_vista == "📱 Modo App Minimalista":
-    renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sector, is_dark_theme)
-else:
-    # 4. TARJETAS DE KPIS SUPERIORES (VISTA COMPLETA)
-    kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
+with kpi4:
+    gan_txt = f"${ganancia_total/1e6:.2f}M COP" if abs(ganancia_total) >= 1_000_000 else f"${ganancia_total:,.0f}".replace(",", ".")
+    st.metric(
+        "💵 Ganancia Estimada LN",
+        gan_txt
+    )
 
-    # renderizar_banner_motivacional(cump_fact, user_nombre, user_grupo)
+with kpi5:
+    st.metric(
+        "🚀 Inicios / Reinicios",
+        f"{int(inicios_totales + reinicios_totales)}",
+        f"↑ {int(inicios_totales)} Inic. | {int(reinicios_totales)} Rein."
+    )
 
-    # Recordatorio y Banner de Cumpleaños para Líderes y Gerentes
-    grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
-    sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
-    df_tableau_cumple = consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
-    renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector, key_suffix="full_top")
-
-    with kpi1:
-        st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
-
-    with kpi2:
-        st.metric(
-            "👥 Activas (Real / Obj)",
-            f"{int(real_activas)}",
-            f"↑ {cump_activas:.1f}% Cumplimiento" if obj_activas > 0 else "0.0%"
-        )
-
-    with kpi3:
-        st.metric(
-            "💰 Facturación Total",
-            f"${real_fact/1e6:.1f}M COP",
-            f"↑ {cump_fact:.1f}% Cumplimiento" if obj_fact > 0 else "0.0%"
-        )
-
-    with kpi4:
-        gan_txt = f"${ganancia_total/1e6:.2f}M COP" if abs(ganancia_total) >= 1_000_000 else f"${ganancia_total:,.0f}".replace(",", ".")
-        st.metric(
-            "💵 Ganancia Estimada LN",
-            gan_txt
-        )
-
-    with kpi5:
-        st.metric(
-            "🚀 Inicios / Reinicios",
-            f"{int(inicios_totales + reinicios_totales)}",
-            f"↑ {int(inicios_totales)} Inic. | {int(reinicios_totales)} Rein."
-        )
-
-    st.markdown("---")
+st.markdown("---")
 
 # 5. CONTENIDO CON PESTAÑAS (TABS)
 permisos_tab_config = app_config.get("permisos_pestanas", DEFAULT_PERMISOS_PESTANAS)
