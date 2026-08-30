@@ -2036,7 +2036,7 @@ tabs_definidas = [
     ("tab_tableau", "📊 Informe Tableau Cam"),
     ("tab_geral", "💳 Geral_Credito&Cobranza"),
     ("tab_resumen", "📊 Resumen & KPIs"),
-    ("tab_ganancia", "💵 Simulador de Ganancia"),
+    ("tab_ganancia", "🧮 Simuladores"),
     ("tab_diagnostico", "👑 Mis Líderes"),
     ("tab_metas", "🎯 Metas de Crecimiento (Procesador)"),
     ("tab_detalle", "📑 Generador de Informes"),
