@@ -377,17 +377,7 @@ st.markdown("""
         background: linear-gradient(135deg, #F58220 0%, #9B0053 100%) !important;
     }
 
-    /* Ocultar icono del ojo para revelar contraseñas / campos sensibles */
-    button[aria-label*="password" i],
-    button[aria-label*="contraseña" i],
-    button[aria-label*="Show" i],
-    button[aria-label*="Hide" i],
-    [data-testid="stTextInputRootElement"] button,
-    [data-testid="stTextInput"] button {
-        display: none !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-    }
+
 
     /* Executive Login Card Styling (Natura & Avon Theme) */
     .login-container {
