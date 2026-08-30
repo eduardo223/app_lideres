@@ -2428,6 +2428,7 @@ with tab_tableau:
                 busq_t = st.text_input("🔍 Buscar Asesora", "", key="tab_busq")
 
         else:
+            lider_sel_t = str(user_grupo).strip() if user_grupo else ""
             col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns([1.2, 1.1, 1.0, 1.0, 1.0, 1.3])
             with col_f1:
                 sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
@@ -2566,14 +2567,18 @@ with tab_tableau:
 
             # Construir nombre dinámico y descriptivo del archivo según los filtros activos
             partes_nombre = ["Base_Consultoras"]
-            if lider_sel_t != "Todas las Líderes (Consolidado Zona)":
-                g_slug = str(lider_sel_t).strip().replace(" ", "_")
-                lider_nombre = mapa_lideres_tab.get(str(lider_sel_t).strip(), "")
-                if lider_nombre:
-                    lider_clean = "".join(c for c in lider_nombre if c.isalnum() or c == ' ').strip().replace(" ", "_")
-                    partes_nombre.append(f"Gpo_{g_slug}_{lider_clean[:15]}")
-                else:
-                    partes_nombre.append(f"Gpo_{g_slug}")
+            if user_rol in ['gerente', 'superadmin']:
+                if 'lider_sel_t' in locals() and lider_sel_t and lider_sel_t != "Todas las Líderes (Consolidado Zona)":
+                    g_slug = str(lider_sel_t).strip().replace(" ", "_")
+                    lider_nombre = mapa_lideres_tab.get(str(lider_sel_t).strip(), "")
+                    if lider_nombre:
+                        lider_clean = "".join(c for c in lider_nombre if c.isalnum() or c == ' ').strip().replace(" ", "_")
+                        partes_nombre.append(f"Gpo_{g_slug}_{lider_clean[:15]}")
+                    else:
+                        partes_nombre.append(f"Gpo_{g_slug}")
+            else:
+                if user_grupo:
+                    partes_nombre.append(f"Gpo_{user_grupo}")
             if sits_sel:
                 sits_slug = "_".join([str(s).replace(" ", "") for s in sits_sel[:2]])
                 partes_nombre.append(sits_slug)
