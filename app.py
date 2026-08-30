@@ -2280,8 +2280,16 @@ with tab_tableau:
             with tc1:
                 st.metric("👥 Total cadastro", f"{len(df_tab_filt)}")
             with tc2:
-                tot_pts = df_tab_filt['Pts Acum'].sum() if 'Pts Acum' in df_tab_filt.columns else 0
-                st.metric("🏆 Pts Acumulados", f"{int(tot_pts):,}".replace(",", "."))
+                col_sit_check = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filt.columns else ('Situación' if 'Situación' in df_tab_filt.columns else None)
+                if col_sit_check and not df_tab_filt.empty:
+                    s_vals_lower = df_tab_filt[col_sit_check].astype(str).str.strip().str.lower()
+                    mask_disp = s_vals_lower.apply(
+                        lambda s: any(k in s for k in ['activa', 'activas', 'inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) and not any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6'])
+                    )
+                    tot_disponibles = int(mask_disp.sum())
+                else:
+                    tot_disponibles = 0
+                st.metric("🎯 Total disponibles", f"{tot_disponibles}")
             with tc3:
                 tot_mora = df_tab_filt['Deuda Mora'].sum() if 'Deuda Mora' in df_tab_filt.columns else 0
                 st.metric("⚠️ Deuda Mora Total", f"${tot_mora/1e6:.2f}M COP")

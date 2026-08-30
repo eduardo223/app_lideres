@@ -281,7 +281,17 @@ with tab_tab:
 
     # Mini Resumen
     tot_c = len(df_tab_filtrado)
-    tot_pts = int(df_tab_filtrado['Pts Acum'].apply(lambda x: limpiar_numero(x, 0)).sum()) if 'Pts Acum' in df_tab_filtrado.columns else 0
+    
+    col_sit_check_m = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filtrado.columns else ('Situación' if 'Situación' in df_tab_filtrado.columns else None)
+    if col_sit_check_m and not df_tab_filtrado.empty:
+        s_vals_lower_m = df_tab_filtrado[col_sit_check_m].astype(str).str.strip().str.lower()
+        mask_disp_m = s_vals_lower_m.apply(
+            lambda s: any(k in s for k in ['activa', 'activas', 'inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) and not any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6'])
+        )
+        tot_disp_m = int(mask_disp_m.sum())
+    else:
+        tot_disp_m = 0
+
     tot_mora_cop = float(df_tab_filtrado['Deuda_Num'].sum()) if 'Deuda_Num' in df_tab_filtrado.columns else 0.0
     
     st.markdown(f"""
@@ -289,7 +299,7 @@ with tab_tab:
         <div class="kpi-card">
             <div class="kpi-title">Consultoras</div>
             <div class="kpi-val">{tot_c}</div>
-            <div class="kpi-sub" style="color:#0284c7;">{tot_pts:,} Pts Acum</div>
+            <div class="kpi-sub" style="color:#0284c7;">🎯 {tot_disp_m} Disponibles</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Deuda Mora</div>
