@@ -574,7 +574,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         badge_border = "1px solid rgba(255, 255, 255, 0.6)"
         badge_txt = f"🎉 ¡HOY CELEBRAMOS! • {len(hoy_list)} CUMPLEAÑERA{'S' if len(hoy_list) > 1 else ''}"
         icon_main = "🎂"
-        expanded_default = True
+        expanded_default = False
     elif len(semana_list) > 0:
         card_gradient = "linear-gradient(135deg, #831843 0%, #9D174D 45%, #C026D3 100%)"
         border_color = "rgba(244, 114, 182, 0.7)"
@@ -583,7 +583,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         badge_border = "1px solid rgba(255, 255, 255, 0.45)"
         badge_txt = f"📅 PRÓXIMOS 7 DÍAS • {len(semana_list)} ASESORA{'S' if len(semana_list) > 1 else ''}"
         icon_main = "🎁"
-        expanded_default = True
+        expanded_default = False
     else:
         card_gradient = "linear-gradient(135deg, #1E1B4B 0%, #312E81 50%, #4338CA 100%)"
         border_color = "rgba(129, 140, 248, 0.6)"
@@ -611,7 +611,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
 </div>
 """, unsafe_allow_html=True)
 
-    with st.expander(f"✨ Ver Listado de Cumpleaños & Enviar Felicitaciones por WhatsApp ({total_mes} en {nombre_mes})", expanded=expanded_default):
+    with st.expander(f"✨ Ver Listado de Cumpleaños & Enviar Felicitaciones por WhatsApp ({total_mes} en {nombre_mes})", expanded=False):
         tab_c_hoy, tab_c_sem, tab_c_mes, tab_c_edit = st.tabs([
             f"🎈 Hoy ({len(hoy_list)})",
             f"📅 Próximos 7 Días ({len(semana_list)})",
