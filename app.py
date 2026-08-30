@@ -2060,6 +2060,97 @@ for key_tab, label_tab in tabs_definidas:
 if not tabs_permitidas:
     st.warning("🔒 No tienes acceso habilitado a ningún apartado actualmente. Contacta al administrador del sistema.")
 else:
+    st.markdown("""
+    <style>
+    /* Ocultar barra plana/roja por defecto de BaseWeb */
+    [data-baseweb="tab-highlight"],
+    div[data-baseweb="tab-highlight"],
+    [data-baseweb="tab-border"],
+    div[data-baseweb="tab-border"] {
+        display: none !important;
+        opacity: 0 !important;
+        visibility: hidden !important;
+        height: 0 !important;
+    }
+
+    /* Contenedor general de pestañas */
+    div[data-testid="stTabs"] [role="tablist"],
+    div[data-baseweb="tab-list"],
+    .stTabs [role="tablist"] {
+        gap: 10px !important;
+        padding: 6px 4px 16px 4px !important;
+        border-bottom: 2px solid rgba(227, 0, 123, 0.22) !important;
+        overflow-x: auto !important;
+        scrollbar-width: thin !important;
+    }
+
+    /* Estilo de Cápsulas/Botones para TODAS las pestañas */
+    div[data-testid="stTabs"] button[role="tab"],
+    div[data-testid="stTabs"] button[data-baseweb="tab"],
+    div[data-baseweb="tab-list"] button,
+    .stTabs button {
+        border-radius: 14px !important;
+        padding: 10px 20px !important;
+        font-weight: 700 !important;
+        font-size: 15px !important;
+        letter-spacing: 0.01em !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        border: 1.5px solid rgba(227, 0, 123, 0.28) !important;
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+        box-shadow: 0 3px 10px rgba(0, 0, 0, 0.06) !important;
+        margin: 0 !important;
+        white-space: nowrap !important;
+    }
+
+    /* Hover en pestañas */
+    div[data-testid="stTabs"] button[role="tab"]:hover,
+    div[data-testid="stTabs"] button[data-baseweb="tab"]:hover,
+    div[data-baseweb="tab-list"] button:hover,
+    .stTabs button:hover {
+        background: linear-gradient(135deg, rgba(255, 107, 0, 0.15), rgba(227, 0, 123, 0.15)) !important;
+        background-color: #fff0f5 !important;
+        border-color: rgba(227, 0, 123, 0.65) !important;
+        color: #0f172a !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 6px 18px rgba(227, 0, 123, 0.22) !important;
+    }
+
+    /* Pestaña ACTIVA: Gradiente Radiante Fucsia/Naranja Neón */
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"],
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"],
+    div[data-baseweb="tab-list"] button[aria-selected="true"],
+    .stTabs button[aria-selected="true"] {
+        background: linear-gradient(135deg, #FF5500 0%, #E3007B 52%, #8B0053 100%) !important;
+        background-color: #E3007B !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.65) !important;
+        color: #FFFFFF !important;
+        box-shadow: 0 8px 24px rgba(227, 0, 123, 0.48), 0 3px 10px rgba(255, 85, 0, 0.38) !important;
+        transform: translateY(-2px) scale(1.03) !important;
+    }
+
+    /* Texto interno de la pestaña activa */
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] *,
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] *,
+    div[data-baseweb="tab-list"] button[aria-selected="true"] *,
+    .stTabs button[aria-selected="true"] * {
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.45) !important;
+    }
+
+    /* Texto interno de las pestañas inactivas */
+    div[data-testid="stTabs"] button[role="tab"][aria-selected="false"] *,
+    div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="false"] *,
+    div[data-baseweb="tab-list"] button[aria-selected="false"] *,
+    .stTabs button[aria-selected="false"] * {
+        color: #1e293b !important;
+        font-weight: 700 !important;
+        -webkit-text-fill-color: #1e293b !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
     list_tab_objects = st.tabs([label for _, label in tabs_permitidas])
     class HiddenTab:
         def __enter__(self):
