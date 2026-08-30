@@ -603,19 +603,22 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
     # Estilización CSS del Expander Unificado de Cumpleaños
     st.markdown(f"""
     <style>
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] {{
-        border: 1.5px solid {border_color} !important;
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"],
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] {{
+        border: 2px solid {border_color} !important;
         border-radius: 14px !important;
         background: rgba(15, 23, 42, 0.02) !important;
         box-shadow: 0 6px 20px -4px rgba(0,0,0,0.22) !important;
         margin-bottom: 14px !important;
         overflow: hidden !important;
     }}
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details {{
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details,
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] > details {{
         border: none !important;
         background: transparent !important;
     }}
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary {{
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary,
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] > details > summary {{
         background: {card_gradient} !important;
         border: none !important;
         border-radius: 12px !important;
@@ -625,29 +628,35 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         cursor: pointer !important;
         transition: all 0.25s ease !important;
     }}
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details[open] > summary {{
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details[open] > summary,
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] > details[open] > summary {{
         border-bottom-left-radius: 0px !important;
         border-bottom-right-radius: 0px !important;
         border-bottom: 1px solid rgba(255,255,255,0.25) !important;
     }}
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary:hover {{
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary:hover,
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] > details > summary:hover {{
         filter: brightness(1.08) !important;
         box-shadow: inset 0 0 10px rgba(255,255,255,0.2) !important;
     }}
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary p,
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary span {{
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary p,
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary span,
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] > details > summary p,
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] > details > summary span {{
         color: #FFFFFF !important;
         font-weight: 800 !important;
         font-size: 0.95rem !important;
         letter-spacing: 0.01em !important;
     }}
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary svg {{
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > summary svg,
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] > details > summary svg {{
         fill: #FFFFFF !important;
         color: #FFFFFF !important;
         width: 1.25rem !important;
         height: 1.25rem !important;
     }}
-    div.stElementContainer:has(> .cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > div[data-testid="stExpanderDetails"] {{
+    div.stElementContainer:has(.cumple-banner-unified) + div.stElementContainer [data-testid="stExpander"] > details > div[data-testid="stExpanderDetails"],
+    div:has(.cumple-banner-unified) + div [data-testid="stExpander"] > details > div[data-testid="stExpanderDetails"] {{
         padding: 14px 16px !important;
         background: transparent !important;
     }}
@@ -2179,8 +2188,33 @@ with tab_tableau:
                 mask_t = mask_t | df_tab_filt['Codigo CB'].astype(str).str.contains(busq_t, case=False, na=False)
             df_tab_filt = df_tab_filt[mask_t]
 
-        # Filtros adicionales por columna en un expansor dedicado
-        with st.expander("🔍 Filtros Avanzados por Columna (Sit. Comercial, Nivel, Mora, Pedidos y Notas)", expanded=True):
+        # Tarjetas de resumen rápido Tableau (Visibles en la cabecera superior de Informe Tableau)
+        tc1, tc2, tc3, tc4, tc5 = st.columns(5)
+        with tc1:
+            st.metric("👥 Total cadastro", f"{len(df_tab_filt)}")
+        with tc2:
+            col_sit_check = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filt.columns else ('Situación' if 'Situación' in df_tab_filt.columns else None)
+            if col_sit_check and not df_tab_filt.empty:
+                s_vals_lower = df_tab_filt[col_sit_check].astype(str).str.strip().str.lower()
+                mask_disp = s_vals_lower.apply(
+                    lambda s: any(k in s for k in ['activa', 'activas', 'inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) and not any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6'])
+                )
+                tot_disponibles = int(mask_disp.sum())
+            else:
+                tot_disponibles = 0
+            st.metric("🎯 Total disponibles", f"{tot_disponibles}")
+        with tc3:
+            tot_mora = df_tab_filt['Deuda Mora'].sum() if 'Deuda Mora' in df_tab_filt.columns else 0
+            st.metric("⚠️ Deuda Mora Total", f"${tot_mora/1e6:.2f}M COP")
+        with tc4:
+            tot_cred = df_tab_filt['Credito Disponible'].sum() if 'Credito Disponible' in df_tab_filt.columns else 0
+            st.metric("💳 Crédito Dispon.", f"${tot_cred/1e6:.2f}M COP")
+        with tc5:
+            tot_pago = len(df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]) if 'Ped. Pendientes' in df_tab_filt.columns else 0
+            st.metric("⌛ Aguardando Pago", f"{tot_pago} pers.")
+
+        # Filtros adicionales por columna en un expansor dedicado (colapsado por defecto)
+        with st.expander("🔍 Filtros Avanzados por Columna (Sit. Comercial, Nivel, Mora, Pedidos y Notas)", expanded=False):
             fc1, fc2, fc3, fc4, fc5 = st.columns(5)
 
             # 1. Filtro por Sit. Comercial
@@ -2237,33 +2271,6 @@ with tab_tableau:
                     df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() != ""]
                 elif f_notas_opt == "Sin Notas":
                     df_tab_filt = df_tab_filt[df_tab_filt['Comentarios_Lider'].astype(str).str.strip() == ""]
-
-
-
-        # Tarjetas de resumen rápido Tableau (Visibles en la parte superior de Informe Tableau)
-        tc1, tc2, tc3, tc4, tc5 = st.columns(5)
-        with tc1:
-            st.metric("👥 Total cadastro", f"{len(df_tab_filt)}")
-        with tc2:
-            col_sit_check = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filt.columns else ('Situación' if 'Situación' in df_tab_filt.columns else None)
-            if col_sit_check and not df_tab_filt.empty:
-                s_vals_lower = df_tab_filt[col_sit_check].astype(str).str.strip().str.lower()
-                mask_disp = s_vals_lower.apply(
-                    lambda s: any(k in s for k in ['activa', 'activas', 'inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) and not any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6'])
-                )
-                tot_disponibles = int(mask_disp.sum())
-            else:
-                tot_disponibles = 0
-            st.metric("🎯 Total disponibles", f"{tot_disponibles}")
-        with tc3:
-            tot_mora = df_tab_filt['Deuda Mora'].sum() if 'Deuda Mora' in df_tab_filt.columns else 0
-            st.metric("⚠️ Deuda Mora Total", f"${tot_mora/1e6:.2f}M COP")
-        with tc4:
-            tot_cred = df_tab_filt['Credito Disponible'].sum() if 'Credito Disponible' in df_tab_filt.columns else 0
-            st.metric("💳 Crédito Dispon.", f"${tot_cred/1e6:.2f}M COP")
-        with tc5:
-            tot_pago = len(df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]) if 'Ped. Pendientes' in df_tab_filt.columns else 0
-            st.metric("⌛ Aguardando Pago", f"{tot_pago} pers.")
 
         st.markdown("---")
 
