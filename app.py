@@ -591,10 +591,14 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         badge_bg = "rgba(255, 255, 255, 0.18)"
         badge_color = "#FFFFFF"
         badge_border = "1px solid rgba(255, 255, 255, 0.35)"
-        badge_txt = f"🗓️ CUMPLEAÑOS DE {nombre_mes.upper()} • {total_mes} EN TOTAL"
-    # Formato unificado del título del expander
-    equipo_info = f" • Equipo de {user_nombre}" + (f" (Grupo {user_grupo})" if user_grupo else "")
-    titulo_expander = f"{icon_main} {badge_txt}  |  Recordatorio de Cumpleaños ({total_mes} en {nombre_mes}){equipo_info}"
+    # Formato unificado del título del expander con todas las opciones y texto de acción
+    equipo_info = f" — 🌸 Equipo de {user_nombre}" + (f" (Grupo {user_grupo})" if user_grupo else "")
+    if len(hoy_list) > 0:
+        titulo_expander = f"{icon_main} {badge_txt}  •  ✨ Ver Listado & Enviar Felicitaciones por WhatsApp ({total_mes} en {nombre_mes}){equipo_info}"
+    elif len(semana_list) > 0:
+        titulo_expander = f"{icon_main} {badge_txt}  •  ✨ Ver Listado & Enviar Felicitaciones por WhatsApp ({total_mes} en {nombre_mes}){equipo_info}"
+    else:
+        titulo_expander = f"{icon_main} {badge_txt}  •  ✨ Ver Listado de Cumpleaños ({total_mes} en {nombre_mes}){equipo_info}"
 
     # Estilización CSS del Expander Unificado de Cumpleaños
     st.markdown(f"""
