@@ -13,14 +13,19 @@ from procesador import (
     calcular_metas_ciclo,
     limpiar_numero,
     cambiar_password_usuario,
-    extraer_telefonos_colombia
+    extraer_telefonos_colombia,
+    limpiar_y_ordenar_columnas_tableau,
+    color_nivel,
+    color_situacion,
+    color_deuda_mora,
+    guardar_todos_comentarios
 )
 
-# 1. Configuración de página ultra-optimizada para Celulares y Tablets
+# 1. Configuración de página ultra-optimizada para Celulares, Tablets y Pantallas
 st.set_page_config(
-    page_title="App Matices - Móvil",
+    page_title="App Matices - Gestión Líderes",
     page_icon="📱",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed"
 )
 
@@ -418,11 +423,14 @@ with tab_cv:
         st.progress(min(1.0, fact_pct / 100.0))
 
 # ==============================================================================
-# TAB 2: MI LISTADO (ULTRA-RESUMIDO CON FILTROS, DOCUMENTO GPP, CRÉDITO Y CELULAR)
+# TAB 2: MI LISTADO (TABLA MAESTRA EXACTA COMO EN PC)
 # ==============================================================================
 with tab_tab:
-    # Filtros Esenciales
-    f_c1, f_c2 = st.columns(2)
+    st.markdown("##### 📋 Mi Listado - Base Maestra Gestionable")
+    st.caption("Escribe las notas de gestión por cada asesora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
+
+    # Filtros Rápidos
+    f_c1, f_c2, f_c3 = st.columns(3)
     with f_c1:
         opciones_sit = ["Todas"]
         if not df_tab.empty and 'Sit. Comercial' in df_tab.columns:
@@ -433,8 +441,11 @@ with tab_tab:
     with f_c2:
         filtro_mora = st.selectbox("💳 Deuda en Mora", options=["Todas", "🔴 Solo con Mora", "🟢 Al Día"], key="mob_f_mora")
 
-    # Búsqueda rápida por nombre o documento
-    busq_nom = st.text_input("🔍 Buscar consultora o documento...", placeholder="Escribe un nombre o cédula...", key="mob_b_nom").strip()
+    with f_c3:
+        filtro_ped = st.selectbox("⌛ Pedidos Pendientes", options=["Todos", "Con Pedidos Pendientes (> 0)", "Sin Pedidos Pendientes (0)"], key="mob_f_ped")
+
+    # Búsqueda rápida por nombre, documento o código
+    busq_nom = st.text_input("🔍 Buscar asesora, documento o código CB...", placeholder="Escribe nombre, cédula o código...", key="mob_b_nom").strip()
 
     # Aplicar filtros
     df_tab_filtrado = df_tab.copy() if not df_tab.empty else pd.DataFrame()
@@ -449,6 +460,12 @@ with tab_tab:
                 df_tab_filtrado = df_tab_filtrado[df_tab_filtrado['Deuda_Num'] > 0]
             elif filtro_mora == "🟢 Al Día":
                 df_tab_filtrado = df_tab_filtrado[df_tab_filtrado['Deuda_Num'] <= 0]
+
+        if 'Ped. Pendientes' in df_tab_filtrado.columns:
+            if filtro_ped == "Con Pedidos Pendientes (> 0)":
+                df_tab_filtrado = df_tab_filtrado[df_tab_filtrado['Ped. Pendientes'] > 0]
+            elif filtro_ped == "Sin Pedidos Pendientes (0)":
+                df_tab_filtrado = df_tab_filtrado[df_tab_filtrado['Ped. Pendientes'] <= 0]
                 
         if busq_nom:
             mask_busq = pd.Series(False, index=df_tab_filtrado.index)
@@ -460,93 +477,89 @@ with tab_tab:
                 mask_busq = mask_busq | df_tab_filtrado['Código CB'].astype(str).str.contains(busq_nom, case=False, na=False)
             df_tab_filtrado = df_tab_filtrado[mask_busq]
 
-    # Mini Resumen
-    tot_c = len(df_tab_filtrado)
-    
-    col_sit_check_m = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filtrado.columns else ('Situación' if 'Situación' in df_tab_filtrado.columns else None)
-    if col_sit_check_m and not df_tab_filtrado.empty:
-        s_vals_lower_m = df_tab_filtrado[col_sit_check_m].astype(str).str.strip().str.lower()
-        mask_disp_m = s_vals_lower_m.apply(
-            lambda s: any(k in s for k in ['activa', 'activas', 'inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) and not any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6'])
-        )
-        tot_disp_m = int(mask_disp_m.sum())
-    else:
-        tot_disp_m = 0
-
-    tot_mora_cop = float(df_tab_filtrado['Deuda_Num'].sum()) if 'Deuda_Num' in df_tab_filtrado.columns else 0.0
-    tot_mora_fmt = f"${tot_mora_cop:,.0f}".replace(",", ".")
-    
-    st.markdown(f"""<div class="kpi-grid">
-<div class="kpi-card">
-<div class="kpi-title">Consultoras</div>
-<div class="kpi-val">{tot_c}</div>
-<div class="kpi-sub kpi-sub-blue">🎯 {tot_disp_m} Disponibles</div>
-</div>
-<div class="kpi-card">
-<div class="kpi-title">Deuda Mora</div>
-<div class="kpi-val" style="color:{'#ef4444' if tot_mora_cop > 0 else '#10b981'};">{tot_mora_fmt}</div>
-<div class="kpi-sub {'kpi-sub-red' if tot_mora_cop > 0 else 'kpi-sub-green'}">Filtro Activo</div>
-</div>
-</div>""", unsafe_allow_html=True)
-
     if df_tab_filtrado.empty:
         st.info("ℹ️ No hay consultoras con los filtros seleccionados.")
     else:
-        # Renderizado de lista compacta en tarjetas móviles
-        for _, row in df_tab_filtrado.head(60).iterrows():
-            nom = str(row.get('Asesora / Consultora', 'Sin Nombre')).strip()
-            doc_gpp = str(row.get('DocumentoGPP', '')).replace('.0', '').strip()
-            sit = str(row.get('Sit. Comercial', 'N/D')).strip()
-            pts = int(limpiar_numero(row.get('Pts Acum', 0)))
-            cred_disp = int(limpiar_numero(row.get('Credito Disponible', 0)))
-            mora = float(limpiar_numero(row.get('Deuda Mora', 0.0)))
-            ped_pend = int(limpiar_numero(row.get('Ped. Pendientes', 0)))
-            cel_raw = str(row.get('celular', row.get('Celular', ''))).strip()
-            m1, _ = extraer_telefonos_colombia(cel_raw)
-            
-            # Badge de situación comercial
-            if 'activa' in sit.lower():
-                color_bg, color_fg = "#dcfce7", "#15803d"
-            elif '1' in sit:
-                color_bg, color_fg = "#fef9c3", "#a16207"
+        # Limpiar, ordenar y estandarizar columnas para que coincidan exactamente con la base canónica (16 columnas)
+        df_edit_view = limpiar_y_ordenar_columnas_tableau(df_tab_filtrado, {}, es_lider=True)
+
+        # Limpiar cualquier flotante residual en todo el DataFrame para eliminar decimales (.000000)
+        for c in df_edit_view.columns:
+            if c not in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB'] and pd.api.types.is_float_dtype(df_edit_view[c]):
+                df_edit_view[c] = df_edit_view[c].fillna(0).round().astype('int64')
+
+        # Usar st.data_editor para permitir editar notas directamente en la tabla
+        col_config = {}
+        for col_name in df_edit_view.columns:
+            # Si es una columna de dinero (Deuda o Facturación), formatear con $
+            if 'Deuda' in col_name or 'Fact.' in col_name:
+                col_config[col_name] = st.column_config.NumberColumn(col_name, format="$%d", disabled=True)
+            # Si es DocumentoGPP, Celular o Código CB, formatear como texto limpio sin comas
+            elif col_name in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB']:
+                col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
+            # Si es una columna numérica (Pts, Crédito, Pedidos, Ciclos), formatear como número entero limpio sin $
+            elif 'Pts' in col_name or 'Ped.' in col_name or 'Ciclos' in col_name or 'Credito' in col_name or 'Crédito' in col_name:
+                col_config[col_name] = st.column_config.NumberColumn(col_name, format="%d", disabled=True)
             else:
-                color_bg, color_fg = "#fee2e2", "#b91c1c"
+                col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
 
-            # Formatos de texto
-            mora_fmt = f"${mora:,.0f}".replace(",", ".")
-            doc_html = f'<span style="font-size:10px; color:#64748b; font-weight:600; margin-left:6px;">Doc: {doc_gpp}</span>' if doc_gpp and doc_gpp not in ['nan', 'None', '0'] else ''
-            cred_html = f'<span style="margin-left:4px; color:#0284c7; font-weight:700;">• Créd: {cred_disp} pts</span>' if cred_disp > 0 else ''
-            mora_html = f'<span style="color:#ef4444; font-weight:700; margin-left:4px;">• Mora: {mora_fmt}</span>' if mora > 0 else ''
-            ped_html = f'<span style="color:#ca8a04; font-weight:700; margin-left:4px;">• ⌛ Ped. Pend: {ped_pend}</span>' if ped_pend > 0 else ''
-            tel_html = f'<span style="color:#475569; font-size:10px; margin-left:4px;">• 📱 {m1}</span>' if m1 else ''
+        if "Notas / Comentarios Líder" in df_edit_view.columns:
+            col_config["Notas / Comentarios Líder"] = st.column_config.TextColumn("Notas / Comentarios Líder", disabled=False)
 
-            # Enlace de WhatsApp
-            wa_btn_html = ""
-            if m1 and len(m1) == 10:
-                msg_wa = urllib.parse.quote(f"Hola {nom}, te saludo de tu equipo Natura & Avon. ¿Cómo estás?")
-                wa_url = f"https://wa.me/57{m1}?text={msg_wa}"
-                wa_btn_html = f'<a href="{wa_url}" target="_blank" class="btn-wa-link">📲 WA</a>'
+        df_edit_styled = df_edit_view.style.map(
+            color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_edit_view.columns else []
+        ).map(
+            color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_edit_view.columns else []
+        ).map(
+            color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_edit_view.columns else []
+        )
 
-            card_html = (
-                f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">'
-                f'<div style="flex:1; min-width:0; padding-right:6px;">'
-                f'<div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{nom}{doc_html}</div>'
-                f'<div style="font-size:10px; color:#64748b; margin-top:2px;">'
-                f'<span class="badge-pill" style="background:{color_bg}; color:{color_fg};">{sit}</span>'
-                f'<span style="margin-left:4px;">⭐ {pts} pts</span>'
-                f'{cred_html}'
-                f'{mora_html}'
-                f'{ped_html}'
-                f'{tel_html}'
-                f'</div>'
-                f'</div>'
-                f'<div>{wa_btn_html}</div>'
-                f'</div>'
-            )
-            st.markdown(card_html, unsafe_allow_html=True)
+        edited_df = st.data_editor(
+            df_edit_styled,
+            column_config=col_config,
+            use_container_width=True,
+            hide_index=True,
+            key="mob_editor_tabla_tableau"
+        )
+
+        # Auto-guardado inteligente en segundo plano al modificar cualquier celda
+        editor_state = st.session_state.get("mob_editor_tabla_tableau", {})
+        edited_rows = editor_state.get("edited_rows", {})
+        
+        if edited_rows:
+            dict_autoguardar = {}
+            for row_idx_str, row_changes in edited_rows.items():
+                if "Notas / Comentarios Líder" in row_changes:
+                    try:
+                        row_idx = int(row_idx_str)
+                        if row_idx < len(df_edit_view):
+                            codigo_key = str(df_edit_view.iloc[row_idx].get('Código CB', '')).strip()
+                            nueva_nota = str(row_changes["Notas / Comentarios Líder"]).strip()
+                            if codigo_key:
+                                dict_autoguardar[codigo_key] = nueva_nota
+                    except Exception:
+                        pass
             
-        if len(df_tab_filtrado) > 60:
-            st.caption(f"Mostrando 60 de {len(df_tab_filtrado)} consultoras. Usa el buscador para filtrar.")
+            if dict_autoguardar:
+                guardar_todos_comentarios(dict_autoguardar)
+                st.toast(f"💾 Guardado: {len(dict_autoguardar)} nota(s) actualizada(s)", icon="✅")
+
+        # Botón de guardado manual
+        col_s1, col_s2 = st.columns([1.5, 2.5])
+        with col_s1:
+            if st.button("💾 Guardar Manualmente", type="primary", use_container_width=True, key="mob_save_manual_btn"):
+                dict_guardar = {}
+                for idx, row in edited_df.iterrows():
+                    codigo_key = str(row.get('Código CB', '')).strip()
+                    nota_val = str(row.get('Notas / Comentarios Líder', '')).strip()
+                    if codigo_key:
+                        dict_guardar[codigo_key] = nota_val
+                
+                if guardar_todos_comentarios(dict_guardar):
+                    st.success("✅ ¡Todas las notas han sido guardadas exitosamente!")
+                    st.rerun()
+        with col_s2:
+            st.caption("🟢 **Guardado automático activo**: Al escribir una nota y pulsar `Enter`, se guarda de forma instantánea.")
 
 # ==============================================================================
 # TAB 3: MIS LÍDERES (TODAS LAS TABLAS Y SEGUIMIENTO COMPARATIVO)
