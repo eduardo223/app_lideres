@@ -8,7 +8,7 @@
       "asesor": false
     },
     "tab_geral": {
-      "nombre": "💳 Geral: Crédito & Cobranza",
+      "nombre": "💳 Geral_Credito&Cobranza",
       "gerente": true,
       "lider": true,
       "asesor": false
@@ -20,7 +20,7 @@
       "asesor": false
     },
     "tab_ganancia": {
-      "nombre": "💵 Simulador de Ganancia",
+      "nombre": "🧮 Simuladores",
       "gerente": true,
       "lider": false,
       "asesor": false
@@ -32,19 +32,13 @@
       "asesor": true
     },
     "tab_metas": {
-      "nombre": "🎯 Metas de Crecimiento",
+      "nombre": "🎯 Metas de Crecimiento (Procesador)",
       "gerente": true,
       "lider": true,
       "asesor": false
     },
     "tab_detalle": {
-      "nombre": "👥 Detalle Completo",
-      "gerente": true,
-      "lider": true,
-      "asesor": false
-    },
-    "tab_exportar": {
-      "nombre": "📤 Exportar Datos",
+      "nombre": "📑 Generador de Informes",
       "gerente": true,
       "lider": true,
       "asesor": false

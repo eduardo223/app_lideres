@@ -3571,24 +3571,23 @@ def obtener_mapa_lideres():
 RUTA_CONFIG = 'configuracion.json'
 
 DEFAULT_PERMISOS_PESTANAS = {
-    "tab_tableau": {"nombre": "📊 Informe Tableau Cam", "gerente": True, "lider": True, "asesor": True},
-    "tab_geral": {"nombre": "💳 Geral: Crédito & Cobranza", "gerente": True, "lider": True, "asesor": False},
-    "tab_resumen": {"nombre": "📊 Resumen & KPIs", "gerente": True, "lider": True, "asesor": True},
-    "tab_ganancia": {"nombre": "💵 Simulador de Ganancia", "gerente": True, "lider": True, "asesor": True},
+    "tab_tableau": {"nombre": "📊 Informe Tableau Cam", "gerente": True, "lider": True, "asesor": False},
+    "tab_geral": {"nombre": "💳 Geral_Credito&Cobranza", "gerente": True, "lider": True, "asesor": False},
+    "tab_resumen": {"nombre": "📊 Resumen & KPIs", "gerente": True, "lider": True, "asesor": False},
+    "tab_ganancia": {"nombre": "🧮 Simuladores", "gerente": True, "lider": True, "asesor": False},
     "tab_diagnostico": {"nombre": "👑 Mis Líderes", "gerente": True, "lider": True, "asesor": True},
-    "tab_metas": {"nombre": "🎯 Metas de Crecimiento", "gerente": True, "lider": True, "asesor": True},
-    "tab_detalle": {"nombre": "👥 Detalle Completo", "gerente": True, "lider": True, "asesor": True},
-    "tab_exportar": {"nombre": "📤 Exportar Datos", "gerente": True, "lider": True, "asesor": True}
+    "tab_metas": {"nombre": "🎯 Metas de Crecimiento (Procesador)", "gerente": True, "lider": True, "asesor": False},
+    "tab_detalle": {"nombre": "📑 Generador de Informes", "gerente": True, "lider": True, "asesor": False}
 }
 
 def cargar_configuracion():
     """
     Carga la configuración global de la aplicación.
-    Por defecto, incluye los permisos de visibilidad por pestaña y la subida de archivos.
+    Por defecto, incluye los permisos de visibilidad por pestaña con nombres actualizados.
     """
     config = {
         "permitir_carga_lideres": False,
-        "permisos_pestanas": DEFAULT_PERMISOS_PESTANAS.copy()
+        "permisos_pestanas": {k: v.copy() for k, v in DEFAULT_PERMISOS_PESTANAS.items()}
     }
     
     if os.path.exists(RUTA_CONFIG):
@@ -3601,10 +3600,10 @@ def cargar_configuracion():
                     if "permisos_pestanas" in loaded and isinstance(loaded["permisos_pestanas"], dict):
                         for tab_key, tab_val in DEFAULT_PERMISOS_PESTANAS.items():
                             if tab_key in loaded["permisos_pestanas"]:
-                                # Combinar claves existentes preservando estructura
                                 for r_key in ["gerente", "lider", "asesor"]:
                                     if r_key in loaded["permisos_pestanas"][tab_key]:
                                         config["permisos_pestanas"][tab_key][r_key] = bool(loaded["permisos_pestanas"][tab_key][r_key])
+                            config["permisos_pestanas"][tab_key]["nombre"] = tab_val["nombre"]
         except Exception as e:
             print(f"Nota al cargar configuración: {e}")
             
