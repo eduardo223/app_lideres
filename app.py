@@ -2143,21 +2143,31 @@ st.markdown("---")
 # 5. CONTENIDO CON PESTAÑAS (TABS)
 permisos_tab_config = app_config.get("permisos_pestanas", DEFAULT_PERMISOS_PESTANAS)
 
-tabs_definidas = [
-    ("tab_tableau", "📊 Informe Tableau Cam"),
-    ("tab_geral", "💳 Geral_Credito&Cobranza"),
-    ("tab_resumen", "📊 Resumen & KPIs"),
-    ("tab_ganancia", "🧮 Simuladores"),
-    ("tab_diagnostico", "👑 Mis Líderes"),
-    ("tab_metas", "🎯 Metas de Crecimiento (Procesador)"),
-    ("tab_detalle", "📑 Generador de Informes"),
-    # ("tab_exportar", "📤 Exportar Datos")
-]
+if user_rol == 'lider':
+    tabs_definidas = [
+        ("tab_tableau", "📋 MI LISTADO"),
+        ("tab_geral", "💳 GERAL_CREDITO&COBRANZA"),
+        ("tab_resumen", "📊 RESUMEN & KPIS"),
+        ("tab_ganancia", "🧮 SIMULADORES"),
+        ("tab_diagnostico", "👑 MIS LÍDERES"),
+        ("tab_metas", "🎯 METAS DE CRECIMIENTO (PROCESADOR)"),
+        ("tab_detalle", "📑 GENERADOR DE INFORMES"),
+    ]
+else:
+    tabs_definidas = [
+        ("tab_tableau", "📊 INFORME TABLEAU CAM"),
+        ("tab_geral", "💳 GERAL_CREDITO&COBRANZA"),
+        ("tab_resumen", "📊 RESUMEN & KPIS"),
+        ("tab_ganancia", "🧮 SIMULADORES"),
+        ("tab_diagnostico", "👑 MIS LÍDERES"),
+        ("tab_metas", "🎯 METAS DE CRECIMIENTO (PROCESADOR)"),
+        ("tab_detalle", "📑 GENERADOR DE INFORMES"),
+    ]
 
 if user_rol == 'superadmin':
-    tabs_definidas.append(("tab_usuarios", "🔑 Gestión de Usuarios, Roles & Permisos"))
+    tabs_definidas.append(("tab_usuarios", "🔑 GESTIÓN DE USUARIOS, ROLES & PERMISOS"))
 elif user_rol == 'gerente':
-    tabs_definidas.append(("tab_lideres_gerente", "🔑 Directorio & Accesos de Líderes"))
+    tabs_definidas.append(("tab_lideres_gerente", "🔑 DIRECTORIO & ACCESOS DE LÍDERES"))
 
 tabs_permitidas = []
 for key_tab, label_tab in tabs_definidas:
@@ -2598,12 +2608,12 @@ with tab_tableau:
             st.markdown("##### 📝 Comentarios y Notas Persistentes de la Líder")
             st.caption("Escribe las notas de gestión por cada asesora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
 
-            # Limpiar, ordenar y estandarizar columnas para que coincidan exactamente con la base canónica (16 columnas)
-            df_edit_view = limpiar_y_ordenar_columnas_tableau(df_tab_filt, mapa_lideres_tab)
+            # Limpiar, ordenar y estandarizar columnas para que coincidan exactamente con la base canónica
+            df_edit_view = limpiar_y_ordenar_columnas_tableau(df_tab_filt, mapa_lideres_tab, es_lider=(user_rol == 'lider'))
 
             # Limpiar cualquier flotante residual en todo el DataFrame para eliminar decimales (.000000)
             for c in df_edit_view.columns:
-                if pd.api.types.is_float_dtype(df_edit_view[c]):
+                if c not in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB'] and pd.api.types.is_float_dtype(df_edit_view[c]):
                     df_edit_view[c] = df_edit_view[c].fillna(0).round().astype('int64')
 
             # Usar st.data_editor para permitir editar notas directamente en la tabla
@@ -2612,6 +2622,9 @@ with tab_tableau:
                 # Si es una columna de dinero (Deuda o Facturación), formatear con $
                 if 'Deuda' in col_name or 'Fact.' in col_name:
                     col_config[col_name] = st.column_config.NumberColumn(col_name, format="$%d", disabled=True)
+                # Si es DocumentoGPP, Celular o Código CB, formatear como texto limpio sin comas
+                elif col_name in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB']:
+                    col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
                 # Si es una columna numérica (Pts, Crédito, Pedidos, Ciclos), formatear como número entero limpio sin $
                 elif 'Pts' in col_name or 'Ped.' in col_name or 'Ciclos' in col_name or 'Credito' in col_name or 'Crédito' in col_name:
                     col_config[col_name] = st.column_config.NumberColumn(col_name, format="%d", disabled=True)

@@ -260,11 +260,11 @@ if df_cv_all is not None and not df_cv_all.empty and grupo_activo:
     if col_g:
         df_cv = df_cv_all[df_cv_all[col_g].astype(str).str.split('.').str[0].str.strip() == str(grupo_activo).strip()]
 
-# 6. Pestañas Principales Móviles (3 Pestañas Condensadas)
+# 6. Pestañas Principales Móviles (3 Pestañas Condensadas en MAYÚSCULAS)
 tab_cv, tab_tab, tab_geral = st.tabs([
-    "🎯 Mis Desafíos",
-    "📋 Red Tableau",
-    "💳 Cobranza Hoy"
+    "🎯 MIS DESAFÍOS",
+    "📋 MI LISTADO",
+    "💳 COBRANZA HOY"
 ])
 
 # ==============================================================================
@@ -274,7 +274,7 @@ with tab_cv:
     st.markdown("##### 🎯 Cuadro de Mando de Desafíos Líder")
     
     if df_cv.empty:
-        st.info(f"ℹ️ **Metas del ciclo para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo de metas se sincronizará automáticamente. Puedes gestionar tu red en **'📋 Red Tableau'** y tu cartera en **'💳 Cobranza Hoy'**.")
+        st.info(f"ℹ️ **Metas del ciclo para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo de metas se sincronizará automáticamente. Puedes gestionar tu red en **'📋 MI LISTADO'** y tu cartera en **'💳 COBRANZA HOY'**.")
     else:
         row_cv = df_cv.iloc[0]
         
@@ -383,7 +383,7 @@ with tab_cv:
         st.progress(min(1.0, fact_pct / 100.0))
 
 # ==============================================================================
-# TAB 2: RED TABLEAU (ULTRA-RESUMIDO CON FILTROS Y CRÉDITO EN PUNTOS)
+# TAB 2: MI LISTADO (ULTRA-RESUMIDO CON FILTROS, DOCUMENTO GPP, CRÉDITO Y CELULAR)
 # ==============================================================================
 with tab_tab:
     # Filtros Esenciales
@@ -398,8 +398,8 @@ with tab_tab:
     with f_c2:
         filtro_mora = st.selectbox("💳 Deuda en Mora", options=["Todas", "🔴 Solo con Mora", "🟢 Al Día"], key="mob_f_mora")
 
-    # Búsqueda rápida por nombre
-    busq_nom = st.text_input("🔍 Buscar consultora...", placeholder="Escribe un nombre...", key="mob_b_nom").strip()
+    # Búsqueda rápida por nombre o documento
+    busq_nom = st.text_input("🔍 Buscar consultora o documento...", placeholder="Escribe un nombre o cédula...", key="mob_b_nom").strip()
 
     # Aplicar filtros
     df_tab_filtrado = df_tab.copy() if not df_tab.empty else pd.DataFrame()
@@ -415,8 +415,15 @@ with tab_tab:
             elif filtro_mora == "🟢 Al Día":
                 df_tab_filtrado = df_tab_filtrado[df_tab_filtrado['Deuda_Num'] <= 0]
                 
-        if busq_nom and 'Asesora / Consultora' in df_tab_filtrado.columns:
-            df_tab_filtrado = df_tab_filtrado[df_tab_filtrado['Asesora / Consultora'].astype(str).str.contains(busq_nom, case=False, na=False)]
+        if busq_nom:
+            mask_busq = pd.Series(False, index=df_tab_filtrado.index)
+            if 'Asesora / Consultora' in df_tab_filtrado.columns:
+                mask_busq = mask_busq | df_tab_filtrado['Asesora / Consultora'].astype(str).str.contains(busq_nom, case=False, na=False)
+            if 'DocumentoGPP' in df_tab_filtrado.columns:
+                mask_busq = mask_busq | df_tab_filtrado['DocumentoGPP'].astype(str).str.contains(busq_nom, case=False, na=False)
+            if 'Código CB' in df_tab_filtrado.columns:
+                mask_busq = mask_busq | df_tab_filtrado['Código CB'].astype(str).str.contains(busq_nom, case=False, na=False)
+            df_tab_filtrado = df_tab_filtrado[mask_busq]
 
     # Mini Resumen
     tot_c = len(df_tab_filtrado)
@@ -453,11 +460,13 @@ with tab_tab:
         # Renderizado de lista compacta en tarjetas móviles
         for _, row in df_tab_filtrado.head(60).iterrows():
             nom = str(row.get('Asesora / Consultora', 'Sin Nombre')).strip()
+            doc_gpp = str(row.get('DocumentoGPP', '')).replace('.0', '').strip()
             sit = str(row.get('Sit. Comercial', 'N/D')).strip()
             pts = int(limpiar_numero(row.get('Pts Acum', 0)))
             cred_disp = int(limpiar_numero(row.get('Credito Disponible', 0)))
             mora = float(limpiar_numero(row.get('Deuda Mora', 0.0)))
-            cel_raw = str(row.get('celular', '')).strip()
+            ped_pend = int(limpiar_numero(row.get('Ped. Pendientes', 0)))
+            cel_raw = str(row.get('celular', row.get('Celular', ''))).strip()
             m1, _ = extraer_telefonos_colombia(cel_raw)
             
             # Badge de situación comercial
@@ -470,8 +479,11 @@ with tab_tab:
 
             # Formatos de texto
             mora_fmt = f"${mora:,.0f}".replace(",", ".")
+            doc_html = f'<span style="font-size:10px; color:#64748b; font-weight:600; margin-left:6px;">Doc: {doc_gpp}</span>' if doc_gpp and doc_gpp not in ['nan', 'None', '0'] else ''
             cred_html = f'<span style="margin-left:4px; color:#0284c7; font-weight:700;">• Créd: {cred_disp} pts</span>' if cred_disp > 0 else ''
             mora_html = f'<span style="color:#ef4444; font-weight:700; margin-left:4px;">• Mora: {mora_fmt}</span>' if mora > 0 else ''
+            ped_html = f'<span style="color:#ca8a04; font-weight:700; margin-left:4px;">• ⌛ Ped. Pend: {ped_pend}</span>' if ped_pend > 0 else ''
+            tel_html = f'<span style="color:#475569; font-size:10px; margin-left:4px;">• 📱 {m1}</span>' if m1 else ''
 
             # Enlace de WhatsApp
             wa_btn_html = ""
@@ -483,12 +495,14 @@ with tab_tab:
             card_html = (
                 f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">'
                 f'<div style="flex:1; min-width:0; padding-right:6px;">'
-                f'<div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{nom}</div>'
+                f'<div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{nom}{doc_html}</div>'
                 f'<div style="font-size:10px; color:#64748b; margin-top:2px;">'
                 f'<span class="badge-pill" style="background:{color_bg}; color:{color_fg};">{sit}</span>'
                 f'<span style="margin-left:4px;">⭐ {pts} pts</span>'
                 f'{cred_html}'
                 f'{mora_html}'
+                f'{ped_html}'
+                f'{tel_html}'
                 f'</div>'
                 f'</div>'
                 f'<div>{wa_btn_html}</div>'

@@ -1124,6 +1124,7 @@ COLUMNAS_ORDEN_TABLEAU = [
     'Código CB',
     'Líder / Grupo',
     'Asesora / Consultora',
+    'DocumentoGPP',
     'Nivel / Color',
     'Sit. Comercial',
     'Pts Acum',
@@ -1136,17 +1137,20 @@ COLUMNAS_ORDEN_TABLEAU = [
     'Pts Natura',
     'Pts AVON',
     'Ped. Pendientes',
+    'Celular',
     'Notas / Comentarios Líder'
 ]
 
-def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None):
+def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None, es_lider=False):
     """
     Estandariza cualquier DataFrame de Tableau para que conserve exactamente el mismo orden
     y cantidad de columnas limpias de la tabla 'Base de Datos' / 'Base Maestra Gestionable',
     eliminando información repetida, columnas duplicadas o campos técnicos.
+    Para el perfil de Líderes, omite 'Líder / Grupo' y ubica DocumentoGPP tras Asesora y Celular tras Ped. Pendientes.
     """
     if df_raw is None or df_raw.empty:
-        return pd.DataFrame(columns=COLUMNAS_ORDEN_TABLEAU)
+        cols_base = [c for c in COLUMNAS_ORDEN_TABLEAU if not (es_lider and c == 'Líder / Grupo')]
+        return pd.DataFrame(columns=cols_base)
 
     df = df_raw.copy()
 
@@ -1154,14 +1158,15 @@ def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None):
         mapa_lideres = obtener_mapa_lideres()
 
     # 1. Enriquecer columna 'Líder / Grupo'
-    if 'Líder / Grupo' not in df.columns:
-        col_grp = next((c for c in ['Grupo', 'grupo', 'codigo_grupo', 'Código de grupo'] if c in df.columns), None)
-        if col_grp:
-            df['Líder / Grupo'] = df[col_grp].apply(
-                lambda g: f"Grupo {g} — {mapa_lideres[str(g).strip()]}" if str(g).strip() in mapa_lideres else f"Grupo {g}"
-            )
-        else:
-            df['Líder / Grupo'] = ''
+    if not es_lider:
+        if 'Líder / Grupo' not in df.columns:
+            col_grp = next((c for c in ['Grupo', 'grupo', 'codigo_grupo', 'Código de grupo'] if c in df.columns), None)
+            if col_grp:
+                df['Líder / Grupo'] = df[col_grp].apply(
+                    lambda g: f"Grupo {g} — {mapa_lideres[str(g).strip()]}" if str(g).strip() in mapa_lideres else f"Grupo {g}"
+                )
+            else:
+                df['Líder / Grupo'] = ''
 
     # 2. Diccionario de normalización a nombres de cabecera canónicos
     rename_dict = {}
@@ -1175,6 +1180,11 @@ def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None):
     if 'Asesora / Consultora' not in df.columns:
         c_nom = next((c for c in ['Nombre', 'nombre', 'Nombre de consultora', 'Consultora'] if c in df.columns), None)
         if c_nom: rename_dict[c_nom] = 'Asesora / Consultora'
+
+    # DocumentoGPP
+    if 'DocumentoGPP' not in df.columns:
+        c_doc = next((c for c in ['DocumentoGPP', 'documentogpp', 'Documento GPP', 'Documento', 'Cedula', 'Cédula'] if c in df.columns), None)
+        if c_doc: rename_dict[c_doc] = 'DocumentoGPP'
 
     # Nivel / Color
     if 'Nivel / Color' not in df.columns:
@@ -1228,6 +1238,11 @@ def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None):
         c_pp = next((c for c in ['pedidos_pendientes', 'Pedidos Pendientes'] if c in df.columns), None)
         if c_pp: rename_dict[c_pp] = 'Ped. Pendientes'
 
+    # Celular
+    if 'Celular' not in df.columns:
+        c_cel = next((c for c in ['celular', 'Celular', 'telefono', 'Teléfono', 'Telefono', 'Telefono Celular'] if c in df.columns), None)
+        if c_cel: rename_dict[c_cel] = 'Celular'
+
     if 'Notas / Comentarios Líder' not in df.columns:
         c_nl = next((c for c in ['Comentarios_Lider', 'notas_lider', 'Notas / Comentarios'] if c in df.columns), None)
         if c_nl: rename_dict[c_nl] = 'Notas / Comentarios Líder'
@@ -1235,11 +1250,19 @@ def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None):
     if rename_dict:
         df = df.rename(columns=rename_dict)
 
+    # Limpiar formato de texto para DocumentoGPP y Celular
+    if 'DocumentoGPP' in df.columns:
+        df['DocumentoGPP'] = df['DocumentoGPP'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace({'nan': '', 'None': ''})
+
+    if 'Celular' in df.columns:
+        df['Celular'] = df['Celular'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace({'nan': '', 'None': ''})
+
     # Eliminar duplicados de columnas
     df = df.loc[:, ~df.columns.duplicated()].copy()
 
-    # Seleccionar única y exclusivamente las columnas en el orden canónico
-    cols_existentes = [c for c in COLUMNAS_ORDEN_TABLEAU if c in df.columns]
+    # Seleccionar orden de columnas objetivo
+    cols_objetivo = [c for c in COLUMNAS_ORDEN_TABLEAU if not (es_lider and c == 'Líder / Grupo')]
+    cols_existentes = [c for c in cols_objetivo if c in df.columns]
     df_resultado = df[cols_existentes].copy()
 
     return df_resultado
