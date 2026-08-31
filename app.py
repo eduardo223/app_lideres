@@ -1487,6 +1487,28 @@ modo_tema = st.sidebar.radio(
 )
 is_dark_theme = (modo_tema == "🌙 Oscuro Neón")
 
+# Selector de Interfaz (Móvil vs Escritorio)
+# Para Líderes: Por defecto se activa '📱 Móvil (App Matices)'
+# Para Gerentes y Administradores: Por defecto se activa '💻 Escritorio (Completo)'
+es_lider_check = (user_rol == 'lider')
+vista_query = st.query_params.get('vista')
+idx_def_vista = 1 if ((es_lider_check and vista_query != 'escritorio') or (vista_query == 'movil')) else 0
+
+modo_vista = st.sidebar.radio(
+    "📱 Interfaz del Sistema",
+    options=["💻 Escritorio (Completo)", "📱 Móvil (App Matices)"],
+    index=idx_def_vista,
+    horizontal=True,
+    key="app_view_mode_selector"
+)
+
+if modo_vista == "📱 Móvil (App Matices)":
+    import app_matices
+    app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
+    st.markdown("---")
+    st.caption(f"📈 Panel Móvil {user_sector_nombre} | Desarrollado por: Tao-System by xyz")
+    st.stop()
+
 # Inactivador automático en cliente tras 15 minutos sin interacción y activador de corrector nativo
 st.markdown("""
 <script>
