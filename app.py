@@ -5352,7 +5352,7 @@ with tab_lideres_gerente:
                     f"🌸 ¡Hola {ult_g['nombre'].split()[0].title() if ult_g['nombre'] else 'Líder'}! Te comparto tus credenciales de acceso al Sistema de Gestión Natura & Avon:\n\n"
                     f"👤 *Usuario:* `{ult_g['usuario']}`\n"
                     f"🔑 *Contraseña:* `{ult_g['password']}`\n\n"
-                    f"🌐 *Enlace de Ingreso:* https://app-lideres-production.up.railway.app\n\n"
+                    f"🌐 *Enlace de Ingreso:* https://metaseindicadores.up.railway.app\n\n"
                     f"¡Muchos éxitos! ✨ — Tu Gerente {user_nombre}"
                 )
                 st.text_area("Mensaje listo para WhatsApp:", msg_wa_ger, height=120, key="txt_wa_ger_msg")
