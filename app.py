@@ -1096,26 +1096,13 @@ if st.session_state['user'] is not None:
     tiempo_inactivo = time.time() - st.session_state.get('ultimo_acceso', time.time())
     if tiempo_inactivo > TIEMPO_INACTIVIDAD_SEGUNDOS:
         st.session_state['user'] = None
-        if 'user' in st.query_params:
-            del st.query_params['user']
+        st.query_params.clear()
         st.session_state['msg_timeout'] = "⏳ Tu sesión ha expirado automáticamente por inactividad (más de 15 minutos sin interacción). Por tu seguridad y privacidad de los datos, por favor inicia sesión nuevamente."
         st.session_state['ultimo_acceso'] = time.time()
         st.rerun()
     else:
         # Renovar el temporizador en cada interacción activa
         st.session_state['ultimo_acceso'] = time.time()
-
-# 2. Recuperación automática de sesión al refrescar la página (F5) SOLO si no expiró
-if st.session_state['user'] is None:
-    session_user_param = st.query_params.get('user')
-    if session_user_param and not st.session_state.get('msg_timeout'):
-        todos_usuarios = cargar_usuarios()
-        u_clean_param = str(session_user_param).strip().lower()
-        if u_clean_param in todos_usuarios:
-            user_info = todos_usuarios[u_clean_param].copy()
-            user_info['username'] = u_clean_param
-            st.session_state['user'] = user_info
-            st.session_state['ultimo_acceso'] = time.time()
 
 if st.session_state['user'] is None:
     st.markdown("""
@@ -1153,7 +1140,7 @@ if st.session_state['user'] is None:
                         st.session_state['ultimo_acceso'] = time.time()
                         if 'msg_timeout' in st.session_state:
                             del st.session_state['msg_timeout']
-                        st.query_params['user'] = user_auth.get('username', input_user)
+                        st.query_params.clear()
                         st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
                         st.rerun()
                     else:
@@ -1285,7 +1272,7 @@ if st.session_state['user'] is None:
                                         st.session_state['ultimo_acceso'] = time.time()
                                         if 'cuenta_recuperada_temp' in st.session_state:
                                             del st.session_state['cuenta_recuperada_temp']
-                                        st.query_params['user'] = user_authed.get('username', u_rec_name)
+                                        st.query_params.clear()
                                         st.rerun()
                                 else:
                                     st.error(f"❌ {msg_ch}")
@@ -1367,7 +1354,7 @@ if st.session_state['user'] is None:
                         )
                         if ok_reg:
                             st.session_state['user'] = u_data
-                            st.query_params['user'] = u_data.get('username', reg_correo)
+                            st.query_params.clear()
                             st.success("✅ " + msg_reg)
                             st.rerun()
                         else:
@@ -1418,8 +1405,7 @@ if not info_suscripcion.get("permitido", True):
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("🚪 Cerrar Sesión", key="btn_logout_bloqueo", use_container_width=True):
             st.session_state['user'] = None
-            if 'user' in st.query_params:
-                del st.query_params['user']
+            st.query_params.clear()
             st.rerun()
     st.stop()
 
@@ -1475,8 +1461,7 @@ if info_suscripcion.get("estado") == "prueba":
 
 if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
     st.session_state['user'] = None
-    if 'user' in st.query_params:
-        del st.query_params['user']
+    st.query_params.clear()
     if 'msg_timeout' in st.session_state:
         del st.session_state['msg_timeout']
     st.rerun()

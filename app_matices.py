@@ -159,17 +159,6 @@ st.markdown("""
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 
-# Auto-login por parámetro de URL si existe
-if st.session_state['user'] is None:
-    session_param = st.query_params.get('user')
-    if session_param:
-        todos_u = cargar_usuarios()
-        u_cl = str(session_param).strip().lower()
-        if u_cl in todos_u:
-            u_data = todos_u[u_cl].copy()
-            u_data['username'] = u_cl
-            st.session_state['user'] = u_data
-
 # Pantalla de Login Móvil si no está autenticado
 if st.session_state['user'] is None:
     st.markdown("<h3 style='text-align:center; margin-bottom:2px;'>📱 App Matices Móvil</h3>", unsafe_allow_html=True)
@@ -184,7 +173,7 @@ if st.session_state['user'] is None:
             u_auth = autenticar_usuario(input_u, input_p)
             if u_auth:
                 st.session_state['user'] = u_auth
-                st.query_params['user'] = u_auth['username']
+                st.query_params.clear()
                 st.rerun()
             else:
                 st.error("❌ Usuario o contraseña incorrectos.")
