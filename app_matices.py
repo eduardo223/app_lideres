@@ -7,6 +7,7 @@ import procesador
 from procesador import (
     autenticar_usuario,
     cargar_usuarios,
+    cargar_objetivos_arte,
     consultar_tableau_sql,
     consultar_geral_sql,
     calcular_metas_ciclo,
@@ -23,7 +24,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. CSS Ultra-Compacto y Responsivo para Smartphones y Tablets
+# 2. CSS Ultra-Compacto y Responsivo para Smartphones y Tablets (Tema Natura & Avon)
 st.markdown("""
 <style>
     /* Reducción radical de márgenes de Streamlit para móviles */
@@ -35,40 +36,49 @@ st.markdown("""
         max-width: 100% !important;
     }
     
-    /* Pestañas compactas estilo App móvil */
+    /* Pestañas compactas estilo App móvil con gradiente Natura-Avon */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 2px !important;
-        background-color: rgba(15, 23, 42, 0.05);
-        border-radius: 12px;
-        padding: 3px;
-        margin-bottom: 8px;
+        gap: 4px !important;
+        background-color: rgba(227, 0, 123, 0.06);
+        border-radius: 14px;
+        padding: 4px;
+        margin-bottom: 10px;
+        border: 1px solid rgba(227, 0, 123, 0.15);
     }
     .stTabs [data-baseweb="tab"] {
         font-size: 11.5px !important;
         font-weight: 700 !important;
-        padding: 6px 8px !important;
-        border-radius: 8px;
-        color: #64748b;
+        padding: 8px 10px !important;
+        border-radius: 10px;
+        color: #475569;
+        transition: all 0.2s ease;
     }
     .stTabs [aria-selected="true"] {
-        background-color: #0284c7 !important;
+        background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%) !important;
         color: #ffffff !important;
+        box-shadow: 0 4px 12px rgba(227, 0, 123, 0.35);
     }
 
-    /* Cards KPI 2x2 Condensadas */
+    /* Cards KPI 2x2 y 3x2 Condensadas */
     .kpi-grid {
         display: grid;
         grid-template-columns: repeat(2, 1fr);
         gap: 6px;
         margin-bottom: 8px;
     }
+    .kpi-grid-3 {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        margin-bottom: 8px;
+    }
     .kpi-card {
         background: #ffffff;
-        border: 1px solid #e2e8f0;
+        border: 1px solid #fbcfe8;
         border-radius: 12px;
         padding: 8px 10px;
         text-align: center;
-        box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+        box-shadow: 0 2px 6px rgba(227, 0, 123, 0.05);
     }
     .kpi-title {
         font-size: 10px;
@@ -76,6 +86,9 @@ st.markdown("""
         text-transform: uppercase;
         font-weight: 700;
         margin-bottom: 2px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     .kpi-val {
         font-size: 15px;
@@ -83,10 +96,37 @@ st.markdown("""
         color: #0f172a;
         line-height: 1.2;
     }
+    .kpi-val-gradient {
+        font-size: 15px;
+        font-weight: 800;
+        background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1.2;
+    }
     .kpi-sub {
-        font-size: 10px;
-        font-weight: 600;
-        margin-top: 2px;
+        font-size: 9.5px;
+        font-weight: 700;
+        margin-top: 3px;
+        padding: 2px 4px;
+        border-radius: 6px;
+        display: inline-block;
+    }
+    .kpi-sub-green {
+        background: #dcfce7;
+        color: #15803d;
+    }
+    .kpi-sub-red {
+        background: #fee2e2;
+        color: #b91c1c;
+    }
+    .kpi-sub-blue {
+        background: #e0f2fe;
+        color: #0369a1;
+    }
+    .kpi-sub-orange {
+        background: #ffedd5;
+        color: #c2410c;
     }
 
     /* Botón WhatsApp Móvil */
@@ -98,9 +138,10 @@ st.markdown("""
         color: white !important;
         font-size: 11px;
         font-weight: 700;
-        padding: 3px 8px;
-        border-radius: 6px;
+        padding: 4px 9px;
+        border-radius: 8px;
         text-decoration: none !important;
+        box-shadow: 0 2px 6px rgba(37, 211, 102, 0.3);
     }
 
     /* Badges de estado */
@@ -110,16 +151,6 @@ st.markdown("""
         font-weight: 700;
         padding: 2px 6px;
         border-radius: 9999px;
-    }
-    
-    /* Header compacto */
-    .header-mobile {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 4px 0 8px 0;
-        border-bottom: 1px solid #e2e8f0;
-        margin-bottom: 8px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -145,7 +176,7 @@ if st.session_state['user'] is None:
     st.caption("<p style='text-align:center; margin-bottom:12px;'>Portal exclusivo para Líderes de Negocio en Celulares y Tablets</p>", unsafe_allow_html=True)
     
     with st.form("form_login_mobile"):
-        input_u = st.text_input("👤 Usuario o Correo", placeholder="Ej. lider9334 o correo@...").strip().lower()
+        input_u = st.text_input("👤 Usuario o Correo", placeholder="Ej. lider7841 o correo@...").strip().lower()
         input_p = st.text_input("🔒 Contraseña", type="password", placeholder="••••••••")
         btn_log = st.form_submit_button("🚀 Entrar al Sistema", type="primary", use_container_width=True)
         
@@ -218,9 +249,13 @@ if user_rol in ['gerente', 'superadmin']:
         with col_g_sel2:
             st.caption("*(Vista Gerencial)*")
 
-# 5. Carga de Datos Relacionales (Tableau, Geral y Cómo Vamos)
+# 5. Carga de Datos Relacionales (Tableau, Geral, Objetivos Arte y Cómo Vamos)
 df_tab = consultar_tableau_sql(grupo=grupo_activo if grupo_activo else None)
 df_geral = consultar_geral_sql(grupo=grupo_activo if grupo_activo else None)
+
+# Carga de Objetivos Arte
+mapa_arte = cargar_objetivos_arte()
+arte_lider = mapa_arte.get('por_grupo', {}).get(str(grupo_activo).strip(), {}) if grupo_activo else {}
 
 # Carga de Cómo Vamos
 df_cv_all = None
@@ -237,17 +272,143 @@ if df_cv_all is not None and not df_cv_all.empty and grupo_activo:
         df_cv = df_cv_all[df_cv_all[col_g].astype(str).str.split('.').str[0].str.strip() == str(grupo_activo).strip()]
 
 # 6. Pestañas Principales Móviles (3 Pestañas Condensadas)
-tab_tab, tab_geral, tab_cv = st.tabs([
+tab_cv, tab_tab, tab_geral = st.tabs([
+    "🎯 Mis Desafíos",
     "📋 Red Tableau",
-    "💳 Cobranza Hoy",
-    "📈 Cómo Vamos"
+    "💳 Cobranza Hoy"
 ])
 
 # ==============================================================================
-# TAB 1: RED TABLEAU (ULTRA-RESUMIDO CON SOLO 2 FILTROS)
+# TAB 1: MIS DESAFÍOS & CÓMO VAMOS (OBJETIVOS ARTE + CÓMO VAMOS)
+# ==============================================================================
+with tab_cv:
+    st.markdown("##### 🎯 Cuadro de Mando de Desafíos Líder")
+    
+    if df_cv.empty:
+        st.info(f"ℹ️ **Metas del ciclo para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo de metas se sincronizará automáticamente. Puedes gestionar tu red en **'📋 Red Tableau'** y tu cartera en **'💳 Cobranza Hoy'**.")
+    else:
+        row_cv = df_cv.iloc[0]
+        
+        # 1. Disponibles
+        disp_r = int(limpiar_numero(row_cv.get('Disponibles', 0)))
+        disp_m = int(arte_lider.get('disponibles_proyectadas', 0))
+        disp_pct = (disp_r / disp_m * 100.0) if disp_m > 0 else 0.0
+
+        # 2. Activas
+        act_r = int(limpiar_numero(row_cv.get('Real Activas', 0)))
+        act_m = int(arte_lider.get('desafio_activas', row_cv.get('Objetivo Activas', 0)))
+        act_pct = (act_r / act_m * 100.0) if act_m > 0 else 0.0
+        
+        # 3. Facturación
+        fact_r = float(limpiar_numero(row_cv.get('Real Facturación', 0.0)))
+        fact_m = float(arte_lider.get('desafio_facturacion', row_cv.get('Objetivo Facturación', 0.0)))
+        fact_pct = (fact_r / fact_m * 100.0) if fact_m > 0 else 0.0
+        
+        # 4. Ganancia Estimada
+        ganancia_cop = float(limpiar_numero(row_cv.get('Ganancia estimada', 0.0)))
+
+        # 5. Saldo Comercial
+        saldo_r = int(limpiar_numero(row_cv.get('Saldo', 0)))
+        saldo_m = int(arte_lider.get('saldo_meta', 2))
+        brecha_s = saldo_m - saldo_r
+
+        # 6. Inicios + Reinicios
+        ini_r = int(limpiar_numero(row_cv.get('Inicios', 0)))
+        rein_r = int(limpiar_numero(row_cv.get('Reinicios', 0)))
+        tot_ini_rei = ini_r + rein_r
+        ini_rei_m = int(arte_lider.get('meta_inicios_reinicios', 0))
+        ini_rei_pct = (tot_ini_rei / ini_rei_m * 100.0) if ini_rei_m > 0 else 0.0
+
+        # Inactivas y Recuperos
+        i1_val = int(limpiar_numero(row_cv.get('Inactiva 1', 0)))
+        i2_val = int(limpiar_numero(row_cv.get('Inactiva 2', 0)))
+        i3_val = int(limpiar_numero(row_cv.get('Inactiva 3', 0)))
+        recup_r = int(limpiar_numero(row_cv.get('Recuperos', 0)))
+        recup_m = int(arte_lider.get('meta_recuperos', 0))
+        recup_pct = (recup_r / recup_m * 100.0) if recup_m > 0 else 0.0
+
+        # FILA 1: 6 Tarjetas Principales del Negocio (Grid 2x3 o 3x2)
+        st.markdown(f"""
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-title">🎯 Disponibles Proy.</div>
+                <div class="kpi-val">{disp_r}</div>
+                <div class="kpi-sub {'kpi-sub-green' if disp_pct>=100 else 'kpi-sub-orange'}">
+                    {disp_pct:.1f}% Desafío ({disp_m})
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">👥 Activas</div>
+                <div class="kpi-val">{act_r}</div>
+                <div class="kpi-sub {'kpi-sub-green' if act_pct>=100 else 'kpi-sub-orange'}">
+                    {act_pct:.1f}% Desafío ({act_m})
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">💰 Facturación Total</div>
+                <div class="kpi-val">${fact_r/1e6:.1f}M</div>
+                <div class="kpi-sub {'kpi-sub-green' if fact_pct>=100 else 'kpi-sub-orange'}">
+                    {fact_pct:.1f}% Desafío (${fact_m/1e6:.1f}M)
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">💵 Ganancia Estimada</div>
+                <div class="kpi-val-gradient">${ganancia_cop:,.0f}</div>
+                <div class="kpi-sub kpi-sub-blue">Comisión + Potencializador</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">⚖️ Saldo Comercial</div>
+                <div class="kpi-val" style="color:{'#15803d' if saldo_r>=saldo_m else '#b91c1c'};">{saldo_r:+d}</div>
+                <div class="kpi-sub {'kpi-sub-green' if saldo_r>=saldo_m else 'kpi-sub-red'}">
+                    {'Meta lograda (+' + str(saldo_m) + ')' if saldo_r>=saldo_m else 'Meta: +' + str(saldo_m) + ' (Falta ' + f'{brecha_s:+d}' + ')'}
+                </div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">🚀 Inicios + Reinicios</div>
+                <div class="kpi-val">{tot_ini_rei}</div>
+                <div class="kpi-sub {'kpi-sub-green' if ini_rei_pct>=100 else 'kpi-sub-orange'}">
+                    {ini_rei_pct:.1f}% Desafío ({ini_rei_m})
+                </div>
+            </div>
+        </div>
+        """.replace(",", "."), unsafe_allow_html=True)
+
+        # FILA 2: Bolsa de Recuperación de Red (4 Tarjetas Abiertas)
+        st.markdown("<p style='font-size:11px; font-weight:800; color:#E3007B; margin:8px 0 4px 2px;'>🌸 Bolsa de Recuperación (Inactivas & Recuperos):</p>", unsafe_allow_html=True)
+        st.markdown(f"""
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-title">🌸 Inactiva 1 (I1)</div>
+                <div class="kpi-val">{i1_val}</div>
+                <div class="kpi-sub kpi-sub-green">1 ciclo sin pedido</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">🌸 Inactiva 2 (I2)</div>
+                <div class="kpi-val">{i2_val}</div>
+                <div class="kpi-sub kpi-sub-orange">2 ciclos sin pedido</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">⚠️ Inactiva 3 (I3)</div>
+                <div class="kpi-val" style="color:#b91c1c;">{i3_val}</div>
+                <div class="kpi-sub kpi-sub-red">¡Riesgo Fuga a I4!</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">🎯 Recuperos Logrados</div>
+                <div class="kpi-val">{recup_r} / {recup_m}</div>
+                <div class="kpi-sub {'kpi-sub-green' if recup_pct>=100 else 'kpi-sub-orange'}">{recup_pct:.1f}% Meta Arte</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Barra de progreso visual de Facturación
+        st.caption(f"🎯 **Avance de Facturación:** ({fact_pct:.1f}% del desafío oficial)")
+        st.progress(min(1.0, fact_pct / 100.0))
+
+# ==============================================================================
+# TAB 2: RED TABLEAU (ULTRA-RESUMIDO CON FILTROS Y CRÉDITO EN PUNTOS)
 # ==============================================================================
 with tab_tab:
-    # 2 Filtros Esenciales
+    # Filtros Esenciales
     f_c1, f_c2 = st.columns(2)
     with f_c1:
         opciones_sit = ["Todas"]
@@ -299,12 +460,12 @@ with tab_tab:
         <div class="kpi-card">
             <div class="kpi-title">Consultoras</div>
             <div class="kpi-val">{tot_c}</div>
-            <div class="kpi-sub" style="color:#0284c7;">🎯 {tot_disp_m} Disponibles</div>
+            <div class="kpi-sub kpi-sub-blue">🎯 {tot_disp_m} Disponibles</div>
         </div>
         <div class="kpi-card">
             <div class="kpi-title">Deuda Mora</div>
             <div class="kpi-val" style="color:{'#ef4444' if tot_mora_cop > 0 else '#10b981'};">${tot_mora_cop:,.0f}</div>
-            <div class="kpi-sub" style="color:#64748b;">Filtro Activo</div>
+            <div class="kpi-sub {'kpi-sub-red' if tot_mora_cop > 0 else 'kpi-sub-green'}">Filtro Activo</div>
         </div>
     </div>
     """.replace(",", "."), unsafe_allow_html=True)
@@ -317,6 +478,7 @@ with tab_tab:
             nom = str(row.get('Asesora / Consultora', 'Sin Nombre')).strip()
             sit = str(row.get('Sit. Comercial', 'N/D')).strip()
             pts = int(limpiar_numero(row.get('Pts Acum', 0)))
+            cred_disp = int(limpiar_numero(row.get('Credito Disponible', 0)))
             mora = float(limpiar_numero(row.get('Deuda Mora', 0.0)))
             cel_raw = str(row.get('celular', '')).strip()
             m1, _ = extraer_telefonos_colombia(cel_raw)
@@ -334,15 +496,16 @@ with tab_tab:
             if m1 and len(m1) == 10:
                 msg_wa = urllib.parse.quote(f"Hola {nom}, te saludo de tu equipo Natura & Avon. ¿Cómo estás?")
                 wa_url = f"https://wa.me/57{m1}?text={msg_wa}"
-                wa_btn_html = f'<a href="{wa_url}" target="_blank" class="btn-wa-link">📲 WhatsApp</a>'
+                wa_btn_html = f'<a href="{wa_url}" target="_blank" class="btn-wa-link">📲 WA</a>'
 
             st.markdown(f"""
-            <div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:6px 10px; margin-bottom:4px; display:flex; align-items:center; justify-content:space-between;">
+            <div style="background:#ffffff; border:1px solid #f1f5f9; border-radius:10px; padding:6px 10px; margin-bottom:5px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
                 <div style="flex:1; min-width:0; padding-right:6px;">
                     <div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{nom}</div>
-                    <div style="font-size:10px; color:#64748b; margin-top:1px;">
+                    <div style="font-size:10px; color:#64748b; margin-top:2px;">
                         <span class="badge-pill" style="background:{color_bg}; color:{color_fg};">{sit}</span>
                         <span style="margin-left:4px;">⭐ {pts} pts</span>
+                        {f'<span style="margin-left:4px; color:#0284c7; font-weight:700;">• Créd: {cred_disp} pts</span>' if cred_disp > 0 else ''}
                         {f'<span style="color:#ef4444; font-weight:700; margin-left:4px;">• Mora: ${mora:,.0f}</span>' if mora > 0 else ''}
                     </div>
                 </div>
@@ -354,7 +517,7 @@ with tab_tab:
             st.caption(f"Mostrando 60 de {len(df_tab_filtrado)} consultoras. Usa el buscador para filtrar.")
 
 # ==============================================================================
-# TAB 2: CRÉDITO & COBRANZA GERAL (SOLO SI HAY DEUDA DEL DÍA - 3 COLUMNAS)
+# TAB 3: CRÉDITO & COBRANZA GERAL (SOLO SI HAY DEUDA DEL DÍA - DIRECTO A WHATSAPP)
 # ==============================================================================
 with tab_geral:
     st.markdown("##### 💳 Cartera & Cobranza Prioritaria")
@@ -362,13 +525,11 @@ with tab_geral:
     df_g_pend = pd.DataFrame()
     if not df_geral.empty:
         df_geral['saldo_num'] = df_geral['saldo_total'].apply(lambda x: limpiar_numero(x, 0.0))
-        # Filtrar solo casos con saldo pendiente mayor a 0
         df_g_pend = df_geral[df_geral['saldo_num'] > 0].copy()
         
     if df_g_pend.empty:
         st.success("🎉 **¡Excelente!** Tu grupo no tiene deudas en mora pendientes de cobro el día de hoy.")
     else:
-        # Ordenar de mayor a menor deuda
         df_g_pend = df_g_pend.sort_values(by='saldo_num', ascending=False)
         tot_deuda_g = float(df_g_pend['saldo_num'].sum())
         
@@ -377,12 +538,12 @@ with tab_geral:
             <div class="kpi-card">
                 <div class="kpi-title">Casos en Cobro</div>
                 <div class="kpi-val" style="color:#ef4444;">{len(df_g_pend)}</div>
-                <div class="kpi-sub">Títulos con saldo</div>
+                <div class="kpi-sub kpi-sub-red">Títulos con saldo</div>
             </div>
             <div class="kpi-card">
                 <div class="kpi-title">Total a Cobrar</div>
                 <div class="kpi-val" style="color:#ef4444;">${tot_deuda_g:,.0f}</div>
-                <div class="kpi-sub">Cartera activa</div>
+                <div class="kpi-sub kpi-sub-red">Cartera activa</div>
             </div>
         </div>
         """.replace(",", "."), unsafe_allow_html=True)
@@ -396,7 +557,6 @@ with tab_geral:
             c_ped = str(row.get('numero_pedido', '')).strip().split('.')[0]
             c_movil1 = str(row.get('telefono_movil', '')).strip()
             
-            # Formato de mensaje WhatsApp de cobro amable
             wa_cobro_html = ""
             if c_movil1 and len(c_movil1) == 10:
                 msg_cobro = urllib.parse.quote(
@@ -408,7 +568,7 @@ with tab_geral:
                 wa_cobro_html = f'<a href="{wa_cobro_url}" target="_blank" class="btn-wa-link" style="background:#ef4444;">📲 Cobrar</a>'
 
             st.markdown(f"""
-            <div style="background:#ffffff; border:1px solid #fee2e2; border-radius:10px; padding:8px 10px; margin-bottom:5px; display:flex; align-items:center; justify-content:space-between;">
+            <div style="background:#ffffff; border:1px solid #fee2e2; border-radius:10px; padding:8px 10px; margin-bottom:5px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
                 <div style="flex:1; min-width:0; padding-right:6px;">
                     <div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{c_nom}</div>
                     <div style="font-size:11px; margin-top:2px;">
@@ -420,64 +580,7 @@ with tab_geral:
             </div>
             """.replace(",", "."), unsafe_allow_html=True)
 
-# ==============================================================================
-# TAB 3: CÓMO VAMOS (FACTURACIÓN, CUMPLIMIENTO & SIMULADOR COMPACTO)
-# ==============================================================================
-with tab_cv:
-    st.markdown("##### 📈 Desempeño & Cómo Vamos")
-    
-    if df_cv.empty:
-        st.info(f"ℹ️ **Metas del ciclo pendientes para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo actual de metas aún no contiene datos registrados para este grupo en el ciclo actual. Puedes gestionar tu red en **'📋 Red Tableau'** y consultar tu cartera en **'💳 Cobranza Hoy'**.")
-    else:
-        row_cv = df_cv.iloc[0]
-        
-        f_real = float(limpiar_numero(row_cv.get('Real Facturación', 0.0)))
-        f_obj = float(limpiar_numero(row_cv.get('Objetivo Facturación', 0.0)))
-        cump_f = (f_real / f_obj * 100.0) if f_obj > 0 else 0.0
-        
-        a_real = int(limpiar_numero(row_cv.get('Real Activas', 0)))
-        a_obj = int(limpiar_numero(row_cv.get('Objetivo Activas', 0)))
-        cump_a = (a_real / a_obj * 100.0) if a_obj > 0 else 0.0
-        
-        saldo_cv = int(limpiar_numero(row_cv.get('Saldo', 0)))
-        inicios_cv = int(limpiar_numero(row_cv.get('Inicios', 0)))
-        reinicios_cv = int(limpiar_numero(row_cv.get('Reinicios', 0)))
-        ganancia_cop = float(limpiar_numero(row_cv.get('Ganancia estimada', 0.0)))
-
-        # Tarjetas 2x2 Ultra-Compactas
-        st.markdown(f"""
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-title">Facturación</div>
-                <div class="kpi-val">${f_real:,.0f}</div>
-                <div class="kpi-sub" style="color:{'#10b981' if cump_f >= 100 else '#f59e0b'};">
-                    {cump_f:.1f}% Cump. (Meta: ${f_obj:,.0f})
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Activas Reales</div>
-                <div class="kpi-val">{a_real} / {a_obj}</div>
-                <div class="kpi-sub" style="color:{'#10b981' if cump_a >= 100 else '#f59e0b'};">
-                    {cump_a:.1f}% Cumplimiento
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Saldo Comercial</div>
-                <div class="kpi-val" style="color:{'#10b981' if saldo_cv >= 2 else '#ef4444'};">{saldo_cv:+d}</div>
-                <div class="kpi-sub" style="color:#64748b;">Inicios: {inicios_cv} • Reinicios: {reinicios_cv}</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Ganancia Estimada</div>
-                <div class="kpi-val" style="color:#0284c7;">${ganancia_cop:,.0f}</div>
-                <div class="kpi-sub" style="color:#10b981;">Comisión + Potencializador</div>
-            </div>
-        </div>
-        """.replace(",", "."), unsafe_allow_html=True)
-
-        # Barra de progreso visual de Facturación
-        st.caption(f"🎯 **Avance de Facturación:** ({cump_f:.1f}% del objetivo)")
-        st.progress(min(1.0, cump_f / 100.0))
-
 st.markdown("---")
-st.markdown("<p style='text-align:center; font-size:10px; color:#94a3b8; margin:0;'>App Matices Móvil • Diseñada para Celulares y Tablets</p>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center; font-size:10px; color:#94a3b8; margin:0;'>App Matices Móvil • Natura & Avon • Diseñada para Celulares y Tablets</p>", unsafe_allow_html=True)
+
 
