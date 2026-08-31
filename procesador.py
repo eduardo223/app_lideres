@@ -5,6 +5,10 @@ import sys
 import json
 import re
 import urllib.parse
+import time
+import hmac
+import hashlib
+import base64
 from datetime import datetime, date
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
@@ -3040,6 +3044,54 @@ def autenticar_usuario(username, password):
             return user_copy
             
     return None
+
+SESSION_SECRET_KEY = "natura_avon_meta_indicadores_secure_session_2026"
+
+def generar_token_sesion(user_dict):
+    """
+    Genera un token firmado digitalmente con HMAC-SHA256 para persistir la sesión
+    de forma segura ante recargas de página (F5 / refresh) en el navegador.
+    """
+    if not user_dict or not user_dict.get("username"):
+        return ""
+    try:
+        payload = {
+            "username": str(user_dict.get("username")).strip().lower(),
+            "exp": int(time.time()) + (24 * 3600)  # Válido por 24 horas
+        }
+        payload_json = json.dumps(payload)
+        payload_b64 = base64.urlsafe_b64encode(payload_json.encode('utf-8')).decode('utf-8')
+        sig = hmac.new(SESSION_SECRET_KEY.encode('utf-8'), payload_b64.encode('utf-8'), hashlib.sha256).hexdigest()
+        return f"{payload_b64}.{sig}"
+    except Exception:
+        return ""
+
+def validar_token_sesion(token_str):
+    """
+    Valida la firma criptográfica y expiración del token.
+    Si es válido, retorna el diccionario completo del usuario cargado de la base.
+    """
+    try:
+        if not token_str or "." not in str(token_str):
+            return None
+        payload_b64, sig = str(token_str).split(".", 1)
+        expected_sig = hmac.new(SESSION_SECRET_KEY.encode('utf-8'), payload_b64.encode('utf-8'), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected_sig):
+            return None
+        payload = json.loads(base64.urlsafe_b64decode(payload_b64.encode('utf-8')).decode('utf-8'))
+        if payload.get("exp", 0) < int(time.time()):
+            return None
+        username = str(payload.get("username", "")).strip().lower()
+        if not username:
+            return None
+        usuarios = cargar_usuarios()
+        if username in usuarios:
+            user_copy = usuarios[username].copy()
+            user_copy["username"] = username
+            return user_copy
+        return None
+    except Exception:
+        return None
 
 def cambiar_password_usuario(username, nueva_password):
     """

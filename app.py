@@ -26,6 +26,8 @@ from procesador import (
     actualizar_situacion_comercial_desde_mi_grupo,
     actualizar_base_desde_activas,
     autenticar_usuario,
+    generar_token_sesion,
+    validar_token_sesion,
     buscar_cuenta_usuario,
     cargar_usuarios,
     registrar_o_actualizar_usuario,
@@ -1091,6 +1093,15 @@ if 'user' not in st.session_state:
 if 'ultimo_acceso' not in st.session_state:
     st.session_state['ultimo_acceso'] = time.time()
 
+# 0. Restaurar sesión activa desde token criptográfico firmado si el usuario refresca la página (F5)
+if st.session_state['user'] is None:
+    token_sesion_url = st.query_params.get('session')
+    if token_sesion_url:
+        usuario_restaurado = validar_token_sesion(token_sesion_url)
+        if usuario_restaurado:
+            st.session_state['user'] = usuario_restaurado
+            st.session_state['ultimo_acceso'] = time.time()
+
 # 1. Validar si la sesión activa superó el tiempo máximo de inactividad
 if st.session_state['user'] is not None:
     tiempo_inactivo = time.time() - st.session_state.get('ultimo_acceso', time.time())
@@ -1140,7 +1151,7 @@ if st.session_state['user'] is None:
                         st.session_state['ultimo_acceso'] = time.time()
                         if 'msg_timeout' in st.session_state:
                             del st.session_state['msg_timeout']
-                        st.query_params.clear()
+                        st.query_params['session'] = generar_token_sesion(user_auth)
                         st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
                         st.rerun()
                     else:
@@ -1272,7 +1283,7 @@ if st.session_state['user'] is None:
                                         st.session_state['ultimo_acceso'] = time.time()
                                         if 'cuenta_recuperada_temp' in st.session_state:
                                             del st.session_state['cuenta_recuperada_temp']
-                                        st.query_params.clear()
+                                        st.query_params['session'] = generar_token_sesion(user_authed)
                                         st.rerun()
                                 else:
                                     st.error(f"❌ {msg_ch}")
@@ -1432,7 +1443,7 @@ if current_user.get('debe_cambiar_password', False):
                     if ok_p:
                         current_user['debe_cambiar_password'] = False
                         st.session_state['user'] = current_user
-                        st.query_params.clear()
+                        st.query_params['session'] = generar_token_sesion(current_user)
                         st.success("✅ " + msg_p)
                         st.rerun()
                     else:
@@ -5377,4 +5388,4 @@ with tab_lideres_gerente:
 
 # Footer
 st.markdown("---")
-st.caption(f"📈 Panel de Control {user_sector_nombre} | Desarrollado por Tao-System")
+st.caption(f"📈 Panel de Control {user_sector_nombre} | Desarrollado por: Tao-System by xyz")

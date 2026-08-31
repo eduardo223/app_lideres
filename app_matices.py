@@ -6,6 +6,8 @@ import os
 import procesador
 from procesador import (
     autenticar_usuario,
+    generar_token_sesion,
+    validar_token_sesion,
     cargar_usuarios,
     cargar_objetivos_arte,
     consultar_tableau_sql,
@@ -164,6 +166,14 @@ st.markdown("""
 if 'user' not in st.session_state:
     st.session_state['user'] = None
 
+# Restaurar sesión desde token criptográfico si el usuario refresca la página (F5)
+if st.session_state['user'] is None:
+    token_url = st.query_params.get('session')
+    if token_url:
+        u_rest = validar_token_sesion(token_url)
+        if u_rest:
+            st.session_state['user'] = u_rest
+
 # Pantalla de Login Móvil si no está autenticado
 if st.session_state['user'] is None:
     st.markdown("<h3 style='text-align:center; margin-bottom:2px;'>📱 App Matices Móvil</h3>", unsafe_allow_html=True)
@@ -178,7 +188,7 @@ if st.session_state['user'] is None:
             u_auth = autenticar_usuario(input_u, input_p)
             if u_auth:
                 st.session_state['user'] = u_auth
-                st.query_params.clear()
+                st.query_params['session'] = generar_token_sesion(u_auth)
                 st.rerun()
             else:
                 st.error("❌ Usuario o contraseña incorrectos.")
@@ -205,7 +215,7 @@ if current_user.get('debe_cambiar_password', False):
                 if ok:
                     current_user['debe_cambiar_password'] = False
                     st.session_state['user'] = current_user
-                    st.query_params.clear()
+                    st.query_params['session'] = generar_token_sesion(current_user)
                     st.success("✅ Contraseña actualizada.")
                     st.rerun()
                 else:
