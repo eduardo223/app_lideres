@@ -17,7 +17,7 @@
   },
   "lider9640": {
     "nombre": "YENNY COROMOTO DIAZ PEREZ",
-    "password_hash": "0cabe72e4aaade6b4491e5c49a47a2b179529b763099254b3d9297b9ba429f77",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9640",
     "debe_cambiar_password": true,
@@ -28,7 +28,7 @@
   },
   "lider9334": {
     "nombre": "ANGELA MIREYA MONTENEGRO ROMERO",
-    "password_hash": "78dcd4517aa396dbdb7e3bad2814ae250b1748998a7330d62f5560afb76f9224",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9334",
     "debe_cambiar_password": true,
@@ -39,10 +39,10 @@
   },
   "lider7841": {
     "nombre": "CARMENZA RONCANCIO GACHANCIPA",
-    "password_hash": "d0491037e5cbd35697a703c9601fa17d2d183a601dd2b1ad3f4d23d9d1846a03",
+    "password_hash": "7dff8e2a60a18cad0323884749fd40afe2e4d21e1ccb7e4e9612ade950cb3a61",
     "rol": "lider",
     "codigo_grupo": "7841",
-    "debe_cambiar_password": true,
+    "debe_cambiar_password": false,
     "codigo_sector": "700000459",
     "nombre_sector": "MATICES CLERY",
     "estado_suscripcion": "prueba",
@@ -50,7 +50,7 @@
   },
   "lider10168": {
     "nombre": "JESSICA ROCIO CORTES PERILLA",
-    "password_hash": "82057b32bb94cf017aa26eb6ca1163032bac1c9ad4d4eeda520ea9d8bc1c9ff2",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "10168",
     "debe_cambiar_password": true,
@@ -61,7 +61,7 @@
   },
   "lider9678": {
     "nombre": "MIGUEL ANGEL MORENO BAUTISTA",
-    "password_hash": "43d81a36f9cd1f21ce92687e65f84e2066ae4442167fe2fe0109ae4f35d77103",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9678",
     "debe_cambiar_password": true,
@@ -72,7 +72,7 @@
   },
   "lider9291": {
     "nombre": "LUZ MARY LUNA LEON",
-    "password_hash": "c95e6ba2be3b82fcfd55cf191c4df2de0534c4b2a0ac9e06ef96277df4429615",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9291",
     "debe_cambiar_password": true,
@@ -83,7 +83,7 @@
   },
   "lider8425": {
     "nombre": "Luz Dary Chacon Gaitan",
-    "password_hash": "efb988137582d40c0249f6449c21623b190c9c581af0486a3db993c0d6061c5d",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "8425",
     "debe_cambiar_password": true,
@@ -94,7 +94,7 @@
   },
   "lider9948": {
     "nombre": "DORA INES BELTRAN GAMBA",
-    "password_hash": "7b2fa97eb02fefbf600f21543595411d607fdab97cb46946e4ecd5128a51a093",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9948",
     "debe_cambiar_password": true,
@@ -105,7 +105,7 @@
   },
   "lider9717": {
     "nombre": "LUZ NANCY ROJAS NEIRA",
-    "password_hash": "3814515d78cdb5b4d5e737734c64707039c36b45ca6722fe510a7407af4ab02f",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9717",
     "debe_cambiar_password": true,
@@ -116,7 +116,7 @@
   },
   "lider8481": {
     "nombre": "LUZ ADRIANA PAEZ VIGOYA",
-    "password_hash": "a8f9fbf282eff94839f5f888735c3bbfa407b9d960744f2ad5121dbf270eec25",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "8481",
     "debe_cambiar_password": true,
@@ -127,7 +127,7 @@
   },
   "lider10255": {
     "nombre": "BEATRIZ ELENA MONTES NEGRETE",
-    "password_hash": "b247d3fd2a7085f44b1440a0276c58feabec250a994f58ecdf23854ac54c5475",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "10255",
     "debe_cambiar_password": true,
@@ -138,7 +138,7 @@
   },
   "lider10223": {
     "nombre": "EVELYN GOMEZ LOZANO",
-    "password_hash": "22b87f0b372c7ad7c08e8c5a7bbd609797341ed1e910d6d501f9e4d19cd23080",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "10223",
     "debe_cambiar_password": true,
@@ -149,7 +149,7 @@
   },
   "lider10260": {
     "nombre": "DORIS ANGARITA",
-    "password_hash": "1ab1747cc38f51be28a15fc1d5ac9582ffb66033f43ef4530a0dc72d8d5c9e83",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "10260",
     "debe_cambiar_password": true,
@@ -160,7 +160,7 @@
   },
   "lider9400": {
     "nombre": "MARIA CRISTINA RUBIO",
-    "password_hash": "54dfb5b6c7a4dab1e775ab3bd7c3adc8fa952044277b2a6a52ae45e2f3e1e3f4",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9400",
     "debe_cambiar_password": true,
