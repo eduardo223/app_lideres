@@ -2018,7 +2018,7 @@ if user_rol == 'lider':
 
     with lkpi1:
         st.metric(
-            "🎯 Disponibles Proy.",
+            "🎯 DISPONIBLES PROY.",
             f"{disp_real}",
             f"{disp_pct:.1f}% Desafío ({disp_meta})" if disp_meta > 0 else None,
             delta_color="normal"
@@ -2026,7 +2026,7 @@ if user_rol == 'lider':
 
     with lkpi2:
         st.metric(
-            "👥 Activas",
+            "👥 ACTIVAS",
             f"{act_real}",
             f"{act_pct:.1f}% Desafío ({act_meta})" if act_meta > 0 else None,
             delta_color="normal"
@@ -2034,7 +2034,7 @@ if user_rol == 'lider':
 
     with lkpi3:
         st.metric(
-            "💰 Facturación Total",
+            "💰 FACTURACIÓN TOTAL",
             f"${fact_real/1e6:.1f}M COP",
             f"{fact_pct:.1f}% Desafío (${fact_meta/1e6:.1f}M)" if fact_meta > 0 else None,
             delta_color="normal"
@@ -2042,13 +2042,13 @@ if user_rol == 'lider':
 
     with lkpi4:
         st.metric(
-            "💵 Ganancia Estimada LN",
+            "💵 GANANCIA ESTIMADA LN",
             gan_txt
         )
 
     with lkpi5:
         st.metric(
-            "⚖️ Saldo Comercial",
+            "⚖️ SALDO COMERCIAL",
             f"{saldo_real:+d}",
             f"Meta: +{saldo_meta} (Falta {brecha_saldo:+d})" if saldo_real < saldo_meta else f"Meta lograda (+{saldo_meta})",
             delta_color="normal" if saldo_real >= saldo_meta else "inverse"
@@ -2056,7 +2056,7 @@ if user_rol == 'lider':
 
     with lkpi6:
         st.metric(
-            "🚀 Inicios + Reinicios",
+            "🚀 INICIOS + REINICIOS",
             f"{ini_rei_real}",
             f"{ini_rei_pct:.1f}% Desafío ({ini_rei_meta})" if ini_rei_meta > 0 else f"{inicios_real} Inic. | {reinicios_real} Rein.",
             delta_color="normal"
@@ -2065,7 +2065,7 @@ if user_rol == 'lider':
     # FILA 2: BOLSA DE RECUPERACIÓN DE RED ABIERTA Y DESGLOSADA (I1, I2, I3 Y RECUPEROS)
     st.markdown(
         "<div style='font-size:0.92rem; font-weight:800; color:#E3007B; margin: 10px 0 6px 2px; display:flex; align-items:center; gap:6px;'>"
-        "<span>🌸 Bolsa de Recuperación de Red (Inactivas & Recuperos)</span>"
+        "<span>🌸 BOLSA DE RECUPERACIÓN DE RED (INACTIVAS & RECUPEROS)</span>"
         "</div>",
         unsafe_allow_html=True
     )
@@ -2073,7 +2073,7 @@ if user_rol == 'lider':
 
     with rcol1:
         st.metric(
-            "🌸 Inactiva 1 (I1)",
+            "🌸 INACTIVA 1 (I1)",
             f"{i1_val}",
             "1 ciclo sin pedido",
             delta_color="normal"
@@ -2081,7 +2081,7 @@ if user_rol == 'lider':
 
     with rcol2:
         st.metric(
-            "🌸 Inactiva 2 (I2)",
+            "🌸 INACTIVA 2 (I2)",
             f"{i2_val}",
             "2 ciclos sin pedido",
             delta_color="normal"
@@ -2089,7 +2089,7 @@ if user_rol == 'lider':
 
     with rcol3:
         st.metric(
-            "⚠️ Inactiva 3 (I3)",
+            "⚠️ INACTIVA 3 (I3)",
             f"{i3_val}",
             "¡Riesgo Fuga a I4!",
             delta_color="inverse"
@@ -2097,7 +2097,7 @@ if user_rol == 'lider':
 
     with rcol4:
         st.metric(
-            "🎯 Recuperos Logrados",
+            "🎯 RECUPEROS LOGRADOS",
             f"{recup_real} de {recup_meta}" if recup_meta > 0 else f"{recup_real}",
             f"{recup_pct:.1f}% Meta Arte" if recup_meta > 0 else None,
             delta_color="normal"
@@ -2108,18 +2108,18 @@ else:
     kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
     with kpi1:
-        st.metric("👥 Consultoras / Líderes", f"{total_consultoras}")
+        st.metric("👥 CONSULTORAS / LÍDERES", f"{total_consultoras}")
 
     with kpi2:
         st.metric(
-            "👥 Activas (Real / Obj)",
+            "👥 ACTIVAS (REAL / OBJ)",
             f"{int(real_activas)}",
             f"↑ {cump_activas:.1f}% Cumplimiento" if obj_activas > 0 else "0.0%"
         )
 
     with kpi3:
         st.metric(
-            "💰 Facturación Total",
+            "💰 FACTURACIÓN TOTAL",
             f"${real_fact/1e6:.1f}M COP",
             f"↑ {cump_fact:.1f}% Cumplimiento" if obj_fact > 0 else "0.0%"
         )
@@ -2127,13 +2127,13 @@ else:
     with kpi4:
         gan_txt = f"${ganancia_total/1e6:.2f}M COP" if abs(ganancia_total) >= 1_000_000 else f"${ganancia_total:,.0f}".replace(",", ".")
         st.metric(
-            "💵 Ganancia Estimada LN",
+            "💵 GANANCIA ESTIMADA LN",
             gan_txt
         )
 
     with kpi5:
         st.metric(
-            "🚀 Inicios / Reinicios",
+            "🚀 INICIOS / REINICIOS",
             f"{int(inicios_totales + reinicios_totales)}",
             f"↑ {int(inicios_totales)} Inic. | {int(reinicios_totales)} Rein."
         )

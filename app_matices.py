@@ -322,57 +322,57 @@ with tab_cv:
         # FILA 1: 6 Tarjetas Principales del Negocio (Grid 2x3 o 3x2)
         st.markdown(f"""<div class="kpi-grid">
 <div class="kpi-card">
-<div class="kpi-title">🎯 Disponibles Proy.</div>
+<div class="kpi-title">🎯 DISPONIBLES PROY.</div>
 <div class="kpi-val">{disp_r}</div>
 <div class="kpi-sub {'kpi-sub-green' if disp_pct>=100 else 'kpi-sub-orange'}">{disp_pct:.1f}% Desafío ({disp_m})</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-title">👥 Activas</div>
+<div class="kpi-title">👥 ACTIVAS</div>
 <div class="kpi-val">{act_r}</div>
 <div class="kpi-sub {'kpi-sub-green' if act_pct>=100 else 'kpi-sub-orange'}">{act_pct:.1f}% Desafío ({act_m})</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-title">💰 Facturación Total</div>
+<div class="kpi-title">💰 FACTURACIÓN TOTAL</div>
 <div class="kpi-val">${fact_r/1e6:.1f}M</div>
 <div class="kpi-sub {'kpi-sub-green' if fact_pct>=100 else 'kpi-sub-orange'}">{fact_pct:.1f}% Desafío (${fact_m/1e6:.1f}M)</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-title">💵 Ganancia Estimada</div>
+<div class="kpi-title">💵 GANANCIA ESTIMADA LN</div>
 <div class="kpi-val-gradient">{ganancia_fmt}</div>
 <div class="kpi-sub kpi-sub-blue">Comisión + Potencializador</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-title">⚖️ Saldo Comercial</div>
+<div class="kpi-title">⚖️ SALDO COMERCIAL</div>
 <div class="kpi-val" style="color:{'#15803d' if saldo_r>=saldo_m else '#b91c1c'};">{saldo_r:+d}</div>
 <div class="kpi-sub {'kpi-sub-green' if saldo_r>=saldo_m else 'kpi-sub-red'}">{'Meta lograda (+' + str(saldo_m) + ')' if saldo_r>=saldo_m else 'Meta: +' + str(saldo_m) + ' (Falta ' + f'{brecha_s:+d}' + ')'}</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-title">🚀 Inicios + Reinicios</div>
+<div class="kpi-title">🚀 INICIOS + REINICIOS</div>
 <div class="kpi-val">{tot_ini_rei}</div>
 <div class="kpi-sub {'kpi-sub-green' if ini_rei_pct>=100 else 'kpi-sub-orange'}">{ini_rei_pct:.1f}% Desafío ({ini_rei_m})</div>
 </div>
 </div>""", unsafe_allow_html=True)
 
         # FILA 2: Bolsa de Recuperación de Red (4 Tarjetas Abiertas)
-        st.markdown("<p style='font-size:11px; font-weight:800; color:#E3007B; margin:8px 0 4px 2px;'>🌸 Bolsa de Recuperación (Inactivas & Recuperos):</p>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size:11px; font-weight:800; color:#E3007B; margin:8px 0 4px 2px;'>🌸 BOLSA DE RECUPERACIÓN (INACTIVAS & RECUPEROS):</p>", unsafe_allow_html=True)
         st.markdown(f"""<div class="kpi-grid">
 <div class="kpi-card">
-<div class="kpi-title">🌸 Inactiva 1 (I1)</div>
+<div class="kpi-title">🌸 INACTIVA 1 (I1)</div>
 <div class="kpi-val">{i1_val}</div>
 <div class="kpi-sub kpi-sub-green">1 ciclo sin pedido</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-title">🌸 Inactiva 2 (I2)</div>
+<div class="kpi-title">🌸 INACTIVA 2 (I2)</div>
 <div class="kpi-val">{i2_val}</div>
 <div class="kpi-sub kpi-sub-orange">2 ciclos sin pedido</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-title">⚠️ Inactiva 3 (I3)</div>
+<div class="kpi-title">⚠️ INACTIVA 3 (I3)</div>
 <div class="kpi-val" style="color:#b91c1c;">{i3_val}</div>
 <div class="kpi-sub kpi-sub-red">¡Riesgo Fuga a I4!</div>
 </div>
 <div class="kpi-card">
-<div class="kpi-title">🎯 Recuperos Logrados</div>
+<div class="kpi-title">🎯 RECUPEROS LOGRADOS</div>
 <div class="kpi-val">{recup_r} / {recup_m}</div>
 <div class="kpi-sub {'kpi-sub-green' if recup_pct>=100 else 'kpi-sub-orange'}">{recup_pct:.1f}% Meta Arte</div>
 </div>
