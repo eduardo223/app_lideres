@@ -316,78 +316,67 @@ with tab_cv:
         recup_m = int(arte_lider.get('meta_recuperos', 0))
         recup_pct = (recup_r / recup_m * 100.0) if recup_m > 0 else 0.0
 
+        # Formatos de moneda y porcentaje limpios
+        ganancia_fmt = f"${ganancia_cop:,.0f}".replace(",", ".")
+        
         # FILA 1: 6 Tarjetas Principales del Negocio (Grid 2x3 o 3x2)
-        st.markdown(f"""
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-title">🎯 Disponibles Proy.</div>
-                <div class="kpi-val">{disp_r}</div>
-                <div class="kpi-sub {'kpi-sub-green' if disp_pct>=100 else 'kpi-sub-orange'}">
-                    {disp_pct:.1f}% Desafío ({disp_m})
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">👥 Activas</div>
-                <div class="kpi-val">{act_r}</div>
-                <div class="kpi-sub {'kpi-sub-green' if act_pct>=100 else 'kpi-sub-orange'}">
-                    {act_pct:.1f}% Desafío ({act_m})
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">💰 Facturación Total</div>
-                <div class="kpi-val">${fact_r/1e6:.1f}M</div>
-                <div class="kpi-sub {'kpi-sub-green' if fact_pct>=100 else 'kpi-sub-orange'}">
-                    {fact_pct:.1f}% Desafío (${fact_m/1e6:.1f}M)
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">💵 Ganancia Estimada</div>
-                <div class="kpi-val-gradient">${ganancia_cop:,.0f}</div>
-                <div class="kpi-sub kpi-sub-blue">Comisión + Potencializador</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">⚖️ Saldo Comercial</div>
-                <div class="kpi-val" style="color:{'#15803d' if saldo_r>=saldo_m else '#b91c1c'};">{saldo_r:+d}</div>
-                <div class="kpi-sub {'kpi-sub-green' if saldo_r>=saldo_m else 'kpi-sub-red'}">
-                    {'Meta lograda (+' + str(saldo_m) + ')' if saldo_r>=saldo_m else 'Meta: +' + str(saldo_m) + ' (Falta ' + f'{brecha_s:+d}' + ')'}
-                </div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">🚀 Inicios + Reinicios</div>
-                <div class="kpi-val">{tot_ini_rei}</div>
-                <div class="kpi-sub {'kpi-sub-green' if ini_rei_pct>=100 else 'kpi-sub-orange'}">
-                    {ini_rei_pct:.1f}% Desafío ({ini_rei_m})
-                </div>
-            </div>
-        </div>
-        """.replace(",", "."), unsafe_allow_html=True)
+        st.markdown(f"""<div class="kpi-grid">
+<div class="kpi-card">
+<div class="kpi-title">🎯 Disponibles Proy.</div>
+<div class="kpi-val">{disp_r}</div>
+<div class="kpi-sub {'kpi-sub-green' if disp_pct>=100 else 'kpi-sub-orange'}">{disp_pct:.1f}% Desafío ({disp_m})</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">👥 Activas</div>
+<div class="kpi-val">{act_r}</div>
+<div class="kpi-sub {'kpi-sub-green' if act_pct>=100 else 'kpi-sub-orange'}">{act_pct:.1f}% Desafío ({act_m})</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">💰 Facturación Total</div>
+<div class="kpi-val">${fact_r/1e6:.1f}M</div>
+<div class="kpi-sub {'kpi-sub-green' if fact_pct>=100 else 'kpi-sub-orange'}">{fact_pct:.1f}% Desafío (${fact_m/1e6:.1f}M)</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">💵 Ganancia Estimada</div>
+<div class="kpi-val-gradient">{ganancia_fmt}</div>
+<div class="kpi-sub kpi-sub-blue">Comisión + Potencializador</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">⚖️ Saldo Comercial</div>
+<div class="kpi-val" style="color:{'#15803d' if saldo_r>=saldo_m else '#b91c1c'};">{saldo_r:+d}</div>
+<div class="kpi-sub {'kpi-sub-green' if saldo_r>=saldo_m else 'kpi-sub-red'}">{'Meta lograda (+' + str(saldo_m) + ')' if saldo_r>=saldo_m else 'Meta: +' + str(saldo_m) + ' (Falta ' + f'{brecha_s:+d}' + ')'}</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">🚀 Inicios + Reinicios</div>
+<div class="kpi-val">{tot_ini_rei}</div>
+<div class="kpi-sub {'kpi-sub-green' if ini_rei_pct>=100 else 'kpi-sub-orange'}">{ini_rei_pct:.1f}% Desafío ({ini_rei_m})</div>
+</div>
+</div>""", unsafe_allow_html=True)
 
         # FILA 2: Bolsa de Recuperación de Red (4 Tarjetas Abiertas)
         st.markdown("<p style='font-size:11px; font-weight:800; color:#E3007B; margin:8px 0 4px 2px;'>🌸 Bolsa de Recuperación (Inactivas & Recuperos):</p>", unsafe_allow_html=True)
-        st.markdown(f"""
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-title">🌸 Inactiva 1 (I1)</div>
-                <div class="kpi-val">{i1_val}</div>
-                <div class="kpi-sub kpi-sub-green">1 ciclo sin pedido</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">🌸 Inactiva 2 (I2)</div>
-                <div class="kpi-val">{i2_val}</div>
-                <div class="kpi-sub kpi-sub-orange">2 ciclos sin pedido</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">⚠️ Inactiva 3 (I3)</div>
-                <div class="kpi-val" style="color:#b91c1c;">{i3_val}</div>
-                <div class="kpi-sub kpi-sub-red">¡Riesgo Fuga a I4!</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">🎯 Recuperos Logrados</div>
-                <div class="kpi-val">{recup_r} / {recup_m}</div>
-                <div class="kpi-sub {'kpi-sub-green' if recup_pct>=100 else 'kpi-sub-orange'}">{recup_pct:.1f}% Meta Arte</div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+        st.markdown(f"""<div class="kpi-grid">
+<div class="kpi-card">
+<div class="kpi-title">🌸 Inactiva 1 (I1)</div>
+<div class="kpi-val">{i1_val}</div>
+<div class="kpi-sub kpi-sub-green">1 ciclo sin pedido</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">🌸 Inactiva 2 (I2)</div>
+<div class="kpi-val">{i2_val}</div>
+<div class="kpi-sub kpi-sub-orange">2 ciclos sin pedido</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">⚠️ Inactiva 3 (I3)</div>
+<div class="kpi-val" style="color:#b91c1c;">{i3_val}</div>
+<div class="kpi-sub kpi-sub-red">¡Riesgo Fuga a I4!</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">🎯 Recuperos Logrados</div>
+<div class="kpi-val">{recup_r} / {recup_m}</div>
+<div class="kpi-sub {'kpi-sub-green' if recup_pct>=100 else 'kpi-sub-orange'}">{recup_pct:.1f}% Meta Arte</div>
+</div>
+</div>""", unsafe_allow_html=True)
 
         # Barra de progreso visual de Facturación
         st.caption(f"🎯 **Avance de Facturación:** ({fact_pct:.1f}% del desafío oficial)")
@@ -443,21 +432,20 @@ with tab_tab:
         tot_disp_m = 0
 
     tot_mora_cop = float(df_tab_filtrado['Deuda_Num'].sum()) if 'Deuda_Num' in df_tab_filtrado.columns else 0.0
+    tot_mora_fmt = f"${tot_mora_cop:,.0f}".replace(",", ".")
     
-    st.markdown(f"""
-    <div class="kpi-grid">
-        <div class="kpi-card">
-            <div class="kpi-title">Consultoras</div>
-            <div class="kpi-val">{tot_c}</div>
-            <div class="kpi-sub kpi-sub-blue">🎯 {tot_disp_m} Disponibles</div>
-        </div>
-        <div class="kpi-card">
-            <div class="kpi-title">Deuda Mora</div>
-            <div class="kpi-val" style="color:{'#ef4444' if tot_mora_cop > 0 else '#10b981'};">${tot_mora_cop:,.0f}</div>
-            <div class="kpi-sub {'kpi-sub-red' if tot_mora_cop > 0 else 'kpi-sub-green'}">Filtro Activo</div>
-        </div>
-    </div>
-    """.replace(",", "."), unsafe_allow_html=True)
+    st.markdown(f"""<div class="kpi-grid">
+<div class="kpi-card">
+<div class="kpi-title">Consultoras</div>
+<div class="kpi-val">{tot_c}</div>
+<div class="kpi-sub kpi-sub-blue">🎯 {tot_disp_m} Disponibles</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">Deuda Mora</div>
+<div class="kpi-val" style="color:{'#ef4444' if tot_mora_cop > 0 else '#10b981'};">{tot_mora_fmt}</div>
+<div class="kpi-sub {'kpi-sub-red' if tot_mora_cop > 0 else 'kpi-sub-green'}">Filtro Activo</div>
+</div>
+</div>""", unsafe_allow_html=True)
 
     if df_tab_filtrado.empty:
         st.info("ℹ️ No hay consultoras con los filtros seleccionados.")
@@ -480,6 +468,11 @@ with tab_tab:
             else:
                 color_bg, color_fg = "#fee2e2", "#b91c1c"
 
+            # Formatos de texto
+            mora_fmt = f"${mora:,.0f}".replace(",", ".")
+            cred_html = f'<span style="margin-left:4px; color:#0284c7; font-weight:700;">• Créd: {cred_disp} pts</span>' if cred_disp > 0 else ''
+            mora_html = f'<span style="color:#ef4444; font-weight:700; margin-left:4px;">• Mora: {mora_fmt}</span>' if mora > 0 else ''
+
             # Enlace de WhatsApp
             wa_btn_html = ""
             if m1 and len(m1) == 10:
@@ -487,20 +480,21 @@ with tab_tab:
                 wa_url = f"https://wa.me/57{m1}?text={msg_wa}"
                 wa_btn_html = f'<a href="{wa_url}" target="_blank" class="btn-wa-link">📲 WA</a>'
 
-            st.markdown(f"""
-            <div style="background:#ffffff; border:1px solid #f1f5f9; border-radius:10px; padding:6px 10px; margin-bottom:5px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-                <div style="flex:1; min-width:0; padding-right:6px;">
-                    <div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{nom}</div>
-                    <div style="font-size:10px; color:#64748b; margin-top:2px;">
-                        <span class="badge-pill" style="background:{color_bg}; color:{color_fg};">{sit}</span>
-                        <span style="margin-left:4px;">⭐ {pts} pts</span>
-                        {f'<span style="margin-left:4px; color:#0284c7; font-weight:700;">• Créd: {cred_disp} pts</span>' if cred_disp > 0 else ''}
-                        {f'<span style="color:#ef4444; font-weight:700; margin-left:4px;">• Mora: ${mora:,.0f}</span>' if mora > 0 else ''}
-                    </div>
-                </div>
-                <div>{wa_btn_html}</div>
-            </div>
-            """.replace(",", "."), unsafe_allow_html=True)
+            card_html = (
+                f'<div style="background:#ffffff; border:1px solid #e2e8f0; border-radius:10px; padding:8px 10px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="flex:1; min-width:0; padding-right:6px;">'
+                f'<div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{nom}</div>'
+                f'<div style="font-size:10px; color:#64748b; margin-top:2px;">'
+                f'<span class="badge-pill" style="background:{color_bg}; color:{color_fg};">{sit}</span>'
+                f'<span style="margin-left:4px;">⭐ {pts} pts</span>'
+                f'{cred_html}'
+                f'{mora_html}'
+                f'</div>'
+                f'</div>'
+                f'<div>{wa_btn_html}</div>'
+                f'</div>'
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
             
         if len(df_tab_filtrado) > 60:
             st.caption(f"Mostrando 60 de {len(df_tab_filtrado)} consultoras. Usa el buscador para filtrar.")
@@ -521,21 +515,20 @@ with tab_geral:
     else:
         df_g_pend = df_g_pend.sort_values(by='saldo_num', ascending=False)
         tot_deuda_g = float(df_g_pend['saldo_num'].sum())
+        tot_deuda_g_fmt = f"${tot_deuda_g:,.0f}".replace(",", ".")
         
-        st.markdown(f"""
-        <div class="kpi-grid">
-            <div class="kpi-card">
-                <div class="kpi-title">Casos en Cobro</div>
-                <div class="kpi-val" style="color:#ef4444;">{len(df_g_pend)}</div>
-                <div class="kpi-sub kpi-sub-red">Títulos con saldo</div>
-            </div>
-            <div class="kpi-card">
-                <div class="kpi-title">Total a Cobrar</div>
-                <div class="kpi-val" style="color:#ef4444;">${tot_deuda_g:,.0f}</div>
-                <div class="kpi-sub kpi-sub-red">Cartera activa</div>
-            </div>
-        </div>
-        """.replace(",", "."), unsafe_allow_html=True)
+        st.markdown(f"""<div class="kpi-grid">
+<div class="kpi-card">
+<div class="kpi-title">Casos en Cobro</div>
+<div class="kpi-val" style="color:#ef4444;">{len(df_g_pend)}</div>
+<div class="kpi-sub kpi-sub-red">Títulos con saldo</div>
+</div>
+<div class="kpi-card">
+<div class="kpi-title">Total a Cobrar</div>
+<div class="kpi-val" style="color:#ef4444;">{tot_deuda_g_fmt}</div>
+<div class="kpi-sub kpi-sub-red">Cartera activa</div>
+</div>
+</div>""", unsafe_allow_html=True)
 
         st.caption("📋 **Listado de Cobranza (Nombre • Deuda • Vencimiento & Botón WhatsApp):**")
 
@@ -545,29 +538,31 @@ with tab_geral:
             c_venc = str(row.get('fecha_vencimiento', ''))[:10]
             c_ped = str(row.get('numero_pedido', '')).strip().split('.')[0]
             c_movil1 = str(row.get('telefono_movil', '')).strip()
+            saldo_row_fmt = f"${c_saldo:,.0f}".replace(",", ".")
             
             wa_cobro_html = ""
             if c_movil1 and len(c_movil1) == 10:
                 msg_cobro = urllib.parse.quote(
                     f"Hola {c_nom}, cordial saludo de tu Líder Natura & Avon. "
-                    f"Te recuerdo que tienes un saldo pendiente de ${c_saldo:,.0f} COP (Pedido #{c_ped}) "
+                    f"Te recuerdo que tienes un saldo pendiente de {saldo_row_fmt} COP (Pedido #{c_ped}) "
                     f"con fecha de vencimiento {c_venc}. Por favor confírmanos tu pago para mantener tu crédito al día. ¡Gracias!"
                 )
                 wa_cobro_url = f"https://wa.me/57{c_movil1}?text={msg_cobro}"
                 wa_cobro_html = f'<a href="{wa_cobro_url}" target="_blank" class="btn-wa-link" style="background:#ef4444;">📲 Cobrar</a>'
 
-            st.markdown(f"""
-            <div style="background:#ffffff; border:1px solid #fee2e2; border-radius:10px; padding:8px 10px; margin-bottom:5px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-                <div style="flex:1; min-width:0; padding-right:6px;">
-                    <div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{c_nom}</div>
-                    <div style="font-size:11px; margin-top:2px;">
-                        <span style="color:#b91c1c; font-weight:800;">${c_saldo:,.0f} COP</span>
-                        <span style="color:#64748b; font-size:10px; margin-left:4px;">• Vence: {c_venc}</span>
-                    </div>
-                </div>
-                <div>{wa_cobro_html}</div>
-            </div>
-            """.replace(",", "."), unsafe_allow_html=True)
+            cobro_card_html = (
+                f'<div style="background:#ffffff; border:1px solid #fee2e2; border-radius:10px; padding:8px 10px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">'
+                f'<div style="flex:1; min-width:0; padding-right:6px;">'
+                f'<div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{c_nom}</div>'
+                f'<div style="font-size:11px; margin-top:2px;">'
+                f'<span style="color:#b91c1c; font-weight:800;">{saldo_row_fmt} COP</span>'
+                f'<span style="color:#64748b; font-size:10px; margin-left:4px;">• Vence: {c_venc}</span>'
+                f'</div>'
+                f'</div>'
+                f'<div>{wa_cobro_html}</div>'
+                f'</div>'
+            )
+            st.markdown(cobro_card_html, unsafe_allow_html=True)
 
 st.markdown("---")
 st.markdown("<p style='text-align:center; font-size:10px; color:#94a3b8; margin:0;'>App Matices Móvil • Natura & Avon • Diseñada para Celulares y Tablets</p>", unsafe_allow_html=True)
