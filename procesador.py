@@ -1699,35 +1699,57 @@ def cargar_comentarios_lideres():
 
 def guardar_comentario_lider(codigo_cb, comentario):
     """
-    Guarda o actualiza el comentario de una consultora por su Código CB en el JSON persistente.
+    Guarda o actualiza el comentario de una consultora por su Código CB en el JSON persistente y SQLite.
     """
     comentarios = cargar_comentarios_lideres()
-    codigo_str = str(codigo_cb).strip()
+    codigo_clean = limpiar_codigo_cb_estandar(codigo_cb)
+    if not codigo_clean:
+        return False
     nota_limpia = str(comentario).strip()
-    comentarios[codigo_str] = nota_limpia
+    if nota_limpia:
+        comentarios[codigo_clean] = nota_limpia
+    elif codigo_clean in comentarios:
+        comentarios.pop(codigo_clean, None)
+
     try:
         with open(RUTA_COMENTARIOS, 'w', encoding='utf-8') as f:
             json.dump(comentarios, f, ensure_ascii=False, indent=2)
-        return True
     except Exception as e:
-        print(f"Error al guardar comentario: {e}")
-        return False
+        print(f"Error al guardar comentario JSON: {e}")
+
+    try:
+        conn = obtener_conexion_db()
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE consultoras_tableau SET notas_lider = ? WHERE codigo_cb = ? OR codigo_cb = ? OR codigo_cb = ?",
+            (nota_limpia, codigo_clean, str(codigo_cb).strip(), f"{codigo_clean}.0")
+        )
+        conn.commit()
+        conn.close()
+    except Exception as e_sql:
+        print(f"Error al actualizar SQLite: {e_sql}")
+
+    return True
 
 def guardar_todos_comentarios(dict_comentarios):
     """
     Guarda masivamente un diccionario de comentarios {codigo_cb: comentario}.
     Actualiza de forma directa y liviana tanto 'comentarios_lideres.json' como la base SQLite 'consultoras_tableau'.
     """
+    if not dict_comentarios:
+        return True
     comentarios = cargar_comentarios_lideres()
     dict_limpio = {}
     for cb, nota in dict_comentarios.items():
-        cb_str = str(cb).strip()
+        cb_clean = limpiar_codigo_cb_estandar(cb)
+        if not cb_clean:
+            continue
         nota_str = str(nota).strip()
-        dict_limpio[cb_str] = nota_str
+        dict_limpio[cb_clean] = nota_str
         if nota_str:
-            comentarios[cb_str] = nota_str
-        elif cb_str in comentarios and nota_str == "":
-            comentarios.pop(cb_str, None)
+            comentarios[cb_clean] = nota_str
+        elif cb_clean in comentarios and nota_str == "":
+            comentarios.pop(cb_clean, None)
     
     try:
         with open(RUTA_COMENTARIOS, 'w', encoding='utf-8') as f:
@@ -1738,8 +1760,11 @@ def guardar_todos_comentarios(dict_comentarios):
     try:
         conn = obtener_conexion_db()
         cursor = conn.cursor()
-        for cb, nota_str in dict_limpio.items():
-            cursor.execute("UPDATE consultoras_tableau SET notas_lider = ? WHERE codigo_cb = ?", (nota_str, cb))
+        for cb_clean, nota_str in dict_limpio.items():
+            cursor.execute(
+                "UPDATE consultoras_tableau SET notas_lider = ? WHERE codigo_cb = ? OR codigo_cb = ? OR codigo_cb = ?",
+                (nota_str, cb_clean, str(cb_clean).strip(), f"{cb_clean}.0")
+            )
         conn.commit()
         conn.close()
     except Exception as e_sql:
@@ -4215,6 +4240,19 @@ def consultar_tableau_sql(grupo=None, sector=None):
     
     df = pd.read_sql_query(query, conn, params=params)
     conn.close()
+
+    # Sincronizar dinámicamente con comentarios_lideres.json para asegurar consistencia total
+    if not df.empty and 'Código CB' in df.columns:
+        comentarios = cargar_comentarios_lideres()
+        if comentarios:
+            df['__cb_clean_sync__'] = df['Código CB'].apply(limpiar_codigo_cb_estandar)
+            for idx, row in df.iterrows():
+                cb_clean_val = row['__cb_clean_sync__']
+                if cb_clean_val in comentarios:
+                    nota_guardada = str(comentarios[cb_clean_val]).strip()
+                    if nota_guardada:
+                        df.at[idx, 'Notas / Comentarios Líder'] = nota_guardada
+            df = df.drop(columns=['__cb_clean_sync__'], errors='ignore')
 
     # Añadir alias de columnas para máxima compatibilidad con las pestañas de app.py
     if 'Código CB' in df.columns and 'Codigo CB' not in df.columns:

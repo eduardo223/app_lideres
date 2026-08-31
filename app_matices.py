@@ -20,7 +20,8 @@ from procesador import (
     color_nivel,
     color_situacion,
     color_deuda_mora,
-    guardar_todos_comentarios
+    guardar_todos_comentarios,
+    limpiar_codigo_cb_estandar
 )
 
 # 1. Configuración de página ultra-optimizada para Celulares, Tablets y Pantallas
@@ -543,7 +544,7 @@ with tab_tab:
                     try:
                         row_idx = int(row_idx_str)
                         if row_idx < len(df_edit_view):
-                            codigo_key = str(df_edit_view.iloc[row_idx].get('Código CB', '')).strip()
+                            codigo_key = limpiar_codigo_cb_estandar(df_edit_view.iloc[row_idx].get('Código CB', ''))
                             nueva_nota = str(row_changes["Notas / Comentarios Líder"]).strip()
                             if codigo_key:
                                 dict_autoguardar[codigo_key] = nueva_nota
@@ -560,7 +561,7 @@ with tab_tab:
             if st.button("💾 Guardar Manualmente", type="primary", use_container_width=True, key="mob_save_manual_btn"):
                 dict_guardar = {}
                 for idx, row in edited_df.iterrows():
-                    codigo_key = str(row.get('Código CB', '')).strip()
+                    codigo_key = limpiar_codigo_cb_estandar(row.get('Código CB', ''))
                     nota_val = str(row.get('Notas / Comentarios Líder', '')).strip()
                     if codigo_key:
                         dict_guardar[codigo_key] = nota_val
