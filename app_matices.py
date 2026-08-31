@@ -261,11 +261,46 @@ if df_cv_all is not None and not df_cv_all.empty and grupo_activo:
         df_cv = df_cv_all[df_cv_all[col_g].astype(str).str.split('.').str[0].str.strip() == str(grupo_activo).strip()]
 
 # 6. Pestañas Principales Móviles (3 Pestañas Condensadas en MAYÚSCULAS)
-tab_cv, tab_tab, tab_geral = st.tabs([
+tab_cv, tab_tab, tab_lideres = st.tabs([
     "🎯 MIS DESAFÍOS",
     "📋 MI LISTADO",
-    "💳 COBRANZA HOY"
+    "👑 MIS LÍDERES"
 ])
+
+# Funciones de formato y styler para tablas dinámicas
+def formato_cop(val):
+    try:
+        if pd.isna(val) or val == "" or val is None:
+            return "$0"
+        num = float(limpiar_numero(val, 0.0))
+        return f"${num:,.0f}".replace(",", ".")
+    except Exception:
+        return "$0"
+
+def formato_porcentaje(val):
+    try:
+        if pd.isna(val) or val == "" or val is None:
+            return "0.0%"
+        num = float(str(val).replace('%', '').strip())
+        return f"{num:.1f}%"
+    except Exception:
+        return "0.0%"
+
+def formato_saldo_entero(val):
+    try:
+        if pd.isna(val) or val == "" or val is None:
+            return "+0"
+        num = int(float(limpiar_numero(val, 0)))
+        return f"{num:+d}"
+    except Exception:
+        return "+0"
+
+def aplicar_mapa_styler(styler, func, subset=None):
+    if hasattr(styler, 'map'):
+        return styler.map(func, subset=subset)
+    elif hasattr(styler, 'applymap'):
+        return styler.applymap(func, subset=subset)
+    return styler
 
 # ==============================================================================
 # TAB 1: MIS DESAFÍOS & CÓMO VAMOS (OBJETIVOS ARTE + CÓMO VAMOS)
@@ -274,7 +309,7 @@ with tab_cv:
     st.markdown("##### 🎯 Cuadro de Mando de Desafíos Líder")
     
     if df_cv.empty:
-        st.info(f"ℹ️ **Metas del ciclo para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo de metas se sincronizará automáticamente. Puedes gestionar tu red en **'📋 MI LISTADO'** y tu cartera en **'💳 COBRANZA HOY'**.")
+        st.info(f"ℹ️ **Metas del ciclo para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo de metas se sincronizará automáticamente. Puedes gestionar tu red en **'📋 MI LISTADO'** y consultar el comparativo en **'👑 MIS LÍDERES'**.")
     else:
         row_cv = df_cv.iloc[0]
         
@@ -514,69 +549,578 @@ with tab_tab:
             st.caption(f"Mostrando 60 de {len(df_tab_filtrado)} consultoras. Usa el buscador para filtrar.")
 
 # ==============================================================================
-# TAB 3: CRÉDITO & COBRANZA GERAL (SOLO SI HAY DEUDA DEL DÍA - DIRECTO A WHATSAPP)
+# TAB 3: MIS LÍDERES (TODAS LAS TABLAS Y SEGUIMIENTO COMPARATIVO)
 # ==============================================================================
-with tab_geral:
-    st.markdown("##### 💳 Cartera & Cobranza Prioritaria")
+with tab_lideres:
+    st.markdown("##### 👑 Mis Líderes - Diagnóstico y Comparativo")
     
-    df_g_pend = pd.DataFrame()
-    if not df_geral.empty:
-        df_geral['saldo_num'] = df_geral['saldo_total'].apply(lambda x: limpiar_numero(x, 0.0))
-        df_g_pend = df_geral[df_geral['saldo_num'] > 0].copy()
-        
-    if df_g_pend.empty:
-        st.success("🎉 **¡Excelente!** Tu grupo no tiene deudas en mora pendientes de cobro el día de hoy.")
+    if df_cv_all is None or df_cv_all.empty:
+        st.info("ℹ️ No hay datos de 'Cómo Vamos' disponibles para mostrar las tablas dinámicas de líderes.")
     else:
-        df_g_pend = df_g_pend.sort_values(by='saldo_num', ascending=False)
-        tot_deuda_g = float(df_g_pend['saldo_num'].sum())
-        tot_deuda_g_fmt = f"${tot_deuda_g:,.0f}".replace(",", ".")
-        
-        st.markdown(f"""<div class="kpi-grid">
-<div class="kpi-card">
-<div class="kpi-title">Casos en Cobro</div>
-<div class="kpi-val" style="color:#ef4444;">{len(df_g_pend)}</div>
-<div class="kpi-sub kpi-sub-red">Títulos con saldo</div>
-</div>
-<div class="kpi-card">
-<div class="kpi-title">Total a Cobrar</div>
-<div class="kpi-val" style="color:#ef4444;">{tot_deuda_g_fmt}</div>
-<div class="kpi-sub kpi-sub-red">Cartera activa</div>
-</div>
-</div>""", unsafe_allow_html=True)
+        df_diag = df_cv_all.copy()
+        col_lider = 'Nombre de consultora' if 'Nombre de consultora' in df_diag.columns else (df_diag.columns[0] if len(df_diag.columns) > 0 else '')
 
-        st.caption("📋 **Listado de Cobranza (Nombre • Deuda • Vencimiento & Botón WhatsApp):**")
-
-        for _, row in df_g_pend.iterrows():
-            c_nom = str(row.get('nombre', 'Sin Nombre')).strip()
-            c_saldo = float(row.get('saldo_num', 0.0))
-            c_venc = str(row.get('fecha_vencimiento', ''))[:10]
-            c_ped = str(row.get('numero_pedido', '')).strip().split('.')[0]
-            c_movil1 = str(row.get('telefono_movil', '')).strip()
-            saldo_row_fmt = f"${c_saldo:,.0f}".replace(",", ".")
-            
-            wa_cobro_html = ""
-            if c_movil1 and len(c_movil1) == 10:
-                msg_cobro = urllib.parse.quote(
-                    f"Hola {c_nom}, cordial saludo de tu Líder Natura & Avon. "
-                    f"Te recuerdo que tienes un saldo pendiente de {saldo_row_fmt} COP (Pedido #{c_ped}) "
-                    f"con fecha de vencimiento {c_venc}. Por favor confírmanos tu pago para mantener tu crédito al día. ¡Gracias!"
-                )
-                wa_cobro_url = f"https://wa.me/57{c_movil1}?text={msg_cobro}"
-                wa_cobro_html = f'<a href="{wa_cobro_url}" target="_blank" class="btn-wa-link" style="background:#ef4444;">📲 Cobrar</a>'
-
-            cobro_card_html = (
-                f'<div style="background:#ffffff; border:1px solid #fee2e2; border-radius:10px; padding:8px 10px; margin-bottom:6px; display:flex; align-items:center; justify-content:space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">'
-                f'<div style="flex:1; min-width:0; padding-right:6px;">'
-                f'<div style="font-size:12px; font-weight:700; color:#0f172a; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{c_nom}</div>'
-                f'<div style="font-size:11px; margin-top:2px;">'
-                f'<span style="color:#b91c1c; font-weight:800;">{saldo_row_fmt} COP</span>'
-                f'<span style="color:#64748b; font-size:10px; margin-left:4px;">• Vence: {c_venc}</span>'
-                f'</div>'
-                f'</div>'
-                f'<div>{wa_cobro_html}</div>'
-                f'</div>'
+        # Clasificación: Semillas (Desafío <= 0) vs Líderes (Desafío > 0)
+        col_obj_fact_chk = 'Objetivo Facturación' if 'Objetivo Facturación' in df_diag.columns else None
+        if col_obj_fact_chk:
+            df_diag['Tipo_Red'] = df_diag[col_obj_fact_chk].apply(
+                lambda v: '👑 Líder' if limpiar_numero(v, 0.0) > 0 else '🌱 Semilla'
             )
-            st.markdown(cobro_card_html, unsafe_allow_html=True)
+        else:
+            df_diag['Tipo_Red'] = '👑 Líder'
+
+        count_tot = len(df_diag)
+        count_lideres = int((df_diag['Tipo_Red'] == '👑 Líder').sum())
+        count_semillas = int((df_diag['Tipo_Red'] == '🌱 Semilla').sum())
+
+        filtro_segmento = st.radio(
+            "🎯 **Filtrar por Tipo de Red:**",
+            options=[
+                f"🌟 Todas ({count_tot})",
+                f"👑 Líderes ({count_lideres})",
+                f"🌱 Semillas ({count_semillas})"
+            ],
+            horizontal=True,
+            key="mob_filtro_segmento_red"
+        )
+
+        if "👑 Líderes" in filtro_segmento:
+            df_diag = df_diag[df_diag['Tipo_Red'] == '👑 Líder'].copy()
+        elif "🌱 Semillas" in filtro_segmento:
+            df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 Semilla'].copy()
+
+        # --- 1. TABLA DE FACTURACIÓN Y CUMPLIMIENTO ---
+        st.markdown("---")
+        st.markdown("###### 💰 1. Tabla de Facturación y Cumplimiento")
+        
+        cols_fact_exactas = [
+            col_lider, 'Tipo_Red', 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación',
+            'Avance % Facturación', 'Productividad', 'Falta para el 100%', 'Falta para el 110%', 'Ganancia estimada'
+        ]
+        cols_presentes = [c for c in cols_fact_exactas if c in df_diag.columns]
+        
+        if 'Cumplimiento Facturación' in df_diag.columns:
+            df_fact_sorted = df_diag.sort_values(by='Cumplimiento Facturación', ascending=False)
+        else:
+            df_fact_sorted = df_diag
+            
+        df_fact_view = df_fact_sorted[cols_presentes].copy()
+        
+        nombres_clery = {
+            col_lider: 'LÍDER DE NEGOCIOS',
+            'Tipo_Red': 'TIPO',
+            'Objetivo Facturación': 'DESAFÍO FACTURACIÓN',
+            'Real Facturación': 'FACTURACIÓN A HOY',
+            'Cumplimiento Facturación': 'CUMPLIMIENTO DE FACTURACIÓN',
+            'Avance % Facturación': 'AVANCE %',
+            'Productividad': 'PRODUCTIVIDAD',
+            'Falta para el 100%': 'FALTA PARA EL 100%',
+            'Falta para el 110%': 'CUÁNTO FALTA PARA EL 110%',
+            'Ganancia estimada': 'GANANCIA ESTIMADA TOTAL'
+        }
+        df_fact_view = df_fact_view.rename(columns=nombres_clery)
+        
+        df_fact_formatted = df_fact_view.copy()
+        if 'DESAFÍO FACTURACIÓN' in df_fact_formatted.columns:
+            df_fact_formatted['DESAFÍO FACTURACIÓN'] = df_fact_formatted['DESAFÍO FACTURACIÓN'].apply(formato_cop)
+        if 'FACTURACIÓN A HOY' in df_fact_formatted.columns:
+            df_fact_formatted['FACTURACIÓN A HOY'] = df_fact_formatted['FACTURACIÓN A HOY'].apply(formato_cop)
+        if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_formatted.columns:
+            df_fact_formatted['CUMPLIMIENTO DE FACTURACIÓN'] = df_fact_formatted['CUMPLIMIENTO DE FACTURACIÓN'].apply(formato_porcentaje)
+        if 'AVANCE %' in df_fact_formatted.columns:
+            df_fact_formatted['AVANCE %'] = df_fact_formatted['AVANCE %'].apply(formato_porcentaje)
+        if 'PRODUCTIVIDAD' in df_fact_formatted.columns:
+            df_fact_formatted['PRODUCTIVIDAD'] = df_fact_formatted['PRODUCTIVIDAD'].apply(formato_cop)
+        if 'FALTA PARA EL 100%' in df_fact_formatted.columns:
+            df_fact_formatted['FALTA PARA EL 100%'] = df_fact_formatted['FALTA PARA EL 100%'].apply(formato_cop)
+        if 'CUÁNTO FALTA PARA EL 110%' in df_fact_formatted.columns:
+            df_fact_formatted['CUÁNTO FALTA PARA EL 110%'] = df_fact_formatted['CUÁNTO FALTA PARA EL 110%'].apply(formato_cop)
+        if 'GANANCIA ESTIMADA TOTAL' in df_fact_formatted.columns:
+            df_fact_formatted['GANANCIA ESTIMADA TOTAL'] = df_fact_formatted['GANANCIA ESTIMADA TOTAL'].apply(formato_cop)
+            
+        styler_fact = df_fact_formatted.style
+
+        def _estilo_tipo(val_str):
+            if 'Líder' in str(val_str):
+                return 'background-color: #dbeafe; color: #1e40af; font-weight: bold;'
+            elif 'Semilla' in str(val_str):
+                return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+            return ''
+
+        def _estilo_cump_fact(val_str):
+            try:
+                num = float(str(val_str).replace('%', '').strip())
+                if num >= 100.0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                elif num >= 90.0:
+                    return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_avance_pct_fact(val_str):
+            try:
+                num = float(str(val_str).replace('%', '').strip())
+                if num >= 90.0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                elif num >= 80.0:
+                    return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_falta_dinero(val_str):
+            try:
+                s = str(val_str)
+                if '-' in s or '$0' in s:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_ganancia_total(val_str):
+            try:
+                s = str(val_str)
+                if s and '$0' not in s and '$' in s:
+                    return 'background-color: #e0f2fe; color: #0369a1; font-weight: bold;'
+                return ''
+            except Exception:
+                return ''
+
+        if 'TIPO' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_tipo, subset=['TIPO'])
+        if 'CUMPLIMIENTO DE FACTURACIÓN' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_cump_fact, subset=['CUMPLIMIENTO DE FACTURACIÓN'])
+        if 'AVANCE %' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_avance_pct_fact, subset=['AVANCE %'])
+        if 'FALTA PARA EL 100%' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_falta_dinero, subset=['FALTA PARA EL 100%'])
+        if 'CUÁNTO FALTA PARA EL 110%' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_falta_dinero, subset=['CUÁNTO FALTA PARA EL 110%'])
+        if 'GANANCIA ESTIMADA TOTAL' in df_fact_formatted.columns:
+            styler_fact = aplicar_mapa_styler(styler_fact, _estilo_ganancia_total, subset=['GANANCIA ESTIMADA TOTAL'])
+
+        st.dataframe(styler_fact, use_container_width=True)
+
+        # --- 2. TABLA DE ACTIVAS / PEDIDOS ---
+        st.markdown("---")
+        st.markdown("###### 👥 2. Tabla de Activas / Pedidos")
+        
+        if 'Objetivo Activas' in df_diag.columns and 'Real Activas' in df_diag.columns:
+            obj_a_num = df_diag['Objetivo Activas'].apply(lambda v: limpiar_numero(v, 0.0))
+            real_a_num = df_diag['Real Activas'].apply(lambda v: limpiar_numero(v, 0.0))
+            df_diag['Cumplimiento Activas'] = (real_a_num / obj_a_num.replace(0, pd.NA) * 100.0).fillna(0.0)
+
+        cols_act_exactas = [
+            col_lider, 'Tipo_Red', 'Objetivo Activas', 'Real Activas', 'Cumplimiento Activas',
+            'Saldo', 'Disponibles', 'Inicios', 'Reinicios', 'Recuperos'
+        ]
+        cols_act_presentes = [c for c in cols_act_exactas if c in df_diag.columns]
+        
+        if 'Cumplimiento Activas' in df_diag.columns:
+            df_act_sorted = df_diag.sort_values(by='Cumplimiento Activas', ascending=False)
+        elif 'Real Activas' in df_diag.columns:
+            df_act_sorted = df_diag.sort_values(by='Real Activas', ascending=False)
+        else:
+            df_act_sorted = df_diag
+            
+        df_act_view = df_act_sorted[cols_act_presentes].copy()
+        nombres_clery_act = {
+            col_lider: 'LÍDER DE NEGOCIOS',
+            'Tipo_Red': 'TIPO',
+            'Objetivo Activas': 'ACTIVAS METAS',
+            'Real Activas': 'ACTIVAS HOY (PEDIDOS)',
+            'Cumplimiento Activas': 'CUMPLIMIENTO ACTIVAS',
+            'Saldo': 'SALDO ACTIVAS',
+            'Disponibles': 'DISPONIBLES',
+            'Inicios': 'INICIOS HOY',
+            'Reinicios': 'REINICIOS HOY',
+            'Recuperos': 'RECUPEROS HOY'
+        }
+        df_act_view = df_act_view.rename(columns=nombres_clery_act)
+        
+        df_act_formatted = df_act_view.copy()
+        if 'ACTIVAS METAS' in df_act_formatted.columns:
+            df_act_formatted['ACTIVAS METAS'] = df_act_formatted['ACTIVAS METAS'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'ACTIVAS HOY (PEDIDOS)' in df_act_formatted.columns:
+            df_act_formatted['ACTIVAS HOY (PEDIDOS)'] = df_act_formatted['ACTIVAS HOY (PEDIDOS)'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'CUMPLIMIENTO ACTIVAS' in df_act_formatted.columns:
+            df_act_formatted['CUMPLIMIENTO ACTIVAS'] = df_act_formatted['CUMPLIMIENTO ACTIVAS'].apply(formato_porcentaje)
+        if 'SALDO ACTIVAS' in df_act_formatted.columns:
+            df_act_formatted['SALDO ACTIVAS'] = df_act_formatted['SALDO ACTIVAS'].apply(formato_saldo_entero)
+        if 'DISPONIBLES' in df_act_formatted.columns:
+            df_act_formatted['DISPONIBLES'] = df_act_formatted['DISPONIBLES'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'INICIOS HOY' in df_act_formatted.columns:
+            df_act_formatted['INICIOS HOY'] = df_act_formatted['INICIOS HOY'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'REINICIOS HOY' in df_act_formatted.columns:
+            df_act_formatted['REINICIOS HOY'] = df_act_formatted['REINICIOS HOY'].apply(lambda v: f"{int(limpiar_numero(v))}")
+        if 'RECUPEROS HOY' in df_act_formatted.columns:
+            df_act_formatted['RECUPEROS HOY'] = df_act_formatted['RECUPEROS HOY'].apply(lambda v: f"{int(limpiar_numero(v))}")
+
+        styler_act = df_act_formatted.style
+
+        def _estilo_cump_act(val_str):
+            try:
+                num = float(str(val_str).replace('%', '').strip())
+                if num >= 100.0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                elif num >= 90.0:
+                    return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                else:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_saldo_act(val_str):
+            try:
+                num = float(limpiar_numero(val_str, 0))
+                if num < 0:
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                else:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+            except Exception:
+                return ''
+
+        def _estilo_ingresos_act(val_str):
+            try:
+                num = int(limpiar_numero(val_str, 0))
+                if num > 0:
+                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                return ''
+            except Exception:
+                return ''
+
+        if 'TIPO' in df_act_formatted.columns:
+            styler_act = aplicar_mapa_styler(styler_act, _estilo_tipo, subset=['TIPO'])
+        if 'CUMPLIMIENTO ACTIVAS' in df_act_formatted.columns:
+            styler_act = aplicar_mapa_styler(styler_act, _estilo_cump_act, subset=['CUMPLIMIENTO ACTIVAS'])
+        if 'SALDO ACTIVAS' in df_act_formatted.columns:
+            styler_act = aplicar_mapa_styler(styler_act, _estilo_saldo_act, subset=['SALDO ACTIVAS'])
+        for col_ing_sub in ['INICIOS HOY', 'REINICIOS HOY', 'RECUPEROS HOY']:
+            if col_ing_sub in df_act_formatted.columns:
+                styler_act = aplicar_mapa_styler(styler_act, _estilo_ingresos_act, subset=[col_ing_sub])
+
+        st.dataframe(styler_act, use_container_width=True)
+
+        # --- 3. CUADRO RESUMEN DE DISPONIBLES ---
+        st.markdown("---")
+        st.markdown("###### 📋 3. Cuadro Resumen de Disponibles (Desafío vs. Avance por Día)")
+        dia_corte = st.number_input("📅 Día de Avance (Editable):", min_value=1, max_value=21, value=14, step=1, key="mob_dia_corte_14_key")
+        nombre_col_dia = f"Dia {dia_corte}"
+
+        if col_lider and col_lider in df_diag.columns:
+            df_disp_prep = df_diag.copy()
+            col_grp_diag = next((c for c in df_disp_prep.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'cód. grupo', 'cod grupo', 'grupo'])), None)
+            
+            mapa_grp_disp = mapa_arte.get('por_grupo', {})
+            mapa_nom_disp = mapa_arte.get('por_nombre', {})
+
+            col_disp_actual = 'Disponibles' if 'Disponibles' in df_disp_prep.columns else ('Real Activas' if 'Real Activas' in df_disp_prep.columns else None)
+
+            if col_disp_actual:
+                df_disp_calc = pd.DataFrame()
+                df_disp_calc['LÍDER DE NEGOCIOS'] = df_disp_prep[col_lider].astype(str)
+
+                def _obtener_desafio_disp_row(row):
+                    g = str(row.get(col_grp_diag, '')).strip().split('.')[0] if col_grp_diag else ''
+                    nom = str(row.get(col_lider, '')).strip().lower()
+                    target = mapa_grp_disp.get(g) or mapa_nom_disp.get(nom)
+                    if target:
+                        val = target.get('disponibles_proyectadas', 0) or target.get('disponibles_esperadas', 0)
+                        if val > 0:
+                            return int(val)
+                    if 'Meta Disponibles Esperadas' in row and int(limpiar_numero(row['Meta Disponibles Esperadas'], 0)) > 0:
+                        return int(limpiar_numero(row['Meta Disponibles Esperadas'], 0))
+                    return int(limpiar_numero(row.get(col_disp_actual, 0), 0))
+
+                df_disp_calc['Disponibles Proyectadas'] = df_disp_prep.apply(_obtener_desafio_disp_row, axis=1)
+                df_disp_calc[nombre_col_dia] = df_disp_prep[col_disp_actual].apply(lambda v: int(limpiar_numero(v, 0)))
+                
+                df_disp_calc['% Cump LN'] = df_disp_calc.apply(
+                    lambda r: (r[nombre_col_dia] / r['Disponibles Proyectadas'] * 100.0) if r['Disponibles Proyectadas'] > 0 else 0.0,
+                    axis=1
+                )
+                df_disp_calc['falta'] = df_disp_calc.apply(
+                    lambda r: max(0, r['Disponibles Proyectadas'] - r[nombre_col_dia]),
+                    axis=1
+                )
+
+                df_disp_calc = df_disp_calc.sort_values(by='% Cump LN', ascending=False).reset_index(drop=True)
+
+                tot_desafios = int(df_disp_calc['Disponibles Proyectadas'].sum())
+                tot_dia = int(df_disp_calc[nombre_col_dia].sum())
+                tot_cump = (tot_dia / tot_desafios * 100.0) if tot_desafios > 0 else 0.0
+                tot_falta = max(0, tot_desafios - tot_dia)
+
+                row_total = pd.DataFrame([{
+                    'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                    'Disponibles Proyectadas': tot_desafios,
+                    nombre_col_dia: tot_dia,
+                    '% Cump LN': tot_cump,
+                    'falta': tot_falta
+                }])
+                df_disp_final = pd.concat([df_disp_calc, row_total], ignore_index=True)
+
+                df_disp_formatted = df_disp_final.copy()
+                df_disp_formatted['Disponibles Proyectadas'] = df_disp_formatted['Disponibles Proyectadas'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_disp_formatted[nombre_col_dia] = df_disp_formatted[nombre_col_dia].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_disp_formatted['% Cump LN'] = df_disp_formatted['% Cump LN'].apply(lambda v: f"{v:.1f}%")
+                df_disp_formatted['falta'] = df_disp_formatted['falta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+                def _estilo_cump_val(val_str):
+                    try:
+                        num = float(str(val_str).replace('%', '').strip())
+                        if num >= 95.0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num >= 90.0:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                def _estilo_falta_val(val_str):
+                    try:
+                        num = int(str(val_str).replace('.', '').strip())
+                        if num == 0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num <= 10:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                styler_disp = df_disp_formatted.style
+                if hasattr(styler_disp, 'map'):
+                    styler_disp = styler_disp.map(_estilo_cump_val, subset=['% Cump LN']).map(_estilo_falta_val, subset=['falta'])
+                elif hasattr(styler_disp, 'applymap'):
+                    styler_disp = styler_disp.applymap(_estilo_cump_val, subset=['% Cump LN']).applymap(_estilo_falta_val, subset=['falta'])
+
+                st.dataframe(styler_disp, use_container_width=True)
+
+        # --- 4. CUADRO RESUMEN DE INICIOS + REINICIOS ---
+        st.markdown("---")
+        st.markdown("###### 🚀 4. Cuadro Resumen de Inicios + Reinicios")
+
+        if col_lider and col_lider in df_diag.columns:
+            df_ing_prep = df_diag.copy()
+            col_inicios = 'Inicios' if 'Inicios' in df_ing_prep.columns else None
+            col_reinicios = 'Reinicios' if 'Reinicios' in df_ing_prep.columns else None
+            col_meta_ing = next((c for c in df_ing_prep.columns if any(k in str(c).lower() for k in ['meta inicios + reinicios', 'meta_inicios_reinicios', 'meta inicios', 'meta_inicios', 'inicios + reinicios'])), None)
+
+            df_ing_calc = pd.DataFrame()
+            df_ing_calc['LÍDER DE NEGOCIOS'] = df_ing_prep[col_lider].astype(str)
+
+            val_inicios = df_ing_prep[col_inicios].apply(lambda v: limpiar_numero(v, 0)) if col_inicios else 0
+            val_reinicios = df_ing_prep[col_reinicios].apply(lambda v: limpiar_numero(v, 0)) if col_reinicios else 0
+            df_ing_calc['Hoy'] = (val_inicios + val_reinicios).astype(int)
+
+            if col_meta_ing:
+                df_ing_calc['Meta'] = df_ing_prep[col_meta_ing].apply(lambda v: int(limpiar_numero(v, 0)))
+                df_ing_calc['Meta'] = df_ing_calc.apply(lambda r: r['Meta'] if r['Meta'] > 0 else max(5, int(r['Hoy'] + 3)), axis=1)
+            else:
+                df_ing_calc['Meta'] = df_ing_calc['Hoy'].apply(lambda h: max(5, int(h + 3)))
+
+            df_ing_calc['Avance'] = df_ing_calc.apply(
+                lambda r: (r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0,
+                axis=1
+            )
+            df_ing_calc['para activar!'] = df_ing_calc.apply(
+                lambda r: max(0, r['Meta'] - r['Hoy']),
+                axis=1
+            )
+
+            df_ing_calc = df_ing_calc.sort_values(by='Avance', ascending=False).reset_index(drop=True)
+
+            tot_meta_ing = int(df_ing_calc['Meta'].sum())
+            tot_hoy_ing = int(df_ing_calc['Hoy'].sum())
+            tot_av_ing = (tot_hoy_ing / tot_meta_ing * 100.0) if tot_meta_ing > 0 else 0.0
+            tot_act_ing = max(0, tot_meta_ing - tot_hoy_ing)
+
+            row_total_ing = pd.DataFrame([{
+                'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                'Hoy': tot_hoy_ing,
+                'Meta': tot_meta_ing,
+                'Avance': tot_av_ing,
+                'para activar!': tot_act_ing
+            }])
+            df_ing_final = pd.concat([df_ing_calc, row_total_ing], ignore_index=True)
+
+            df_ing_formatted = df_ing_final[['LÍDER DE NEGOCIOS', 'Hoy', 'Meta', 'Avance', 'para activar!']].copy()
+            df_ing_formatted['Hoy'] = df_ing_formatted['Hoy'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_ing_formatted['Meta'] = df_ing_formatted['Meta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_ing_formatted['Avance'] = df_ing_formatted['Avance'].apply(lambda v: f"{v:.1f}%")
+            df_ing_formatted['para activar!'] = df_ing_formatted['para activar!'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+            def _estilo_avance_magenta(val_str):
+                return 'background-color: #e3007b; color: #ffffff; font-weight: bold;'
+
+            def _estilo_para_activar(val_str):
+                try:
+                    num = int(str(val_str).replace('.', '').strip())
+                    if num <= 3:
+                        return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                    elif num <= 6:
+                        return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                    else:
+                        return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                except Exception:
+                    return ''
+
+            styler_ing = df_ing_formatted.style
+            if hasattr(styler_ing, 'map'):
+                styler_ing = styler_ing.map(_estilo_avance_magenta, subset=['Avance']).map(_estilo_para_activar, subset=['para activar!'])
+            elif hasattr(styler_ing, 'applymap'):
+                styler_ing = styler_ing.applymap(_estilo_avance_magenta, subset=['Avance']).applymap(_estilo_para_activar, subset=['para activar!'])
+
+            st.dataframe(styler_ing, use_container_width=True)
+
+        # --- 5. CUADRO RESUMEN DE RECUPEROS ---
+        st.markdown("---")
+        st.markdown("###### 🎯 5. Cuadro Resumen de Recuperos")
+
+        if col_lider and col_lider in df_diag.columns:
+            df_rec_prep = df_diag.copy()
+            col_recuperos = 'Recuperos' if 'Recuperos' in df_rec_prep.columns else None
+            col_meta_rec = next((c for c in df_rec_prep.columns if any(k in str(c).lower() for k in ['meta recuperos', 'meta_recuperos', 'recuperos_meta'])), None)
+
+            df_rec_calc = pd.DataFrame()
+            df_rec_calc['LÍDER DE NEGOCIOS'] = df_rec_prep[col_lider].astype(str)
+
+            val_rec = df_rec_prep[col_recuperos].apply(lambda v: limpiar_numero(v, 0)) if col_recuperos else 0
+            df_rec_calc['Hoy'] = val_rec.astype(int)
+
+            if col_meta_rec:
+                df_rec_calc['Meta'] = df_rec_prep[col_meta_rec].apply(lambda v: int(limpiar_numero(v, 0)))
+                df_rec_calc['Meta'] = df_rec_calc.apply(lambda r: r['Meta'] if r['Meta'] > 0 else max(4, int(r['Hoy'] + 2)), axis=1)
+            else:
+                df_rec_calc['Meta'] = df_rec_calc['Hoy'].apply(lambda h: max(4, int(h + 2)))
+
+            df_rec_calc['Avance'] = df_rec_calc.apply(
+                lambda r: (r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0,
+                axis=1
+            )
+            df_rec_calc['para activar!'] = df_rec_calc.apply(
+                lambda r: max(0, r['Meta'] - r['Hoy']),
+                axis=1
+            )
+
+            df_rec_calc = df_rec_calc.sort_values(by='Avance', ascending=False).reset_index(drop=True)
+
+            tot_meta_rec = int(df_rec_calc['Meta'].sum())
+            tot_hoy_rec = int(df_rec_calc['Hoy'].sum())
+            tot_av_rec = (tot_hoy_rec / tot_meta_rec * 100.0) if tot_meta_rec > 0 else 0.0
+            tot_act_rec = max(0, tot_meta_rec - tot_hoy_rec)
+
+            row_total_rec = pd.DataFrame([{
+                'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                'Hoy': tot_hoy_rec,
+                'Meta': tot_meta_rec,
+                'Avance': tot_av_rec,
+                'para activar!': tot_act_rec
+            }])
+            df_rec_final = pd.concat([df_rec_calc, row_total_rec], ignore_index=True)
+
+            df_rec_formatted = df_rec_final[['LÍDER DE NEGOCIOS', 'Hoy', 'Meta', 'Avance', 'para activar!']].copy()
+            df_rec_formatted['Hoy'] = df_rec_formatted['Hoy'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_rec_formatted['Meta'] = df_rec_formatted['Meta'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+            df_rec_formatted['Avance'] = df_rec_formatted['Avance'].apply(lambda v: f"{v:.1f}%")
+            df_rec_formatted['para activar!'] = df_rec_formatted['para activar!'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+            styler_rec = df_rec_formatted.style
+            if hasattr(styler_rec, 'map'):
+                styler_rec = styler_rec.map(_estilo_avance_magenta, subset=['Avance']).map(_estilo_para_activar, subset=['para activar!'])
+            elif hasattr(styler_rec, 'applymap'):
+                styler_rec = styler_rec.applymap(_estilo_avance_magenta, subset=['Avance']).applymap(_estilo_para_activar, subset=['para activar!'])
+
+            st.dataframe(styler_rec, use_container_width=True)
+
+        # --- 6. CUADRO RESUMEN DE RETENCIÓN I2 ---
+        st.markdown("---")
+        st.markdown("###### 🔄 6. Cuadro Resumen de Retención I2 (Meta 8% Máx. Fuga I2)")
+
+        if col_lider and col_lider in df_diag.columns:
+            df_i2_prep = df_diag.copy()
+            col_disp_i2 = 'Disponibles' if 'Disponibles' in df_i2_prep.columns else None
+            col_i2 = next((c for c in df_i2_prep.columns if str(c).lower().strip() in ['inactiva 2', 'inactiva_2', 'inactivas 2', 'inactivas_2', 'i2']), None)
+            col_i2_ant = next((c for c in df_i2_prep.columns if 'inactiva 2_anterior' in str(c).lower() or 'inactivas 2_anterior' in str(c).lower()), None)
+
+            if col_disp_i2 and col_i2:
+                df_i2_calc = pd.DataFrame()
+                df_i2_calc['LÍDER DE NEGOCIOS'] = df_i2_prep[col_lider].astype(str)
+
+                val_disp2 = df_i2_prep[col_disp_i2].apply(lambda v: limpiar_numero(v, 0.0))
+                val_i2 = df_i2_prep[col_i2].apply(lambda v: limpiar_numero(v, 0.0))
+
+                df_i2_calc['META RETENCIÓN I2'] = (val_disp2 * 0.08).round().astype(int)
+                df_i2_calc['FALTA I2 ACTIVARSE'] = (val_i2 - df_i2_calc['META RETENCIÓN I2']).round().astype(int)
+                df_i2_calc['% RETENCIÓN META 8%'] = (val_i2 / val_disp2.replace(0, pd.NA) * 100.0).fillna(0.0)
+
+                if col_i2_ant:
+                    val_i2_ant = df_i2_prep[col_i2_ant].apply(lambda v: limpiar_numero(v, 0.0))
+                    df_i2_calc['AVANCE RETENCION I2'] = (val_i2_ant - val_i2).fillna(0).astype(int)
+                else:
+                    df_i2_calc['AVANCE RETENCION I2'] = 0
+
+                df_i2_calc = df_i2_calc.sort_values(by='% RETENCIÓN META 8%', ascending=True).reset_index(drop=True)
+
+                tot_disp_i2 = float(val_disp2.sum())
+                tot_i2 = float(val_i2.sum())
+                tot_meta_i2 = int(df_i2_calc['META RETENCIÓN I2'].sum())
+                tot_falta_i2 = int(df_i2_calc['FALTA I2 ACTIVARSE'].sum())
+                tot_pct_i2 = (tot_i2 / tot_disp_i2 * 100.0) if tot_disp_i2 > 0 else 0.0
+                tot_av_i2 = int(df_i2_calc['AVANCE RETENCION I2'].sum())
+
+                row_tot_i2 = pd.DataFrame([{
+                    'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
+                    'META RETENCIÓN I2': tot_meta_i2,
+                    'FALTA I2 ACTIVARSE': tot_falta_i2,
+                    '% RETENCIÓN META 8%': tot_pct_i2,
+                    'AVANCE RETENCION I2': tot_av_i2
+                }])
+                df_i2_final = pd.concat([df_i2_calc, row_tot_i2], ignore_index=True)
+
+                df_i2_formatted = df_i2_final[['LÍDER DE NEGOCIOS', 'META RETENCIÓN I2', 'FALTA I2 ACTIVARSE', '% RETENCIÓN META 8%', 'AVANCE RETENCION I2']].copy()
+                df_i2_formatted['META RETENCIÓN I2'] = df_i2_formatted['META RETENCIÓN I2'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_i2_formatted['FALTA I2 ACTIVARSE'] = df_i2_formatted['FALTA I2 ACTIVARSE'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+                df_i2_formatted['% RETENCIÓN META 8%'] = df_i2_formatted['% RETENCIÓN META 8%'].apply(lambda v: f"{v:.1f}%")
+                df_i2_formatted['AVANCE RETENCION I2'] = df_i2_formatted['AVANCE RETENCION I2'].apply(lambda v: f"{int(v):,}".replace(",", "."))
+
+                def _estilo_falta_retencion(val_str):
+                    try:
+                        num = int(str(val_str).replace('.', '').strip())
+                        if num <= 0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num <= 5:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                def _estilo_pct_retencion_8(val_str):
+                    try:
+                        num = float(str(val_str).replace('%', '').strip())
+                        if num <= 8.0:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif num <= 10.0:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                styler_i2 = df_i2_formatted.style
+                if hasattr(styler_i2, 'map'):
+                    styler_i2 = styler_i2.map(_estilo_falta_retencion, subset=['FALTA I2 ACTIVARSE']).map(_estilo_pct_retencion_8, subset=['% RETENCIÓN META 8%'])
+                elif hasattr(styler_i2, 'applymap'):
+                    styler_i2 = styler_i2.applymap(_estilo_falta_retencion, subset=['FALTA I2 ACTIVARSE']).applymap(_estilo_pct_retencion_8, subset=['% RETENCIÓN META 8%'])
+
+                st.dataframe(styler_i2, use_container_width=True)
 
 st.markdown("---")
 st.markdown("<p style='text-align:center; font-size:10px; color:#94a3b8; margin:0;'>App Matices Móvil • Natura & Avon • Diseñada para Celulares y Tablets</p>", unsafe_allow_html=True)
