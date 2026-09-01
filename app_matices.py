@@ -21,7 +21,8 @@ from procesador import (
     color_situacion,
     color_deuda_mora,
     guardar_todos_comentarios,
-    limpiar_codigo_cb_estandar
+    limpiar_codigo_cb_estandar,
+    refrescar_perfil_usuario_en_sesion
 )
 
 # Funciones de formato y styler para tablas dinámicas
@@ -66,6 +67,10 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
     """
     if current_user is None:
         current_user = st.session_state.get('user') or {}
+
+    if current_user and current_user.get('username'):
+        current_user = refrescar_perfil_usuario_en_sesion(current_user)
+        st.session_state['user'] = current_user
 
     user_nombre = current_user.get('nombre', 'Líder')
     user_rol = current_user.get('rol', 'lider')

@@ -17,6 +17,49 @@ if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     except Exception:
         pass
 
+# --- GESTIÓN DE ALMACENAMIENTO PERSISTENTE (RAILWAY VOLUMES & LOCAL) ---
+import shutil
+
+DIR_PERSISTENTE = '/app/data' if os.path.isdir('/app/data') else (
+    'data' if os.path.isdir('data') else ('/app/data' if os.path.exists('/app') else 'data')
+)
+
+try:
+    if DIR_PERSISTENTE and not os.path.exists(DIR_PERSISTENTE):
+        os.makedirs(DIR_PERSISTENTE, exist_ok=True)
+except Exception:
+    pass
+
+def ruta_persistente(nombre_archivo: str) -> str:
+    """
+    Retorna la ruta del archivo dentro del volumen persistente.
+    Si el archivo no existe aún en el volumen persistente pero sí en la raíz del proyecto,
+    lo inicializa automáticamente copiándolo al volumen para garantizar persistencia continua.
+    """
+    if not nombre_archivo:
+        return nombre_archivo
+    
+    if DIR_PERSISTENTE and DIR_PERSISTENTE in str(nombre_archivo):
+        return nombre_archivo
+
+    nombre_base = os.path.basename(str(nombre_archivo))
+    if DIR_PERSISTENTE and os.path.isdir(DIR_PERSISTENTE):
+        path_dest = os.path.join(DIR_PERSISTENTE, nombre_base)
+        if not os.path.exists(path_dest):
+            if os.path.exists(nombre_archivo):
+                try:
+                    shutil.copy2(nombre_archivo, path_dest)
+                except Exception:
+                    pass
+            elif os.path.exists(nombre_base):
+                try:
+                    shutil.copy2(nombre_base, path_dest)
+                except Exception:
+                    pass
+        return path_dest
+    return nombre_archivo
+
+
 def safe_print(*args, **kwargs):
     try:
         print(*args, **kwargs)
@@ -253,7 +296,7 @@ def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
 
 # --- MÓDULO DE GESTIÓN DE OBJETIVOS ARTE (DESAFÍOS LNN: INICIOS, REINICIOS, RECUPEROS) ---
 
-RUTA_OBJETIVOS_ARTE_JSON = 'objetivos_arte.json'
+RUTA_OBJETIVOS_ARTE_JSON = ruta_persistente('objetivos_arte.json')
 
 def cargar_objetivos_arte():
     """
@@ -1677,7 +1720,7 @@ def exportar_tabla_pdf(df, titulo="Reporte Ejecutivo - Panel Matices", subtitulo
 
 # --- MÓDULO INFORME TABLEAU MANAGER ("INFORME TABLEAU CAM") ---
 
-RUTA_COMENTARIOS = 'comentarios_lideres.json'
+RUTA_COMENTARIOS = ruta_persistente('comentarios_lideres.json')
 
 def autocorregir_texto_espanol(texto):
     """
@@ -2344,7 +2387,7 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
         return {'exito': False, 'error': f"Error al guardar '{ruta_base}': {e_save}"}
 
 # --- MÓDULO DE AUTENTICACIÓN Y GESTIÓN DE USUARIOS POR ROL ---
-RUTA_USUARIOS = 'usuarios.json'
+RUTA_USUARIOS = ruta_persistente('usuarios.json')
 
 def hashlib_sha256(texto):
     import hashlib
@@ -2352,19 +2395,19 @@ def hashlib_sha256(texto):
 
 def cargar_usuarios():
     """
-    Carga el diccionario de usuarios desde usuarios.json.
-    Si no existe, crea usuarios predeterminados:
-    - gerente (pass: admin123, rol: gerente)
-    - lider8425 (pass: lider123, rol: lider, codigo_grupo: 8425)
-    - lider7841 (pass: lider123, rol: lider, codigo_grupo: 7841)
-    - asesor (pass: asesor123, rol: asesor)
+    Carga el diccionario de usuarios desde el almacenamiento persistente o local.
+    Si no existe, inicializa con los usuarios predeterminados.
     """
-    if os.path.exists(RUTA_USUARIOS):
-        try:
-            with open(RUTA_USUARIOS, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            pass
+    rutas_a_probar = [RUTA_USUARIOS, 'usuarios.json', os.path.join('data', 'usuarios.json')]
+    for r in rutas_a_probar:
+        if r and os.path.exists(r):
+            try:
+                with open(r, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if data and isinstance(data, dict):
+                        return data
+            except Exception:
+                pass
 
     # Usuarios predeterminados si el archivo no existe
     def_pass_super = hashlib_sha256("superadmin123")
@@ -2377,31 +2420,49 @@ def cargar_usuarios():
             "nombre": "Super Administrador del Sistema",
             "password_hash": def_pass_super,
             "rol": "superadmin",
-            "codigo_grupo": None
+            "codigo_grupo": None,
+            "debe_cambiar_password": False,
+            "nombre_sector": "Gestión Corporativa Global"
         },
         "gerente": {
-            "nombre": "Gerencia General",
+            "nombre": "Clery Cuellar",
             "password_hash": def_pass_admin,
             "rol": "gerente",
-            "codigo_grupo": None
+            "codigo_grupo": None,
+            "codigo_sector": "700000459",
+            "nombre_sector": "MATICES CLERY",
+            "estado_suscripcion": "activo",
+            "fecha_vencimiento": None,
+            "debe_cambiar_password": False
         },
         "lider8425": {
             "nombre": "Luz Dary Chacon Gaitan",
             "password_hash": def_pass_lider,
             "rol": "lider",
-            "codigo_grupo": "8425"
+            "codigo_grupo": "8425",
+            "codigo_sector": "700000459",
+            "nombre_sector": "MATICES CLERY",
+            "estado_suscripcion": "activo",
+            "fecha_vencimiento": None,
+            "debe_cambiar_password": False
         },
         "lider7841": {
             "nombre": "Carmenza Roncancio Gachancipa",
             "password_hash": def_pass_lider,
             "rol": "lider",
-            "codigo_grupo": "7841"
+            "codigo_grupo": "7841",
+            "codigo_sector": "700000459",
+            "nombre_sector": "MATICES CLERY",
+            "estado_suscripcion": "activo",
+            "fecha_vencimiento": None,
+            "debe_cambiar_password": False
         },
         "asesor": {
             "nombre": "Usuario Consulta Facturación",
             "password_hash": def_pass_asesor,
             "rol": "asesor",
-            "codigo_grupo": None
+            "codigo_grupo": None,
+            "debe_cambiar_password": False
         }
     }
     guardar_usuarios(usuarios_default)
@@ -2409,53 +2470,85 @@ def cargar_usuarios():
 
 def guardar_usuarios(dict_usuarios):
     """
-    Guarda el diccionario de usuarios en usuarios.json.
+    Guarda el diccionario de usuarios en almacenamiento persistente y sincroniza con el archivo local.
     """
-    try:
-        with open(RUTA_USUARIOS, 'w', encoding='utf-8') as f:
-            json.dump(dict_usuarios, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        print(f"Error al guardar usuarios: {e}")
-        return False
+    exito = False
+    rutas_guardar = set(filter(None, [RUTA_USUARIOS, 'usuarios.json']))
+    if DIR_PERSISTENTE and os.path.isdir(DIR_PERSISTENTE):
+        rutas_guardar.add(os.path.join(DIR_PERSISTENTE, 'usuarios.json'))
+
+    for r in rutas_guardar:
+        try:
+            p_dir = os.path.dirname(r)
+            if p_dir:
+                os.makedirs(p_dir, exist_ok=True)
+            with open(r, 'w', encoding='utf-8') as f:
+                json.dump(dict_usuarios, f, ensure_ascii=False, indent=2)
+            exito = True
+        except Exception as e:
+            safe_print(f"Nota al guardar usuarios en {r}: {e}")
+    return exito
+
+def refrescar_perfil_usuario_en_sesion(user_dict):
+    """
+    Retorna el perfil más fresco del usuario desde el almacenamiento persistente.
+    Útil para actualizar permisos, rol, suscripción y contraseñas en vivo sin desloguear.
+    """
+    if not user_dict or not isinstance(user_dict, dict):
+        return user_dict
+    u_name = str(user_dict.get("username") or "").strip().lower()
+    if not u_name:
+        return user_dict
+    usuarios = cargar_usuarios()
+    if u_name in usuarios:
+        fresco = usuarios[u_name].copy()
+        fresco["username"] = u_name
+        return fresco
+    return user_dict
 
 # --- MÓDULO DE SUSCRIPCIONES, PRUEBAS GRATIS (15 DÍAS) Y CONTROL ANTI-FRAUDE ---
-RUTA_HISTORICO_SECTORES = 'sectores_historico.json'
-RUTA_MARCA_AGUA_TIEMPO = 'marca_agua_sistema.json'
+RUTA_HISTORICO_SECTORES = ruta_persistente('sectores_historico.json')
+RUTA_MARCA_AGUA_TIEMPO = ruta_persistente('marca_agua_sistema.json')
 
 def cargar_historico_sectores():
     """
-    Carga el historial de sectores registrados para el control de pruebas únicas de 15 días.
+    Carga el historial de sectores registrados para el control de pruebas y suscripciones.
     """
-    if os.path.exists(RUTA_HISTORICO_SECTORES):
-        try:
-            with open(RUTA_HISTORICO_SECTORES, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception:
-            pass
+    rutas_a_probar = [RUTA_HISTORICO_SECTORES, 'sectores_historico.json', os.path.join('data', 'sectores_historico.json')]
+    for r in rutas_a_probar:
+        if r and os.path.exists(r):
+            try:
+                with open(r, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    if data and isinstance(data, dict):
+                        return data
+            except Exception:
+                pass
     
     sectores_init = {
         "700000459": {
             "codigo_sector": "700000459",
-            "nombre_sector": "MATICES CLERY",
+            "nombre_sector": "SECTOR MATICES CLERY",
             "primera_prueba_fecha": "2026-01-01T00:00:00",
             "ha_consumido_prueba": True,
             "ha_pagado": True,
             "estado": "activo",
             "fecha_vencimiento": None,
             "correo_gerente": "gerente",
-            "telefono_gerente": "3057939537"
+            "telefono_gerente": "3057939537",
+            "nombre_gerente": "Clery Cuellar"
         },
         "700000466": {
             "codigo_sector": "700000466",
-            "nombre_sector": "DOLLY",
+            "nombre_sector": "EMOCIONES DOLLY",
             "primera_prueba_fecha": "2026-01-01T00:00:00",
             "ha_consumido_prueba": True,
             "ha_pagado": True,
             "estado": "activo",
             "fecha_vencimiento": None,
-            "correo_gerente": "gerente2",
-            "telefono_gerente": ""
+            "correo_gerente": "dolly.parra@natura.net",
+            "telefono_gerente": "3113201145",
+            "nombre_gerente": "Dolly Parra"
         }
     }
     guardar_historico_sectores(sectores_init)
@@ -2463,14 +2556,25 @@ def cargar_historico_sectores():
 
 def guardar_historico_sectores(dict_sectores):
     """
-    Persiste el histórico de sectores en sectores_historico.json.
+    Persiste el histórico de sectores en almacenamiento persistente y archivo local.
     """
-    try:
-        with open(RUTA_HISTORICO_SECTORES, 'w', encoding='utf-8') as f:
-            json.dump(dict_sectores, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        safe_print(f"Error al guardar histórico de sectores: {e}")
+    exito = False
+    rutas_guardar = set(filter(None, [RUTA_HISTORICO_SECTORES, 'sectores_historico.json']))
+    if DIR_PERSISTENTE and os.path.isdir(DIR_PERSISTENTE):
+        rutas_guardar.add(os.path.join(DIR_PERSISTENTE, 'sectores_historico.json'))
+
+    for r in rutas_guardar:
+        try:
+            p_dir = os.path.dirname(r)
+            if p_dir:
+                os.makedirs(p_dir, exist_ok=True)
+            with open(r, 'w', encoding='utf-8') as f:
+                json.dump(dict_sectores, f, ensure_ascii=False, indent=2)
+            exito = True
+        except Exception as e:
+            safe_print(f"Nota al guardar histórico de sectores en {r}: {e}")
+    return exito
+
 def obtener_nombre_sector_usuario(user_info):
     """
     Retorna el nombre del sector del usuario de forma dinámica.
@@ -2504,7 +2608,7 @@ def obtener_nombre_sector_usuario(user_info):
 
 def verificar_estado_suscripcion(user_info_o_sector):
     """
-    Determina si un usuario o sector tiene acceso permitido al sistema.
+    Determina si un usuario o sector tiene acceso permitido al sistema de forma dinámica y tolerante a fallos.
     Retorna un diccionario con:
     - permitido: bool
     - estado: 'superadmin' | 'activo' | 'prueba' | 'vencido' | 'bloqueado'
@@ -2524,6 +2628,14 @@ def verificar_estado_suscripcion(user_info_o_sector):
                 "fecha_vencimiento_str": "Permanente (Super Administrador)",
                 "motivo": "Acceso Total Super Administrador"
             }
+        
+        # Obtener datos frescos del usuario
+        u_name = str(user_info_o_sector.get("username") or "").strip().lower()
+        if u_name:
+            usuarios_frescos = cargar_usuarios()
+            if u_name in usuarios_frescos:
+                user_info_o_sector = usuarios_frescos[u_name]
+
         cod_sector = str(user_info_o_sector.get("codigo_sector") or "").strip()
         user_estado = user_info_o_sector.get("estado_suscripcion")
         user_vence = user_info_o_sector.get("fecha_vencimiento")
@@ -2544,8 +2656,9 @@ def verificar_estado_suscripcion(user_info_o_sector):
     historico = cargar_historico_sectores()
     sec_info = historico.get(cod_sector, {})
     
-    estado = sec_info.get("estado", user_estado or "activo")
-    vence_iso = sec_info.get("fecha_vencimiento", user_vence)
+    estado = sec_info.get("estado") or user_estado or "activo"
+    vence_iso = sec_info.get("fecha_vencimiento") if "fecha_vencimiento" in sec_info else user_vence
+    ha_pagado = sec_info.get("ha_pagado", False)
     
     # 1. Si está bloqueado explícitamente por el Administrador
     if estado == "bloqueado":
@@ -2557,8 +2670,8 @@ def verificar_estado_suscripcion(user_info_o_sector):
             "motivo": "El acceso para este sector ha sido suspendido por el Administrador."
         }
 
-    # 2. Si no tiene fecha de vencimiento (acceso permanente / cliente activo)
-    if not vence_iso:
+    # 2. Si no tiene fecha de vencimiento o es un sector pagado / activo permanente
+    if (not vence_iso) or (estado == "activo" and ha_pagado and not vence_iso):
         return {
             "permitido": True,
             "estado": "activo",
@@ -2569,7 +2682,7 @@ def verificar_estado_suscripcion(user_info_o_sector):
 
     # 3. Evaluar fecha de vencimiento
     try:
-        dt_vence = datetime.fromisoformat(vence_iso)
+        dt_vence = datetime.fromisoformat(str(vence_iso))
         dt_now = datetime.now()
         
         diff = (dt_vence - dt_now).total_seconds()
@@ -2749,13 +2862,15 @@ def auto_aprovisionar_lideres_sector(cod_sector, nombre_sector=""):
         if username not in usuarios:
             usuarios[username] = {
                 "nombre": nom,
-                "password_hash": hashlib_sha256(f"Lider{g}*2026"),
+                "password_hash": hashlib_sha256("lider123"),
                 "rol": "lider",
                 "codigo_grupo": g,
                 "codigo_sector": sec_clean,
                 "nombre_sector": nombre_sector or sec_info.get('nombre_sector', ''),
                 "telefono": "",
-                "debe_cambiar_password": False
+                "debe_cambiar_password": False,
+                "estado_suscripcion": "activo",
+                "fecha_vencimiento": None
             }
             creadas.append({'username': username, 'nombre': nom, 'grupo': g})
             cambios = True
@@ -2768,6 +2883,7 @@ def auto_aprovisionar_lideres_sector(cod_sector, nombre_sector=""):
 
     if cambios:
         guardar_usuarios(usuarios)
+        sincronizar_usuarios_a_sqlite()
 
     return creadas
 
@@ -2828,6 +2944,7 @@ def registrar_nueva_gerente(nombre, correo, password, telefono, cod_sector, nomb
 
     usuarios[u_clean] = nuevo_usuario
     guardar_usuarios(usuarios)
+    sincronizar_usuarios_a_sqlite()
 
     # Actualizar histórico de sectores
     historico[sec_clean] = {
@@ -2874,7 +2991,7 @@ def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es
             "nombre_sector": f"Sector {sec_clean}",
             "primera_prueba_fecha": now.isoformat(),
             "ha_consumido_prueba": True,
-            "ha_pagado": es_pago,
+            "ha_pagado": es_pago or (nuevo_estado == "activo"),
             "estado": nuevo_estado
         }
 
@@ -2897,7 +3014,7 @@ def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es
 
     historico[sec_clean]["estado"] = nuevo_estado
     historico[sec_clean]["fecha_vencimiento"] = vence_iso
-    if es_pago:
+    if es_pago or nuevo_estado == "activo":
         historico[sec_clean]["ha_pagado"] = True
     guardar_historico_sectores(historico)
 
@@ -2909,6 +3026,7 @@ def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es
             cambiados += 1
 
     guardar_usuarios(usuarios)
+    sincronizar_usuarios_a_sqlite()
     return True, f"Sector {sec_clean} actualizado a '{nuevo_estado}'. {cambiados} cuentas asociadas actualizadas."
 
 def obtener_resumen_suscripciones():
@@ -3668,7 +3786,7 @@ def obtener_mapa_lideres():
     return mapa
 
 # --- CONFIGURACIÓN DE PERMISOS GLOBALES DE CARGA ---
-RUTA_CONFIG = 'configuracion.json'
+RUTA_CONFIG = ruta_persistente('configuracion.json')
 
 DEFAULT_PERMISOS_PESTANAS = {
     "tab_tableau": {"nombre": "📊 Informe Tableau Cam", "gerente": True, "lider": True, "asesor": False},
@@ -3725,7 +3843,7 @@ def guardar_configuracion(dict_config):
 # --- MOTOR DE BASE DE DATOS RELACIONAL SQLITE (base_matices.db) ---
 import sqlite3
 
-RUTA_DB_SQLITE = 'base_matices.db'
+RUTA_DB_SQLITE = ruta_persistente('base_matices.db')
 
 def obtener_conexion_db():
     conn = sqlite3.connect(RUTA_DB_SQLITE, timeout=30.0)
@@ -5070,4 +5188,4 @@ if __name__ == "__main__":
         print(f"Tasa Conversión Disponib: {diagnostico['disponibles']['tasa_conversion_pct']:.1f}% ({diagnostico['activas']['real']:.0f} de {diagnostico['disponibles']['total_disponibles']:.0f})")
         print(f"Total Saldo Pendiente   : {diagnostico['saldos']['total_saldo']:.0f} pedidos/cartera ({diagnostico['saldos']['lideres_afectados']} líderes con saldo)")
 
-
+

@@ -2,13 +2,14 @@
   "700000459": {
     "codigo_sector": "700000459",
     "nombre_sector": "SECTOR MATICES CLERY",
-    "primera_prueba_fecha": "2026-08-21T19:22:00.085093",
+    "primera_prueba_fecha": "2026-01-01T00:00:00",
     "ha_consumido_prueba": true,
-    "ha_pagado": false,
-    "estado": "prueba",
-    "fecha_vencimiento": "2026-09-05T19:22:00.085093",
-    "correo_gerente": "test_gerente_temporal@gmail.com",
-    "telefono_gerente": "3001234567"
+    "ha_pagado": true,
+    "estado": "activo",
+    "fecha_vencimiento": null,
+    "correo_gerente": "gerente",
+    "telefono_gerente": "3057939537",
+    "nombre_gerente": "Clery Cuellar"
   },
   "700000466": {
     "codigo_sector": "700000466",

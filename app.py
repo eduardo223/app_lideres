@@ -73,6 +73,7 @@ from procesador import (
     cargar_historico_sectores,
     guardar_historico_sectores,
     verificar_estado_suscripcion,
+    refrescar_perfil_usuario_en_sesion,
     registrar_nueva_gerente,
     actualizar_suscripcion_sector,
     obtener_resumen_suscripciones,
@@ -1377,6 +1378,10 @@ if st.session_state['user'] is None:
 
 # Usuario logueado activo
 current_user = st.session_state.get('user') or {}
+if current_user and current_user.get('username'):
+    current_user = refrescar_perfil_usuario_en_sesion(current_user)
+    st.session_state['user'] = current_user
+
 user_nombre = current_user.get('nombre', 'Usuario')
 user_rol = current_user.get('rol', 'asesor')
 user_grupo = str(current_user.get('codigo_grupo', '')).strip() if current_user.get('codigo_grupo') else ""
