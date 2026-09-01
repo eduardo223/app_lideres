@@ -2509,6 +2509,7 @@ def refrescar_perfil_usuario_en_sesion(user_dict):
 # --- MÓDULO DE SUSCRIPCIONES, PRUEBAS GRATIS (15 DÍAS) Y CONTROL ANTI-FRAUDE ---
 RUTA_HISTORICO_SECTORES = ruta_persistente('sectores_historico.json')
 RUTA_MARCA_AGUA_TIEMPO = ruta_persistente('marca_agua_sistema.json')
+RUTA_AUDITORIA_JSON = ruta_persistente('auditoria_logs.json')
 
 def cargar_historico_sectores():
     """
@@ -4029,11 +4030,36 @@ def inicializar_db_sqlite(conn=None):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_situacion ON cartera_geral (situacion)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_fecha_venc ON cartera_geral (fecha_vencimiento)")
 
+    # 6. Tabla de Auditoría, Logs & Usabilidad
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS auditoria_eventos (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha_hora TEXT,
+        fecha TEXT,
+        hora TEXT,
+        username TEXT,
+        nombre TEXT,
+        rol TEXT,
+        codigo_sector TEXT,
+        nombre_sector TEXT,
+        codigo_grupo TEXT,
+        categoria TEXT,
+        accion TEXT,
+        detalle TEXT,
+        dispositivo TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_fecha ON auditoria_eventos (fecha)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_username ON auditoria_eventos (username)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_sector ON auditoria_eventos (codigo_sector)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_categoria ON auditoria_eventos (categoria)")
+
     conn.commit()
 
     # Sincronización inicial
     sincronizar_usuarios_a_sqlite(conn)
     sincronizar_configuracion_a_sqlite(conn)
+    sincronizar_auditoria_a_sqlite(conn)
 
     if close_at_end:
         conn.close()
@@ -4079,6 +4105,375 @@ def sincronizar_configuracion_a_sqlite(conn=None):
     conn.commit()
     if close_at_end:
         conn.close()
+
+def sincronizar_auditoria_a_sqlite(conn=None):
+    """
+    Sincroniza los eventos desde auditoria_logs.json a la tabla auditoria_eventos en SQLite si la tabla está vacía.
+    """
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db()
+        close_at_end = True
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM auditoria_eventos")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            rutas = [RUTA_AUDITORIA_JSON, 'auditoria_logs.json']
+            logs = []
+            for r in rutas:
+                if r and os.path.exists(r):
+                    try:
+                        with open(r, 'r', encoding='utf-8') as f:
+                            data = json.load(f)
+                            if isinstance(data, list):
+                                logs = data
+                                break
+                    except Exception:
+                        pass
+            if logs:
+                for ev in logs:
+                    cursor.execute("""
+                    INSERT INTO auditoria_eventos (
+                        fecha_hora, fecha, hora, username, nombre, rol,
+                        codigo_sector, nombre_sector, codigo_grupo,
+                        categoria, accion, detalle, dispositivo
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        ev.get("fecha_hora"), ev.get("fecha"), ev.get("hora"),
+                        ev.get("username"), ev.get("nombre"), ev.get("rol"),
+                        ev.get("codigo_sector"), ev.get("nombre_sector"), ev.get("codigo_grupo"),
+                        ev.get("categoria"), ev.get("accion"), ev.get("detalle"), ev.get("dispositivo", "PC")
+                    ))
+                conn.commit()
+    except Exception as e:
+        safe_print(f"Nota al sincronizar auditoria a SQLite: {e}")
+    finally:
+        if close_at_end:
+            conn.close()
+
+def registrar_evento_auditoria(user_info, categoria, accion, detalle="", dispositivo="PC"):
+    """
+    Registra un evento de auditoría y usabilidad en SQLite y archivo persistente redundante.
+    Tolerante a fallos: no bloquea ni detiene el flujo de la aplicación.
+    """
+    from datetime import datetime
+    try:
+        now = datetime.now()
+        fecha_hora = now.isoformat()
+        fecha = now.strftime("%Y-%m-%d")
+        hora = now.strftime("%H:%M:%S")
+
+        username = ""
+        nombre = ""
+        rol = ""
+        cod_sector = ""
+        nom_sector = ""
+        cod_grupo = ""
+
+        if isinstance(user_info, dict):
+            username = str(user_info.get("username") or "").strip()
+            nombre = str(user_info.get("nombre") or username).strip()
+            rol = str(user_info.get("rol") or "").strip()
+            cod_sector = str(user_info.get("codigo_sector") or "").strip()
+            nom_sector = str(user_info.get("nombre_sector") or "").strip()
+            cod_grupo = str(user_info.get("codigo_grupo") or "").strip()
+        elif isinstance(user_info, str):
+            username = user_info.strip()
+            nombre = username
+        
+        if not nom_sector and cod_sector:
+            nom_sector = f"Sector {cod_sector}"
+
+        evento = {
+            "fecha_hora": fecha_hora,
+            "fecha": fecha,
+            "hora": hora,
+            "username": username,
+            "nombre": nombre,
+            "rol": rol,
+            "codigo_sector": cod_sector,
+            "nombre_sector": nom_sector,
+            "codigo_grupo": cod_grupo,
+            "categoria": str(categoria),
+            "accion": str(accion),
+            "detalle": str(detalle),
+            "dispositivo": str(dispositivo)
+        }
+
+        # 1. Guardar en SQLite
+        try:
+            conn = obtener_conexion_db()
+            cursor = conn.cursor()
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS auditoria_eventos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha_hora TEXT,
+                fecha TEXT,
+                hora TEXT,
+                username TEXT,
+                nombre TEXT,
+                rol TEXT,
+                codigo_sector TEXT,
+                nombre_sector TEXT,
+                codigo_grupo TEXT,
+                categoria TEXT,
+                accion TEXT,
+                detalle TEXT,
+                dispositivo TEXT
+            )
+            """)
+            cursor.execute("""
+            INSERT INTO auditoria_eventos (
+                fecha_hora, fecha, hora, username, nombre, rol,
+                codigo_sector, nombre_sector, codigo_grupo,
+                categoria, accion, detalle, dispositivo
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                fecha_hora, fecha, hora, username, nombre, rol,
+                cod_sector, nom_sector, cod_grupo,
+                str(categoria), str(accion), str(detalle), str(dispositivo)
+            ))
+            conn.commit()
+            conn.close()
+        except Exception as e_sql:
+            safe_print(f"Nota SQLite auditoria: {e_sql}")
+
+        # 2. Guardar en JSON persistente redundante
+        try:
+            logs = []
+            rutas = [RUTA_AUDITORIA_JSON, 'auditoria_logs.json']
+            for r in rutas:
+                if r and os.path.exists(r):
+                    try:
+                        with open(r, 'r', encoding='utf-8') as f:
+                            loaded = json.load(f)
+                            if isinstance(loaded, list):
+                                logs = loaded
+                                break
+                    except Exception:
+                        pass
+            
+            logs.append(evento)
+            if len(logs) > 5000:
+                logs = logs[-5000:]
+                
+            rutas_guardar = set(filter(None, [RUTA_AUDITORIA_JSON, 'auditoria_logs.json']))
+            if DIR_PERSISTENTE and os.path.isdir(DIR_PERSISTENTE):
+                rutas_guardar.add(os.path.join(DIR_PERSISTENTE, 'auditoria_logs.json'))
+
+            for r in rutas_guardar:
+                p_dir = os.path.dirname(r)
+                if p_dir:
+                    os.makedirs(p_dir, exist_ok=True)
+                with open(r, 'w', encoding='utf-8') as f:
+                    json.dump(logs, f, ensure_ascii=False, indent=2)
+        except Exception as e_json:
+            safe_print(f"Nota JSON auditoria: {e_json}")
+
+        return True
+    except Exception as e:
+        safe_print(f"Error general en registrar_evento_auditoria: {e}")
+        return False
+
+def consultar_auditoria_df(filtro_fecha_inicio=None, filtro_fecha_fin=None, filtro_usuario=None, filtro_rol=None, filtro_sector=None, filtro_categoria=None, limite=500):
+    """
+    Retorna un DataFrame con los registros de auditoría filtrados.
+    """
+    try:
+        conn = obtener_conexion_db()
+        cursor = conn.cursor()
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS auditoria_eventos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha_hora TEXT,
+            fecha TEXT,
+            hora TEXT,
+            username TEXT,
+            nombre TEXT,
+            rol TEXT,
+            codigo_sector TEXT,
+            nombre_sector TEXT,
+            codigo_grupo TEXT,
+            categoria TEXT,
+            accion TEXT,
+            detalle TEXT,
+            dispositivo TEXT
+        )
+        """)
+        conn.commit()
+
+        query = "SELECT id, fecha_hora, fecha, hora, username, nombre, rol, codigo_sector, nombre_sector, codigo_grupo, categoria, accion, detalle, dispositivo FROM auditoria_eventos WHERE 1=1"
+        params = []
+
+        if filtro_fecha_inicio:
+            query += " AND fecha >= ?"
+            params.append(str(filtro_fecha_inicio))
+        if filtro_fecha_fin:
+            query += " AND fecha <= ?"
+            params.append(str(filtro_fecha_fin))
+        if filtro_usuario and str(filtro_usuario).strip() and str(filtro_usuario).lower() != "todos":
+            query += " AND (username = ? OR nombre LIKE ?)"
+            params.extend([str(filtro_usuario).strip(), f"%{str(filtro_usuario).strip()}%"])
+        if filtro_rol and str(filtro_rol).strip() and str(filtro_rol).lower() != "todos":
+            query += " AND rol = ?"
+            params.append(str(filtro_rol).strip())
+        if filtro_sector and str(filtro_sector).strip() and str(filtro_sector).lower() != "todos":
+            query += " AND (codigo_sector = ? OR nombre_sector LIKE ?)"
+            params.extend([str(filtro_sector).strip(), f"%{str(filtro_sector).strip()}%"])
+        if filtro_categoria and str(filtro_categoria).strip() and str(filtro_categoria).lower() != "todas":
+            query += " AND categoria = ?"
+            params.append(str(filtro_categoria).strip())
+
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(int(limite))
+
+        df = pd.read_sql_query(query, conn, params=params)
+        conn.close()
+        return df
+    except Exception as e:
+        safe_print(f"Error al consultar auditoria SQLite: {e}")
+        try:
+            rutas = [RUTA_AUDITORIA_JSON, 'auditoria_logs.json']
+            for r in rutas:
+                if r and os.path.exists(r):
+                    with open(r, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if isinstance(data, list) and data:
+                            df = pd.DataFrame(data)
+                            if 'id' not in df.columns:
+                                df['id'] = range(1, len(df) + 1)
+                            return df.tail(limite).iloc[::-1].reset_index(drop=True)
+        except Exception:
+            pass
+        return pd.DataFrame()
+
+def obtener_metricas_usabilidad(dias_atras=30):
+    """
+    Calcula métricas agregadas de adopción, usabilidad y actividad para el dashboard.
+    """
+    df = consultar_auditoria_df(limite=5000)
+    if df.empty:
+        return {
+            "total_eventos": 0,
+            "total_logins": 0,
+            "usuarios_activos_hoy": 0,
+            "usuarios_activos_semana": 0,
+            "ranking_usuarios": pd.DataFrame(),
+            "ranking_sectores": pd.DataFrame(),
+            "actividad_por_categoria": pd.DataFrame(),
+            "actividad_diaria": pd.DataFrame(),
+            "uso_dispositivos": pd.DataFrame(),
+            "sectores_alerta": []
+        }
+
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    hoy_str = now.strftime("%Y-%m-%d")
+    hace_7_dias = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+
+    # Asegurar columnas requeridas
+    for col_req in ['id', 'fecha_hora', 'fecha', 'username', 'nombre', 'rol', 'codigo_sector', 'nombre_sector', 'accion', 'categoria', 'dispositivo']:
+        if col_req not in df.columns:
+            df[col_req] = ""
+
+    total_eventos = len(df)
+    df_logins = df[df['accion'].astype(str).str.contains('Inicio de Sesión', case=False, na=False)]
+    total_logins = len(df_logins)
+
+    # Usuarios activos hoy
+    df_hoy = df[df['fecha'] == hoy_str]
+    usuarios_activos_hoy = df_hoy['username'].nunique() if not df_hoy.empty else 0
+
+    # Usuarios activos últimos 7 días
+    df_7d = df[df['fecha'] >= hace_7_dias]
+    usuarios_activos_semana = df_7d['username'].nunique() if not df_7d.empty else 0
+
+    # Ranking de usuarios más activos
+    grp_user = df.groupby(['username', 'nombre', 'rol', 'codigo_sector']).agg(
+        total_acciones=('fecha_hora', 'count'),
+        total_logins=('accion', lambda x: sum('Inicio de Sesión' in str(v) for v in x)),
+        ultimo_acceso=('fecha_hora', 'max')
+    ).reset_index().sort_values(by='total_acciones', ascending=False)
+
+    # Ranking de sectores más activos
+    df_con_sec = df[df['codigo_sector'].astype(str).str.strip().str.len() > 2]
+    if not df_con_sec.empty:
+        grp_sec = df_con_sec.groupby(['codigo_sector', 'nombre_sector']).agg(
+            total_acciones=('fecha_hora', 'count'),
+            usuarios_unicos=('username', 'nunique'),
+            total_logins=('accion', lambda x: sum('Inicio de Sesión' in str(v) for v in x)),
+            ultimo_evento=('fecha_hora', 'max')
+        ).reset_index().sort_values(by='total_acciones', ascending=False)
+    else:
+        grp_sec = pd.DataFrame()
+
+    # Actividad por categoría
+    act_cat = df.groupby('categoria').size().reset_index(name='total').sort_values(by='total', ascending=False)
+
+    # Actividad diaria (últimos 14 días)
+    hace_14_dias = (now - timedelta(days=14)).strftime("%Y-%m-%d")
+    df_14d = df[df['fecha'] >= hace_14_dias]
+    if not df_14d.empty:
+        act_dia = df_14d.groupby('fecha').agg(
+            total_eventos=('fecha_hora', 'count'),
+            logins=('accion', lambda x: sum('Inicio de Sesión' in str(v) for v in x)),
+            usuarios_unicos=('username', 'nunique')
+        ).reset_index().sort_values(by='fecha')
+    else:
+        act_dia = pd.DataFrame()
+
+    # Dispositivos
+    disp = df.groupby('dispositivo').size().reset_index(name='total').sort_values(by='total', ascending=False)
+
+    # Detección de sectores registrados con inactividad (para soporte / alertas)
+    historico = cargar_historico_sectores()
+    sectores_alerta = []
+    for cod_s, info_s in historico.items():
+        nom_s = info_s.get('nombre_sector', f'Sector {cod_s}')
+        correo_g = info_s.get('correo_gerente', '')
+        estado_s = info_s.get('estado', 'prueba')
+        
+        df_sec_ev = df[df['codigo_sector'] == str(cod_s)]
+        if df_sec_ev.empty:
+            sectores_alerta.append({
+                "codigo_sector": cod_s,
+                "nombre_sector": nom_s,
+                "estado": estado_s,
+                "correo_gerente": correo_g,
+                "dias_inactivo": "Sin actividad registrada",
+                "nivel_alerta": "🔴 Alta (Sin ingresos)"
+            })
+        else:
+            ult_fecha_str = str(df_sec_ev['fecha'].max())
+            try:
+                dt_ult = datetime.strptime(ult_fecha_str, "%Y-%m-%d")
+                dias_diff = (now - dt_ult).days
+                if dias_diff >= 3:
+                    sectores_alerta.append({
+                        "codigo_sector": cod_s,
+                        "nombre_sector": nom_s,
+                        "estado": estado_s,
+                        "correo_gerente": correo_g,
+                        "dias_inactivo": f"{dias_diff} días",
+                        "nivel_alerta": "🟡 Media (Inactivo > 3 días)" if dias_diff < 7 else "🔴 Alta (Inactivo >= 7 días)"
+                    })
+            except Exception:
+                pass
+
+    return {
+        "total_eventos": total_eventos,
+        "total_logins": total_logins,
+        "usuarios_activos_hoy": usuarios_activos_hoy,
+        "usuarios_activos_semana": usuarios_activos_semana,
+        "ranking_usuarios": grp_user,
+        "ranking_sectores": grp_sec,
+        "actividad_por_categoria": act_cat,
+        "actividad_diaria": act_dia,
+        "uso_dispositivos": disp,
+        "sectores_alerta": sectores_alerta
+    }
 
 def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=None):
     """

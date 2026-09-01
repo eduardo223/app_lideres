@@ -86,7 +86,10 @@ from procesador import (
     limpiar_nombre_sector_solo,
     obtener_cumpleanos_equipo,
     MESES_ESPANOL,
-    PLANTILLA_CUMPLEANOS_DEFAULT
+    PLANTILLA_CUMPLEANOS_DEFAULT,
+    registrar_evento_auditoria,
+    consultar_auditoria_df,
+    obtener_metricas_usabilidad
 )
 
 # 1. Configuración de la página
@@ -1154,6 +1157,13 @@ if st.session_state['user'] is None:
                         if 'msg_timeout' in st.session_state:
                             del st.session_state['msg_timeout']
                         st.query_params['session'] = generar_token_sesion(user_auth)
+                        registrar_evento_auditoria(
+                            user_auth,
+                            categoria="🔑 Acceso",
+                            accion="Inicio de Sesión",
+                            detalle=f"Ingreso exitoso al portal web ({user_auth.get('rol', '')})",
+                            dispositivo="🖥️ PC / Escritorio"
+                        )
                         st.success(f"¡Bienvenido(a), {user_auth['nombre']}!")
                         st.rerun()
                     else:
@@ -1368,6 +1378,13 @@ if st.session_state['user'] is None:
                         if ok_reg:
                             st.session_state['user'] = u_data
                             st.query_params.clear()
+                            registrar_evento_auditoria(
+                                u_data,
+                                categoria="🎉 Registro",
+                                accion="Registro Nueva Gerente",
+                                detalle=f"Activación prueba 15 días ({reg_sec_nom} - Cód: {reg_sec_cod})",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
                             st.success("✅ " + msg_reg)
                             st.rerun()
                         else:
@@ -1572,6 +1589,13 @@ if puede_subir_archivos:
                         with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
                             rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
                             st.cache_data.clear()
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="🔄 Rotación Ciclo",
+                                accion="Carga Nuevo Ciclo ('Cómo Vamos')",
+                                detalle=f"Ciclo actualizado ({nom_sec or user_sector_nombre})",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
                             st.sidebar.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
                             
                             lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
@@ -1600,6 +1624,13 @@ if puede_subir_archivos:
                         res_oa = procesar_archivo_objetivos_arte(obj_arte_file)
                         if res_oa.get('exito'):
                             st.cache_data.clear()
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="📁 Carga de Datos",
+                                accion="Carga Objetivos Arte",
+                                detalle=f"Metas actualizadas ({res_oa.get('total_mapeados', 0)} líderes mapeadas)",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
                             st.sidebar.success(f"✅ ¡Metas actualizadas con éxito! ({res_oa.get('total_mapeados', 0)} líderes mapeadas)")
                             st.rerun()
                         else:
@@ -2441,6 +2472,14 @@ with tab_tableau:
                                         st.cache_data.clear()
                                         st.session_state['last_processed_tableau'] = file_id
                                         
+                                        registrar_evento_auditoria(
+                                            current_user,
+                                            categoria="📁 Carga de Datos",
+                                            accion="Carga Base Tableau",
+                                            detalle=f"Base de Datos.xlsx sincronizada con éxito ({nom_sec or user_sector_nombre})",
+                                            dispositivo="🖥️ PC / Escritorio"
+                                        )
+
                                         # Actualizar DataFrame de Tableau en vivo para la vista actual
                                         df_tableau = consultar_tableau_sql(
                                             grupo=(user_grupo if user_rol == 'lider' else None),
@@ -2709,6 +2748,13 @@ with tab_tableau:
                 
                 if dict_autoguardar:
                     guardar_todos_comentarios(dict_autoguardar)
+                    registrar_evento_auditoria(
+                        current_user,
+                        categoria="💬 Gestión Comercial",
+                        accion="Guardado de Notas",
+                        detalle=f"Autoguardado de {len(dict_autoguardar)} notas",
+                        dispositivo="🖥️ PC / Escritorio"
+                    )
                     st.toast(f"💾 Guardado: {len(dict_autoguardar)} nota(s) actualizada(s)", icon="✅")
 
             # Barra de control y respaldo manual
@@ -2723,6 +2769,13 @@ with tab_tableau:
                             dict_guardar[codigo_key] = nota_val
                     
                     if guardar_todos_comentarios(dict_guardar):
+                        registrar_evento_auditoria(
+                            current_user,
+                            categoria="💬 Gestión Comercial",
+                            accion="Guardado de Notas",
+                            detalle=f"Guardado manual de {len(dict_guardar)} notas",
+                            dispositivo="🖥️ PC / Escritorio"
+                        )
                         st.success("✅ ¡Todas las notas han sido guardadas exitosamente!")
                         st.rerun()
             with col_save2:
@@ -4989,12 +5042,18 @@ with tab_exportar:
 
 # --- TAB 6: GESTIÓN DE USUARIOS & ROLES (EXCLUSIVO SUPER ADMIN) ---
 with tab_usuarios:
-        st.subheader("🔑 Gestión de Usuarios, Roles & Permisos (Super Admin)")
-        st.markdown("Administra credenciales de acceso, asigna roles (*superadmin, gerente, lider, asesor*), activa o desbloquea suscripciones en 1 clic y controla los periodos de prueba de 15 días.")
+    st.subheader("🔑 Panel Corporativo de Administración Global (Super Admin)")
+    st.markdown("Gestión centralizada de suscripciones, directorio de cuentas, analítica de usabilidad, permisos de pestañas y mantenimiento del sistema.")
 
-        # --- SECCIÓN 1: CONTROL DE SUSCRIPCIONES Y DESBLOQUEO EN 1 CLIC ---
-        st.markdown("---")
-        st.subheader("💳 Control de Suscripciones, Pruebas Gratuitas y Desbloqueos en 1 Clic")
+    sub_tab_sub, sub_tab_users, sub_tab_audit, sub_tab_perm = st.tabs([
+        "💳 Suscripciones & Sectores",
+        "👥 Cuentas & Contraseñas",
+        "📊 Telemetría & Usabilidad",
+        "🎛️ Permisos & Mantenimiento"
+    ])
+
+    with sub_tab_sub:
+        st.markdown("#### 💳 Control de Suscripciones, Pruebas Gratuitas y Desbloqueos en 1 Clic")
         st.caption("Visualiza el estado de cada Sector registrado y desbloquea o activa planes pagados en tiempo real:")
 
         df_res_sub = obtener_resumen_suscripciones()
@@ -5046,6 +5105,13 @@ with tab_usuarios:
                             ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="activo", dias_extension=30, es_pago=True)
                         
                         if ok_s:
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="💳 Suscripción",
+                                accion="Actualización de Suscripción",
+                                detalle=f"Sector {sel_sec_id}: {accion_sub}",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
                             st.success(f"✅ ¡Éxito! {msg_s}")
                             st.rerun()
                         else:
@@ -5060,8 +5126,8 @@ with tab_usuarios:
                     "- El sistema audita y actualiza las cuentas en cascada."
                 )
 
-        st.markdown("---")
-        st.subheader("👥 Gestión de Cuentas, Directorio & Restablecimiento de Claves")
+    with sub_tab_users:
+        st.markdown("#### 👥 Gestión de Cuentas, Directorio & Restablecimiento de Claves")
         col_u1, col_u2 = st.columns([1.2, 1])
 
         with col_u1:
@@ -5110,6 +5176,13 @@ with tab_usuarios:
                     if btn_run_reset_admin:
                         ok_r_a, msg_r_a = restablecer_password_usuario(u_sel_reset, pass_nueva_admin, debe_cambiar=chk_forzar_admin)
                         if ok_r_a:
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="🔑 Seguridad",
+                                accion="Restablecimiento de Contraseña",
+                                detalle=f"Contraseña de {u_sel_reset} actualizada",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
                             st.success(f"✅ ¡Éxito! Contraseña de **{u_sel_reset}** actualizada a: `{pass_nueva_admin}`")
                             st.session_state['ultimo_reseteo_admin'] = {
                                 'usuario': u_sel_reset,
@@ -5130,7 +5203,7 @@ with tab_usuarios:
                         f"🌸 ¡Hola {ult_a['nombre'].split()[0].title() if ult_a['nombre'] else 'Líder'}! Te comparto tus credenciales de acceso al Sistema de Gestión:\n\n"
                         f"👤 *Usuario:* `{ult_a['usuario']}`\n"
                         f"🔑 *Contraseña:* `{ult_a['password']}`\n\n"
-                        f"🌐 *Enlace:* https://app-lideres-production.up.railway.app\n\n"
+                        f"🌐 *Enlace:* https://metaseindicadores.up.railway.app\n\n"
                         f"¡Muchos éxitos! ✨"
                     )
                     st.text_area("Mensaje listo para enviar:", msg_wa_admin, height=120, key="txt_wa_admin_box")
@@ -5155,6 +5228,13 @@ with tab_usuarios:
                             nu_username, nu_nombre, nu_pass, nu_rol, nu_grupo, nu_sector, nombre_sector=nu_nom_sec
                         )
                         if ok_u:
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="👥 Usuarios",
+                                accion="Creación/Edición de Cuenta",
+                                detalle=f"Usuario {nu_username} ({nu_rol}) guardado",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
                             st.success(f"✅ {msg_u}")
                             st.rerun()
                         else:
@@ -5194,6 +5274,13 @@ with tab_usuarios:
                             else:
                                 ok_del, msg_del = eliminar_usuario_perfil(user_a_eliminar, eliminar_sector_asociado=chk_elim_sec)
                                 if ok_del:
+                                    registrar_evento_auditoria(
+                                        current_user,
+                                        categoria="🗑️ Administración",
+                                        accion="Eliminación de Cuenta",
+                                        detalle=f"Usuario {user_a_eliminar} eliminado",
+                                        dispositivo="🖥️ PC / Escritorio"
+                                    )
                                     st.success(f"✅ {msg_del}")
                                     st.rerun()
                                 else:
@@ -5201,8 +5288,109 @@ with tab_usuarios:
                 else:
                     st.info("No hay usuarios adicionales disponibles para eliminar.")
 
+    with sub_tab_audit:
+        st.markdown("#### 📊 Telemetría, Métricas de Usabilidad & Registro de Auditoría")
+        st.caption("Monitorea en tiempo real la actividad de Gerentes y Líderes, mide la adopción del panel, detecta sectores en riesgo de inactividad y consulta el historial completo de eventos.")
+
+        metricas_uso = obtener_metricas_usabilidad(dias_atras=30)
+
+        # 1. Tarjetas KPI de Adopción
+        c_k1, c_k2, c_k3, c_k4 = st.columns(4)
+        with c_k1:
+            st.metric("👥 Usuarios Activos (Hoy)", f"{metricas_uso['usuarios_activos_hoy']}")
+        with c_k2:
+            st.metric("👥 Usuarios Activos (7 Días)", f"{metricas_uso['usuarios_activos_semana']}")
+        with c_k3:
+            st.metric("🔑 Inicios de Sesión Totales", f"{metricas_uso['total_logins']}")
+        with c_k4:
+            st.metric("⚡ Acciones Registradas", f"{metricas_uso['total_eventos']}")
+
         st.markdown("---")
-        st.subheader("🎛️ Control Global de Permisos de Carga de Archivos")
+
+        # 2. Semáforo Comercial / Alertas de Inactividad
+        if metricas_uso.get('sectores_alerta'):
+            st.markdown("##### 🚨 Seguimiento Comercial — Sectores con Inactividad")
+            st.caption("Sectores que no han ingresado recientemente (oportunidad para contactar por WhatsApp y brindar soporte o seguimiento):")
+            df_alerta_s = pd.DataFrame(metricas_uso['sectores_alerta'])
+            st.dataframe(df_alerta_s, use_container_width=True, hide_index=True)
+            st.markdown("---")
+
+        # 3. Rankings de Uso y Adopción
+        col_r_u1, col_r_u2 = st.columns(2)
+        with col_r_u1:
+            st.markdown("##### 🏆 Ranking de Usuarios Más Activos")
+            df_rk_u = metricas_uso.get('ranking_usuarios', pd.DataFrame())
+            if not df_rk_u.empty:
+                st.dataframe(df_rk_u.head(15), use_container_width=True, hide_index=True)
+            else:
+                st.info("Aún no hay suficientes registros de actividad de usuarios.")
+
+        with col_r_u2:
+            st.markdown("##### 🏢 Ranking de Sectores con Mayor Actividad")
+            df_rk_s = metricas_uso.get('ranking_sectores', pd.DataFrame())
+            if not df_rk_s.empty:
+                st.dataframe(df_rk_s.head(15), use_container_width=True, hide_index=True)
+            else:
+                st.info("Aún no hay registros de actividad sectorial.")
+
+        st.markdown("---")
+
+        col_c_u1, col_c_u2 = st.columns(2)
+        with col_c_u1:
+            st.markdown("##### 📌 Acciones por Categoría")
+            df_act_c = metricas_uso.get('actividad_por_categoria', pd.DataFrame())
+            if not df_act_c.empty:
+                st.dataframe(df_act_c, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay categorías registradas.")
+        with col_c_u2:
+            st.markdown("##### 📱 Distribución por Dispositivo")
+            df_disp_u = metricas_uso.get('uso_dispositivos', pd.DataFrame())
+            if not df_disp_u.empty:
+                st.dataframe(df_disp_u, use_container_width=True, hide_index=True)
+            else:
+                st.info("No hay datos de dispositivos.")
+
+        st.markdown("---")
+
+        # 4. Tabla de Logs de Auditoría con Filtros Avanzados
+        st.markdown("##### 📋 Historial Completo de Eventos & Logs")
+        st.caption("Filtra y exporta la bitácora de actividad:")
+
+        col_f_a1, col_f_a2, col_f_a3, col_f_a4 = st.columns(4)
+        with col_f_a1:
+            f_aud_cat = st.selectbox("Categoría:", options=["Todas", "🔑 Acceso", "📁 Carga de Datos", "🔄 Rotación Ciclo", "💬 Gestión Comercial", "💳 Suscripción", "🔑 Seguridad", "🎉 Registro", "👥 Usuarios", "🎛️ Configuración", "🗑️ Administración"], key="aud_sel_cat")
+        with col_f_a2:
+            f_aud_rol = st.selectbox("Rol:", options=["Todos", "gerente", "lider", "superadmin", "asesor"], key="aud_sel_rol")
+        with col_f_a3:
+            f_aud_usr = st.text_input("Buscar Usuario / Nombre:", placeholder="ej. dolly, clery, lider...", key="aud_in_usr")
+        with col_f_a4:
+            f_aud_lim = st.selectbox("Límite de registros:", options=[100, 250, 500, 1000, 5000], index=1, key="aud_sel_lim")
+
+        df_aud_logs = consultar_auditoria_df(
+            filtro_categoria=None if f_aud_cat == "Todas" else f_aud_cat,
+            filtro_rol=None if f_aud_rol == "Todos" else f_aud_rol,
+            filtro_usuario=f_aud_usr if f_aud_usr.strip() else None,
+            limite=f_aud_lim
+        )
+
+        if not df_aud_logs.empty:
+            st.dataframe(df_aud_logs, use_container_width=True, hide_index=True)
+            
+            csv_aud = df_aud_logs.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Descargar Historial de Auditoría (CSV / Excel)",
+                data=csv_aud,
+                file_name=f"Auditoria_Usabilidad_Logs_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+                key="btn_descarga_auditoria_csv"
+            )
+        else:
+            st.info("No se encontraron registros de auditoría que coincidan con los filtros seleccionados.")
+
+    with sub_tab_perm:
+        st.markdown("#### 🎛️ Control Global de Permisos de Carga de Archivos")
         st.markdown("Configura si las Líderes de Negocio pueden subir o actualizar archivos Excel en la plataforma, o si esta función permanece restringida a la Gerencia General.")
         
         config_actual = cargar_configuracion()
@@ -5219,6 +5407,13 @@ with tab_usuarios:
             if nuevo_permiso != estado_permiso:
                 config_actual["permitir_carga_lideres"] = nuevo_permiso
                 guardar_configuracion(config_actual)
+                registrar_evento_auditoria(
+                    current_user,
+                    categoria="🎛️ Configuración",
+                    accion="Permiso Global Carga Líderes",
+                    detalle=f"Permiso cambiado a: {nuevo_permiso}",
+                    dispositivo="🖥️ PC / Escritorio"
+                )
                 st.success("✅ ¡Permisos de carga globales actualizados correctamente!")
                 st.rerun()
         
@@ -5229,13 +5424,12 @@ with tab_usuarios:
                 st.info("🔒 **Modo Protegido (Predeterminado)**: Las Líderes y Asesoras tienen bloqueadas las opciones de subida de archivos.")
 
         st.markdown("---")
-        st.subheader("🧹 Mantenimiento & Limpieza de Base de Datos")
+        st.markdown("#### 🧹 Mantenimiento & Limpieza de Base de Datos")
         st.markdown("Herramientas de administración para eliminar los datos de un grupo en específico o reiniciar la base de datos completa para un nuevo ciclo.")
 
         with st.expander("⚠️ Opciones Avanzadas de Borrado (Líder Específico / Base Completa)", expanded=False):
             col_b1, col_b2 = st.columns(2)
 
-            # Opción 1: Borrado por Líder o Grupo Específico
             with col_b1:
                 st.markdown("##### 👤 1. Borrar Datos de un Grupo / Líder Específico")
                 st.caption("Elimina de SQLite las asesoras, facturación y comentarios de una líder determinada.")
@@ -5250,11 +5444,17 @@ with tab_usuarios:
                     st.warning(f"⚠️ Estás a punto de borrar los datos del **Grupo {grp_a_borrar}**.")
                     if st.button("🗑️ Confirmar y Borrar Datos de este Grupo", type="secondary", key="btn_borrar_grp"):
                         res_del = eliminar_datos_por_grupo_o_usuario(grp_a_borrar, eliminar_cuenta=check_elim_cuenta)
+                        registrar_evento_auditoria(
+                            current_user,
+                            categoria="🗑️ Administración",
+                            accion="Borrado de Grupo",
+                            detalle=f"Grupo {grp_a_borrar} borrado. Registros: {res_del}",
+                            dispositivo="🖥️ PC / Escritorio"
+                        )
                         st.success(f"✅ ¡Datos eliminados para el Grupo {grp_a_borrar}! Registros removidos: {res_del}")
                         st.cache_data.clear()
                         st.rerun()
 
-            # Opción 2: Vaciar Base de Datos Completa
             with col_b2:
                 st.markdown("##### 🚨 2. Vaciar Base de Datos Completa")
                 st.caption("Reinicia todas las tablas SQLite y limpia los archivos Excel locales para iniciar un ciclo nuevo desde cero.")
@@ -5266,6 +5466,13 @@ with tab_usuarios:
                 if confirmacion_seguridad:
                     if st.button("🚨 VACIAR BASE DE DATOS COMPLETA AHORA", type="primary", key="btn_vaciar_db_all"):
                         res_vac = vaciar_base_datos_completa(vaciar_usuarios=check_vaciar_usuarios, eliminar_archivos_excel=check_elim_excel)
+                        registrar_evento_auditoria(
+                            current_user,
+                            categoria="🗑️ Administración",
+                            accion="Vaciado Base de Datos",
+                            detalle="Base de datos completa vaciada para nuevo ciclo",
+                            dispositivo="🖥️ PC / Escritorio"
+                        )
                         st.success(f"✅ ¡Base de datos y archivos vaciados exitosamente! Resumen: {res_vac}")
                         st.cache_data.clear()
                         st.rerun()
@@ -5273,7 +5480,7 @@ with tab_usuarios:
                     st.info("Marca la casilla de confirmación para habilitar el botón de vaciado.")
 
         st.markdown("---")
-        st.subheader("🎛️ Control de Visibilidad y Accesos por Pestaña / Módulo")
+        st.markdown("#### 🎛️ Control de Visibilidad y Accesos por Pestaña / Módulo")
         st.markdown("Configura de manera independiente qué pestañas y módulos son visibles para cada rol (**Gerentes**, **Líderes de Negocio** y **Asesoras**).")
 
         permisos_dict = config_actual.get("permisos_pestanas", DEFAULT_PERMISOS_PESTANAS)
@@ -5316,6 +5523,13 @@ with tab_usuarios:
         if cambio_permisos:
             config_actual["permisos_pestanas"] = permisos_dict
             guardar_configuracion(config_actual)
+            registrar_evento_auditoria(
+                current_user,
+                categoria="🎛️ Configuración",
+                accion="Permisos de Visibilidad",
+                detalle="Actualización de visibilidad de pestañas por rol",
+                dispositivo="🖥️ PC / Escritorio"
+            )
             st.success("✅ ¡Permisos de visibilidad por pestaña actualizados exitosamente!")
             st.rerun()
 
@@ -5375,6 +5589,13 @@ with tab_lideres_gerente:
                 if btn_reset_ger:
                     ok_r_g, msg_r_g = restablecer_password_usuario(u_sel_ger, pass_nueva_ger, debe_cambiar=False)
                     if ok_r_g:
+                        registrar_evento_auditoria(
+                            current_user,
+                            categoria="🔑 Seguridad",
+                            accion="Restablecimiento Clave Líder",
+                            detalle=f"Gerente {user_nombre} restableció clave de {u_sel_ger}",
+                            dispositivo="🖥️ PC / Escritorio"
+                        )
                         st.success(f"✅ ¡Listo! La contraseña de **{u_sel_ger}** ahora es: `{pass_nueva_ger}`")
                         st.session_state['ultimo_reseteo_gerente'] = {
                             'usuario': u_sel_ger,

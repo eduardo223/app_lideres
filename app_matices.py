@@ -22,7 +22,8 @@ from procesador import (
     color_deuda_mora,
     guardar_todos_comentarios,
     limpiar_codigo_cb_estandar,
-    refrescar_perfil_usuario_en_sesion
+    refrescar_perfil_usuario_en_sesion,
+    registrar_evento_auditoria
 )
 
 # Funciones de formato y styler para tablas dinámicas
@@ -519,6 +520,13 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
                 if dict_autoguardar:
                     guardar_todos_comentarios(dict_autoguardar)
+                    registrar_evento_auditoria(
+                        current_user,
+                        categoria="💬 Gestión Comercial",
+                        accion="Guardado de Notas Móvil",
+                        detalle=f"Autoguardado de {len(dict_autoguardar)} notas en móvil",
+                        dispositivo="📱 Móvil / Tablet"
+                    )
                     st.toast(f"💾 Guardado: {len(dict_autoguardar)} nota(s) actualizada(s)", icon="✅")
 
             # Botón de guardado manual
@@ -533,6 +541,13 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                             dict_guardar[codigo_key] = nota_val
 
                     if guardar_todos_comentarios(dict_guardar):
+                        registrar_evento_auditoria(
+                            current_user,
+                            categoria="💬 Gestión Comercial",
+                            accion="Guardado de Notas Móvil",
+                            detalle=f"Guardado manual de {len(dict_guardar)} notas en móvil",
+                            dispositivo="📱 Móvil / Tablet"
+                        )
                         st.success("✅ ¡Todas las notas han sido guardadas exitosamente!")
                         st.rerun()
             with col_s2:
@@ -1153,6 +1168,13 @@ if __name__ == '__main__':
                 if u_auth:
                     st.session_state['user'] = u_auth
                     st.query_params['session'] = generar_token_sesion(u_auth)
+                    registrar_evento_auditoria(
+                        u_auth,
+                        categoria="🔑 Acceso",
+                        accion="Inicio de Sesión",
+                        detalle=f"Ingreso exitoso a la App Móvil ({u_auth.get('rol', '')})",
+                        dispositivo="📱 Móvil / Tablet"
+                    )
                     st.rerun()
                 else:
                     st.error("❌ Usuario o contraseña incorrectos.")
@@ -1174,6 +1196,13 @@ if __name__ == '__main__':
                         current_u['debe_cambiar_password'] = False
                         st.session_state['user'] = current_u
                         st.query_params['session'] = generar_token_sesion(current_u)
+                        registrar_evento_auditoria(
+                            current_u,
+                            categoria="🔑 Seguridad",
+                            accion="Cambio de Contraseña",
+                            detalle="Actualización de contraseña personal en móvil",
+                            dispositivo="📱 Móvil / Tablet"
+                        )
                         st.success("✅ Contraseña actualizada.")
                         st.rerun()
                     else:
