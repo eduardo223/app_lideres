@@ -413,6 +413,42 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     mask_busq = mask_busq | df_tab_filtrado['Código CB'].astype(str).str.contains(busq_nom, case=False, na=False)
                 df_tab_filtrado = df_tab_filtrado[mask_busq]
 
+        # 1. Las 3 ventanitas KPI (Total cadastro, Total disponibles, Deuda Mora Total)
+        tot_cadastro = len(df_tab_filtrado)
+        
+        col_sit_check = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filtrado.columns else ('Situación' if 'Situación' in df_tab_filtrado.columns else None)
+        if col_sit_check and not df_tab_filtrado.empty:
+            s_vals_lower = df_tab_filtrado[col_sit_check].astype(str).str.strip().str.lower()
+            mask_disp = s_vals_lower.apply(
+                lambda s: any(k in s for k in ['activa', 'activas', 'inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) and not any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6'])
+            )
+            tot_disponibles = int(mask_disp.sum())
+        else:
+            tot_disponibles = 0
+
+        tot_mora = df_tab_filtrado['Deuda Mora'].apply(lambda x: limpiar_numero(x, 0.0)).sum() if ('Deuda Mora' in df_tab_filtrado.columns and not df_tab_filtrado.empty) else 0.0
+        if tot_mora >= 1_000_000:
+            mora_str = f"${tot_mora/1e6:.2f}M COP"
+        else:
+            mora_str = f"${tot_mora:,.0f} COP".replace(",", ".")
+
+        st.markdown(f"""
+        <div class="kpi-grid-3" style="margin: 8px 0 14px 0;">
+            <div class="kpi-card" style="background: linear-gradient(135deg, rgba(255, 107, 0, 0.06) 0%, rgba(227, 0, 123, 0.06) 100%); border: 1.5px solid rgba(227, 0, 123, 0.28); border-radius: 16px; padding: 12px 6px; box-shadow: 0 4px 15px rgba(227, 0, 123, 0.08); text-align: center;">
+                <div class="kpi-title" style="font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">👥 Total cadastro</div>
+                <div class="kpi-val" style="font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.2;">{tot_cadastro}</div>
+            </div>
+            <div class="kpi-card" style="background: linear-gradient(135deg, rgba(255, 107, 0, 0.06) 0%, rgba(227, 0, 123, 0.06) 100%); border: 1.5px solid rgba(227, 0, 123, 0.28); border-radius: 16px; padding: 12px 6px; box-shadow: 0 4px 15px rgba(227, 0, 123, 0.08); text-align: center;">
+                <div class="kpi-title" style="font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">🎯 Total disponibles</div>
+                <div class="kpi-val" style="font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.2;">{tot_disponibles}</div>
+            </div>
+            <div class="kpi-card" style="background: linear-gradient(135deg, rgba(255, 107, 0, 0.06) 0%, rgba(227, 0, 123, 0.06) 100%); border: 1.5px solid rgba(227, 0, 123, 0.28); border-radius: 16px; padding: 12px 6px; box-shadow: 0 4px 15px rgba(227, 0, 123, 0.08); text-align: center;">
+                <div class="kpi-title" style="font-size: 11px; font-weight: 700; color: #334155; margin-bottom: 4px; display: flex; align-items: center; justify-content: center; gap: 4px;">⚠️ Deuda Mora Total</div>
+                <div class="kpi-val" style="font-size: 22px; font-weight: 800; background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; line-height: 1.2;">{mora_str}</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
         if df_tab_filtrado.empty:
             st.info("ℹ️ No hay consultoras con los filtros seleccionados.")
         else:
@@ -509,25 +545,25 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             df_diag = df_cv_all.copy()
             col_lider = 'Nombre de consultora' if 'Nombre de consultora' in df_diag.columns else (df_diag.columns[0] if len(df_diag.columns) > 0 else '')
 
-            # Clasificación: Semillas (Desafío <= 0) vs Líderes (Desafío > 0)
+            # Clasificación: Emprendedoras (Desafío <= 0) vs Líderes (Desafío > 0)
             col_obj_fact_chk = 'Objetivo Facturación' if 'Objetivo Facturación' in df_diag.columns else None
             if col_obj_fact_chk:
                 df_diag['Tipo_Red'] = df_diag[col_obj_fact_chk].apply(
-                    lambda v: '👑 Líder' if limpiar_numero(v, 0.0) > 0 else '🌱 Semilla'
+                    lambda v: '👑 Líder' if limpiar_numero(v, 0.0) > 0 else '🌱 Emprendedora'
                 )
             else:
                 df_diag['Tipo_Red'] = '👑 Líder'
 
             count_tot = len(df_diag)
             count_lideres = int((df_diag['Tipo_Red'] == '👑 Líder').sum())
-            count_semillas = int((df_diag['Tipo_Red'] == '🌱 Semilla').sum())
+            count_emprendedoras = int((df_diag['Tipo_Red'] == '🌱 Emprendedora').sum())
 
             filtro_segmento = st.radio(
                 "🎯 **Filtrar por Tipo de Red:**",
                 options=[
                     f"🌟 Todas ({count_tot})",
                     f"👑 Líderes ({count_lideres})",
-                    f"🌱 Semillas ({count_semillas})"
+                    f"🌱 Emprendedoras ({count_emprendedoras})"
                 ],
                 horizontal=True,
                 key="mob_filtro_segmento_red"
@@ -535,8 +571,8 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
             if "👑 Líderes" in filtro_segmento:
                 df_diag = df_diag[df_diag['Tipo_Red'] == '👑 Líder'].copy()
-            elif "🌱 Semillas" in filtro_segmento:
-                df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 Semilla'].copy()
+            elif "🌱 Emprendedoras" in filtro_segmento:
+                df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 Emprendedora'].copy()
 
             # --- 1. TABLA DE FACTURACIÓN Y CUMPLIMIENTO ---
             st.markdown("---")
@@ -592,7 +628,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             def _estilo_tipo(val_str):
                 if 'Líder' in str(val_str):
                     return 'background-color: #dbeafe; color: #1e40af; font-weight: bold;'
-                elif 'Semilla' in str(val_str):
+                elif 'Emprendedora' in str(val_str) or 'Semilla' in str(val_str):
                     return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
                 return ''
 

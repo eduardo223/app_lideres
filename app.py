@@ -256,8 +256,8 @@ st.markdown("""
     /* Móviles (< 640px) */
     @media (max-width: 640px) {
         div[data-testid="stHorizontalBlock"] > div[data-testid="column"] {
-            flex: 1 1 100% !important;
-            min-width: 100% !important;
+            flex: 1 1 calc(50% - 8px) !important;
+            min-width: 140px !important;
         }
     }
 
@@ -3995,18 +3995,18 @@ with tab_diagnostico:
     if df_diag.empty:
         st.info("ℹ️ No hay datos de 'Cómo Vamos' cargados para mostrar las tablas dinámicas de diagnóstico. Sube un archivo desde 'Rotación de Ciclo' para comenzar.")
     else:
-        # Clasificación: Semillas (Desafío <= 0) vs Líderes (Desafío > 0)
+        # Clasificación: Emprendedoras (Desafío <= 0) vs Líderes (Desafío > 0)
         col_obj_fact_chk = 'Objetivo Facturación' if 'Objetivo Facturación' in df_diag.columns else None
         if col_obj_fact_chk:
             df_diag['Tipo_Red'] = df_diag[col_obj_fact_chk].apply(
-                lambda v: '👑 Líder' if limpiar_numero(v, 0.0) > 0 else '🌱 Semilla'
+                lambda v: '👑 Líder' if limpiar_numero(v, 0.0) > 0 else '🌱 Emprendedora'
             )
         else:
             df_diag['Tipo_Red'] = '👑 Líder'
 
         count_tot = len(df_diag)
         count_lideres = int((df_diag['Tipo_Red'] == '👑 Líder').sum())
-        count_semillas = int((df_diag['Tipo_Red'] == '🌱 Semilla').sum())
+        count_emprendedoras = int((df_diag['Tipo_Red'] == '🌱 Emprendedora').sum())
 
         col_f1, col_f2 = st.columns([3.2, 1.8])
         with col_f1:
@@ -4015,18 +4015,18 @@ with tab_diagnostico:
                 options=[
                     f"🌟 Todas ({count_tot})",
                     f"👑 Líderes ({count_lideres})",
-                    f"🌱 Semillas ({count_semillas})"
+                    f"🌱 Emprendedoras ({count_emprendedoras})"
                 ],
                 horizontal=True,
                 key="filtro_segmento_red_diagnostico"
             )
         with col_f2:
-            st.caption("💡 **Criterio de Clasificación:**\n* **👑 Líderes:** Desafío/Meta Facturación > $0\n* **🌱 Semillas:** Desafío/Meta Facturación = $0 o menor")
+            st.caption("💡 **Criterio de Clasificación:**\n* **👑 Líderes:** Desafío/Meta Facturación > $0\n* **🌱 Emprendedoras:** Desafío/Meta Facturación = $0 o menor")
 
         if "👑 Líderes" in filtro_segmento:
             df_diag = df_diag[df_diag['Tipo_Red'] == '👑 Líder'].copy()
-        elif "🌱 Semillas" in filtro_segmento:
-            df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 Semilla'].copy()
+        elif "🌱 Emprendedoras" in filtro_segmento:
+            df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 Emprendedora'].copy()
 
         # --- 1. TABLA DE FACTURACIÓN (Formato exacto Clery Cuellar + Ganancia Estimada Total) ---
         st.markdown("#### 💰 1. Tabla de Facturación y Cumplimiento (Ordenadas de Mayor a Menor Cumplimiento)")
@@ -4082,7 +4082,7 @@ with tab_diagnostico:
         def _estilo_tipo(val_str):
             if 'Líder' in str(val_str):
                 return 'background-color: #dbeafe; color: #1e40af; font-weight: bold;'
-            elif 'Semilla' in str(val_str):
+            elif 'Emprendedora' in str(val_str) or 'Semilla' in str(val_str):
                 return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
             return ''
 
