@@ -681,6 +681,9 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         badge_bg = "rgba(255, 255, 255, 0.18)"
         badge_color = "#FFFFFF"
         badge_border = "1px solid rgba(255, 255, 255, 0.35)"
+        badge_txt = f"🗓️ CUMPLEAÑOS DEL MES • {total_mes} ASESORA{'S' if total_mes > 1 else ''}"
+        icon_main = "🗓️"
+        expanded_default = False
     # Formato unificado del título del expander con todas las opciones y texto de acción
     equipo_info = f" — 🌸 Equipo de {user_nombre}" + (f" (Grupo {user_grupo})" if user_grupo else "")
     if len(hoy_list) > 0:
