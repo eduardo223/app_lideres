@@ -1575,71 +1575,200 @@ st.sidebar.markdown("---")
 app_config = cargar_configuracion()
 puede_subir_archivos = (user_rol in ['gerente', 'superadmin']) or app_config.get('permitir_carga_lideres', False)
 
-# Opciones de subida y administración de archivos
+# -----------------------------------------------------------------------------
+# GESTIÓN Y CARGA DE ARCHIVOS EN LA BARRA LATERAL (ORDEN SOLICITADO)
+# 1. Tableau
+# 2. Rotación de ciclo "Mis líderes"
+# 3. Gera
+# 4. Objetivos Arte
+# -----------------------------------------------------------------------------
 if puede_subir_archivos:
     if user_rol in ['gerente', 'superadmin']:
-        st.sidebar.header("🔄 Rotación de Ciclo (Nuevo)")
-        st.sidebar.caption("Sube el Excel del nuevo ciclo para convertir el ciclo actual en el 'Como vamos anterior' automáticamente.")
-        
-        nuevo_ciclo_file = st.sidebar.file_uploader("Cargar Nuevo Ciclo ('Cómo Vamos')", type=["xlsx"], key="uploader_nuevo_ciclo")
-        if nuevo_ciclo_file is not None:
-            if st.sidebar.button("🚀 Rotar Ciclo y Actualizar Histórico"):
-                try:
-                    valido, sec_enc, nom_sec, msg_val = validar_archivo_como_vamos(nuevo_ciclo_file, user_sector)
-                    if not valido:
-                        st.sidebar.error(msg_val)
-                    else:
-                        with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
-                            rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
-                            st.cache_data.clear()
-                            registrar_evento_auditoria(
-                                current_user,
-                                categoria="🔄 Rotación Ciclo",
-                                accion="Carga Nuevo Ciclo ('Cómo Vamos')",
-                                detalle=f"Ciclo actualizado ({nom_sec or user_sector_nombre})",
-                                dispositivo="🖥️ PC / Escritorio"
-                            )
-                            st.sidebar.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
-                            
-                            lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
-                            if lideres_creadas:
-                                st.session_state['lideres_creadas_log'] = lideres_creadas
-                            st.rerun()
-                except PermissionError as pe:
-                    st.error("⚠️ **Archivo en uso**: El archivo `Base para el como vamos.xlsx` está actualmente abierto en Excel.")
-                    st.info("💡 **Solución**: Por favor, **cierra el archivo en Microsoft Excel** y vuelve a presionar el botón '🚀 Rotar Ciclo y Actualizar Histórico'.")
-                except Exception as ex:
-                    st.error(f"❌ Ocurrió un error al rotar el ciclo: {ex}")
+        st.sidebar.markdown("### 📥 Carga de Archivos")
 
-        st.sidebar.markdown("---")
-        st.sidebar.subheader("🎯 Metas 'Objetivos Arte'")
-        st.sidebar.caption("Sube el archivo `Objetivos Arte.xlsx` (Hoja *Desafíos LNN*) para actualizar las metas de Inicios + Reinicios y Recuperos.")
-        
-        obj_arte_file = st.sidebar.file_uploader(
-            "Cargar 'Objetivos Arte.xlsx'",
-            type=["xlsx", "xls"],
-            key="uploader_objetivos_arte_sidebar"
-        )
-        if obj_arte_file is not None:
-            if st.sidebar.button("⚡ Actualizar Metas de Inicios, Reinicios y Recuperos", type="primary"):
-                try:
-                    with st.spinner("Procesando hoja Desafíos LNN de Objetivos Arte..."):
-                        res_oa = procesar_archivo_objetivos_arte(obj_arte_file)
-                        if res_oa.get('exito'):
+        # 1. TABLEAU
+        with st.sidebar.expander("📊 1. Tableau", expanded=False):
+            st.caption("Carga la Base Maestra (`Base de Datos.xlsx`) o actualiza con `mi_grupo` / `activas`:")
+            tab_sb_tab, tab_sb_mg, tab_sb_act = st.tabs(["📁 Tableau", "🔄 mi_grupo", "⚡ Activas"])
+            
+            with tab_sb_tab:
+                archivo_tableau_sb = st.file_uploader("Cargar `Base de Datos.xlsx`", type=["xlsx"], key="sb_tableau_uploader")
+                if archivo_tableau_sb is not None:
+                    file_id = f"{archivo_tableau_sb.name}_{archivo_tableau_sb.size}"
+                    if st.session_state.get('last_processed_tableau') != file_id:
+                        valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(archivo_tableau_sb, user_sector)
+                        if not valido:
+                            st.error(msg_val)
+                        else:
+                            try:
+                                with open("Base de Datos.xlsx", "wb") as f:
+                                    f.write(archivo_tableau_sb.getbuffer())
+                                ok_sync = sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
+                                if ok_sync:
+                                    st.cache_data.clear()
+                                    st.session_state['last_processed_tableau'] = file_id
+                                    registrar_evento_auditoria(
+                                        current_user,
+                                        categoria="📁 Carga de Datos",
+                                        accion="Carga Base Tableau",
+                                        detalle=f"Base de Datos.xlsx sincronizada con éxito ({nom_sec or user_sector_nombre})",
+                                        dispositivo="🖥️ PC / Escritorio"
+                                    )
+                                    lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
+                                    if lideres_creadas:
+                                        st.session_state['lideres_creadas_log'] = lideres_creadas
+                                    st.success("✅ ¡Base Tableau actualizada exitosamente!")
+                                    st.rerun()
+                                else:
+                                    st.error("⚠️ El archivo no corresponde a la Base Maestra de Tableau.")
+                            except Exception as e_up:
+                                st.error(f"Error: {e_up}")
+
+            with tab_sb_mg:
+                file_mg_sb = st.file_uploader("Cargar `mi_grupo.xls`:", type=["xls", "xlsx"], key="sb_mi_grupo_uploader")
+                if file_mg_sb is not None:
+                    st.caption(f"📄 Listo: **{file_mg_sb.name}**")
+                    if st.button("🚀 Cruzar Estados Ahora", type="primary", use_container_width=True, key="btn_sb_mg_subido"):
+                        res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg_sb)
+                        if res_mg.get('exito'):
                             st.cache_data.clear()
+                            st.session_state['res_mg_log'] = {
+                                'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
+                                'detalles': res_mg.get('detalles', [])
+                            }
+                            st.rerun()
+                        else:
+                            st.error(f"Error: {res_mg.get('error')}")
+                elif os.path.exists("mi_grupo.xls"):
+                    st.caption("🟢 Base `mi_grupo.xls` guardada")
+                    if st.button("🔄 Re-cruzar base guardada", type="secondary", use_container_width=True, key="btn_sb_mg_local"):
+                        res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
+                        if res_mg.get('exito'):
+                            st.cache_data.clear()
+                            st.session_state['res_mg_log'] = {
+                                'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
+                                'detalles': res_mg.get('detalles', [])
+                            }
+                            st.rerun()
+                        else:
+                            st.error(f"Error: {res_mg.get('error')}")
+
+            with tab_sb_act:
+                file_act_sb = st.file_uploader("Cargar archivo `activas`:", type=["xlsx", "xls", "csv"], key="sb_activas_uploader")
+                local_act_path = next((p for p in ["activas.xlsx", "activas.xls", "activas.csv", "Activas.xlsx", "Activas.xls"] if os.path.exists(p)), None)
+                if file_act_sb is not None:
+                    st.caption(f"📄 Listo: **{file_act_sb.name}**")
+                    if st.button("🚀 Cruzar Activas Ahora", type="primary", use_container_width=True, key="btn_sb_act_subido"):
+                        res_act = actualizar_base_desde_activas(file_act_sb)
+                        if res_act.get('exito'):
+                            st.cache_data.clear()
+                            st.session_state['res_act_log'] = {
+                                'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
+                                'detalles': res_act.get('detalles', [])
+                            }
+                            st.rerun()
+                        else:
+                            st.error(f"Error: {res_act.get('error')}")
+                elif local_act_path:
+                    st.caption(f"🟢 Base `{local_act_path}` guardada")
+                    if st.button("🔄 Re-cruzar base guardada", type="secondary", use_container_width=True, key="btn_sb_act_local"):
+                        res_act = actualizar_base_desde_activas(local_act_path)
+                        if res_act.get('exito'):
+                            st.cache_data.clear()
+                            st.session_state['res_act_log'] = {
+                                'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
+                                'detalles': res_act.get('detalles', [])
+                            }
+                            st.rerun()
+                        else:
+                            st.error(f"Error: {res_act.get('error')}")
+
+        # 2. ROTACIÓN DE CICLO "MIS LÍDERES"
+        with st.sidebar.expander("🔄 2. Rotación de Ciclo 'Mis líderes'", expanded=False):
+            st.caption("Sube el Excel del nuevo ciclo ('Cómo Vamos') para actualizar las metas y convertir el actual en histórico.")
+            nuevo_ciclo_file = st.file_uploader("Cargar Nuevo Ciclo ('Cómo Vamos')", type=["xlsx"], key="uploader_nuevo_ciclo")
+            if nuevo_ciclo_file is not None:
+                if st.button("🚀 Rotar Ciclo y Actualizar Histórico", type="primary", use_container_width=True, key="btn_rotar_ciclo_sb"):
+                    try:
+                        valido, sec_enc, nom_sec, msg_val = validar_archivo_como_vamos(nuevo_ciclo_file, user_sector)
+                        if not valido:
+                            st.error(msg_val)
+                        else:
+                            with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
+                                rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
+                                st.cache_data.clear()
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="🔄 Rotación Ciclo",
+                                    accion="Carga Nuevo Ciclo ('Cómo Vamos')",
+                                    detalle=f"Ciclo actualizado ({nom_sec or user_sector_nombre})",
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                st.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
+                                lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
+                                if lideres_creadas:
+                                    st.session_state['lideres_creadas_log'] = lideres_creadas
+                                st.rerun()
+                    except PermissionError:
+                        st.error("⚠️ El archivo está abierto en Excel. Ciérralo y reintenta.")
+                    except Exception as ex:
+                        st.error(f"❌ Error al rotar el ciclo: {ex}")
+
+        # 3. GERA (CRÉDITO & COBRANZA)
+        with st.sidebar.expander("💳 3. Gera", expanded=False):
+            st.caption("Carga el archivo maestro descargado de Geral para actualizar deudas y vencimientos:")
+            with st.popover("💡 ¿Cómo descargarlo en Geral?"):
+                st.markdown(
+                    "1️⃣ Ingresa a **Geral** ➔ **Crédito & Cobranza**\n\n"
+                    "2️⃣ Selecciona **Consultar Deuda**\n\n"
+                    "3️⃣ En **Ciclo de Captación**, selecciona los ciclos a consultar\n\n"
+                    "4️⃣ Haz clic en el botón **Consultar**\n\n"
+                    "5️⃣ Presiona **Exportar Listado** ➔ Selecciona **Excel Inmediata**"
+                )
+            file_geral_sb = st.file_uploader("Cargar Archivo 'Geral.xlsx':", type=["xlsx", "xls"], key="sb_geral_uploader")
+            if file_geral_sb is not None:
+                if st.button("🚀 Sincronizar Base Geral", type="primary", use_container_width=True, key="btn_sb_geral_proc"):
+                    with st.spinner("Sincronizando registros en SQLite..."):
+                        sec_para_validar = user_sector if user_rol == 'gerente' else None
+                        ok_g, num_g, msg_g = sincronizar_excel_geral_a_sqlite(file_geral_sb, sector_esperado=sec_para_validar)
+                        if ok_g:
                             registrar_evento_auditoria(
                                 current_user,
                                 categoria="📁 Carga de Datos",
-                                accion="Carga Objetivos Arte",
-                                detalle=f"Metas actualizadas ({res_oa.get('total_mapeados', 0)} líderes mapeadas)",
+                                accion="Carga Cartera Geral",
+                                detalle=f"Cartera sincronizada ({num_g} títulos)",
                                 dispositivo="🖥️ PC / Escritorio"
                             )
-                            st.sidebar.success(f"✅ ¡Metas actualizadas con éxito! ({res_oa.get('total_mapeados', 0)} líderes mapeadas)")
+                            st.success(f"✅ {msg_g}")
+                            st.cache_data.clear()
                             st.rerun()
                         else:
-                            st.sidebar.error(f"❌ Error al procesar: {res_oa.get('error')}")
-                except Exception as ex_oa:
-                    st.sidebar.error(f"❌ Ocurrió un error: {ex_oa}")
+                            st.error(f"❌ {msg_g}")
+
+        # 4. OBJETIVOS ARTE
+        with st.sidebar.expander("🎯 4. Objetivos Arte", expanded=False):
+            st.caption("Sube `Objetivos Arte.xlsx` (Hoja *Desafíos LNN*) para actualizar metas de Inicios, Reinicios y Recuperos:")
+            obj_arte_file_sb = st.file_uploader("Cargar 'Objetivos Arte.xlsx':", type=["xlsx", "xls"], key="sb_uploader_obj_arte")
+            if obj_arte_file_sb is not None:
+                if st.button("⚡ Actualizar Metas Objetivos Arte", type="primary", use_container_width=True, key="btn_sb_obj_arte_proc"):
+                    try:
+                        with st.spinner("Procesando hoja Desafíos LNN de Objetivos Arte..."):
+                            res_oa = procesar_archivo_objetivos_arte(obj_arte_file_sb)
+                            if res_oa.get('exito'):
+                                st.cache_data.clear()
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="📁 Carga de Datos",
+                                    accion="Carga Objetivos Arte",
+                                    detalle=f"Metas actualizadas ({res_oa.get('total_mapeados', 0)} líderes mapeadas)",
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                st.success(f"✅ ¡Metas actualizadas! ({res_oa.get('total_mapeados', 0)} líderes)")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Error al procesar: {res_oa.get('error')}")
+                    except Exception as ex_oa:
+                        st.error(f"❌ Error: {ex_oa}")
 
         st.sidebar.markdown("---")
 else:
@@ -1737,17 +1866,8 @@ if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_cread
             del st.session_state['lideres_creadas_log']
             st.rerun()
 
-# 3. BARRA LATERAL (Filtros dinámicos)
+# 3. BARRA LATERAL (Filtro Único: Seleccionar Líder / Grupo)
 st.sidebar.header("🔐 Filtros de Control")
-
-# Filtro por Gerencia
-col_gerencia = 'Nombre Gerencia' if 'Nombre Gerencia' in df.columns else (df.columns[0] if len(df.columns) > 0 else '')
-gerencias_disponibles = sorted([str(g) for g in df[col_gerencia].dropna().unique()]) if (col_gerencia and col_gerencia in df.columns) else []
-gerencia_seleccionada = st.sidebar.selectbox(
-    "🏢 Selecciona la Gerencia",
-    options=["Todas"] + gerencias_disponibles,
-    index=0
-)
 
 df_filtrado = df.copy()
 
@@ -1757,23 +1877,7 @@ if user_rol == 'lider' and user_grupo and not df_filtrado.empty:
     col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
     if col_grp_ref and col_grp_ref in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(user_grupo).strip()]
-
-if gerencia_seleccionada != "Todas" and col_gerencia and col_gerencia in df_filtrado.columns:
-    df_filtrado = df_filtrado[df_filtrado[col_gerencia] == gerencia_seleccionada]
-
-# Filtro dinámico por Sector (según la Gerencia seleccionada)
-col_sector = 'Nombre Setor' if 'Nombre Setor' in df_filtrado.columns else ''
-if col_sector and col_sector in df_filtrado.columns:
-    sectores_disponibles = sorted([str(s) for s in df_filtrado[col_sector].dropna().unique()])
-    sector_seleccionado = st.sidebar.selectbox(
-        "📍 Selecciona el Sector",
-        options=["Todos"] + sectores_disponibles,
-        index=0
-    )
-    if sector_seleccionado != "Todos":
-        df_filtrado = df_filtrado[df_filtrado[col_sector] == sector_seleccionado]
-else:
-    sector_seleccionado = "Todos"
+    st.sidebar.info(f"👩‍💼 **Grupo Activo:** `{user_grupo}` — {user_nombre}")
 
 # Filtro Global por Líder / Grupo (Habilitado para Gerencia y SuperAdmin)
 if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
@@ -1798,30 +1902,6 @@ if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
         )
         if lider_seleccionada_sb != "Todas las Líderes":
             df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
-
-# Filtro por Color / Clasificación
-if 'Color' in df_filtrado.columns:
-    colores_disponibles = sorted([str(c) for c in df_filtrado['Color'].dropna().unique()])
-    colores_seleccionados = st.sidebar.multiselect(
-        "🎨 Clasificación / Color",
-        options=colores_disponibles,
-        default=[]
-    )
-    if colores_seleccionados:
-        df_filtrado = df_filtrado[df_filtrado['Color'].astype(str).isin(colores_seleccionados)]
-
-# Buscador de Consultora / Líder
-busqueda = st.sidebar.text_input("🔍 Buscar por Nombre o Código", "")
-if busqueda.strip():
-    col_nombre = 'Nombre de consultora' if 'Nombre de consultora' in df_filtrado.columns else ''
-    col_codigo = 'Código de consultora' if 'Código de consultora' in df_filtrado.columns else ''
-    
-    mask = pd.Series(False, index=df_filtrado.index)
-    if col_nombre and col_nombre in df_filtrado.columns:
-        mask = mask | df_filtrado[col_nombre].astype(str).str.contains(busqueda, case=False, na=False)
-    if col_codigo and col_codigo in df_filtrado.columns:
-        mask = mask | df_filtrado[col_codigo].astype(str).str.contains(busqueda, case=False, na=False)
-    df_filtrado = df_filtrado[mask]
 
 st.sidebar.markdown("---")
 st.sidebar.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
@@ -2452,140 +2532,27 @@ with tab_tableau:
             tot_pago = len(df_tab_filt[df_tab_filt['Ped. Pendientes'] > 0]) if 'Ped. Pendientes' in df_tab_filt.columns else 0
             st.metric("⌛ Aguardando Pago", f"{tot_pago} pers.")
 
-        # 2. Debajo: Opciones de Administración (Actualizar BD)
-        if user_rol in ['gerente', 'superadmin']:
-            with st.expander("⚙️ Opciones de Administración (Actualizar Base Tableau, mi_grupo & Activas)", expanded=False):
-                col_adm1, col_adm2, col_adm3 = st.columns(3)
-                with col_adm1:
-                    st.markdown("###### 📁 1. Base Tableau Completa (`Base de Datos.xlsx`)")
-                    archivo_tableau = st.file_uploader("Selecciona `Base de Datos.xlsx`", type=["xlsx"], key="tableau_uploader")
-                    if archivo_tableau is not None:
-                        file_id = f"{archivo_tableau.name}_{archivo_tableau.size}"
-                        if st.session_state.get('last_processed_tableau') != file_id:
-                            valido, sec_enc, nom_sec, msg_val = validar_sector_archivo(archivo_tableau, user_sector)
-                            if not valido:
-                                st.error(msg_val)
-                            else:
-                                try:
-                                    with open("Base de Datos.xlsx", "wb") as f:
-                                        f.write(archivo_tableau.getbuffer())
-                                    ok_sync = sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
-                                    
-                                    if ok_sync:
-                                        st.cache_data.clear()
-                                        st.session_state['last_processed_tableau'] = file_id
-                                        
-                                        registrar_evento_auditoria(
-                                            current_user,
-                                            categoria="📁 Carga de Datos",
-                                            accion="Carga Base Tableau",
-                                            detalle=f"Base de Datos.xlsx sincronizada con éxito ({nom_sec or user_sector_nombre})",
-                                            dispositivo="🖥️ PC / Escritorio"
-                                        )
+        # Notificaciones de actualización de Tableau / mi_grupo / Activas (ejecutadas desde la barra lateral)
 
-                                        # Actualizar DataFrame de Tableau en vivo para la vista actual
-                                        df_tableau = consultar_tableau_sql(
-                                            grupo=(user_grupo if user_rol == 'lider' else None),
-                                            sector=(user_sector if user_rol == 'gerente' else None)
-                                        )
-                                        
-                                        lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
-                                        if lideres_creadas:
-                                            st.session_state['lideres_creadas_log'] = lideres_creadas
-                                        st.success("✅ ¡Base de Datos.xlsx actualizada y convertida a SQL exitosamente!")
-                                        st.rerun()
-                                    else:
-                                        st.error("⚠️ El archivo subido no corresponde a la Base Maestra de Tableau ('Base de Datos.xlsx'). Si deseas actualizar las metas de ciclo, súbelo en la barra lateral izquierda en '🔄 Rotación de Ciclo (Nuevo)'.")
-                                except Exception as e_up:
-                                    st.error(f"Error al actualizar la base: {e_up}")
-                        else:
-                            st.success("✅ ¡Base de datos activa y cargada exitosamente!")
+        if st.session_state.get('res_mg_log'):
+            log_mg = st.session_state['res_mg_log']
+            st.success(log_mg['msg'])
+            if log_mg.get('detalles'):
+                with st.expander("📋 Ver detalle de Consultoras Actualizadas con mi_grupo", expanded=True):
+                    st.dataframe(pd.DataFrame(log_mg['detalles']), use_container_width=True)
+            if st.button("Cerrar notificación (mi_grupo)", key="btn_close_mg_log"):
+                del st.session_state['res_mg_log']
+                st.rerun()
 
-                with col_adm2:
-                    st.markdown("###### 🔄 2. Opción A: Cargar `mi_grupo`")
-                    st.caption("Actualiza la Situación Comercial de cada consultora vinculando por Código CB.")
-                    file_mg = st.file_uploader("Selecciona `mi_grupo.xls`:", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
-                    
-                    if file_mg is not None:
-                        st.caption(f"📄 Archivo cargado: **{file_mg.name}** ({file_mg.size / 1024:.1f} KB)")
-                        if st.button("🚀 Cruzar y Actualizar Estados Ahora", type="primary", use_container_width=True, key="btn_mg_subido"):
-                            res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
-                            if res_mg.get('exito'):
-                                st.cache_data.clear()
-                                st.session_state['res_mg_log'] = {
-                                    'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
-                                    'detalles': res_mg.get('detalles', [])
-                                }
-                                st.rerun()
-                            else:
-                                st.error(f"Error: {res_mg.get('error')}")
-                    elif os.path.exists("mi_grupo.xls"):
-                        st.info("🟢 Base `mi_grupo.xls` guardada en el sistema")
-                        if st.button("🔄 Re-cruzar base guardada", type="secondary", use_container_width=True, key="btn_mg_local"):
-                            res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
-                            if res_mg.get('exito'):
-                                st.cache_data.clear()
-                                st.session_state['res_mg_log'] = {
-                                    'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
-                                    'detalles': res_mg.get('detalles', [])
-                                }
-                                st.rerun()
-                            else:
-                                st.error(f"Error: {res_mg.get('error')}")
-
-                with col_adm3:
-                    st.markdown("###### ⚡ 3. Opción B: Cargar `activas`")
-                    st.caption("Actualiza estados a 'Activa', pedidos, facturación y puntos vinculando por Código CB.")
-                    file_act = st.file_uploader("Selecciona archivo `activas`:", type=["xlsx", "xls", "csv"], key="activas_uploader_tab")
-                    
-                    local_act_path = next((p for p in ["activas.xlsx", "activas.xls", "activas.csv", "Activas.xlsx", "Activas.xls"] if os.path.exists(p)), None)
-                    
-                    if file_act is not None:
-                        st.caption(f"📄 Archivo cargado: **{file_act.name}** ({file_act.size / 1024:.1f} KB)")
-                        if st.button("🚀 Cruzar y Actualizar Activas Ahora", type="primary", use_container_width=True, key="btn_act_subido"):
-                            res_act = actualizar_base_desde_activas(file_act)
-                            if res_act.get('exito'):
-                                st.cache_data.clear()
-                                st.session_state['res_act_log'] = {
-                                    'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
-                                    'detalles': res_act.get('detalles', [])
-                                }
-                                st.rerun()
-                            else:
-                                st.error(f"Error: {res_act.get('error')}")
-                    elif local_act_path:
-                        st.info(f"🟢 Base `{local_act_path}` guardada en el sistema")
-                        if st.button("🔄 Re-cruzar base guardada", type="secondary", use_container_width=True, key="btn_act_local"):
-                            res_act = actualizar_base_desde_activas(local_act_path)
-                            if res_act.get('exito'):
-                                st.cache_data.clear()
-                                st.session_state['res_act_log'] = {
-                                    'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
-                                    'detalles': res_act.get('detalles', [])
-                                }
-                                st.rerun()
-                            else:
-                                st.error(f"Error: {res_act.get('error')}")
-
-                if st.session_state.get('res_mg_log'):
-                    log_mg = st.session_state['res_mg_log']
-                    st.success(log_mg['msg'])
-                    if log_mg.get('detalles'):
-                        with st.expander("📋 Ver detalle de Consultoras Actualizadas con mi_grupo", expanded=True):
-                            st.dataframe(pd.DataFrame(log_mg['detalles']), use_container_width=True)
-                    if st.button("Cerrar notificación (mi_grupo)", key="btn_close_mg_log"):
-                        del st.session_state['res_mg_log']
-                        st.rerun()
-
-                if st.session_state.get('res_act_log'):
-                    log_data = st.session_state['res_act_log']
-                    st.success(log_data['msg'])
-                    if log_data.get('detalles'):
-                        with st.expander("📋 Ver detalle de Consultoras Actualizadas con Activas", expanded=True):
-                            st.dataframe(pd.DataFrame(log_data['detalles']), use_container_width=True)
-                    if st.button("Cerrar notificación (activas)", key="btn_close_act_log"):
-                        del st.session_state['res_act_log']
-                        st.rerun()
+        if st.session_state.get('res_act_log'):
+            log_data = st.session_state['res_act_log']
+            st.success(log_data['msg'])
+            if log_data.get('detalles'):
+                with st.expander("📋 Ver detalle de Consultoras Actualizadas con Activas", expanded=True):
+                    st.dataframe(pd.DataFrame(log_data['detalles']), use_container_width=True)
+            if st.button("Cerrar notificación (activas)", key="btn_close_act_log"):
+                del st.session_state['res_act_log']
+                st.rerun()
 
         # 3. Después: Los Filtros
         mapa_lideres_tab = obtener_mapa_lideres()
@@ -3105,46 +3072,7 @@ with tab_geral:
     st.subheader("💳 Geral: Crédito & Cobranza Inteligente")
     st.markdown("Control dinámico de cartera Natura & Avon, alertas de vencimiento preventivo (*Mañana*, *Pasado Mañana*), semáforo de mora y despachador de WhatsApp con 1 clic.")
 
-    # 1. EXPANDER DE CARGA DINÁMICA DE ARCHIVO Geral.xlsx
-    with st.expander("📤 Cargar / Actualizar Archivo 'Geral.xlsx'", expanded=False):
-        st.markdown("##### 📂 Subida de Archivo Maestro de Crédito & Cobranza")
-        st.caption("Carga el archivo Excel descargado del sistema oficial para actualizar las deudas, facturas y fechas de vencimiento de las asesoras.")
-        
-        # Guía paso a paso visual de descarga
-        st.info(
-            "💡 **¿Cómo descargar el archivo oficial de cartera desde Geral?**\n\n"
-            "1️⃣ Ingresa a **Geral** ➔ **Crédito & Cobranza**\n\n"
-            "2️⃣ Selecciona **Consultar Deuda**\n\n"
-            "3️⃣ En **Ciclo de Captación**, selecciona los ciclos a consultar\n\n"
-            "4️⃣ Haz clic en el botón **Consultar**\n\n"
-            "5️⃣ Presiona **Exportar Listado** ➔ Selecciona **Excel Inmediata**"
-        )
-        
-        file_geral_subido = st.file_uploader(
-            "Selecciona o arrastra el archivo Geral.xlsx:",
-            type=["xlsx", "xls"],
-            key="uploader_geral_excel"
-        )
-        
-        if file_geral_subido is not None:
-            col_u_g1, col_u_g2 = st.columns([2, 1])
-            with col_u_g1:
-                st.info(f"📄 Archivo seleccionado: **{file_geral_subido.name}** ({file_geral_subido.size / 1024:.1f} KB)")
-            with col_u_g2:
-                btn_procesar_geral = st.button("🚀 Procesar & Sincronizar Base Geral", type="primary", use_container_width=True, key="btn_proc_geral_up")
-                
-            if btn_procesar_geral:
-                with st.spinner("⏳ Analizando estructura y sincronizando registros en SQLite..."):
-                    sec_para_validar = user_sector if user_rol == 'gerente' else None
-                    ok_g, num_g, msg_g = sincronizar_excel_geral_a_sqlite(file_geral_subido, sector_esperado=sec_para_validar)
-                    if ok_g:
-                        st.success(f"✅ {msg_g}")
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {msg_g}")
-
-    # 2. CONSULTA DE DATOS DESDE SQLITE CON AUTO-RECUPERACIÓN
+    # 1. CONSULTA DE DATOS DESDE SQLITE CON AUTO-RECUPERACIÓN
     sec_filtro_g = user_sector if user_rol == 'gerente' else None
     grp_filtro_g = user_grupo if user_rol == 'lider' else None
     
@@ -3156,7 +3084,7 @@ with tab_geral:
         df_geral_raw = consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
         
     if df_geral_raw is None or df_geral_raw.empty:
-        st.info("ℹ️ No hay registros de crédito y cobranza en el sistema. Por favor sube el archivo **Geral.xlsx** en el botón de arriba.")
+        st.info("ℹ️ No hay registros de crédito y cobranza en el sistema. Por favor sube el archivo **Geral.xlsx** desde **💳 3. Gera** en la barra lateral izquierda.")
     else:
         # Procesar análisis financiero
         analisis_g = procesar_analisis_geral_cobranza(df_geral_raw)
