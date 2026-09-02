@@ -2504,11 +2504,12 @@ with tab_tableau:
                 with col_adm2:
                     st.markdown("###### 🔄 2. Opción A: Cargar `mi_grupo`")
                     st.caption("Actualiza la Situación Comercial de cada consultora vinculando por Código CB.")
-                    file_mg = st.file_uploader("Selecciona `mi_grupo.xls`", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
+                    file_mg = st.file_uploader("Selecciona `mi_grupo.xls`:", type=["xls", "xlsx"], key="mi_grupo_uploader_tab")
                     
-                    if os.path.exists("mi_grupo.xls"):
-                        if st.button("⚡ Cruzar desde 'mi_grupo.xls' local", type="secondary", key="btn_mg_local"):
-                            res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
+                    if file_mg is not None:
+                        st.caption(f"📄 Archivo cargado: **{file_mg.name}** ({file_mg.size / 1024:.1f} KB)")
+                        if st.button("🚀 Cruzar y Actualizar Estados Ahora", type="primary", use_container_width=True, key="btn_mg_subido"):
+                            res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
                             if res_mg.get('exito'):
                                 st.cache_data.clear()
                                 st.session_state['res_mg_log'] = {
@@ -2518,10 +2519,10 @@ with tab_tableau:
                                 st.rerun()
                             else:
                                 st.error(f"Error: {res_mg.get('error')}")
-
-                    if file_mg is not None:
-                        if st.button("🚀 Actualizar desde 'mi_grupo'", type="primary", key="btn_mg_subido"):
-                            res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg)
+                    elif os.path.exists("mi_grupo.xls"):
+                        st.info("🟢 Base `mi_grupo.xls` guardada en el sistema")
+                        if st.button("🔄 Re-cruzar base guardada", type="secondary", use_container_width=True, key="btn_mg_local"):
+                            res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
                             if res_mg.get('exito'):
                                 st.cache_data.clear()
                                 st.session_state['res_mg_log'] = {
@@ -2535,12 +2536,14 @@ with tab_tableau:
                 with col_adm3:
                     st.markdown("###### ⚡ 3. Opción B: Cargar `activas`")
                     st.caption("Actualiza estados a 'Activa', pedidos, facturación y puntos vinculando por Código CB.")
-                    file_act = st.file_uploader("Selecciona archivo `activas`", type=["xlsx", "xls", "csv"], key="activas_uploader_tab")
+                    file_act = st.file_uploader("Selecciona archivo `activas`:", type=["xlsx", "xls", "csv"], key="activas_uploader_tab")
                     
                     local_act_path = next((p for p in ["activas.xlsx", "activas.xls", "activas.csv", "Activas.xlsx", "Activas.xls"] if os.path.exists(p)), None)
-                    if local_act_path:
-                        if st.button(f"⚡ Cruzar desde '{local_act_path}' local", type="secondary", key="btn_act_local"):
-                            res_act = actualizar_base_desde_activas(local_act_path)
+                    
+                    if file_act is not None:
+                        st.caption(f"📄 Archivo cargado: **{file_act.name}** ({file_act.size / 1024:.1f} KB)")
+                        if st.button("🚀 Cruzar y Actualizar Activas Ahora", type="primary", use_container_width=True, key="btn_act_subido"):
+                            res_act = actualizar_base_desde_activas(file_act)
                             if res_act.get('exito'):
                                 st.cache_data.clear()
                                 st.session_state['res_act_log'] = {
@@ -2550,10 +2553,10 @@ with tab_tableau:
                                 st.rerun()
                             else:
                                 st.error(f"Error: {res_act.get('error')}")
-
-                    if file_act is not None:
-                        if st.button("🚀 Cruzar y Actualizar Activas", type="primary", key="btn_act_subido"):
-                            res_act = actualizar_base_desde_activas(file_act)
+                    elif local_act_path:
+                        st.info(f"🟢 Base `{local_act_path}` guardada en el sistema")
+                        if st.button("🔄 Re-cruzar base guardada", type="secondary", use_container_width=True, key="btn_act_local"):
+                            res_act = actualizar_base_desde_activas(local_act_path)
                             if res_act.get('exito'):
                                 st.cache_data.clear()
                                 st.session_state['res_act_log'] = {
