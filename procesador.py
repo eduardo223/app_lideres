@@ -4935,6 +4935,7 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
     df = df_raw.rename(columns=clean_cols)
     
     # Validar columnas mínimas requeridas
+    columnas_minimas = ['titulo', 'numero_factura', 'fecha_vencimiento', 'saldo_total', 'situacion', 'nombre']
     faltantes = [c for c in columnas_minimas if c not in df.columns]
     if faltantes:
         msg_guia = (
