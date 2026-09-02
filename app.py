@@ -3107,6 +3107,16 @@ with tab_geral:
         st.markdown("##### 📂 Subida de Archivo Maestro de Crédito & Cobranza")
         st.caption("Carga el archivo Excel descargado del sistema oficial para actualizar las deudas, facturas y fechas de vencimiento de las asesoras.")
         
+        # Guía paso a paso visual de descarga
+        st.info(
+            "💡 **¿Cómo descargar el archivo oficial de cartera desde Geral?**\n\n"
+            "1️⃣ Ingresa a **Geral** ➔ **Crédito & Cobranza**\n\n"
+            "2️⃣ Selecciona **Consultar Deuda**\n\n"
+            "3️⃣ En **Ciclo de Captación**, selecciona los ciclos a consultar\n\n"
+            "4️⃣ Haz clic en el botón **Consultar**\n\n"
+            "5️⃣ Presiona **Exportar Listado** ➔ Selecciona **Excel Inmediata**"
+        )
+        
         file_geral_subido = st.file_uploader(
             "Selecciona o arrastra el archivo Geral.xlsx:",
             type=["xlsx", "xls"],
@@ -3129,7 +3139,7 @@ with tab_geral:
                         st.cache_data.clear()
                         st.rerun()
                     else:
-                        st.error(f"❌ Error al procesar: {msg_g}")
+                        st.error(f"❌ {msg_g}")
 
     # 2. CONSULTA DE DATOS DESDE SQLITE CON AUTO-RECUPERACIÓN
     sec_filtro_g = user_sector if user_rol == 'gerente' else None

@@ -4935,10 +4935,18 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
     df = df_raw.rename(columns=clean_cols)
     
     # Validar columnas mínimas requeridas
-    columnas_minimas = ['titulo', 'numero_factura', 'fecha_vencimiento', 'saldo_total', 'situacion', 'nombre']
     faltantes = [c for c in columnas_minimas if c not in df.columns]
     if faltantes:
-        return False, 0, f"El archivo no contiene las siguientes columnas requeridas: {', '.join(faltantes)}"
+        msg_guia = (
+            f"El archivo no contiene las columnas requeridas: `{', '.join(faltantes)}`.\n\n"
+            f"📌 **Guía paso a paso para descargar el archivo correcto desde Geral:**\n\n"
+            f"1️⃣ Ingresa a **Geral** ➔ **Crédito & Cobranza**\n"
+            f"2️⃣ Selecciona **Consultar Deuda**\n"
+            f"3️⃣ En **Ciclo de Captación**, selecciona los ciclos a consultar\n"
+            f"4️⃣ Haz clic en el botón **Consultar**\n"
+            f"5️⃣ Presiona **Exportar Listado** ➔ Selecciona **Excel Inmediata**"
+        )
+        return False, 0, msg_guia
 
     # Validar sector si se especificó
     if sector_esperado and 'cod_sector' in df.columns:
