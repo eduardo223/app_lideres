@@ -1870,6 +1870,7 @@ if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_cread
 st.sidebar.header("🔐 Filtros de Control")
 
 df_filtrado = df.copy()
+lider_seleccionada_sb = "Todas las Líderes"
 
 # Segmentación Privada por Rol (Preservando el código madre intacto)
 # Si ingresa una Líder de Negocio, sus tarjetas superiores, tacómetros y reportes se restringen automáticamente a su Grupo
@@ -3986,10 +3987,16 @@ with tab_diagnostico:
     st.subheader("👑 Mis Líderes")
     st.markdown("Generación de tablas dinámicas automatizadas para medición y seguimiento comparativo entre todas las Líderes de Negocio.")
     
-    # Utilizar el conjunto de datos completo (df) para permitir la medición comparativa entre Líderes
+    # Utilizar el conjunto de datos completo (df) o filtrado por Líder de Negocio
     df_diag = df.copy()
-    if gerencia_seleccionada != "Todas" and col_gerencia and col_gerencia in df_diag.columns:
-        df_diag = df_diag[df_diag[col_gerencia] == gerencia_seleccionada]
+    if user_rol == 'lider' and user_grupo and not df_diag.empty:
+        col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_diag.columns else ''
+        if col_grp_ref and col_grp_ref in df_diag.columns:
+            df_diag = df_diag[df_diag[col_grp_ref].astype(str).str.strip() == str(user_grupo).strip()]
+    elif lider_seleccionada_sb != "Todas las Líderes" and not df_diag.empty:
+        col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_diag.columns else ''
+        if col_grp_ref and col_grp_ref in df_diag.columns:
+            df_diag = df_diag[df_diag[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
         
     col_lider = 'Nombre de consultora' if 'Nombre de consultora' in df_diag.columns else (df_diag.columns[0] if len(df_diag.columns) > 0 else '')
     diag = generar_analisis_como_vamos(df_diag) if not df_diag.empty else None
