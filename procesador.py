@@ -2037,6 +2037,90 @@ def normalizar_estado_mi_grupo(val):
         return "Intención"
     return s
 
+def leer_excel_tolerante(origen, sheet_idx=0):
+    """
+    Lector universal y ultra-tolerante de archivos Excel (.xlsx, .xls, .csv, HTML/BIFF corrupto).
+    Garantiza la lectura de reportes exportados por sistemas corporativos (Natura, Avon, SAP, CRM)
+    incluso si presentan advertencias de corrupción de encabezado BIFF ('Workbook corruption: seen[2] == 4').
+    """
+    if origen is None:
+        return None
+    if isinstance(origen, pd.DataFrame):
+        return origen.copy()
+    
+    # 1. Si es un archivo CSV
+    name = getattr(origen, 'name', '') or (origen if isinstance(origen, str) else '')
+    if str(name).lower().endswith('.csv'):
+        for enc in ['utf-8', 'utf-8-sig', 'latin1', 'iso-8859-1', 'cp1252']:
+            try:
+                if hasattr(origen, 'seek'):
+                    origen.seek(0)
+                df_csv = pd.read_csv(origen, encoding=enc, sep=None, engine='python')
+                if df_csv is not None and not df_csv.empty:
+                    return df_csv
+            except Exception:
+                continue
+
+    # 2. Intentar pandas estándar
+    try:
+        if hasattr(origen, 'seek'):
+            origen.seek(0)
+        return pd.read_excel(origen, sheet_name=sheet_idx)
+    except Exception:
+        pass
+
+    # 3. Intentar xlrd con ignore_workbook_corruption=True (Especial para reportes .xls de Natura/Avon)
+    try:
+        import xlrd
+        wb = None
+        if isinstance(origen, str):
+            if os.path.exists(origen):
+                wb = xlrd.open_workbook(origen, ignore_workbook_corruption=True)
+        elif hasattr(origen, 'read'):
+            origen.seek(0)
+            content = origen.read()
+            wb = xlrd.open_workbook(file_contents=content, ignore_workbook_corruption=True)
+        elif isinstance(origen, (bytes, bytearray)):
+            wb = xlrd.open_workbook(file_contents=origen, ignore_workbook_corruption=True)
+            
+        if wb is not None:
+            sh = wb.sheet_by_index(sheet_idx if isinstance(sheet_idx, int) else 0)
+            data = [sh.row_values(r) for r in range(sh.nrows)]
+            if data:
+                headers = [str(h).replace('\ufffd', 'ó').strip() for h in data[0]]
+                df = pd.DataFrame(data[1:], columns=headers)
+                return df
+    except Exception:
+        pass
+
+    # 4. Intentar con engine='xlrd'
+    try:
+        if hasattr(origen, 'seek'):
+            origen.seek(0)
+        return pd.read_excel(origen, sheet_name=sheet_idx, engine='xlrd')
+    except Exception:
+        pass
+
+    # 5. Intentar con engine='openpyxl'
+    try:
+        if hasattr(origen, 'seek'):
+            origen.seek(0)
+        return pd.read_excel(origen, sheet_name=sheet_idx, engine='openpyxl')
+    except Exception:
+        pass
+
+    # 6. Intentar como tabla HTML (muchos sistemas corporativos exportan HTML con extensión .xls)
+    try:
+        if hasattr(origen, 'seek'):
+            origen.seek(0)
+        dfs = pd.read_html(origen)
+        if dfs:
+            return dfs[0]
+    except Exception:
+        pass
+
+    return None
+
 def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls', ruta_base='Base de Datos.xlsx'):
     """
     Lee la tabla 'mi_grupo.xls' (o .xlsx), extrae la columna 'ESTADO' / 'Sit. Comercial'
@@ -2046,31 +2130,7 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
     if not os.path.exists(ruta_base):
         return {'exito': False, 'error': f"No se encontró el archivo base '{ruta_base}'."}
 
-    df_grupo = None
-    if isinstance(origen_mi_grupo, str):
-        if os.path.exists(origen_mi_grupo):
-            try:
-                df_grupo = pd.read_excel(origen_mi_grupo)
-            except Exception:
-                try:
-                    df_grupo = pd.read_excel(origen_mi_grupo, engine='xlrd')
-                except Exception:
-                    pass
-    elif isinstance(origen_mi_grupo, pd.DataFrame):
-        df_grupo = origen_mi_grupo.copy()
-    elif hasattr(origen_mi_grupo, 'read'):
-        try:
-            origen_mi_grupo.seek(0)
-        except Exception:
-            pass
-        try:
-            df_grupo = pd.read_excel(origen_mi_grupo)
-        except Exception:
-            try:
-                origen_mi_grupo.seek(0)
-                df_grupo = pd.read_excel(origen_mi_grupo, engine='xlrd')
-            except Exception:
-                pass
+    df_grupo = leer_excel_tolerante(origen_mi_grupo)
 
     if df_grupo is None or df_grupo.empty:
         return {'exito': False, 'error': "No se pudo leer el archivo 'mi_grupo'."}
@@ -2207,54 +2267,7 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
     if not os.path.exists(ruta_base):
         return {'exito': False, 'error': f"No se encontró el archivo base '{ruta_base}'."}
 
-    df_act = None
-    # 1. Cargar archivo multi-formato
-    try:
-        if isinstance(origen_activas, str):
-            if not os.path.exists(origen_activas):
-                return {'exito': False, 'error': f"No existe el archivo '{origen_activas}'."}
-            if origen_activas.lower().endswith('.csv'):
-                for enc in ['utf-8', 'utf-8-sig', 'latin1', 'iso-8859-1']:
-                    try:
-                        df_act = pd.read_csv(origen_activas, encoding=enc, sep=None, engine='python')
-                        if df_act is not None and not df_act.empty:
-                            break
-                    except Exception:
-                        continue
-            else:
-                try:
-                    df_act = pd.read_excel(origen_activas)
-                except Exception:
-                    df_act = pd.read_excel(origen_activas, engine='xlrd')
-        elif isinstance(origen_activas, pd.DataFrame):
-            df_act = origen_activas.copy()
-        elif hasattr(origen_activas, 'read'):
-            name = getattr(origen_activas, 'name', '').lower()
-            try:
-                origen_activas.seek(0)
-            except Exception:
-                pass
-            if name.endswith('.csv'):
-                for enc in ['utf-8', 'utf-8-sig', 'latin1', 'iso-8859-1']:
-                    try:
-                        origen_activas.seek(0)
-                        df_act = pd.read_csv(origen_activas, encoding=enc, sep=None, engine='python')
-                        if df_act is not None and not df_act.empty:
-                            break
-                    except Exception:
-                        continue
-            else:
-                try:
-                    origen_activas.seek(0)
-                    df_act = pd.read_excel(origen_activas)
-                except Exception:
-                    try:
-                        origen_activas.seek(0)
-                        df_act = pd.read_excel(origen_activas, engine='xlrd')
-                    except Exception:
-                        pass
-    except Exception as e_load:
-        return {'exito': False, 'error': f"Error al leer el archivo de activas: {e_load}"}
+    df_act = leer_excel_tolerante(origen_activas)
 
     if df_act is None or df_act.empty:
         return {'exito': False, 'error': "El archivo de activas está vacío o no se pudo interpretar."}
