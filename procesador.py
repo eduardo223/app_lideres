@@ -1911,8 +1911,6 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
             mask_activa_cycle = mask_activa_cycle | (pd.to_numeric(df['Pts Total VD'], errors='coerce').fillna(0) > 0)
         if 'Fact. Total' in df.columns:
             mask_activa_cycle = mask_activa_cycle | (pd.to_numeric(df['Fact. Total'], errors='coerce').fillna(0) > 0)
-        if 'Situación' in df.columns:
-            mask_activa_cycle = mask_activa_cycle | (df['Situación'].astype(str).str.strip().str.lower() == 'activa')
         if 'Sit. Comercial' in df.columns:
             mask_activa_cycle = mask_activa_cycle | (df['Sit. Comercial'].astype(str).str.strip().str.lower() == 'activa')
         if 'Indicador' in df.columns:
@@ -1920,6 +1918,14 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
         
         df.loc[mask_activa_cycle, 'Sit. Comercial'] = 'Activa'
         df.loc[mask_activa_cycle, 'Situación'] = 'Activa'
+
+        # Para las no activas, sincronizar Situación macro según nivel de inactividad
+        mask_no_activa = ~mask_activa_cycle
+        sit_lower = df['Sit. Comercial'].astype(str).str.lower()
+        mask_disp = mask_no_activa & sit_lower.apply(lambda s: any(k in s for k in ['inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']))
+        mask_indisp = mask_no_activa & sit_lower.apply(lambda s: any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6']))
+        df.loc[mask_disp, 'Situación'] = 'Disponible'
+        df.loc[mask_indisp, 'Situación'] = 'Indisponible'
 
     return df
 
@@ -2218,42 +2224,72 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
             coincidencias += 1
             nuevo_estado = mapa_estados[cb]
             estado_actual = str(df_base.at[idx, col_sit_comercial]).strip() if pd.notna(df_base.at[idx, col_sit_comercial]) else ''
-            if nuevo_estado and nuevo_estado != estado_actual:
+            
+            # REGLA DE PARCHE INTELIGENTE Y NO DESTRUCTIVO:
+            # 1. Ignorar estados no canónicos del portal (Cesada, Registrada, Intención, etc.)
+            if nuevo_estado in ['Cesada', 'Registrada', 'Intención'] or not nuevo_estado:
+                continue
+
+            # 2. Si en mi_grupo viene como ACTIVA y en la base figuraba inactiva -> PARCHE DE ACTIVACIÓN
+            debe_parchar = False
+            if nuevo_estado.lower() == 'activa' and estado_actual.lower() != 'activa':
+                debe_parchar = True
+                estado_final = 'Activa'
+            
+            # 3. Si ya es ACTIVA en la base de datos maestra (con ventas/puntos o estado previo), NUNCA se degrada
+            elif estado_actual.lower() == 'activa':
+                continue
+            
+            if debe_parchar:
                 nombre = str(df_base.at[idx, 'Nombre'] if 'Nombre' in df_base.columns else (df_base.at[idx, 'Asesora / Consultora'] if 'Asesora / Consultora' in df_base.columns else cb))
                 detalles_cambios.append({
                     'Código CB': cb,
                     'Asesora / Consultora': nombre,
                     'Estado Anterior': estado_actual,
-                    'Nuevo Estado (mi_grupo)': nuevo_estado
+                    'Nuevo Estado (mi_grupo)': estado_final
                 })
-                df_base.at[idx, col_sit_comercial] = nuevo_estado
+                df_base.at[idx, col_sit_comercial] = estado_final
                 if col_situacion_macro:
-                    if 'activa' in nuevo_estado.lower():
-                        df_base.at[idx, col_situacion_macro] = 'Activa'
-                    elif 'inactiva' in nuevo_estado.lower():
-                        if any(k in nuevo_estado.lower() for k in ['1', '2', '3']):
-                            df_base.at[idx, col_situacion_macro] = 'Disponible'
-                        elif any(k in nuevo_estado.lower() for k in ['4', '5', '6']):
-                            df_base.at[idx, col_situacion_macro] = 'Indisponible'
+                    df_base.at[idx, col_situacion_macro] = 'Activa'
                 cambios += 1
 
-    df_base = df_base.drop(columns=['cb_clean'], errors='ignore')
+    # Sincronizar cambios directamente en SQLite
+    if cambios > 0:
+        try:
+            conn_patch = obtener_conexion_db()
+            c_patch = conn_patch.cursor()
+            for d in detalles_cambios:
+                c_patch.execute(
+                    "UPDATE consultoras_tableau SET sit_comercial = 'Activa', situacion = 'Activa' WHERE codigo_cb = ?",
+                    (str(d['Código CB']).strip(),)
+                )
+            conn_patch.commit()
+            conn_patch.close()
+        except Exception as e_db:
+            safe_print(f"Nota actualizando SQLite directo: {e_db}")
 
-    # Guardar en Base de Datos.xlsx y sincronizar SQLite
+    # Guardar en Base de Datos.xlsx
+    excel_guardado = True
+    msg_alerta_excel = ""
     try:
         df_base.to_excel(ruta_base, index=False)
         try:
             sincronizar_excel_tableau_a_sqlite(ruta_base)
         except Exception:
             pass
-        return {
-            'exito': True,
-            'coincidencias': coincidencias,
-            'cambios': cambios,
-            'detalles': detalles_cambios
-        }
+    except PermissionError:
+        excel_guardado = False
+        msg_alerta_excel = f" (Nota: '{ruta_base}' está abierto en Excel; los cambios se guardaron en la plataforma, pero para actualizar el archivo físico ciérralo en Excel)."
     except Exception as e:
-        return {'exito': False, 'error': f"Error al guardar '{ruta_base}': {e}"}
+        safe_print(f"Error al escribir Excel: {e}")
+
+    return {
+        'exito': True,
+        'coincidencias': coincidencias,
+        'cambios': cambios,
+        'detalles': detalles_cambios,
+        'aviso_excel': msg_alerta_excel
+    }
 
 def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'):
     """
