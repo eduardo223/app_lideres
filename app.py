@@ -43,6 +43,7 @@ from procesador import (
     sincronizar_excel_metas_a_sqlite,
     sincronizar_excel_geral_a_sqlite,
     consultar_geral_sql,
+    filtrar_consultoras_portal_especial,
     procesar_analisis_geral_cobranza,
     generar_mensaje_whatsapp_cobranza,
     MATRIZ_GANANCIA,
@@ -2492,6 +2493,22 @@ with tab_tableau:
                 mask_t = mask_t | df_tab_filt['Codigo CB'].astype(str).str.contains(busq_init, case=False, na=False)
             df_tab_filt = df_tab_filt[mask_t]
 
+        # Filtros de Ubicación (Dpto y Ciudad)
+        dpto_sel_init = st.session_state.get("filt_dpto_tab", [])
+        if dpto_sel_init and 'Dpto - Residencia' in df_tab_filt.columns:
+            dptos_upper = [str(d).strip().upper() for d in dpto_sel_init]
+            df_tab_filt = df_tab_filt[df_tab_filt['Dpto - Residencia'].astype(str).str.strip().str.upper().isin(dptos_upper)]
+
+        ciudad_sel_init = st.session_state.get("filt_ciudad_tab", [])
+        if ciudad_sel_init and 'Ciudad - Residencia' in df_tab_filt.columns:
+            ciudades_upper = [str(c).strip().upper() for c in ciudad_sel_init]
+            df_tab_filt = df_tab_filt[df_tab_filt['Ciudad - Residencia'].astype(str).str.strip().str.upper().isin(ciudades_upper)]
+
+        # Filtro especial de portal (Cesadas / Registradas de mi_grupo.xls)
+        portal_sel_init = st.session_state.get("filt_portal_esp", "Base Principal (Todas)")
+        if portal_sel_init and portal_sel_init != "Base Principal (Todas)":
+            df_tab_filt = filtrar_consultoras_portal_especial(df_tab_filt, portal_sel_init)
+
         # 1. Las 5 ventanitas (Tarjetas KPI de Tableau)
         tc1, tc2, tc3, tc4, tc5 = st.columns(5)
         with tc1:
@@ -2539,7 +2556,7 @@ with tab_tableau:
                 del st.session_state['res_act_log']
                 st.rerun()
 
-        # 3. Después: Los Filtros
+        # 3. Después: Los Filtros (Organizados en cuadrícula limpia y responsiva de 2 filas)
         mapa_lideres_tab = obtener_mapa_lideres()
         def format_lider_tab(g_val):
             if g_val == "Todas las Líderes (Consolidado Zona)":
@@ -2551,81 +2568,94 @@ with tab_tableau:
 
         sits_disponibles = sorted([str(s) for s in df_tableau['Sit. Comercial'].dropna().unique()]) if 'Sit. Comercial' in df_tableau.columns else []
         colores_tab_disp = sorted([str(c) for c in df_tableau['Color'].dropna().unique()]) if 'Color' in df_tableau.columns else []
+        dptos_disp = sorted([str(d).strip().upper() for d in df_tableau['Dpto - Residencia'].dropna().unique() if str(d).strip() and str(d).strip().lower() not in ['none', 'nan', '']]) if 'Dpto - Residencia' in df_tableau.columns else []
+        ciudades_disp = sorted([str(c).strip().upper() for c in df_tableau['Ciudad - Residencia'].dropna().unique() if str(c).strip() and str(c).strip().lower() not in ['none', 'nan', '']]) if 'Ciudad - Residencia' in df_tableau.columns else []
+        portal_opciones = ["Base Principal (Todas)", "🚪 Consultoras Cesadas (Portal mi_grupo)", "📝 Nuevas Registradas (Portal mi_grupo)", "🌟 Intención (Portal mi_grupo)"]
 
         if user_rol in ['gerente', 'superadmin']:
             lista_grupos_t = sorted([str(g).strip() for g in df_tableau['Grupo'].dropna().unique()]) if 'Grupo' in df_tableau.columns else []
 
-            col_f1, col_f2, col_f3, col_f4, col_f5, col_f6, col_f7 = st.columns([1.3, 1.1, 1.0, 1.0, 0.95, 0.95, 1.2])
-            with col_f1:
+            # Fila 1: Filtros de Identificación y Segmentación Comercial
+            col_r1_1, col_r1_2, col_r1_3, col_r1_4 = st.columns([1.4, 1.2, 1.1, 1.3])
+            with col_r1_1:
                 lider_sel_t = st.selectbox(
                     "👤 Líder / Grupo",
                     options=["Todas las Líderes (Consolidado Zona)"] + lista_grupos_t,
                     format_func=format_lider_tab,
                     key="tab_lider_grp_sel"
                 )
-
-            with col_f2:
+            with col_r1_2:
                 sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
-
-            with col_f3:
+            with col_r1_3:
                 colores_tab_sel = st.multiselect("🏆 Nivel / Color", options=colores_tab_disp, default=[], key="filt_color_tab")
+            with col_r1_4:
+                busq_t = st.text_input("🔍 Buscar Asesora (Nombre o Código)", "", key="tab_busq")
 
-            with col_f4:
+            # Fila 2: Filtros de Cartera, Ubicación y Portal (Responsivos)
+            col_r2_1, col_r2_2, col_r2_3, col_r2_4, col_r2_5, col_r2_6 = st.columns([1.1, 1.0, 1.1, 1.1, 1.3, 0.9])
+            with col_r2_1:
                 f_mora_opt = st.selectbox(
                     "⚠️ Deuda Mora",
                     options=["Todas", "Con Deuda Mora (> $0)", "Sin Deuda Mora ($0)", "Mora Crítica (> $500k)"],
                     key="filt_mora_opt"
                 )
-
-            with col_f5:
+            with col_r2_2:
                 f_ped_opt = st.selectbox(
                     "⌛ Ped. Pend.",
                     options=["Todos", "Con Pedidos (> 0)", "Sin Pedidos (0)"],
                     key="filt_ped_opt"
                 )
-
-            with col_f6:
+            with col_r2_3:
+                dpto_sel = st.multiselect("🗺️ Dpto - Residencia", options=dptos_disp, default=[], key="filt_dpto_tab")
+            with col_r2_4:
+                ciudad_sel = st.multiselect("🏙️ Ciudad - Residencia", options=ciudades_disp, default=[], key="filt_ciudad_tab")
+            with col_r2_5:
+                portal_esp_sel = st.selectbox("🚪 Especial Portal", options=portal_opciones, index=0, key="filt_portal_esp")
+            with col_r2_6:
                 f_notas_opt = st.selectbox(
                     "📝 Notas",
                     options=["Todos", "Con Notas", "Sin Notas"],
                     key="filt_notas_opt"
                 )
-
-            with col_f7:
-                busq_t = st.text_input("🔍 Buscar Asesora", "", key="tab_busq")
 
         else:
             lider_sel_t = str(user_grupo).strip() if user_grupo else ""
-            col_f1, col_f2, col_f3, col_f4, col_f5, col_f6 = st.columns([1.2, 1.1, 1.0, 1.0, 1.0, 1.3])
-            with col_f1:
+
+            # Fila 1: Segmentación para Líder (Columnas más amplias y legibles)
+            col_r1_1, col_r1_2, col_r1_3 = st.columns([1.3, 1.2, 1.5])
+            with col_r1_1:
                 sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
-
-            with col_f2:
+            with col_r1_2:
                 colores_tab_sel = st.multiselect("🏆 Nivel / Color", options=colores_tab_disp, default=[], key="filt_color_tab")
+            with col_r1_3:
+                busq_t = st.text_input("🔍 Buscar Asesora (Nombre o Código)", "", key="tab_busq")
 
-            with col_f3:
+            # Fila 2: Cartera, Ubicación y Portal para Líder
+            col_r2_1, col_r2_2, col_r2_3, col_r2_4, col_r2_5, col_r2_6 = st.columns([1.1, 1.0, 1.1, 1.1, 1.3, 0.9])
+            with col_r2_1:
                 f_mora_opt = st.selectbox(
                     "⚠️ Deuda Mora",
                     options=["Todas", "Con Deuda Mora (> $0)", "Sin Deuda Mora ($0)", "Mora Crítica (> $500k)"],
                     key="filt_mora_opt"
                 )
-
-            with col_f4:
+            with col_r2_2:
                 f_ped_opt = st.selectbox(
                     "⌛ Ped. Pend.",
                     options=["Todos", "Con Pedidos (> 0)", "Sin Pedidos (0)"],
                     key="filt_ped_opt"
                 )
-
-            with col_f5:
+            with col_r2_3:
+                dpto_sel = st.multiselect("🗺️ Dpto - Residencia", options=dptos_disp, default=[], key="filt_dpto_tab")
+            with col_r2_4:
+                ciudad_sel = st.multiselect("🏙️ Ciudad - Residencia", options=ciudades_disp, default=[], key="filt_ciudad_tab")
+            with col_r2_5:
+                portal_esp_sel = st.selectbox("🚪 Especial Portal", options=portal_opciones, index=0, key="filt_portal_esp")
+            with col_r2_6:
                 f_notas_opt = st.selectbox(
                     "📝 Notas",
                     options=["Todos", "Con Notas", "Sin Notas"],
                     key="filt_notas_opt"
                 )
-
-            with col_f6:
-                busq_t = st.text_input("🔍 Buscar Asesora", "", key="tab_busq")
 
         st.markdown("---")
 
@@ -2900,6 +2930,133 @@ with tab_tableau:
                         .map(color_deuda_mora, subset=['Total_Deuda_Mora'] if 'Total_Deuda_Mora' in df_sit_group.columns else []),
                         use_container_width=True
                     )
+
+            st.markdown("---")
+            st.markdown("##### 🚀 Monitoreo de Activaciones: Progreso de Consultoras Activas")
+            st.caption("Gráfico analítico para monitorear el avance de consultoras con pedido activo frente al total de la red o meta asignada.")
+
+            if 'Sit. Comercial' in df_tab_filt.columns and not df_tab_filt.empty:
+                col_grp_chart = 'Grupo' if 'Grupo' in df_tab_filt.columns else None
+
+                if col_grp_chart and len(df_tab_filt[col_grp_chart].dropna().unique()) > 1:
+                    # Vista Multi-Grupo (Gerencia o Consolidado)
+                    df_act_chart = df_tab_filt.copy()
+                    df_act_chart['Es_Activa'] = df_act_chart['Sit. Comercial'].astype(str).str.strip().str.lower() == 'activa'
+                    
+                    resumen_act = df_act_chart.groupby(col_grp_chart).agg(
+                        Total_Cadastro=('Sit. Comercial', 'count'),
+                        Activas_Reales=('Es_Activa', 'sum')
+                    ).reset_index()
+
+                    mapa_lideres_noms = obtener_mapa_lideres()
+                    resumen_act['Nombre_Lider'] = resumen_act[col_grp_chart].apply(
+                        lambda g: mapa_lideres_noms.get(str(g).strip(), f"Grupo {g}")
+                    )
+                    resumen_act['Etiqueta'] = resumen_act.apply(
+                        lambda r: f"Grupo {r[col_grp_chart]} — {r['Nombre_Lider']}", axis=1
+                    )
+                    resumen_act['Pct_Actividad'] = (resumen_act['Activas_Reales'] / resumen_act['Total_Cadastro'] * 100).round(1)
+                    resumen_act = resumen_act.sort_values(by='Activas_Reales', ascending=True)
+
+                    fig_bar_act = px.bar(
+                        resumen_act,
+                        x='Activas_Reales',
+                        y='Etiqueta',
+                        orientation='h',
+                        title="<b>📊 Progreso de Consultoras Activas por Grupo / Líder</b>",
+                        labels={'Activas_Reales': 'Consultoras Activas', 'Etiqueta': 'Líder / Grupo'},
+                        color='Pct_Actividad',
+                        color_continuous_scale=[
+                            [0.0, '#EF4444'],    # Rojo
+                            [0.5, '#F59E0B'],    # Naranja/Ámbar
+                            [0.8, '#10B981'],    # Verde
+                            [1.0, '#059669']     # Verde Esmeralda
+                        ],
+                        text='Activas_Reales'
+                    )
+                    fig_bar_act.update_traces(
+                        texttemplate='%{text} activas (%{customdata[0]:.1f}%)',
+                        customdata=resumen_act[['Pct_Actividad', 'Total_Cadastro']],
+                        hovertemplate="<b>%{y}</b><br>Activas Reales: <b>%{x}</b><br>Total Cadastro: <b>%{customdata[1]}</b><br>Tasa de Actividad: <b>%{customdata[0]:.1f}%</b><extra></extra>",
+                        textposition='outside'
+                    )
+                    fig_bar_act.update_layout(
+                        paper_bgcolor='rgba(0,0,0,0)',
+                        plot_bgcolor='rgba(0,0,0,0)',
+                        font=dict(family='Outfit', size=12),
+                        height=max(360, len(resumen_act) * 36),
+                        margin=dict(l=10, r=40, t=50, b=30),
+                        coloraxis_colorbar=dict(title="% Actividad")
+                    )
+                    st.plotly_chart(fig_bar_act, use_container_width=True)
+
+                else:
+                    # Vista Individual (Grupo seleccionado o Perfil Líder)
+                    df_indiv = df_tab_filt.copy()
+                    conteo_sits = df_indiv['Sit. Comercial'].value_counts().reset_index()
+                    conteo_sits.columns = ['Situacion', 'Cantidad']
+                    
+                    # Ordenar lógicamente: Activa primero, luego Inactivas 1 a 6
+                    orden_logico = ['Activa', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3', 'Inactiva 4', 'Inactiva 5', 'Inactiva 6']
+                    conteo_sits['orden'] = conteo_sits['Situacion'].apply(
+                        lambda s: orden_logico.index(s) if s in orden_logico else 99
+                    )
+                    conteo_sits = conteo_sits.sort_values(by='orden', ascending=True)
+
+                    col_g1, col_g2 = st.columns([1.8, 1.2])
+                    with col_g1:
+                        fig_ind = px.bar(
+                            conteo_sits,
+                            x='Situacion',
+                            y='Cantidad',
+                            title="<b>🎯 Desglose de Activación del Grupo (Activas vs Potencial de Reingreso)</b>",
+                            labels={'Situacion': 'Situación Comercial', 'Cantidad': 'N° Consultoras'},
+                            color='Situacion',
+                            color_discrete_map={
+                                'Activa': '#10B981',
+                                'Inactiva 1': '#3B82F6',
+                                'Inactiva 2': '#F59E0B',
+                                'Inactiva 3': '#F97316',
+                                'Inactiva 4': '#EF4444',
+                                'Inactiva 5': '#DC2626',
+                                'Inactiva 6': '#991B1B'
+                            },
+                            text='Cantidad'
+                        )
+                        fig_ind.update_traces(textposition='outside')
+                        fig_ind.update_layout(
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)',
+                            font=dict(family='Outfit', size=12),
+                            height=360,
+                            showlegend=False,
+                            margin=dict(l=10, r=20, t=50, b=30)
+                        )
+                        st.plotly_chart(fig_ind, use_container_width=True)
+
+                    with col_g2:
+                        tot_c = len(df_indiv)
+                        n_act = len(df_indiv[df_indiv['Sit. Comercial'].astype(str).str.lower() == 'activa'])
+                        n_i1_i3 = len(df_indiv[df_indiv['Sit. Comercial'].astype(str).str.lower().isin(['inactiva 1', 'inactiva 2', 'inactiva 3'])])
+                        tasa_act = (n_act / tot_c * 100) if tot_c > 0 else 0.0
+
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 12px; padding: 18px; margin-top: 10px;">
+                            <div style="font-size: 0.85rem; font-weight: 700; color: #10B981; text-transform: uppercase; margin-bottom: 8px;">
+                                📈 RESUMEN COMERCIAL DE ACTIVACIÓN
+                            </div>
+                            <div style="font-size: 2rem; font-weight: 800; color: #F8FAFC; margin-bottom: 4px;">
+                                {n_act} <span style="font-size: 1.1rem; font-weight: 500; color: #94A3B8;">/ {tot_c} Consultoras</span>
+                            </div>
+                            <div style="font-size: 0.95rem; color: #CBD5E1; margin-bottom: 12px;">
+                                Tasa de Actividad Actual: <strong>{tasa_act:.1f}%</strong>
+                            </div>
+                            <div style="background: rgba(15, 23, 42, 0.6); border-radius: 8px; padding: 10px 12px; font-size: 0.85rem; color: #94A3B8; line-height: 1.45;">
+                                💡 <strong>Potencial de Reingreso Inmediato:</strong><br>
+                                Tienes <strong style="color: #38BDF8;">{n_i1_i3} consultoras</strong> en <em>Inactiva 1 a 3</em> listas para activar y sumar a tu matriz de ganancia.
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
         # --- SUBPESTAÑA 4: ASISTENTE & CAMPAÑAS WHATSAPP ---
         with tab_tab_whatsapp:
@@ -3854,7 +4011,7 @@ with tab_ganancia:
             columns=ETIQUETAS_FACTURACION
         )
         st.dataframe(df_matriz_view, use_container_width=True)
-        st.caption("⚠️ **Regla de Inicios**: Si los Inicios de la líder son menores a 4, se le descuenta **-0.5%** a la matriz.")
+        st.caption("⚠️ **Regla de Inicios**: Si los Inicios de la líder son menores a 6, se le descuenta **-0.5%** a la matriz.")
         
     with col_pot:
         st.markdown("##### 2. Potencializador de Ganancia por Saldo")
@@ -3926,7 +4083,7 @@ with tab_ganancia:
         st.metric(
             "% Ganancia Matriz",
             f"{pct_matriz_sim*100:.2f}%",
-            "⚠️ -0.5% por Inicios < 4" if sim_inicios < 4 else "↑ Sin penalización"
+            "⚠️ -0.5% por Inicios < 6" if sim_inicios < 6 else "↑ Sin penalización"
         )
     with res3:
         st.metric(

@@ -517,14 +517,14 @@ def obtener_indice_facturacion(cump_fact):
     else:
         return 3
 
-def calcular_matriz_ganancia(cump_activas, cump_fact, inicios=4):
+def calcular_matriz_ganancia(cump_activas, cump_fact, inicios=6):
     idx_act = obtener_indice_activas(cump_activas)
     idx_fact = obtener_indice_facturacion(cump_fact)
     pct_base = MATRIZ_GANANCIA[idx_act][idx_fact]
     
-    # Penalización por Inicios < 4 (-0.5%)
+    # Penalización por Inicios < 6 (-0.5%)
     penalizacion_inicios = 0.0
-    if inicios < 4:
+    if inicios < 6:
         penalizacion_inicios = 0.005
         pct_base = max(0.0, pct_base - penalizacion_inicios)
         
@@ -1169,7 +1169,6 @@ def exportar_excel_con_colores(df_dict, buffer_salida=None):
 
 COLUMNAS_ORDEN_TABLEAU = [
     'Código CB',
-    'Líder / Grupo',
     'Asesora / Consultora',
     'DocumentoGPP',
     'Nivel / Color',
@@ -1185,6 +1184,7 @@ COLUMNAS_ORDEN_TABLEAU = [
     'Pts AVON',
     'Ped. Pendientes',
     'Celular',
+    'Líder / Grupo',
     'Notas / Comentarios Líder'
 ]
 
@@ -2290,6 +2290,63 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
         'detalles': detalles_cambios,
         'aviso_excel': msg_alerta_excel
     }
+
+def filtrar_consultoras_portal_especial(df_base, opcion_portal, ruta_mi_grupo='mi_grupo.xls'):
+    """
+    Filtra el DataFrame de consultoras para visualizar las consultoras Cesadas, Registradas
+    o con Intención reportadas en el portal (mi_grupo.xls), cruzándolas por Código CB
+    para que queden asociadas a su grupo de líder correspondiente.
+    """
+    if df_base is None or df_base.empty:
+        return df_base
+
+    if not os.path.exists(ruta_mi_grupo):
+        return df_base
+
+    df_mg = leer_excel_tolerante(ruta_mi_grupo)
+    if df_mg is None or df_mg.empty:
+        return df_base
+
+    # Identificar columna de estado y código en mi_grupo
+    col_estado = next((c for c in df_mg.columns if 'ESTADO' in str(c).upper() or 'SITUAC' in str(c).upper()), None)
+    col_code = next((c for c in df_mg.columns if any(k in str(c).upper() for k in ['CODIGO', 'CÓDIGO', 'CB'])), None)
+
+    if not col_estado or not col_code:
+        return df_base
+
+    estado_target = None
+    op_lower = str(opcion_portal).lower()
+    if 'cesada' in op_lower:
+        estado_target = 'cesada'
+    elif 'registrada' in op_lower:
+        estado_target = 'registrada'
+    elif 'intenci' in op_lower:
+        estado_target = 'intención'
+
+    if not estado_target:
+        return df_base
+
+    df_mg['cb_clean'] = df_mg[col_code].apply(limpiar_codigo_cb_estandar)
+    df_mg_target = df_mg[df_mg[col_estado].astype(str).str.lower().str.contains(estado_target, na=False)].copy()
+
+    # Identificar columna código en df_base
+    col_base_cb = next((c for c in df_base.columns if any(k in str(c).lower() for k in ['codigo cb', 'código cb', 'codigo_cb', 'cd consultora'])), df_base.columns[0])
+    df_base_work = df_base.copy()
+    df_base_work['cb_clean'] = df_base_work[col_base_cb].apply(limpiar_codigo_cb_estandar)
+
+    cbs_target = set(df_mg_target['cb_clean'])
+    df_filtrado = df_base_work[df_base_work['cb_clean'].isin(cbs_target)].copy()
+
+    # Asignar la situación comercial de portal para mostrar claramente el estado
+    col_sit = next((c for c in df_filtrado.columns if any(k in str(c).lower() for k in ['sit. comercial', 'situacion', 'situación'])), None)
+    if col_sit:
+        mapa_est = dict(zip(df_mg_target['cb_clean'], df_mg_target[col_estado]))
+        df_filtrado[col_sit] = df_filtrado['cb_clean'].map(mapa_est).fillna(f"{estado_target.title()} (Portal)")
+
+    if 'cb_clean' in df_filtrado.columns:
+        df_filtrado = df_filtrado.drop(columns=['cb_clean'])
+
+    return df_filtrado
 
 def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'):
     """
@@ -5034,6 +5091,23 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
         cursor.execute("DELETE FROM cartera_geral")
         
     fecha_carga_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    # Mapeo de grupos y sectores reales desde consultoras_tableau por codigo_cb
+    mapa_tableau_geral = {}
+    try:
+        cursor.execute("SELECT codigo_cb, grupo, cod_sector, sector, nombre, celular FROM consultoras_tableau")
+        for r_cb, r_grp, r_csec, r_sec, r_nom, r_cel in cursor.fetchall():
+            cb_k = limpiar_codigo_cb_estandar(r_cb)
+            if cb_k:
+                mapa_tableau_geral[cb_k] = {
+                    'grupo': str(r_grp).strip().split('.')[0] if r_grp else '',
+                    'cod_sector': str(r_csec).strip().split('.')[0] if r_csec else '',
+                    'sector': str(r_sec).strip() if r_sec else '',
+                    'nombre': str(r_nom).strip() if r_nom else '',
+                    'celular': str(r_cel).strip() if r_cel else ''
+                }
+    except Exception as e_map:
+        safe_print(f"Nota: no se pudo extraer mapa previo de consultoras_tableau para Geral: {e_map}")
     
     registros_insertar = []
     for _, row in df.iterrows():
@@ -5058,8 +5132,27 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             s_tot = s_prin + s_fin
         s_act = float(limpiar_numero(row.get('saldo_actualizado', s_tot)))
         
+        cb_raw = str(row.get('codigo_cb', '')).strip().split('.')[0]
+        cb_clean = limpiar_codigo_cb_estandar(cb_raw)
+
+        # Determinar grupo y sector reales cruzando con Tableau
         grp = str(row.get('grupo', '')).strip().split('.')[0]
         cod_sec = str(row.get('cod_sector', '')).strip().split('.')[0]
+        sec_nom = str(row.get('sector', '')).strip()
+        nom_cb = str(row.get('nombre', '')).strip()
+
+        if cb_clean in mapa_tableau_geral:
+            info_t = mapa_tableau_geral[cb_clean]
+            if info_t.get('grupo'):
+                grp = info_t['grupo']
+            if info_t.get('cod_sector'):
+                cod_sec = info_t['cod_sector']
+            if info_t.get('sector'):
+                sec_nom = info_t['sector']
+            if info_t.get('nombre') and not nom_cb:
+                nom_cb = info_t['nombre']
+            if info_t.get('celular') and not m1:
+                m1, m2 = extraer_telefonos_colombia(info_t['celular'])
         
         registros_insertar.append((
             tit,
@@ -5081,9 +5174,9 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             float(limpiar_numero(row.get('dias_retraso', 0.0))),
             str(row.get('fase_cobro', '')).strip(),
             cod_sec,
-            str(row.get('sector', '')).strip(),
-            str(row.get('codigo_cb', '')).strip().split('.')[0],
-            str(row.get('nombre', '')).strip(),
+            sec_nom,
+            cb_clean if cb_clean else cb_raw,
+            nom_cb,
             str(row.get('direccion', '')).strip(),
             m1,
             m2,
@@ -5113,12 +5206,12 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
     if close_at_end:
         conn.close()
         
-    return True, len(registros_insertar), f"¡Se sincronizaron exitosamente {len(registros_insertar)} títulos comerciales en la base de Crédito & Cobranza!"
+    return True, len(registros_insertar), f"¡Se sincronizaron exitosamente {len(registros_insertar)} títulos comerciales en la base de Crédito & Cobranza con cruce de grupo de líder!"
 
 def consultar_geral_sql(grupo=None, sector=None, situacion=None):
     """
-    Consulta la base relacional de cartera_geral en SQLite con filtros de seguridad y rendimiento.
-    Crea automáticamente la tabla si no existe o sincroniza desde Geral.xlsx si está disponible.
+    Consulta la base relacional de cartera_geral en SQLite con cruce dinámico hacia consultoras_tableau
+    para garantizar que cada consultora refleje su verdadero grupo de líder (y no el código de sector 5515/5522).
     """
     try:
         inicializar_db_sqlite()
@@ -5136,28 +5229,45 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
     except Exception:
         pass
 
-    query = "SELECT * FROM cartera_geral"
+    query = """
+    SELECT 
+        cg.id, cg.titulo, cg.cuota, cg.numero_pedido, cg.numero_factura,
+        cg.ciclo_captacion, cg.ciclo_indicador,
+        COALESCE(NULLIF(ct.grupo, ''), NULLIF(cg.grupo, ''), 'Sin Grupo') AS grupo,
+        cg.fecha_pedido, cg.fecha_vencimiento_original, cg.fecha_vencimiento,
+        cg.valor_titulo, cg.saldo_principal, cg.saldo_financiero, cg.saldo_total,
+        cg.saldo_actualizado, cg.situacion, cg.dias_retraso, cg.fase_cobro,
+        COALESCE(NULLIF(ct.cod_sector, ''), cg.cod_sector) AS cod_sector,
+        COALESCE(NULLIF(ct.sector, ''), cg.sector) AS sector,
+        cg.codigo_cb,
+        COALESCE(NULLIF(ct.nombre, ''), cg.nombre) AS nombre,
+        cg.direccion,
+        COALESCE(NULLIF(ct.celular, ''), cg.telefono_movil) AS telefono_movil,
+        cg.telefono_movil_2, cg.correo, cg.plan_recibimiento, cg.origen_empresa, cg.fecha_carga
+    FROM cartera_geral cg
+    LEFT JOIN consultoras_tableau ct ON CAST(cg.codigo_cb AS TEXT) = CAST(ct.codigo_cb AS TEXT)
+    """
     where_clauses = []
     params = []
     
     if situacion:
-        where_clauses.append("situacion = ?")
+        where_clauses.append("cg.situacion = ?")
         params.append(str(situacion).strip())
         
     if grupo:
         grp_str = str(grupo).strip()
-        where_clauses.append("(grupo = ? OR grupo LIKE ?)")
+        where_clauses.append("(COALESCE(NULLIF(ct.grupo, ''), cg.grupo) = ? OR COALESCE(NULLIF(ct.grupo, ''), cg.grupo) LIKE ?)")
         params.extend([grp_str, f"%{grp_str}%"])
         
     if sector and str(sector).strip():
         sec_str = str(sector).strip()
-        where_clauses.append("(cod_sector = ? OR sector LIKE ?)")
+        where_clauses.append("(COALESCE(NULLIF(ct.cod_sector, ''), cg.cod_sector) = ? OR COALESCE(NULLIF(ct.sector, ''), cg.sector) LIKE ?)")
         params.extend([sec_str, f"%{sec_str}%"])
         
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
         
-    query += " ORDER BY fecha_vencimiento ASC, saldo_total DESC"
+    query += " ORDER BY cg.fecha_vencimiento ASC, cg.saldo_total DESC"
     
     try:
         df = pd.read_sql_query(query, conn, params=params)
