@@ -2957,13 +2957,171 @@ with tab_tableau:
 
                 st.metric("👥 Consultoras en este Segmento", f"{len(df_wa_target):,} personas".replace(",", "."))
 
+                st.markdown("<br>", unsafe_allow_html=True)
+                st.markdown("###### 🖼️ Imagen o Flyer de Campaña")
+                st.caption("Sube un flyer promocional, kit o aviso para acompañar tus mensajes:")
+                uploaded_flyer = st.file_uploader(
+                    "Seleccionar imagen:",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key="uploader_flyer_campana",
+                    help="Sube una imagen para compartirla junto al mensaje en WhatsApp"
+                )
+                if uploaded_flyer is not None:
+                    st.success(f"✅ **Imagen cargada**: `{uploaded_flyer.name}`")
+
             with col_camp2:
                 plantilla_txt = st.text_area(
                     "✏️ Plantilla del Mensaje (Variables: `{primer_nombre}`, `{nombre}`, `{deuda_mora}`, `{deuda_total}`, `{pedidos}`, `{nivel}`, `{pts_acum}`, `{credito_disp}`):",
                     value=plantilla_def,
-                    height=160,
+                    height=130,
                     key=f"plantilla_txt_{tipo_camp[:2]}"
                 )
+
+                if uploaded_flyer is not None:
+                    import base64
+                    import re
+
+                    b64_flyer = base64.b64encode(uploaded_flyer.getvalue()).decode('utf-8')
+                    mime_flyer = uploaded_flyer.type or "image/png"
+                    flyer_kb = len(uploaded_flyer.getvalue()) // 1024
+
+                    # Asegurar persistencia del flyer en disco
+                    try:
+                        dir_campanas = os.path.join('data', 'campanas')
+                        os.makedirs(dir_campanas, exist_ok=True)
+                        with open(os.path.join(dir_campanas, uploaded_flyer.name), 'wb') as f_fly:
+                            f_fly.write(uploaded_flyer.getvalue())
+                    except Exception:
+                        pass
+
+                    # Tarjeta de acción rápida y guía
+                    st.markdown(f"""
+                    <div style="background: linear-gradient(135deg, rgba(37, 211, 102, 0.08) 0%, rgba(227, 0, 123, 0.05) 100%);
+                                border: 1px solid rgba(37, 211, 102, 0.35); border-radius: 12px; padding: 12px 16px; margin-top: 8px; margin-bottom: 8px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                            <div style="font-weight: 700; color: #128C7E; font-size: 0.92rem; display: flex; align-items: center; gap: 8px;">
+                                <span>🖼️</span> Flyer Listo: <strong>{uploaded_flyer.name}</strong> ({flyer_kb} KB)
+                            </div>
+                            <span style="background: #25D366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700;">
+                                LISTO PARA WHATSAPP
+                            </span>
+                        </div>
+                        <div style="font-size: 0.83rem; color: #334155; line-height: 1.4;">
+                            <strong>⚡ Envío rápido en 3 pasos:</strong><br>
+                            1️⃣ Haz clic en <strong>📋 Copiar Flyer</strong> (o clic derecho sobre la imagen ➔ <em>Copiar imagen</em>).<br>
+                            2️⃣ En la tabla de abajo, haz clic en <strong>📲 Enviar WA</strong> para abrir el chat con el mensaje listo.<br>
+                            3️⃣ En WhatsApp presiona <strong>Ctrl + V</strong> (o Pegar) y ¡envía el mensaje con la imagen juntos!
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    col_btn_img1, col_btn_img2 = st.columns([1.5, 1])
+                    with col_btn_img1:
+                        copy_script_html = f"""
+                        <div style="display: flex; flex-direction: column; gap: 4px; font-family: sans-serif;">
+                            <button id="btnCopiarFlyerClip" onclick="copiarFlyerAlPortapapeles()" style="
+                                background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+                                color: white; border: none; padding: 9px 14px; border-radius: 9px;
+                                font-weight: 700; font-size: 0.85rem; cursor: pointer; width: 100%;
+                                display: flex; align-items: center; justify-content: center; gap: 8px;
+                                box-shadow: 0 4px 10px rgba(37, 211, 102, 0.25);
+                            ">
+                                📋 Copiar Flyer al Portapapeles (1 Clic)
+                            </button>
+                            <div id="statusCopiarFlyer" style="font-size: 0.78rem; color: #128C7E; font-weight: 600; text-align: center; display: none;"></div>
+                        </div>
+                        <script>
+                        async function copiarFlyerAlPortapapeles() {{
+                            try {{
+                                const b64 = "{b64_flyer}";
+                                const byteCharacters = atob(b64);
+                                const byteNumbers = new Array(byteCharacters.length);
+                                for (let i = 0; i < byteCharacters.length; i++) {{
+                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                }}
+                                const byteArray = new Uint8Array(byteNumbers);
+                                const blob = new Blob([byteArray], {{ type: "{mime_flyer}" }});
+                                await navigator.clipboard.write([
+                                    new ClipboardItem({{ [blob.type]: blob }})
+                                ]);
+                                const el = document.getElementById('statusCopiarFlyer');
+                                el.innerText = '✅ ¡Flyer copiado! Abre WhatsApp y presiona Ctrl + V';
+                                el.style.display = 'block';
+                            }} catch (e) {{
+                                const el = document.getElementById('statusCopiarFlyer');
+                                el.innerHTML = '💡 <em>Para copiar: Clic derecho sobre la imagen abajo ➔ "Copiar imagen"</em>';
+                                el.style.display = 'block';
+                            }}
+                        }}
+                        </script>
+                        """
+                        st.components.v1.html(copy_script_html, height=58)
+                    with col_btn_img2:
+                        st.download_button(
+                            "📥 Descargar Flyer",
+                            data=uploaded_flyer.getvalue(),
+                            file_name=uploaded_flyer.name,
+                            mime=mime_flyer,
+                            use_container_width=True
+                        )
+
+                    # Mockup visual de Simulación WhatsApp
+                    with st.expander("👁️ Vista Previa: ¿Cómo verá el mensaje la consultora en WhatsApp?", expanded=False):
+                        if not df_wa_target.empty:
+                            r_sample = df_wa_target.iloc[0]
+                            sample_nom = str(r_sample.get('Nombre', r_sample.get('Asesora / Consultora', 'María'))).strip()
+                            sample_p_nom = sample_nom.split()[0].title() if sample_nom else "Consultora"
+                            sample_dm = formato_cop(r_sample.get('Deuda Mora', 0))
+                            sample_dt = formato_cop(r_sample.get('Deuda Total', 0))
+                            sample_cr = formato_cop(r_sample.get('Credito Disponible', 0))
+                            sample_ped = int(limpiar_numero(r_sample.get('Ped. Pendientes', 0)))
+                            sample_pts = int(limpiar_numero(r_sample.get('Pts Acum', 0)))
+                            sample_niv = str(r_sample.get('Color', r_sample.get('Nivel / Color', 'Consultora')))
+
+                            txt_preview_sim = (
+                                plantilla_txt
+                                .replace("{primer_nombre}", sample_p_nom)
+                                .replace("{nombre}", sample_nom.title())
+                                .replace("{deuda_mora}", sample_dm)
+                                .replace("{deuda_total}", sample_dt)
+                                .replace("{credito_disp}", sample_cr)
+                                .replace("{pedidos}", str(sample_ped))
+                                .replace("{pts_acum}", str(sample_pts))
+                                .replace("{nivel}", sample_niv)
+                            )
+                        else:
+                            txt_preview_sim = plantilla_txt.replace("{primer_nombre}", "María Cristina").replace("{deuda_mora}", "$150.000")
+
+                        txt_preview_sim_html = (
+                            re.sub(r'\*(.*?)\*', r'<strong>\1</strong>', txt_preview_sim)
+                            .replace('\n', '<br>')
+                        )
+                        hora_preview = datetime.now().strftime("%I:%M %p")
+
+                        st.markdown(f"""
+                        <div style="background: #EFEAE2; border-radius: 12px; padding: 14px; max-width: 440px; margin: 4px auto; border: 1px solid #D1D7DB; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
+                            <div style="font-size: 0.7rem; color: #667781; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">
+                                🟢 SIMULACIÓN CHAT WHATSAPP
+                            </div>
+                            <div style="background: #FFFFFF; border-radius: 8px 8px 8px 0; overflow: hidden; box-shadow: 0 1px 2px rgba(11,20,26,0.15);">
+                                <img src="data:{mime_flyer};base64,{b64_flyer}" style="width: 100%; max-height: 220px; object-fit: cover; display: block;" />
+                                <div style="padding: 8px 10px 4px 10px; font-size: 0.85rem; color: #111B21; line-height: 1.45; word-break: break-word;">
+                                    {txt_preview_sim_html}
+                                    <div style="text-align: right; font-size: 0.65rem; color: #667781; margin-top: 4px;">
+                                        {hora_preview} <span style="color: #53BDEB;">✓✓</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                    <div style="background: rgba(255, 107, 0, 0.05); border: 1px dashed rgba(255, 107, 0, 0.3); border-radius: 10px; padding: 10px 14px; margin-top: 8px;">
+                        <span style="font-size: 0.84rem; color: #64748B;">
+                            💡 <strong>Tip Comercial</strong>: Puedes subir un flyer promocional, kit o catálogo en el panel izquierdo (<strong>🖼️ Imagen o Flyer de Campaña</strong>) para acompañar tus mensajes y hacerlos mucho más atractivos.
+                        </span>
+                    </div>
+                    """, unsafe_allow_html=True)
 
             st.markdown("---")
 
@@ -2971,7 +3129,10 @@ with tab_tableau:
                 st.info("ℹ️ No hay consultoras que cumplan con el criterio del segmento seleccionado.")
             else:
                 st.markdown(f"###### 📋 Listado de Contacto para Campaña ({len(df_wa_target)} Asesoras)")
-                st.caption("Haz clic en el enlace verde de WhatsApp de cada fila para abrir el chat instantáneo con el mensaje ya escrito:")
+                if uploaded_flyer is not None:
+                    st.caption(f"Haz clic en el enlace verde **📲 Enviar WA** para abrir el chat con el mensaje listo. Luego presiona **Ctrl + V** para adjuntar el flyer *({uploaded_flyer.name})*:")
+                else:
+                    st.caption("Haz clic en el enlace verde de WhatsApp de cada fila para abrir el chat instantáneo con el mensaje ya escrito:")
 
                 # Construir tabla con enlaces directos de WhatsApp
                 filas_wa = []
@@ -2979,7 +3140,7 @@ with tab_tableau:
                     nom_full = str(r.get('Nombre', r.get('Asesora / Consultora', ''))).strip()
                     primer_n = nom_full.split()[0].title() if nom_full else "Consultora"
                     cel = str(r.get('celular', '')).strip().replace(' ', '').replace('-', '').replace('+', '')
-                    
+
                     deuda_m = formato_cop(r.get('Deuda Mora', 0))
                     deuda_t = formato_cop(r.get('Deuda Total', 0))
                     cred_d = formato_cop(r.get('Credito Disponible', 0))
@@ -3010,22 +3171,38 @@ with tab_tableau:
                         'Sit. Comercial': str(r.get('Sit. Comercial', '')),
                         'Deuda Mora': deuda_m,
                         'Ped. Pendientes': ped_val,
+                        'Adjunto': '🖼️ Flyer Listo' if uploaded_flyer else 'Solo Texto',
+                        'Flyer Archivo': uploaded_flyer.name if uploaded_flyer else '',
                         'Mensaje Generado': msg_personalizado,
                         'Enlace WhatsApp': link_wa
                     })
 
                 df_wa_table = pd.DataFrame(filas_wa)
 
+                # Columnas a mostrar según si hay imagen
+                cols_mostrar_wa = ['Código CB', 'Asesora', 'Grupo', 'Celular', 'Sit. Comercial', 'Deuda Mora', 'Ped. Pendientes']
+                if uploaded_flyer is not None:
+                    cols_mostrar_wa.append('Adjunto')
+                cols_mostrar_wa.append('Enlace WhatsApp')
+
+                cfg_columnas_wa = {
+                    "Enlace WhatsApp": st.column_config.LinkColumn(
+                        "📲 Chat WhatsApp",
+                        help="Haz clic para abrir WhatsApp Web o App con el mensaje listo",
+                        display_text="📲 Enviar WA"
+                    )
+                }
+                if uploaded_flyer is not None:
+                    cfg_columnas_wa["Adjunto"] = st.column_config.TextColumn(
+                        "📎 Flyer",
+                        help="Flyer cargado listo para pegar con Ctrl + V",
+                        width="small"
+                    )
+
                 # Mostrar con column_config LinkColumn
                 st.dataframe(
-                    df_wa_table[['Código CB', 'Asesora', 'Grupo', 'Celular', 'Sit. Comercial', 'Deuda Mora', 'Ped. Pendientes', 'Enlace WhatsApp']],
-                    column_config={
-                        "Enlace WhatsApp": st.column_config.LinkColumn(
-                            "📲 Chat WhatsApp",
-                            help="Haz clic para abrir WhatsApp Web o App con el mensaje listo",
-                            display_text="📲 Enviar WA"
-                        )
-                    },
+                    df_wa_table[cols_mostrar_wa],
+                    column_config=cfg_columnas_wa,
                     use_container_width=True,
                     hide_index=True
                 )
@@ -3034,15 +3211,19 @@ with tab_tableau:
                 col_exp1, col_exp2 = st.columns([1.5, 2.5])
                 with col_exp1:
                     csv_wa_bytes = df_wa_table.to_csv(index=False).encode('utf-8-sig')
+                    label_csv_exp = "📥 Exportar Base con Flyer (CSV)" if uploaded_flyer else "📥 Exportar Base para Envíos Masivos (CSV)"
                     st.download_button(
-                        label="📥 Exportar Base para Envíos Masivos (CSV)",
+                        label=label_csv_exp,
                         data=csv_wa_bytes,
                         file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.csv",
                         mime="text/csv",
                         use_container_width=True
                     )
                 with col_exp2:
-                    st.caption("💡 **Tip de Productividad**: Puedes usar este archivo CSV con herramientas como UltraMsg, Evolution API o Meta Cloud API para despachar cientos de mensajes en segundos sin riesgo de baneo.")
+                    if uploaded_flyer is not None:
+                        st.caption(f"💡 **Campaña Multimedia**: El archivo CSV incluye la referencia del flyer adjunto (*{uploaded_flyer.name}*) para plataformas de envío masivo como UltraMsg, Evolution API o Meta Cloud API.")
+                    else:
+                        st.caption("💡 **Tip de Productividad**: Puedes usar este archivo CSV con herramientas como UltraMsg, Evolution API o Meta Cloud API para despachar cientos de mensajes en segundos sin riesgo de baneo.")
 
         # --- SUBPESTAÑA 5: CUMPLEAÑOS Y RECONOCIMIENTO ---
         with tab_tab_cumple:
