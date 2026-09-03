@@ -14,6 +14,7 @@ import procesador
 # Recargamos dinámicamente procesador para garantizar que cualquier cambio en procesador.py se aplique sin reiniciar el servidor
 importlib.reload(procesador)
 from procesador import (
+    ruta_persistente,
     calcular_metas_ciclo,
     generar_analisis_como_vamos,
     procesar_base_tableau_manager,
