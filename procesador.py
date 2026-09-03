@@ -2505,10 +2505,140 @@ def hashlib_sha256(texto):
     import hashlib
     return hashlib.sha256(str(texto).encode('utf-8')).hexdigest()
 
+def reconciliar_usuarios_sectores(usuarios_dict, persistir=True):
+    """
+    Garantiza la consistencia absoluta e integridad referencial entre:
+    1. El rol del usuario (gerente, lider, superadmin).
+    2. Su código de sector (700000459 vs 700000466 u otros).
+    3. Su nombre de sector oficial ('MATICES CLERY' vs 'EMOCIONES DOLLY').
+    4. Su código de grupo si es Líder de Negocio.
+    Corrige automáticamente cualquier asignación errónea heredada de cargas previas.
+    """
+    if not isinstance(usuarios_dict, dict):
+        return usuarios_dict
+
+    GRUPOS_MATICES = {
+        '9640', '9334', '7841', '10168', '9678', '9291', '8425', '9948',
+        '9717', '8481', '10255', '10223', '10260', '9400', '9175', '8048',
+        '10261', '9581', '9718', '9376'
+    }
+    GRUPOS_EMOCIONES = {
+        '177', '9337', '9924', '7817', '9529', '5060', '10293', '10215',
+        '10066', '9891', '9349', '10294', '7815', '8055', '8928'
+    }
+
+    # Intentar obtener mapa relacional de la base de datos
+    mapa_db = {}
+    try:
+        conn = obtener_conexion_db()
+        cursor = conn.cursor()
+        cursor.execute("SELECT grupo, cod_sector, sector FROM consultoras_tableau GROUP BY grupo")
+        for r in cursor.fetchall():
+            if r[0]:
+                mapa_db[str(r[0]).strip()] = (str(r[1]).strip() if r[1] else '', str(r[2]).strip() if r[2] else '')
+    except Exception:
+        pass
+
+    cambios = False
+
+    for uname, udata in usuarios_dict.items():
+        if not isinstance(udata, dict):
+            continue
+        rol = str(udata.get("rol", "")).strip().lower()
+        grp = str(udata.get("codigo_grupo") or "").strip()
+        sec = str(udata.get("codigo_sector") or "").strip()
+        nom_sec = str(udata.get("nombre_sector") or "").strip()
+
+        if rol == "superadmin":
+            if udata.get("codigo_sector") is not None:
+                udata["codigo_sector"] = None
+                cambios = True
+            if udata.get("nombre_sector") != "Gestión Corporativa Global":
+                udata["nombre_sector"] = "Gestión Corporativa Global"
+                cambios = True
+            continue
+
+        if rol == "gerente":
+            if sec == "700000459" or "clery" in uname or uname == "gerente":
+                if udata.get("codigo_sector") != "700000459":
+                    udata["codigo_sector"] = "700000459"
+                    cambios = True
+                if udata.get("nombre_sector") != "MATICES CLERY":
+                    udata["nombre_sector"] = "MATICES CLERY"
+                    cambios = True
+            elif sec == "700000466" or "dolly" in uname:
+                if udata.get("codigo_sector") != "700000466":
+                    udata["codigo_sector"] = "700000466"
+                    cambios = True
+                if udata.get("nombre_sector") != "EMOCIONES DOLLY":
+                    udata["nombre_sector"] = "EMOCIONES DOLLY"
+                    cambios = True
+            continue
+
+        if rol == "lider" and grp:
+            nuevo_sec = None
+            nuevo_nom = None
+
+            if grp in GRUPOS_MATICES:
+                nuevo_sec = "700000459"
+                nuevo_nom = "MATICES CLERY"
+            elif grp in GRUPOS_EMOCIONES:
+                nuevo_sec = "700000466"
+                nuevo_nom = "EMOCIONES DOLLY"
+            elif grp in mapa_db:
+                db_sec, db_nom = mapa_db[grp]
+                if db_sec == "700000459" or "matices" in db_nom.lower():
+                    nuevo_sec = "700000459"
+                    nuevo_nom = "MATICES CLERY"
+                elif db_sec == "700000466" or "emociones" in db_nom.lower():
+                    nuevo_sec = "700000466"
+                    nuevo_nom = "EMOCIONES DOLLY"
+                elif db_sec:
+                    nuevo_sec = db_sec
+                    nuevo_nom = db_nom or f"Sector {db_sec}"
+
+            if nuevo_sec:
+                if udata.get("codigo_sector") != nuevo_sec:
+                    udata["codigo_sector"] = nuevo_sec
+                    cambios = True
+                if udata.get("nombre_sector") != nuevo_nom:
+                    udata["nombre_sector"] = nuevo_nom
+                    cambios = True
+            else:
+                # Coherencia canónica cuando no se conoce el grupo
+                if sec == "700000459" and nom_sec != "MATICES CLERY":
+                    udata["nombre_sector"] = "MATICES CLERY"
+                    cambios = True
+                elif sec == "700000466" and nom_sec != "EMOCIONES DOLLY":
+                    udata["nombre_sector"] = "EMOCIONES DOLLY"
+                    cambios = True
+
+    if cambios and persistir:
+        # Guardado silencioso de corrección
+        rutas_guardar = set(filter(None, [RUTA_USUARIOS, 'usuarios.json']))
+        if DIR_PERSISTENTE and os.path.isdir(DIR_PERSISTENTE):
+            rutas_guardar.add(os.path.join(DIR_PERSISTENTE, 'usuarios.json'))
+        for r in rutas_guardar:
+            try:
+                p_dir = os.path.dirname(r)
+                if p_dir:
+                    os.makedirs(p_dir, exist_ok=True)
+                with open(r, 'w', encoding='utf-8') as f:
+                    json.dump(usuarios_dict, f, ensure_ascii=False, indent=2)
+            except Exception:
+                pass
+        try:
+            sincronizar_usuarios_a_sqlite()
+        except Exception:
+            pass
+
+    return usuarios_dict
+
 def cargar_usuarios():
     """
     Carga el diccionario de usuarios desde el almacenamiento persistente o local.
     Si no existe, inicializa con los usuarios predeterminados.
+    Aplica reconciliación automática de consistencia de sectores.
     """
     rutas_a_probar = [RUTA_USUARIOS, 'usuarios.json', os.path.join('data', 'usuarios.json')]
     for r in rutas_a_probar:
@@ -2517,7 +2647,7 @@ def cargar_usuarios():
                 with open(r, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     if data and isinstance(data, dict):
-                        return data
+                        return reconciliar_usuarios_sectores(data)
             except Exception:
                 pass
 
@@ -2690,31 +2820,50 @@ def guardar_historico_sectores(dict_sectores):
 
 def obtener_nombre_sector_usuario(user_info):
     """
-    Retorna el nombre del sector del usuario de forma dinámica.
+    Retorna el nombre del sector del usuario de forma dinámica y autoritativa.
     Prioridad:
-    1. Campo 'nombre_sector' en el perfil del usuario.
-    2. Lookup en sectores_historico.json mediante 'codigo_sector'.
-    3. Si es superadmin -> 'Gestión Corporativa Global'
-    4. Fallback -> 'Sector {codigo_sector}' o 'Liderazgo Empresarial'.
+    1. Si es superadmin -> 'Gestión Corporativa Global'
+    2. Lookup canónico estricto por 'codigo_sector' (700000459 -> MATICES CLERY, 700000466 -> EMOCIONES DOLLY).
+    3. Lookup en sectores_historico.json o catalogo_sectores.json mediante 'codigo_sector'.
+    4. Campo 'nombre_sector' en el perfil del usuario (validando que no entre en conflicto con el código).
+    5. Fallback -> 'Sector {codigo_sector}' o 'Liderazgo Empresarial'.
     """
     if not user_info or not isinstance(user_info, dict):
         return "Liderazgo Empresarial"
         
-    rol = user_info.get("rol", "")
+    rol = str(user_info.get("rol", "")).strip().lower()
     if rol == "superadmin":
         return "Gestión Corporativa Global"
         
-    nom_sec = user_info.get("nombre_sector")
-    if nom_sec and str(nom_sec).strip() and str(nom_sec).lower() not in ["none", "nan", "null", ""]:
-        return str(nom_sec).strip()
-        
     cod_sec = str(user_info.get("codigo_sector") or "").strip()
+    
+    # Verificación canónica estricta para evitar cruces
+    if cod_sec == "700000459":
+        return "MATICES CLERY"
+    elif cod_sec == "700000466":
+        return "EMOCIONES DOLLY"
+        
     if cod_sec and cod_sec.lower() not in ["none", "nan", "null", ""]:
         historico = cargar_historico_sectores()
         if cod_sec in historico:
             nom_hist = historico[cod_sec].get("nombre_sector")
             if nom_hist and str(nom_hist).strip() and str(nom_hist).lower() not in ["none", "nan", "null", ""]:
                 return str(nom_hist).strip()
+        catalogo = cargar_catalogo_sectores()
+        if cod_sec in catalogo:
+            nom_cat = catalogo[cod_sec].get("nombre_sector")
+            if nom_cat and str(nom_cat).strip():
+                return str(nom_cat).strip()
+
+    nom_sec = user_info.get("nombre_sector")
+    if nom_sec and str(nom_sec).strip() and str(nom_sec).lower() not in ["none", "nan", "null", ""]:
+        if cod_sec == "700000466" and "matices" in str(nom_sec).lower():
+            return "EMOCIONES DOLLY"
+        if cod_sec == "700000459" and "emociones" in str(nom_sec).lower():
+            return "MATICES CLERY"
+        return str(nom_sec).strip()
+        
+    if cod_sec and cod_sec.lower() not in ["none", "nan", "null", ""]:
         return f"Sector {cod_sec}"
         
     return "Liderazgo Empresarial"
@@ -2971,6 +3120,15 @@ def auto_aprovisionar_lideres_sector(cod_sector, nombre_sector=""):
         if not g or g.lower() in ['nan', '-', 'none', '0']:
             continue
 
+        # Validar y normalizar canónicamente el nombre de sector
+        nom_sec_real = nombre_sector
+        if sec_clean == "700000459":
+            nom_sec_real = "MATICES CLERY"
+        elif sec_clean == "700000466":
+            nom_sec_real = "EMOCIONES DOLLY"
+        elif not nom_sec_real:
+            nom_sec_real = sec_info.get('nombre_sector', f'Sector {sec_clean}')
+
         username = f"lider{g}".lower()
         if username not in usuarios:
             usuarios[username] = {
@@ -2979,7 +3137,7 @@ def auto_aprovisionar_lideres_sector(cod_sector, nombre_sector=""):
                 "rol": "lider",
                 "codigo_grupo": g,
                 "codigo_sector": sec_clean,
-                "nombre_sector": nombre_sector or sec_info.get('nombre_sector', ''),
+                "nombre_sector": nom_sec_real,
                 "telefono": "",
                 "debe_cambiar_password": False,
                 "estado_suscripcion": "activo",
@@ -2991,7 +3149,10 @@ def auto_aprovisionar_lideres_sector(cod_sector, nombre_sector=""):
             user_u = usuarios[username]
             if not user_u.get('codigo_sector') or user_u.get('codigo_sector') != sec_clean:
                 user_u['codigo_sector'] = sec_clean
-                user_u['nombre_sector'] = nombre_sector or sec_info.get('nombre_sector', '')
+                user_u['nombre_sector'] = nom_sec_real
+                cambios = True
+            elif user_u.get('nombre_sector') != nom_sec_real:
+                user_u['nombre_sector'] = nom_sec_real
                 cambios = True
 
     if cambios:
@@ -3415,11 +3576,21 @@ def registrar_o_actualizar_usuario(username, nombre, password=None, rol="lider",
         sec_id = str(usuarios[u_clean]["codigo_sector"]).strip()
         usr_data["codigo_sector"] = sec_id
 
-    # Asignar o heredar nombre del sector
-    if nombre_sector:
+    # Asignar o heredar nombre del sector de forma canónica y autoritativa
+    if sec_id == "700000459":
+        usr_data["nombre_sector"] = "MATICES CLERY"
+    elif sec_id == "700000466":
+        usr_data["nombre_sector"] = "EMOCIONES DOLLY"
+    elif nombre_sector:
         usr_data["nombre_sector"] = str(nombre_sector).strip()
     elif u_clean in usuarios and "nombre_sector" in usuarios[u_clean]:
-        usr_data["nombre_sector"] = usuarios[u_clean]["nombre_sector"]
+        prev_nom = usuarios[u_clean]["nombre_sector"]
+        if sec_id == "700000466" and "matices" in str(prev_nom).lower():
+            usr_data["nombre_sector"] = "EMOCIONES DOLLY"
+        elif sec_id == "700000459" and "emociones" in str(prev_nom).lower():
+            usr_data["nombre_sector"] = "MATICES CLERY"
+        else:
+            usr_data["nombre_sector"] = prev_nom
 
     # Si pertenece a un sector, heredar estado de suscripción, fecha de vencimiento y nombre de sector si no lo tiene
     if sec_id:
@@ -3804,7 +3975,37 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
         grupos_procesados.add(g_str)
 
         correo_lider = None
-        sec_lider = sec_detectado
+        sec_lider = None
+        nom_sec_lider = None
+
+        # 1. Buscar sector y nombre relacional en la base SQLite (consultoras_tableau)
+        try:
+            conn_sec = obtener_conexion_db()
+            cur_sec = conn_sec.cursor()
+            cur_sec.execute("SELECT cod_sector, sector FROM consultoras_tableau WHERE grupo = ? LIMIT 1", (g_str,))
+            r_sec = cur_sec.fetchone()
+            if r_sec and r_sec[0]:
+                sec_lider = str(r_sec[0]).split('.')[0].strip()
+                nom_sec_lider = str(r_sec[1]).strip() if r_sec[1] else None
+        except Exception:
+            pass
+
+        # 2. Si no se encontró en SQLite, buscar en la fila de df_metas
+        if not sec_lider:
+            for c_m in ['Cd Setor', 'Cd Sector', 'Cod. Sector', 'Codigo Sector', 'Cod Sector']:
+                if c_m in df_metas.columns and pd.notna(row.get(c_m)):
+                    val_c = str(row.get(c_m)).split('.')[0].strip()
+                    if val_c and val_c.lower() not in ['nan', 'none', '0']:
+                        sec_lider = val_c
+                        break
+            for c_nm in ['Nombre Setor', 'Nombre Sector', 'Sector']:
+                if c_nm in df_metas.columns and pd.notna(row.get(c_nm)):
+                    val_nm = str(row.get(c_nm)).strip()
+                    if val_nm and val_nm.lower() not in ['nan', 'none']:
+                        nom_sec_lider = val_nm
+                        break
+
+        # 3. Buscar en df_tab por grupo
         if df_tab is not None:
             mask_g = (df_tab['Grupo'].astype(str).str.strip() == g_str) if 'Grupo' in df_tab.columns else pd.Series(False, index=df_tab.index)
             if mask_g.any():
@@ -3814,6 +4015,18 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
                 col_s_g = next((c for c in ['Cod. Sector', 'cod_sector'] if c in df_g.columns), None)
                 if col_s_g and not df_g[col_s_g].dropna().empty:
                     sec_lider = str(df_g[col_s_g].dropna().iloc[0]).split('.')[0].strip()
+                col_sn_g = next((c for c in ['Sector', 'sector', 'Nombre Sector'] if c in df_g.columns), None)
+                if col_sn_g and not df_g[col_sn_g].dropna().empty:
+                    nom_sec_lider = str(df_g[col_sn_g].dropna().iloc[0]).strip()
+
+        if not sec_lider:
+            sec_lider = sec_detectado
+
+        # Normalizar nombre del sector canónico
+        if sec_lider == "700000459":
+            nom_sec_lider = "MATICES CLERY"
+        elif sec_lider == "700000466":
+            nom_sec_lider = "EMOCIONES DOLLY"
 
         username = correo_lider if (correo_lider and '@' in correo_lider) else f"lider{g_str}"
         ya_existe = (username in usuarios_existentes)
@@ -3825,7 +4038,8 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
                 password=None,
                 rol="lider",
                 codigo_grupo=g_str,
-                codigo_sector=sec_lider
+                codigo_sector=sec_lider,
+                nombre_sector=nom_sec_lider
             )
         else:
             pass_gen = generar_password_aleatoria()
@@ -3835,7 +4049,8 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
                 password=pass_gen,
                 rol="lider",
                 codigo_grupo=g_str,
-                codigo_sector=sec_lider
+                codigo_sector=sec_lider,
+                nombre_sector=nom_sec_lider
             )
             if exito:
                 creados.append({

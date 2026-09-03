@@ -5414,7 +5414,7 @@ with tab_usuarios:
                     "Rol": udata.get("rol", ""),
                     "Código de Grupo": udata.get("codigo_grupo") or "N/A",
                     "Código de Sector": udata.get("codigo_sector") or "N/A",
-                    "Nombre Sector": udata.get("nombre_sector") or "N/A",
+                    "Nombre Sector": obtener_nombre_sector_usuario(udata),
                     "Estado": udata.get("estado_suscripcion") or "activo"
                 })
             df_u_all = pd.DataFrame(list_u)
