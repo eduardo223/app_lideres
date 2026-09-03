@@ -14,3 +14,8 @@ venv/
 ~$*
 Authorizations_*.csv
 Resultado_Metas_Procesadas.xlsx
+
+# Datos locales de ejecución, base SQLite y hojas de trabajo
+data/
+Base de Datos_Actualizada.xlsx
+SIMULADOR- LIDER DE NEGOCIOS *.xlsx
