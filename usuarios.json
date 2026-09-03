@@ -5,10 +5,10 @@
     "rol": "superadmin",
     "codigo_grupo": null,
     "codigo_sector": null,
-    "nombre_sector": "Gestión Corporativa Global",
-    "telefono": "",
     "debe_cambiar_password": false,
+    "nombre_sector": "Gestión Corporativa Global",
     "estado_suscripcion": "activo",
+    "telefono": "",
     "fecha_vencimiento": null
   },
   "gerente": {
@@ -19,9 +19,28 @@
     "codigo_sector": "700000459",
     "nombre_sector": "MATICES CLERY",
     "telefono": "",
-    "debe_cambiar_password": false,
     "estado_suscripcion": "activo",
-    "fecha_vencimiento": null
+    "fecha_vencimiento": null,
+    "debe_cambiar_password": false
+  },
+  "dolly.parra@natura.net": {
+    "nombre": "Dolly Parra",
+    "password_hash": "be733997ec9beec98b4db13e555fb8f0f19e02ca871f20a92e9e071223bea9ef",
+    "rol": "gerente",
+    "codigo_grupo": null,
+    "codigo_sector": "700000466",
+    "nombre_sector": "EMOCIONES DOLLY",
+    "telefono": "",
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null,
+    "debe_cambiar_password": false
+  },
+  "asesor": {
+    "nombre": "Usuario Consulta Facturación",
+    "password_hash": "2ac668df8973cd2b3c6e4dc7816eab15c3bba28dd98766d37860639be3816df9",
+    "rol": "asesor",
+    "codigo_grupo": null,
+    "debe_cambiar_password": false
   },
   "lider9640": {
     "nombre": "YENNY COROMOTO DIAZ PEREZ",
@@ -189,18 +208,6 @@
     "estado_suscripcion": "activo",
     "fecha_vencimiento": null
   },
-  "dolly.parra@natura.net": {
-    "nombre": "Dolly Parra",
-    "password_hash": "be733997ec9beec98b4db13e555fb8f0f19e02ca871f20a92e9e071223bea9ef",
-    "rol": "gerente",
-    "codigo_grupo": null,
-    "codigo_sector": "700000466",
-    "nombre_sector": "EMOCIONES DOLLY",
-    "telefono": "",
-    "debe_cambiar_password": false,
-    "estado_suscripcion": "activo",
-    "fecha_vencimiento": null
-  },
   "lider9337": {
     "nombre": "JUANA MARCELA LINARES CARDENAS",
     "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
@@ -344,5 +351,160 @@
     "debe_cambiar_password": false,
     "estado_suscripcion": "activo",
     "fecha_vencimiento": null
+  },
+  "lider4796": {
+    "nombre": "RUTH DARLY ALVAREZ BERMUDEZ",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "4796",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider5292": {
+    "nombre": "YURY ROCIO ROMERO JIMENEZ",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "5292",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider5672": {
+    "nombre": "ANGIE KATHERINE ROMERO CUCAITA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "5672",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider8832": {
+    "nombre": "YULIETH SOCARRAS BARROS",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "8832",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider9039": {
+    "nombre": "JORGE IVAN JIMENEZ ALMANZA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9039",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider9040": {
+    "nombre": "ADRIANA MILENA CRUZ SUNCE",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9040",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider9177": {
+    "nombre": "DAIRY ACOSTA MATUTE",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9177",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider9426": {
+    "nombre": "NIDIA YANETH SOTO MERCHÁN",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9426",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider9549": {
+    "nombre": "MIRNA SOFÍA BUSTAMANTE GUZMAN",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9549",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider10183": {
+    "nombre": "YEIMY PAOLA CALDERON BOLIVAR",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10183",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider10184": {
+    "nombre": "YULI ANEIDA MANCIPE ANGEL",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10184",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "lider10216": {
+    "nombre": "DANIELA RIAÑO PINZON",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10216",
+    "codigo_sector": "700000021",
+    "nombre_sector": "SECTOR COLORES",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "mariana.colores@gmail.com": {
+    "nombre": "Mariana Gomez",
+    "password_hash": "daf6669f00f3e4a88c264cf0de5928f81b42bcd292e3ca6737757ed32d996f98",
+    "rol": "gerente",
+    "codigo_grupo": null,
+    "codigo_sector": "700000021",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null,
+    "nombre_sector": "SECTOR COLORES"
   }
 }
