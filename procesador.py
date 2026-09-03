@@ -1927,9 +1927,9 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
 
         # Para las no activas, sincronizar Situación macro según nivel de inactividad
         mask_no_activa = ~mask_activa_cycle
-        sit_lower = df['Sit. Comercial'].astype(str).str.lower()
-        mask_disp = mask_no_activa & sit_lower.apply(lambda s: any(k in s for k in ['inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']))
-        mask_indisp = mask_no_activa & sit_lower.apply(lambda s: any(k in s for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6']))
+        sit_lower = df['Sit. Comercial'].fillna('').astype(str).str.lower()
+        mask_disp = mask_no_activa & sit_lower.apply(lambda s: any(k in str(s).lower() for k in ['inactiva 1', 'inactiva 2', 'inactiva 3', 'i1', 'i2', 'i3']) if pd.notna(s) else False)
+        mask_indisp = mask_no_activa & sit_lower.apply(lambda s: any(k in str(s).lower() for k in ['inactiva 4', 'inactiva 5', 'inactiva 6', 'i4', 'i5', 'i6']) if pd.notna(s) else False)
         df.loc[mask_disp, 'Situación'] = 'Disponible'
         df.loc[mask_indisp, 'Situación'] = 'Indisponible'
 
@@ -3887,11 +3887,8 @@ def validar_sector_archivo(origen_file, sector_esperado):
     cod_sec_mostrar = f"`{ultimo_sec_encontrado}`" if ultimo_sec_encontrado else ""
     
     # Nombre del sector del usuario
-    nombre_usuario_sec = ""
-    for ne in nombres_esperados:
-        if len(ne) > len(nombre_usuario_sec):
-            nombre_usuario_sec = ne.title()
-    if not nombre_usuario_sec:
+    nombre_usuario_sec = obtener_nombre_sector_usuario({"codigo_sector": sector_esp_str})
+    if not nombre_usuario_sec or nombre_usuario_sec == "Liderazgo Empresarial":
         nombre_usuario_sec = sector_esp_str
 
     msg = (
