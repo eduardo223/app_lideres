@@ -3250,7 +3250,7 @@ def generar_token_sesion(user_dict):
     try:
         payload = {
             "username": str(user_dict.get("username")).strip().lower(),
-            "exp": int(time.time()) + (24 * 3600)  # Válido por 24 horas
+            "exp": int(time.time()) + (48 * 3600)  # Válido por 48 horas para máxima persistencia
         }
         payload_json = json.dumps(payload)
         payload_b64 = base64.urlsafe_b64encode(payload_json.encode('utf-8')).decode('utf-8')

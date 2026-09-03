@@ -1092,8 +1092,8 @@ def load_and_process_data(ruta_o_buffer='Base para el como vamos.xlsx'):
         df_uploaded = pd.read_excel(ruta_o_buffer, sheet_name="Base para el como vamos")
         return calcular_metas_ciclo(df_uploaded)
 
-# --- CONTROL DE SESIÓN, INACTIVIDAD (15 MIN) Y LOGIN ---
-TIEMPO_INACTIVIDAD_SEGUNDOS = 15 * 60  # 15 minutos (900 segundos)
+# --- CONTROL DE SESIÓN (12 HORAS DE JORNADA LABORAL) Y LOGIN ---
+TIEMPO_INACTIVIDAD_SEGUNDOS = 12 * 3600  # 12 horas continuas sin interrupciones
 
 if 'user' not in st.session_state:
     st.session_state['user'] = None
@@ -1110,13 +1110,13 @@ if st.session_state['user'] is None:
             st.session_state['user'] = usuario_restaurado
             st.session_state['ultimo_acceso'] = time.time()
 
-# 1. Validar si la sesión activa superó el tiempo máximo de inactividad
+# 1. Validar si la sesión activa superó el tiempo máximo de inactividad (12 horas)
 if st.session_state['user'] is not None:
     tiempo_inactivo = time.time() - st.session_state.get('ultimo_acceso', time.time())
     if tiempo_inactivo > TIEMPO_INACTIVIDAD_SEGUNDOS:
         st.session_state['user'] = None
         st.query_params.clear()
-        st.session_state['msg_timeout'] = "⏳ Tu sesión ha expirado automáticamente por inactividad (más de 15 minutos sin interacción). Por tu seguridad y privacidad de los datos, por favor inicia sesión nuevamente."
+        st.session_state['msg_timeout'] = "⏳ Tu sesión ha finalizado automáticamente tras 12 horas de jornada. Por favor inicia sesión nuevamente."
         st.session_state['ultimo_acceso'] = time.time()
         st.rerun()
     else:
@@ -1534,24 +1534,10 @@ if modo_vista == "📱 Móvil (App Matices)":
     st.caption(f"📈 Panel Móvil {user_sector_nombre} | Desarrollado por: Tao-System by xyz")
     st.stop()
 
-# Inactivador automático en cliente tras 15 minutos sin interacción y activador de corrector nativo
+# Activador de corrector ortográfico nativo del explorador en celdas y campos editables
 st.markdown("""
 <script>
     (function() {
-        const TIEMPO_LIMITE_MS = 15 * 60 * 1000; // 15 minutos
-        let timeoutInactividad;
-
-        function reiniciarReloj() {
-            clearTimeout(timeoutInactividad);
-            timeoutInactividad = setTimeout(function() {
-                window.location.reload();
-            }, TIEMPO_LIMITE_MS);
-        }
-
-        ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click'].forEach(function(evt) {
-            window.addEventListener(evt, reiniciarReloj, { passive: true });
-        });
-
         // Habilitar corrector ortográfico nativo del explorador en celdas y campos editables
         function activarCorrectorExplorador(el) {
             if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable)) {
@@ -1563,8 +1549,6 @@ st.markdown("""
         document.addEventListener('focusin', function(e) {
             activarCorrectorExplorador(e.target);
         }, true);
-
-        reiniciarReloj();
     })();
 </script>
 """, unsafe_allow_html=True)
