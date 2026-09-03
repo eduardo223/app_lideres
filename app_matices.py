@@ -77,6 +77,15 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
     user_rol = current_user.get('rol', 'lider')
     user_grupo = str(current_user.get('codigo_grupo', '')).strip().split('.')[0] if current_user.get('codigo_grupo') else ""
     user_sector = str(current_user.get('codigo_sector', '')).strip() if current_user.get('codigo_sector') else ""
+    if not user_sector and user_grupo:
+        try:
+            usuarios_cat = cargar_usuarios()
+            for u_k, u_v in usuarios_cat.items():
+                if str(u_v.get('codigo_grupo', '')).strip() == str(user_grupo).strip() and u_v.get('codigo_sector'):
+                    user_sector = str(u_v.get('codigo_sector')).strip()
+                    break
+        except Exception:
+            pass
 
     # CSS Ultra-Compacto y Responsivo para Smartphones y Tablets (Tema Natura & Avon)
     st.markdown("""
@@ -211,7 +220,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         grupos_disponibles = sorted(list(set(
             str(u.get('codigo_grupo')).strip().split('.')[0]
             for u in usuarios_todos.values()
-            if u.get('codigo_grupo')
+            if u.get('codigo_grupo') and (user_rol == 'superadmin' or str(u.get('codigo_sector', '')).strip() == str(user_sector).strip())
         )))
         if grupos_disponibles:
             col_g_sel1, col_g_sel2 = st.columns([2, 1])
@@ -221,8 +230,14 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 st.caption("*(Vista Gerencial)*")
 
     # 5. Carga de Datos Relacionales (Tableau, Geral, Objetivos Arte y Cómo Vamos)
-    df_tab = consultar_tableau_sql(grupo=grupo_activo if grupo_activo else None)
-    df_geral = consultar_geral_sql(grupo=grupo_activo if grupo_activo else None)
+    df_tab = consultar_tableau_sql(
+        grupo=grupo_activo if grupo_activo else None,
+        sector=user_sector if (not grupo_activo and user_sector and user_rol != 'superadmin') else None
+    )
+    df_geral = consultar_geral_sql(
+        grupo=grupo_activo if grupo_activo else None,
+        sector=user_sector if (not grupo_activo and user_sector and user_rol != 'superadmin') else None
+    )
 
     # Carga de Objetivos Arte
     mapa_arte = cargar_objetivos_arte()
@@ -230,11 +245,32 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
     # Carga de Cómo Vamos
     df_cv_all = None
-    if os.path.exists('Base para el como vamos.xlsx'):
-        try:
-            df_cv_all = calcular_metas_ciclo('Base para el como vamos.xlsx')
-        except Exception:
-            pass
+    try:
+        df_cv_all = calcular_metas_ciclo()
+    except Exception:
+        if os.path.exists('Base para el como vamos.xlsx'):
+            try:
+                df_cv_all = calcular_metas_ciclo('Base para el como vamos.xlsx')
+            except Exception:
+                pass
+
+    # Aislamiento Multitenant Estricto por Sector en Móvil (tanto para Líder como para Gerente)
+    if user_sector and user_rol != 'superadmin' and df_cv_all is not None and not df_cv_all.empty:
+        col_sec_found = None
+        for c in df_cv_all.columns:
+            c_low = str(c).lower().replace('ó', 'o')
+            if 'setor' in c_low or 'sector' in c_low:
+                col_sec_found = c
+                break
+        if col_sec_found:
+            s_vals = df_cv_all[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
+            df_cv_all = df_cv_all[s_vals == str(user_sector).strip()]
+        else:
+            grupos_sector = {str(u.get('codigo_grupo')).strip() for u in cargar_usuarios().values() if str(u.get('codigo_sector')).strip() == str(user_sector).strip() and u.get('codigo_grupo')}
+            col_g_ref = next((c for c in df_cv_all.columns if 'grupo' in str(c).lower()), None)
+            if col_g_ref and grupos_sector:
+                g_vals = df_cv_all[col_g_ref].astype(str).str.split('.').str[0].str.strip()
+                df_cv_all = df_cv_all[g_vals.isin(grupos_sector)]
 
     df_cv = pd.DataFrame()
     if df_cv_all is not None and not df_cv_all.empty and grupo_activo:
@@ -581,15 +617,16 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             filtro_segmento = st.radio(
                 "🎯 **Filtrar por Tipo de Red:**",
                 options=[
-                    f"🌟 Todas ({count_tot})",
-                    f"👑 Líderes ({count_lideres})",
+                    f"👑 Solo Mis Líderes ({count_lideres})",
+                    f"🌟 Toda la Red ({count_tot})",
                     f"🌱 Emprendedoras ({count_emprendedoras})"
                 ],
+                index=0,
                 horizontal=True,
                 key="mob_filtro_segmento_red"
             )
 
-            if "👑 Líderes" in filtro_segmento:
+            if "👑 Solo Mis Líderes" in filtro_segmento or "👑 Líderes" in filtro_segmento:
                 df_diag = df_diag[df_diag['Tipo_Red'] == '👑 Líder'].copy()
             elif "🌱 Emprendedoras" in filtro_segmento:
                 df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 Emprendedora'].copy()

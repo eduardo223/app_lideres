@@ -1796,24 +1796,27 @@ else:
                           (~df[col_lider_check].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
         df = df[mask_valida_df]
 
-    # Aislamiento Multitenant de Gerencias: Filtrar df por el sector asignado a la Gerente
-    if user_rol == 'gerente':
-        if user_sector:
-            col_sec_found = None
-            for c in df.columns:
-                c_low = str(c).lower().replace('ó', 'o')
-                if 'setor' in c_low or 'sector' in c_low:
-                    col_sec_found = c
-                    break
-                    
-            if col_sec_found:
-                s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
-                df = df[s_vals == str(user_sector).strip()]
-            else:
-                df = df.iloc[0:0]
+    # Aislamiento Multitenant: Filtrar df por el sector asignado tanto para Gerente como para Líder
+    if user_sector and user_rol in ['gerente', 'lider']:
+        col_sec_found = None
+        for c in df.columns:
+            c_low = str(c).lower().replace('ó', 'o')
+            if 'setor' in c_low or 'sector' in c_low:
+                col_sec_found = c
+                break
+                
+        if col_sec_found:
+            s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
+            df = df[s_vals == str(user_sector).strip()]
         else:
-            # Si la gerente NO tiene sector asignado en usuarios.json, mostrar vista limpia de 0 filas
-            df = df.iloc[0:0]
+            grupos_sector = {str(u.get('codigo_grupo')).strip() for u in cargar_usuarios().values() if str(u.get('codigo_sector')).strip() == str(user_sector).strip() and u.get('codigo_grupo')}
+            col_grp_ref = next((c for c in df.columns if 'grupo' in str(c).lower()), None)
+            if col_grp_ref and grupos_sector:
+                g_vals = df[col_grp_ref].astype(str).str.split('.').str[0].str.strip()
+                df = df[g_vals.isin(grupos_sector)]
+    elif user_rol == 'gerente' and not user_sector:
+        # Si la gerente NO tiene sector asignado en usuarios.json, mostrar vista limpia de 0 filas
+        df = df.iloc[0:0]
 
 # Header Principal Dinámico según el Sector del Usuario
 st.markdown(f"<div class='main-header'>📈 Panel de Control - Estado de Ciclo {user_sector_nombre}</div>", unsafe_allow_html=True)
