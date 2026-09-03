@@ -1865,9 +1865,15 @@ def procesar_base_tableau_manager(origen='Base de Datos.xlsx'):
         'Nombre Sector': 'Sector',
         'Situación': 'Situación',
         'Deuda Mora ': 'Deuda Mora',
+        'Pts para Ascender': 'Pts Asc',
         'Pts para Ascender ': 'Pts Asc',
+        'Pts Para Ascender': 'Pts Asc',
+        'Pts Para Ascender ': 'Pts Asc',
         'Pts Para Mantener': 'Pts Mant',
-        'Pts Acumulados': 'Pts Acum'
+        'Pts para Mantener': 'Pts Mant',
+        'Pts Para Mantener ': 'Pts Mant',
+        'Pts Acumulados': 'Pts Acum',
+        'Pts Acumulado': 'Pts Acum'
     }
     df = df.rename(columns=renombres_clave)
 
@@ -4674,9 +4680,9 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             int(limpiar_numero(row.get('Pts AVON', 0))),
             int(limpiar_numero(row.get('Pts Total VD', 0))),
             int(limpiar_numero(row.get('Pts VOL', 0))),
-            int(limpiar_numero(row.get('Pts Acum', 0))),
-            int(limpiar_numero(row.get('Pts Mant', 0))),
-            int(limpiar_numero(row.get('Pts Asc', 0))),
+            int(limpiar_numero(row.get('Pts Acum', row.get('Pts Acumulados', 0)))),
+            int(limpiar_numero(row.get('Pts Mant', row.get('Pts Para Mantener', row.get('Pts para Mantener', 0))))),
+            int(limpiar_numero(row.get('Pts Asc', row.get('Pts para Ascender', row.get('Pts Para Ascender', 0))))),
             str(row.get('Tienda Online', '')),
             str(row.get('TiendaSF', '')),
             int(limpiar_numero(row.get('Ciclo Primer Pedido', 0))),
