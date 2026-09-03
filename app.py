@@ -1084,7 +1084,14 @@ def crear_scatter_atencion_fig(df_tableau):
 
 # 2. Función para cargar y procesar los datos con cache de Streamlit
 @st.cache_data
-def load_and_process_data(ruta_o_buffer='Base para el como vamos.xlsx'):
+def load_and_process_data(ruta_o_buffer=None):
+    if ruta_o_buffer is None or ruta_o_buffer == 'Base para el como vamos.xlsx':
+        p_pers = ruta_persistente('Base para el como vamos.xlsx')
+        if p_pers and os.path.exists(p_pers):
+            ruta_o_buffer = p_pers
+        elif os.path.exists('Base para el como vamos.xlsx'):
+            ruta_o_buffer = 'Base para el como vamos.xlsx'
+
     if isinstance(ruta_o_buffer, str):
         if not os.path.exists(ruta_o_buffer):
             return None
@@ -1588,6 +1595,13 @@ if puede_subir_archivos:
                             try:
                                 with open("Base de Datos.xlsx", "wb") as f:
                                     f.write(archivo_tableau_sb.getbuffer())
+                                p_tab_pers = ruta_persistente("Base de Datos.xlsx")
+                                if p_tab_pers and p_tab_pers != "Base de Datos.xlsx":
+                                    try:
+                                        with open(p_tab_pers, "wb") as f_p:
+                                            f_p.write(archivo_tableau_sb.getbuffer())
+                                    except Exception:
+                                        pass
                                 ok_sync = sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
                                 if ok_sync:
                                     st.cache_data.clear()
@@ -4344,17 +4358,18 @@ with tab_diagnostico:
             filtro_segmento = st.radio(
                 "🎯 **Filtrar por Tipo de Red:**",
                 options=[
-                    f"🌟 Todas ({count_tot})",
-                    f"👑 Líderes ({count_lideres})",
+                    f"👑 Solo Mis Líderes ({count_lideres})",
+                    f"🌟 Red Completa ({count_tot})",
                     f"🌱 Emprendedoras ({count_emprendedoras})"
                 ],
+                index=0,
                 horizontal=True,
                 key="filtro_segmento_red_diagnostico"
             )
         with col_f2:
-            st.caption("💡 **Criterio de Clasificación:**\n* **👑 Líderes:** Desafío/Meta Facturación > $0\n* **🌱 Emprendedoras:** Desafío/Meta Facturación = $0 o menor")
+            st.caption("💡 **Criterio de Clasificación:**\n* **👑 Líderes:** Desafío/Meta Facturación > $0 (filtro activo por defecto)\n* **🌱 Emprendedoras:** Desafío/Meta Facturación = $0 o menor")
 
-        if "👑 Líderes" in filtro_segmento:
+        if "👑 Solo Mis Líderes" in filtro_segmento or "👑 Líderes" in filtro_segmento:
             df_diag = df_diag[df_diag['Tipo_Red'] == '👑 Líder'].copy()
         elif "🌱 Emprendedoras" in filtro_segmento:
             df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 Emprendedora'].copy()

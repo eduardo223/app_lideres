@@ -123,11 +123,21 @@ def normalizar_columnas(df):
 
     return df
 
-def calcular_metas_ciclo(origen='Base para el como vamos.xlsx'):
+def calcular_metas_ciclo(origen=None):
     """
     Calcula las metas de crecimiento (+1, +3, +5, +7, +9) basándose en las activas reales
     y calcula el 'Avance % Facturación' comparando con la hoja 'Como vamos anterior'.
+    Resuelve prioritariamente la ruta en el volumen persistente (/app/data o data).
     """
+    if origen is None or (isinstance(origen, str) and origen in ['Base para el como vamos.xlsx', 'data/Base para el como vamos.xlsx']):
+        p_pers = ruta_persistente('Base para el como vamos.xlsx')
+        if p_pers and os.path.exists(p_pers):
+            origen = p_pers
+        elif os.path.exists('Base para el como vamos.xlsx'):
+            origen = 'Base para el como vamos.xlsx'
+        else:
+            return None
+
     if isinstance(origen, str):
         if not os.path.exists(origen):
             print(f"Error: No se encontró el archivo '{origen}'.")
@@ -893,19 +903,31 @@ def rotar_y_guardar_nuevo_ciclo(nuevo_excel_origen, ruta_destino='Base para el c
     Toma el archivo de datos del ciclo actual para un sector (o varios),
     actualiza la hoja 'Base para el como vamos' y 'Como vamos anterior' en 'Base para el como vamos.xlsx',
     preservando de manera multi-tenant los datos de otros sectores para que ninguna gerente sobreescriba a otra.
+    Persiste los cambios tanto en la raíz como en el almacenamiento persistente (/app/data o data).
     """
+    if not ruta_destino or ruta_destino == 'Base para el como vamos.xlsx':
+        ruta_destino = 'Base para el como vamos.xlsx'
+
+    # Resolver de dónde leer el ciclo anterior (priorizando volumen persistente si existe)
+    ruta_lectura = ruta_destino
+    p_pers = ruta_persistente('Base para el como vamos.xlsx')
+    if p_pers and os.path.exists(p_pers):
+        ruta_lectura = p_pers
+    elif os.path.exists(ruta_destino):
+        ruta_lectura = ruta_destino
+
     df_exist_act = None
     df_exist_ant = None
-    if os.path.exists(ruta_destino):
+    if os.path.exists(ruta_lectura):
         try:
-            xl_existente = pd.ExcelFile(ruta_destino)
+            xl_existente = pd.ExcelFile(ruta_lectura)
             hojas_lower = {s.lower().strip(): s for s in xl_existente.sheet_names}
             if 'base para el como vamos' in hojas_lower:
-                df_exist_act = pd.read_excel(ruta_destino, sheet_name=hojas_lower['base para el como vamos'])
+                df_exist_act = pd.read_excel(ruta_lectura, sheet_name=hojas_lower['base para el como vamos'])
             if 'como vamos anterior' in hojas_lower:
-                df_exist_ant = pd.read_excel(ruta_destino, sheet_name=hojas_lower['como vamos anterior'])
+                df_exist_ant = pd.read_excel(ruta_lectura, sheet_name=hojas_lower['como vamos anterior'])
         except Exception as e:
-            print(f"Advertencia al leer ciclo anterior de '{ruta_destino}': {e}")
+            print(f"Advertencia al leer ciclo anterior de '{ruta_lectura}': {e}")
 
     # Leer el nuevo archivo entregado
     if hasattr(nuevo_excel_origen, 'seek'):
@@ -981,16 +1003,31 @@ def rotar_y_guardar_nuevo_ciclo(nuevo_excel_origen, ruta_destino='Base para el c
         componentes_ant.append(df_act_este_sector)
     df_final_anterior = pd.concat(componentes_ant, ignore_index=True) if componentes_ant else None
 
-    # Guardar ambas hojas en el archivo destino
-    try:
-        with pd.ExcelWriter(ruta_destino, engine='openpyxl') as writer:
-            df_final_actual.to_excel(writer, sheet_name='Base para el como vamos', index=False)
-            if df_final_anterior is not None and not df_final_anterior.empty:
-                df_final_anterior.to_excel(writer, sheet_name='Como vamos anterior', index=False)
-    except PermissionError:
-        raise PermissionError(f"El archivo '{ruta_destino}' está abierto en Microsoft Excel. Por favor ciérralo en Excel y vuelve a presionar el botón.")
+    # Guardar ambas hojas en el archivo destino y en el volumen persistente
+    rutas_guardar = set(filter(None, [ruta_destino, ruta_persistente('Base para el como vamos.xlsx')]))
+    if DIR_PERSISTENTE and os.path.isdir(DIR_PERSISTENTE):
+        rutas_guardar.add(os.path.join(DIR_PERSISTENTE, 'Base para el como vamos.xlsx'))
+    
+    error_permiso = None
+    for path_g in rutas_guardar:
+        try:
+            p_dir = os.path.dirname(path_g)
+            if p_dir:
+                os.makedirs(p_dir, exist_ok=True)
+            with pd.ExcelWriter(path_g, engine='openpyxl') as writer:
+                df_final_actual.to_excel(writer, sheet_name='Base para el como vamos', index=False)
+                if df_final_anterior is not None and not df_final_anterior.empty:
+                    df_final_anterior.to_excel(writer, sheet_name='Como vamos anterior', index=False)
+            safe_print(f"[OK] Ciclo guardado en '{path_g}'")
+        except PermissionError:
+            error_permiso = path_g
+        except Exception as e_w:
+            safe_print(f"Advertencia al guardar en '{path_g}': {e_w}")
+
+    if error_permiso:
+        raise PermissionError(f"El archivo '{error_permiso}' está abierto en Microsoft Excel. Por favor ciérralo en Excel y vuelve a presionar el botón.")
             
-    safe_print(f"[OK] ¡Ciclo rotado exitosamente en '{ruta_destino}' preservando datos multi-sector!")
+    safe_print(f"[OK] ¡Ciclo rotado exitosamente preservando datos multi-sector y almacenamiento persistente!")
     return calcular_metas_ciclo(ruta_destino)
 
 # --- FUNCIONES DE FORMATO CONDICIONAL Y EXPORTACIÓN A COLORES ---
