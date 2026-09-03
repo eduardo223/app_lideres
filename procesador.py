@@ -2573,6 +2573,18 @@ def reconciliar_usuarios_sectores(usuarios_dict, persistir=True):
                 if udata.get("nombre_sector") != "EMOCIONES DOLLY":
                     udata["nombre_sector"] = "EMOCIONES DOLLY"
                     cambios = True
+            elif sec:
+                nom_auto = None
+                historico_lookup = cargar_historico_sectores()
+                if sec in historico_lookup and historico_lookup[sec].get("nombre_sector"):
+                    nom_auto = historico_lookup[sec].get("nombre_sector")
+                else:
+                    cat_lookup = cargar_catalogo_sectores()
+                    if sec in cat_lookup and cat_lookup[sec].get("nombre_sector"):
+                        nom_auto = cat_lookup[sec].get("nombre_sector")
+                if nom_auto and udata.get("nombre_sector") != nom_auto:
+                    udata["nombre_sector"] = nom_auto
+                    cambios = True
             continue
 
         if rol == "lider" and grp:
@@ -2597,6 +2609,17 @@ def reconciliar_usuarios_sectores(usuarios_dict, persistir=True):
                     nuevo_sec = db_sec
                     nuevo_nom = db_nom or f"Sector {db_sec}"
 
+            if not nuevo_sec:
+                cat_lookup = cargar_catalogo_sectores()
+                for cat_sec_id, cat_sec_data in cat_lookup.items():
+                    for lid_info in cat_sec_data.get('lideres', []):
+                        if str(lid_info.get('codigo_grupo', '')).strip() == grp:
+                            nuevo_sec = str(cat_sec_id).strip()
+                            nuevo_nom = cat_sec_data.get('nombre_sector', f'Sector {cat_sec_id}')
+                            break
+                    if nuevo_sec:
+                        break
+
             if nuevo_sec:
                 if udata.get("codigo_sector") != nuevo_sec:
                     udata["codigo_sector"] = nuevo_sec
@@ -2612,6 +2635,13 @@ def reconciliar_usuarios_sectores(usuarios_dict, persistir=True):
                 elif sec == "700000466" and nom_sec != "EMOCIONES DOLLY":
                     udata["nombre_sector"] = "EMOCIONES DOLLY"
                     cambios = True
+                elif sec:
+                    historico_lookup = cargar_historico_sectores()
+                    if sec in historico_lookup and historico_lookup[sec].get("nombre_sector"):
+                        nom_h = historico_lookup[sec].get("nombre_sector")
+                        if nom_sec != nom_h:
+                            udata["nombre_sector"] = nom_h
+                            cambios = True
 
     if cambios and persistir:
         # Guardado silencioso de corrección
