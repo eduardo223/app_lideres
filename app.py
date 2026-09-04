@@ -44,6 +44,7 @@ from procesador import (
     sincronizar_excel_metas_a_sqlite,
     sincronizar_excel_geral_a_sqlite,
     consultar_geral_sql,
+    consultar_facturas_consultora_geral,
     filtrar_consultoras_portal_especial,
     procesar_analisis_geral_cobranza,
     generar_mensaje_whatsapp_cobranza,
@@ -2680,7 +2681,7 @@ with tab_tableau:
         # Subpestañas internas dentro de Informe Tableau Cam
         tab_tab_main, tab_tab_pago, tab_tab_niveles, tab_tab_whatsapp, tab_tab_cumple = st.tabs([
             "📋 Base Maestra Gestionable",
-            "⌛ Aguardando Pago / Pendientes",
+            "💳 Cartera Pendiente",
             "🎨 Análisis por Nivel & Estado",
             "📲 Asistente & Campañas WhatsApp",
             "🎂 Cumpleaños & Reconocimiento"
@@ -2858,15 +2859,15 @@ with tab_tableau:
                     use_container_width=True
                 )
 
-        # --- SUBPESTAÑA 2: AGUARDANDO PAGO / PEDIDOS PENDIENTES ---
+        # --- SUBPESTAÑA 2: CARTERA PENDIENTE & FACTURAS GERA ---
         with tab_tab_pago:
-            st.markdown("##### ⌛ Consultoras Aguardando Pago / Pedidos Pendientes")
-            st.caption("Listado filtrado de asesoras que tienen pedidos retenidos o saldo en mora pendiente por pago.")
+            st.markdown("##### 💳 Cartera Pendiente & Auditoría de Facturas")
+            st.caption("Selecciona cualquier asesora en la tabla para ver su resumen financiero y las fechas de vencimiento de sus facturas en deuda.")
 
             df_pago = df_tab_filt[(df_tab_filt['Ped. Pendientes'] > 0) | (df_tab_filt['Ped. Mora'] > 0) | (df_tab_filt['Deuda Mora'] > 0)].copy()
 
             if df_pago.empty:
-                st.info("🎉 ¡Excelente! No hay asesoras aguardando pago en la selección actual.")
+                st.info("🎉 ¡Excelente! No hay asesoras con cartera pendiente ni pedidos retenidos en la selección actual.")
             else:
                 cols_pago_show = [c for c in ['Codigo CB', 'Nombre', 'Color', 'Sit. Comercial', 'Deuda Total', 'Deuda Mora', 'Credito Disponible', 'Ped. Pendientes', 'Ped. Mora', 'Comentarios_Lider'] if c in df_pago.columns]
                 df_pago_formatted = df_pago[cols_pago_show].copy()
@@ -2878,45 +2879,154 @@ with tab_tableau:
                 if 'Credito Disponible' in df_pago_formatted.columns:
                     df_pago_formatted['Credito Disponible'] = df_pago_formatted['Credito Disponible'].apply(lambda x: f"{int(limpiar_numero(x, 0)):,}".replace(",", "."))
 
-                st.dataframe(
+                nombres_pago = sorted(df_pago['Nombre'].dropna().astype(str).unique().tolist())
+
+                # Detección de selección previa en la tabla desde st.session_state
+                sel_row_idx = None
+                state_cartera = st.session_state.get("tabla_cartera_pago_select")
+                if isinstance(state_cartera, dict):
+                    sel_dict = state_cartera.get("selection", {})
+                    if isinstance(sel_dict, dict) and sel_dict.get("rows"):
+                        rows_list = sel_dict.get("rows", [])
+                        if rows_list and len(rows_list) > 0 and rows_list[0] < len(df_pago):
+                            sel_row_idx = rows_list[0]
+
+                # Selector de búsqueda opcional arriba
+                col_b1, col_b2 = st.columns([3, 1.2])
+                with col_b1:
+                    idx_default_b = 0
+                    if sel_row_idx is not None:
+                        nombre_sel_t = str(df_pago.iloc[sel_row_idx].get('Nombre', ''))
+                        if nombre_sel_t in nombres_pago:
+                            idx_default_b = nombres_pago.index(nombre_sel_t) + 1
+
+                    asesora_busq = st.selectbox(
+                        "🔍 Búsqueda rápida de asesora (o marca la fila abajo):",
+                        options=["-- Selecciona una asesora o marca una fila abajo --"] + nombres_pago,
+                        index=idx_default_b,
+                        key="sel_asesora_cartera_modesto"
+                    )
+
+                with col_b2:
+                    st.write("")
+                    st.write("")
+                    st.caption("ℹ️ Datos cruzados con Tableau y GERA")
+
+                # Determinar qué fila está activa
+                row_activa = None
+                if asesora_busq and asesora_busq != "-- Selecciona una asesora o marca una fila abajo --":
+                    m_row = df_pago[df_pago['Nombre'].astype(str) == asesora_busq]
+                    if not m_row.empty:
+                        row_activa = m_row.iloc[0]
+                elif sel_row_idx is not None:
+                    row_activa = df_pago.iloc[sel_row_idx]
+
+                # --- BANNER INFORMATIVO Y MODESTO ---
+                if row_activa is not None:
+                    cb_act = str(row_activa.get('Codigo CB', '')).strip().replace('.0', '')
+                    nombre_act = str(row_activa.get('Nombre', ''))
+                    deuda_tot_act = limpiar_numero(row_activa.get('Deuda Total', 0))
+                    deuda_mora_act = limpiar_numero(row_activa.get('Deuda Mora', 0))
+                    ped_pend_act = int(limpiar_numero(row_activa.get('Ped. Pendientes', 0)))
+                    sit_act = str(row_activa.get('Sit. Comercial', ''))
+                    color_act = str(row_activa.get('Color', ''))
+                    cred_act = limpiar_numero(row_activa.get('Credito Disponible', 0))
+
+                    # Contenedor sobrio con borde y datos ejecutivos
+                    st.markdown(f"""
+                    <div style="background-color: #F8FAFC; border: 1px solid #CBD5E1; border-left: 4px solid #475569; border-radius: 6px; padding: 12px 16px; margin-bottom: 12px;">
+                        <div style="display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; margin-bottom: 8px; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px;">
+                            <div>
+                                <span style="font-size: 15px; font-weight: 700; color: #1E293B;">👤 {nombre_act}</span>
+                                <span style="font-size: 13px; color: #64748B; margin-left: 10px;">Código CB: <b>{cb_act}</b> &nbsp;|&nbsp; Nivel: <b>{color_act or 'Consultora'}</b> &nbsp;|&nbsp; Estado: <b>{sit_act}</b></span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 24px; flex-wrap: wrap; padding-top: 4px;">
+                            <div>
+                                <span style="font-size: 11px; color: #64748B; text-transform: uppercase; font-weight: 600;">Deuda Total</span><br>
+                                <span style="font-size: 16px; font-weight: 700; color: #0F172A;">{formato_cop(deuda_tot_act)}</span>
+                            </div>
+                            <div style="border-left: 1px solid #E2E8F0; padding-left: 16px;">
+                                <span style="font-size: 11px; color: #64748B; text-transform: uppercase; font-weight: 600;">Saldo en Mora</span><br>
+                                <span style="font-size: 16px; font-weight: 700; color: {'#DC2626' if deuda_mora_act > 0 else '#16A34A'};">{formato_cop(deuda_mora_act)}</span>
+                            </div>
+                            <div style="border-left: 1px solid #E2E8F0; padding-left: 16px;">
+                                <span style="font-size: 11px; color: #64748B; text-transform: uppercase; font-weight: 600;">Pedidos Retenidos</span><br>
+                                <span style="font-size: 16px; font-weight: 700; color: #D97706;">{ped_pend_act} pedido(s)</span>
+                            </div>
+                            <div style="border-left: 1px solid #E2E8F0; padding-left: 16px;">
+                                <span style="font-size: 11px; color: #64748B; text-transform: uppercase; font-weight: 600;">Crédito Disponible</span><br>
+                                <span style="font-size: 16px; font-weight: 700; color: #334155;">{formato_cop(cred_act)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # Consulta de facturas y fechas de vencimiento en GERA
+                    df_fact_act = consultar_facturas_consultora_geral(cb_act)
+
+                    if df_fact_act is not None and not df_fact_act.empty:
+                        df_f_view = df_fact_act.copy()
+                        if 'fecha_vencimiento' in df_f_view.columns:
+                            df_f_view['Fecha Vencimiento'] = pd.to_datetime(df_f_view['fecha_vencimiento'], errors='coerce').dt.strftime('%d/%m/%Y').fillna(df_f_view['fecha_vencimiento'])
+                        if 'fecha_pedido' in df_f_view.columns:
+                            df_f_view['Fecha Pedido'] = pd.to_datetime(df_f_view['fecha_pedido'], errors='coerce').dt.strftime('%d/%m/%Y').fillna(df_f_view['fecha_pedido'])
+
+                        def semaforo_venc_s(dias):
+                            try:
+                                d = int(limpiar_numero(dias, 0))
+                                if d > 0:
+                                    return f"🔴 Vencida ({d}d mora)"
+                                elif d == 0:
+                                    return "🟢 Al día (Vence hoy)"
+                                else:
+                                    return f"🟡 Vence en {abs(d)}d"
+                            except Exception:
+                                return str(dias)
+
+                        df_f_view['Estado Vencimiento'] = df_f_view['dias_retraso'].apply(semaforo_venc_s)
+
+                        if 'valor_titulo' in df_f_view.columns:
+                            df_f_view['Valor Factura'] = df_f_view['valor_titulo'].apply(formato_cop)
+                        if 'saldo_total' in df_f_view.columns:
+                            df_f_view['Saldo Pendiente'] = df_f_view['saldo_total'].apply(formato_cop)
+
+                        rename_f = {
+                            'numero_factura': 'N° Factura',
+                            'numero_pedido': 'N° Pedido',
+                            'cuota': 'Cuota',
+                            'ciclo_captacion': 'Ciclo',
+                            'dias_retraso': 'Días Retraso',
+                            'fase_cobro': 'Fase Cobro',
+                            'situacion': 'Estado'
+                        }
+                        df_f_view = df_f_view.rename(columns=rename_f)
+
+                        cols_f_show = [c for c in [
+                            'N° Factura', 'Fecha Vencimiento', 'Estado Vencimiento', 'Saldo Pendiente', 
+                            'Valor Factura', 'Cuota', 'Ciclo', 'Fecha Pedido', 'Fase Cobro', 'Estado'
+                        ] if c in df_f_view.columns]
+
+                        st.markdown("###### 📅 Fechas de Vencimiento de Facturas (Base GERA):")
+                        st.dataframe(df_f_view[cols_f_show], height=min(180, 36 * (len(df_f_view) + 1)), use_container_width=True, hide_index=True)
+                    else:
+                        st.caption(f"ℹ️ **Fechas de facturas específicas:** No se registran facturas individuales en la base GERA para el código CB **{cb_act}**. En Tableau registra una Deuda Total de **{formato_cop(deuda_tot_act)}** con **{formato_cop(deuda_mora_act)}** en Mora.")
+                    
+                    st.markdown("<div style='margin-bottom: 10px;'></div>", unsafe_allow_html=True)
+                else:
+                    st.info("👆 Marca la casilla o selecciona una fila de la tabla abajo para desplegar aquí arriba el resumen y las fechas de vencimiento de sus facturas.")
+
+                # Tabla interactiva principal de Cartera Pendiente
+                event_cartera = st.dataframe(
                     df_pago_formatted.style
                     .map(color_nivel, subset=['Color'] if 'Color' in df_pago_formatted.columns else [])
                     .map(color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_pago_formatted.columns else [])
                     .map(color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_pago_formatted.columns else []),
+                    on_select="rerun",
+                    selection_mode="single-row",
+                    key="tabla_cartera_pago_select",
                     use_container_width=True
                 )
-
-                # Selector para enviar WhatsApp rápido a la consultora que está aguardando pago
-                st.markdown("###### 📲 Enviar Recordatorio de Pago por WhatsApp")
-                lideres_pago = sorted(df_pago['Nombre'].dropna().astype(str).unique())
-                asesora_sel = st.selectbox("👤 Selecciona la Asesora:", options=lideres_pago, key="sel_asesora_pago")
-                if asesora_sel:
-                    row_p = df_pago[df_pago['Nombre'].astype(str) == asesora_sel].iloc[0]
-                    nombre_p = row_p.get('Nombre', '')
-                    deuda_tot_p = formato_cop(row_p.get('Deuda Total', 0))
-                    deuda_mora_p = formato_cop(row_p.get('Deuda Mora', 0))
-                    ped_pend_p = int(limpiar_numero(row_p.get('Ped. Pendientes', 0)))
-                    
-                    msg_pago = (
-                        f"Hola *{nombre_p}*, 👋\n\n"
-                        f"Te recordamos que tienes *{ped_pend_p} pedido(s) pendiente(s)* por liberación.\n"
-                        f"💰 *Deuda Total:* {deuda_tot_p}\n"
-                        f"⚠️ *Deuda en Mora:* {deuda_mora_p}\n\n"
-                        f"Por favor realiza el pago lo antes posible para liberar tu pedido. ¡Gracias! ✨"
-                    )
-                    st.text_area("📋 Mensaje listo para copiar:", msg_pago, height=140)
-
-                    # Botón de enlace directo a WhatsApp
-                    tel_p = str(row_p.get('celular', '')).strip().replace(' ', '').replace('-', '').replace('+', '')
-                    if tel_p and len(tel_p) >= 10:
-                        url_wa_p = f"https://api.whatsapp.com/send?phone=57{tel_p}&text={urllib.parse.quote(msg_pago)}"
-                        st.markdown(f"""
-                        <div style="margin-top: 8px; margin-bottom: 12px;">
-                            <a href="{url_wa_p}" target="_blank" style="display: inline-block; background-color: #25D366; color: white; padding: 9px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px; box-shadow: 0 4px 6px rgba(0,0,0,0.12);">
-                                📲 Abrir WhatsApp y Enviar Mensaje a {nombre_p}
-                            </a>
-                        </div>
-                        """, unsafe_allow_html=True)
 
         # --- SUBPESTAÑA 3: ANÁLISIS POR NIVEL Y ESTADO COMERCIAL ---
         with tab_tab_niveles:
@@ -3825,51 +3935,248 @@ with tab_geral:
                 """)
                 
                 st.markdown("###### ⚙️ Despachador API en Vivo:")
-                col_api1, col_api2 = st.columns(2)
-                with col_api1:
-                    api_url_in = st.text_input("Endpoint / URL de la API:", placeholder="ej. https://mi-evolution-api.up.railway.app/message/sendText/mi_instancia", key="in_api_url_geral")
-                with col_api2:
-                    api_token_in = st.text_input("API Key / Bearer Token:", type="password", placeholder="ej. B6D711FCDE4D4FD5936544120E713976", key="in_api_token_geral")
+                
+                prov_opc = st.radio(
+                    "Selecciona el Proveedor de WhatsApp:",
+                    ["👑 Evolution API (Recomendada - Multi-Líder)", "🌐 UltraMsg (Cloud SaaS)", "⚙️ Endpoint Personalizado / Genérico"],
+                    index=0,
+                    horizontal=True,
+                    key="radio_proveedor_wa"
+                )
+                
+                import requests
+                import time
+
+                if "Evolution API" in prov_opc:
+                    col_evo1, col_evo2, col_evo3 = st.columns([2, 1, 2])
+                    with col_evo1:
+                        evo_base_url = st.text_input("URL Base de Evolution API:", value="https://evolution-api-production-7a2f.up.railway.app", placeholder="https://mi-evolution.up.railway.app", key="in_evo_url")
+                    with col_evo2:
+                        evo_instance = st.text_input("Nombre de Instancia:", value="instancia_prueba", placeholder="ej. lider_dolly", key="in_evo_instance")
+                    with col_evo3:
+                        evo_token = st.text_input("API Key (Global Token):", value="6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad", type="password", key="in_evo_token")
+
+                    # Botón para comprobar estado o ver QR de vinculación
+                    col_qr1, col_qr2 = st.columns(2)
+                    with col_qr1:
+                        btn_check_qr = st.button("🔄 Verificar Conexión / QR", key="btn_check_evo_qr", use_container_width=True)
+                    with col_qr2:
+                        btn_logout_qr = st.button("🔴 Desvincular Celular (Cerrar Sesión)", key="btn_logout_evo", use_container_width=True)
+
+                    if btn_logout_qr:
+                        if not evo_base_url.strip() or not evo_token.strip():
+                            st.warning("⚠️ Ingresa la URL Base y la API Key de Evolution API.")
+                        else:
+                            clean_base = evo_base_url.strip().rstrip('/')
+                            clean_inst = evo_instance.strip()
+                            headers_evo = {"apikey": evo_token.strip()}
+                            try:
+                                r_l = requests.delete(f"{clean_base}/instance/logout/{clean_inst}", headers=headers_evo, timeout=10)
+                                if r_l.status_code == 200:
+                                    st.success(f"✅ ¡Tu WhatsApp ha sido desvinculado exitosamente de la instancia '{clean_inst}'! Ya no enviará mensajes.")
+                                else:
+                                    st.info(f"Aviso: {r_l.text}")
+                            except Exception as ex_l:
+                                st.error(f"Error al desvincular: {ex_l}")
+
+                    if btn_check_qr:
+                        if not evo_base_url.strip() or not evo_token.strip():
+                            st.warning("⚠️ Ingresa la URL Base y la API Key de Evolution API.")
+                        else:
+                            clean_base = evo_base_url.strip().rstrip('/')
+                            clean_inst = evo_instance.strip()
+                            headers_evo = {"apikey": evo_token.strip()}
+                            try:
+                                import base64
+                                # 1. Chequear estado de conexion
+                                res_state = requests.get(f"{clean_base}/instance/connectionState/{clean_inst}", headers=headers_evo, timeout=8)
+                                
+                                # Si no existe la instancia (404), la creamos automáticamente
+                                if res_state.status_code == 404:
+                                    st.info(f"⚙️ Creando nueva instancia '{clean_inst}' en tu Evolution API...")
+                                    payload_create = {
+                                        "instanceName": clean_inst,
+                                        "qrcode": True,
+                                        "integration": "WHATSAPP-BAILEYS"
+                                    }
+                                    res_create = requests.post(f"{clean_base}/instance/create", json=payload_create, headers=headers_evo, timeout=12)
+                                    if res_create.status_code in [200, 201]:
+                                        data_c = res_create.json()
+                                        b64_qr = data_c.get('qrcode', {}).get('base64') or data_c.get('base64', '')
+                                        if b64_qr:
+                                            st.success(f"✅ Instancia '{clean_inst}' creada exitosamente. ¡Escanea el QR abajo!")
+                                            clean_b64 = b64_qr.split(",")[-1]
+                                            st.image(base64.b64decode(clean_b64), caption=f"Escanea con tu WhatsApp (Instancia: {clean_inst})", width=280)
+                                            st.info("📲 Abre WhatsApp en tu celular > Menú (o Configuración) > Dispositivos vinculados > Vincular dispositivo.")
+                                        else:
+                                            st.info("Instancia creada. Generando QR...")
+                                            res_state = requests.get(f"{clean_base}/instance/connectionState/{clean_inst}", headers=headers_evo, timeout=8)
+                                    else:
+                                        st.error(f"Error al crear instancia: {res_create.status_code} - {res_create.text}")
+                                        
+                                if res_state.status_code == 200:
+                                    state_data = res_state.json()
+                                    curr_state = state_data.get('instance', {}).get('state', '') or state_data.get('state', '')
+                                    
+                                    if curr_state == 'open':
+                                        st.success(f"🟢 ¡Instancia '{clean_inst}' CONECTADA y lista para enviar mensajes de WhatsApp!")
+                                    else:
+                                        st.info(f"🟡 Estado actual: '{curr_state or 'Esperando conexión'}'. Obteniendo código QR actualizado...")
+                                        res_qr = requests.get(f"{clean_base}/instance/connect/{clean_inst}", headers=headers_evo, timeout=10)
+                                        if res_qr.status_code == 200:
+                                            qr_json = res_qr.json()
+                                            b64_qr = qr_json.get('base64') or qr_json.get('qrcode', {}).get('base64', '')
+                                            if b64_qr:
+                                                clean_b64 = b64_qr.split(",")[-1]
+                                                st.image(base64.b64decode(clean_b64), caption=f"Escanea con tu WhatsApp (Instancia: {clean_inst})", width=280)
+                                                st.info("📲 Abre WhatsApp en tu celular > Dispositivos vinculados > Vincular dispositivo.")
+                                            else:
+                                                st.warning(f"La instancia está en proceso de inicialización. Por favor haz clic en Verificar nuevamente en unos segundos.")
+                                        else:
+                                            st.warning(f"No se pudo conectar a la instancia: {res_qr.status_code} - {res_qr.text}")
+                            except Exception as ex_evo:
+                                st.error(f"❌ Error al consultar Evolution API: {ex_evo}")
+
+                elif "UltraMsg" in prov_opc:
+                    col_um1, col_um2 = st.columns(2)
+                    with col_um1:
+                        um_instance = st.text_input("Instance ID de UltraMsg:", placeholder="ej. instance105423", key="in_um_instance")
+                    with col_um2:
+                        um_token = st.text_input("Token de UltraMsg:", type="password", placeholder="ej. b28h1v98x...", key="in_um_token")
+
+                else: # Personalizado
+                    col_api1, col_api2 = st.columns(2)
+                    with col_api1:
+                        api_url_in = st.text_input("Endpoint Completo:", placeholder="ej. https://mi-api.com/send", key="in_api_url_geral")
+                    with col_api2:
+                        api_token_in = st.text_input("API Key / Bearer Token:", type="password", key="in_api_token_geral")
+
+                st.markdown("---")
+                
+                # --- PRUEBA INDIVIDUAL A CELULAR DE LA LÍDER/GERENTE ---
+                st.markdown("##### 📲 Enviar Mensaje de Prueba Unitaria a tu Celular:")
+                col_test1, col_test2 = st.columns([2, 1])
+                with col_test1:
+                    test_phone = st.text_input("Ingresa tu número de celular para la prueba (10 dígitos):", placeholder="ej. 3101234567", key="in_cel_test_unit")
+                with col_test2:
+                    st.write("")
+                    st.write("")
+                    btn_send_test = st.button("📲 Probar con mi Celular", key="btn_send_test_unit", type="secondary", use_container_width=True)
+
+                def resolver_datos_envio(cel_destino, texto_mensaje):
+                    """Retorna (url, payload, headers) según el proveedor seleccionado."""
+                    cel_clean = str(cel_destino).replace("+", "").replace(" ", "").replace("-", "").strip()
+                    if not cel_clean.startswith("57") and len(cel_clean) == 10:
+                        cel_clean = f"57{cel_clean}"
                     
+                    if "Evolution API" in prov_opc:
+                        if not evo_base_url.strip():
+                            raise ValueError("La URL Base de Evolution API está vacía. Por favor escríbela arriba.")
+                        if not evo_token.strip():
+                            raise ValueError("La API Key de Evolution API está vacía. Por favor escríbela arriba.")
+                        c_url = f"{evo_base_url.strip().rstrip('/')}/message/sendText/{evo_instance.strip()}"
+                        c_payload = {
+                            "number": cel_clean,
+                            "text": texto_mensaje,
+                            "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                        }
+                        c_headers = {
+                            "apikey": evo_token.strip(),
+                            "Content-Type": "application/json"
+                        }
+                        return c_url, c_payload, c_headers, "json"
+
+                    elif "UltraMsg" in prov_opc:
+                        if not um_instance.strip() or not um_token.strip():
+                            raise ValueError("Ingresa el Instance ID y el Token de UltraMsg arriba.")
+                        inst_clean = um_instance.strip().replace("https://api.ultramsg.com/", "").strip("/")
+                        c_url = f"https://api.ultramsg.com/{inst_clean}/messages/chat"
+                        c_payload = {
+                            "token": um_token.strip(),
+                            "to": cel_clean,
+                            "body": texto_mensaje,
+                            "priority": 10
+                        }
+                        c_headers = {"content-type": "application/x-www-form-urlencoded"}
+                        return c_url, c_payload, c_headers, "data"
+
+                    else:
+                        if not api_url_in.strip() or not api_token_in.strip():
+                            raise ValueError("Ingresa el Endpoint y el Token de tu API arriba.")
+                        c_url = api_url_in.strip()
+                        c_payload = {"number": cel_clean, "text": texto_mensaje, "body": texto_mensaje}
+                        c_headers = {
+                            "apikey": api_token_in.strip(),
+                            "Authorization": f"Bearer {api_token_in.strip()}",
+                            "Content-Type": "application/json"
+                        }
+                        return c_url, c_payload, c_headers, "json"
+
+                if btn_send_test:
+                    if not test_phone or len(test_phone.strip()) < 10:
+                        st.warning("⚠️ Por favor escribe un número celular válido de al menos 10 dígitos.")
+                    else:
+                        msg_test_body = (
+                            "✨ *Prueba de Conexión Exitosa - App Líderes & Gerentes* ✨\n\n"
+                            "¡Hola! Este es un mensaje de prueba en vivo desde tu pasarela de WhatsApp Evolution API.\n"
+                            f"📡 *Proveedor:* {prov_opc}\n"
+                            f"📅 *Fecha:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                            "Si estás leyendo esto, tu integración está 100% activa y lista para enviar a tus asesoras. 🚀"
+                        )
+                        try:
+                            t_url, t_payload, t_headers, t_mode = resolver_datos_envio(test_phone, msg_test_body)
+                            if t_mode == "data":
+                                t_res = requests.post(t_url, data=t_payload, headers=t_headers, timeout=15)
+                            else:
+                                t_res = requests.post(t_url, json=t_payload, headers=t_headers, timeout=15)
+                                
+                            if t_res.status_code in [200, 201]:
+                                st.success(f"✅ ¡Mensaje de prueba enviado con éxito a {test_phone}! Revisa tu WhatsApp en tu celular.")
+                            elif "Connection Closed" in t_res.text or "not connected" in t_res.text.lower():
+                                st.warning("⚠️ Tu WhatsApp aún no está vinculado a la instancia. Haz clic arriba en '🔄 Verificar Conexión / QR' y escanea el código QR con tu celular.")
+                            else:
+                                st.error(f"❌ Error al enviar prueba (Código {t_res.status_code}): {t_res.text}")
+                        except Exception as ex_t:
+                            st.error(f"❌ Fallo de conexión: {ex_t}")
+
+                st.markdown("---")
+
+                # --- DESPACHO MASIVO DE CAMPAÑA ---
+                st.markdown("##### 🚀 Envío Masivo a Asesoras Seleccionadas:")
+                delay_anti_ban = st.slider("⏱️ Pausa entre mensajes (Segundos - Protección Anti-Ban):", min_value=1, max_value=10, value=3, help="Meta/WhatsApp recomienda dejar al menos 3 a 5 segundos entre cada mensaje para evitar bloqueos por spam.")
+                
                 btn_disparar_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_out)} Asesoras", type="primary", use_container_width=True, key="btn_disparar_api_geral")
                 
                 if btn_disparar_api:
-                    if not api_url_in.strip() or not api_token_in.strip():
-                        st.warning("⚠️ Ingresa la URL del Endpoint y el Token de tu API para iniciar el envío automático.")
-                    else:
-                        import requests
-                        progress_bar = st.progress(0.0)
-                        status_txt = st.empty()
-                        enviados_ok = 0
-                        errores_cnt = 0
-                        
-                        for i, r_c in enumerate(df_campana_out.iterrows()):
-                            r_c = r_c[1]
-                            cel_num = str(r_c['Celular']).strip()
-                            if cel_num and len(cel_num) >= 10:
-                                payload = {
-                                    "number": f"57{cel_num}",
-                                    "text": r_c['Mensaje Personalizado'],
-                                    "body": r_c['Mensaje Personalizado']
-                                }
-                                headers = {
-                                    "apikey": api_token_in.strip(),
-                                    "Authorization": f"Bearer {api_token_in.strip()}",
-                                    "Content-Type": "application/json"
-                                }
-                                try:
-                                    res = requests.post(api_url_in.strip(), json=payload, headers=headers, timeout=10)
-                                    if res.status_code in [200, 201]:
-                                        enviados_ok += 1
-                                    else:
-                                        errores_cnt += 1
-                                except Exception:
-                                    errores_cnt += 1
+                    progress_bar = st.progress(0.0)
+                    status_txt = st.empty()
+                    enviados_ok = 0
+                    errores_cnt = 0
+                    
+                    for i, r_c in enumerate(df_campana_out.iterrows()):
+                        r_c = r_c[1]
+                        cel_num = str(r_c['Celular']).strip()
+                        if cel_num and len(cel_num) >= 10:
+                            try:
+                                d_url, d_payload, d_headers, d_mode = resolver_datos_envio(cel_num, r_c['Mensaje Personalizado'])
+                                if d_mode == "data":
+                                    res = requests.post(d_url, data=d_payload, headers=d_headers, timeout=12)
+                                else:
+                                    res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=12)
                                     
-                            progress_bar.progress((i + 1) / len(df_campana_out))
-                            status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Asesora']}...")
-                            
-                        st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {enviados_ok} | Fallidos: {errores_cnt}")
+                                if res.status_code in [200, 201]:
+                                    enviados_ok += 1
+                                else:
+                                    errores_cnt += 1
+                            except Exception:
+                                errores_cnt += 1
+                                
+                        progress_bar.progress((i + 1) / len(df_campana_out))
+                        status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Asesora']}...")
+                        if i < len(df_campana_out) - 1:
+                            time.sleep(delay_anti_ban)
+                        
+                    st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {enviados_ok} | Fallidos: {errores_cnt}")
         else:
             st.info("👆 Selecciona al menos una asesora arriba o usa los botones de carga rápida para armar la campaña.")
 

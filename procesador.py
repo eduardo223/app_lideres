@@ -1450,8 +1450,8 @@ def exportar_tableau_excel_con_colores(df, nombre_hoja="Base_Consultoras", buffe
     ws.title = str(nombre_hoja)[:31]
 
     # Paleta de colores para niveles
-    fill_bronce = PatternFill(start_color="FEF3C7", end_color="FEF3C7", fill_type="solid")
-    font_bronce = Font(name="Calibri", size=10, bold=True, color="92400E")
+    fill_bronce = PatternFill(start_color="FED7AA", end_color="FED7AA", fill_type="solid")
+    font_bronce = Font(name="Calibri", size=10, bold=True, color="7C2D12")
     
     fill_plata = PatternFill(start_color="E2E8F0", end_color="E2E8F0", fill_type="solid")
     font_plata = Font(name="Calibri", size=10, bold=True, color="334155")
@@ -1981,38 +1981,56 @@ def color_nivel(val):
         return ""
     v = str(val).strip().lower()
     if 'bronce' in v:
-        return 'background-color: #FEF3C7; color: #92400E; font-weight: bold;'
+        # Bronce quemado / cobre ámbar tostado profundo
+        return 'background-color: #FED7AA; color: #7C2D12; font-weight: bold; border-left: 3px solid #C2410C;'
     elif 'plata' in v:
-        return 'background-color: #F1F5F9; color: #475569; font-weight: bold;'
+        # Plata metálica / gris acero reflectivo elegante
+        return 'background-color: #E2E8F0; color: #334155; font-weight: bold; border-left: 3px solid #94A3B8;'
     elif 'oro' in v:
-        return 'background-color: #FEF9C3; color: #854D0E; font-weight: bold;'
+        # Oro brillante / dorado cálido
+        return 'background-color: #FEF08A; color: #854D0E; font-weight: bold; border-left: 3px solid #EAB308;'
     elif 'platino' in v:
-        return 'background-color: #E0F2FE; color: #0369A1; font-weight: bold;'
+        # Platino / celeste helado metálico
+        return 'background-color: #E0F2FE; color: #0369A1; font-weight: bold; border-left: 3px solid #38BDF8;'
     elif 'zafiro' in v:
-        return 'background-color: #DBEAFE; color: #1E40AF; font-weight: bold;'
+        # Zafiro / azul gema profundo
+        return 'background-color: #DBEAFE; color: #1E40AF; font-weight: bold; border-left: 3px solid #2563EB;'
     elif 'diamante' in v:
-        return 'background-color: #F3E8FF; color: #6B21A8; font-weight: bold;'
+        # Diamante / amatista púrpura joya
+        return 'background-color: #F3E8FF; color: #6B21A8; font-weight: bold; border-left: 3px solid #A855F7;'
     return ""
 
 def color_situacion(val):
     """
     Retorna estilo CSS para formatear la celda de Situación Comercial:
-    - Activa: Verde suave (#E6F4EA / texto #137333).
-    - Inactiva 1: Amarillo (#FEF9C3 / texto #854D0E).
-    - Inactiva 2/3: Naranja (#FFEDD5 / texto #C2410C).
-    - Inactiva 4/5: Rojo (#FEE2E2 / texto #991B1B).
+    Escala progresiva de inactividad:
+    - Activa: Verde fresco (#DCFCE7 / texto #166534).
+    - Inactiva 1: Amarillo suave (#FEF9C3 / texto #854D0E).
+    - Inactiva 2: Ámbar melocotón suave (#FFEDD5 / texto #C2410C).
+    - Inactiva 3: Naranja quemado vivo (#FDBA74 / texto #7C2D12 con borde acento).
+    - Inactiva 4: Rosa salmón / Coral rojizo (#FECDD3 / texto #9F1239).
+    - Inactiva 5: Rojo vino / Alerta urgente (#FEE2E2 / texto #991B1B con borde rojo).
+    - Inactiva 6+ / Cesada: Ciruela / Borgoña oscuro (#FCE7F3 / texto #831843).
     """
     if pd.isna(val):
         return ""
     v = str(val).strip().lower()
     if 'activa' in v and 'inactiva' not in v:
-        return 'background-color: #E6F4EA; color: #137333; font-weight: bold;'
-    elif 'inactiva 1' in v:
+        return 'background-color: #DCFCE7; color: #166534; font-weight: bold;'
+    elif 'inactiva 1' in v or v == 'i1':
         return 'background-color: #FEF9C3; color: #854D0E; font-weight: bold;'
-    elif 'inactiva 2' in v or 'inactiva 3' in v:
+    elif 'inactiva 2' in v or v == 'i2':
         return 'background-color: #FFEDD5; color: #C2410C; font-weight: bold;'
-    elif 'inactiva 4' in v or 'inactiva 5' in v or 'inactiva 6' in v:
-        return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold;'
+    elif 'inactiva 3' in v or v == 'i3':
+        return 'background-color: #FDBA74; color: #7C2D12; font-weight: bold; border-left: 3px solid #EA580C;'
+    elif 'inactiva 4' in v or v == 'i4':
+        return 'background-color: #FECDD3; color: #9F1239; font-weight: bold;'
+    elif 'inactiva 5' in v or v == 'i5':
+        return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold; border-left: 3px solid #DC2626;'
+    elif 'inactiva 6' in v or v == 'i6' or 'cesada' in v:
+        return 'background-color: #FCE7F3; color: #831843; font-weight: bold; border-left: 3px solid #9D174D;'
+    elif 'inactiva' in v:
+        return 'background-color: #FFEDD5; color: #C2410C; font-weight: bold;'
     return ""
 
 def color_deuda_mora(val):
@@ -5712,7 +5730,69 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
         except Exception:
             pass
             
-    return df
+def consultar_facturas_consultora_geral(codigo_cb, sector=None):
+    """
+    Consulta todas las facturas individuales registradas en cartera_geral
+    para una consultora específica según su código_cb o documento.
+    Retorna un DataFrame con columnas estandarizadas y semáforos de mora.
+    """
+    if not codigo_cb:
+        return pd.DataFrame()
+        
+    cb_clean = str(codigo_cb).strip().replace(".0", "")
+    try:
+        cb_int = str(int(float(cb_clean)))
+    except Exception:
+        cb_int = cb_clean
+
+    conn = obtener_conexion_db()
+    query = """
+    SELECT 
+        numero_factura,
+        numero_pedido,
+        cuota,
+        ciclo_captacion,
+        fecha_pedido,
+        fecha_vencimiento,
+        fecha_vencimiento_original,
+        dias_retraso,
+        valor_titulo,
+        saldo_principal,
+        saldo_total,
+        fase_cobro,
+        situacion,
+        codigo_cb,
+        nombre
+    FROM cartera_geral
+    WHERE CAST(codigo_cb AS TEXT) = ? 
+       OR CAST(codigo_cb AS TEXT) = ?
+       OR CAST(codigo_cb AS TEXT) LIKE ?
+    ORDER BY fecha_vencimiento ASC, dias_retraso DESC
+    """
+    try:
+        df_fact = pd.read_sql_query(query, conn, params=[cb_clean, cb_int, f"%{cb_int}%"])
+    except Exception:
+        df_fact = pd.DataFrame()
+    finally:
+        conn.close()
+
+    # Si no se encontró en SQLite pero existe Geral.xlsx en disco, intentar sincronizar
+    if df_fact.empty and os.path.exists("Geral.xlsx"):
+        try:
+            df_g_raw = pd.read_excel("Geral.xlsx")
+            col_cb_g = next((c for c in df_g_raw.columns if any(k in str(c).lower() for k in ['codigopersona', 'codigo_cb', 'codigo cb'])), None)
+            if col_cb_g:
+                mask = df_g_raw[col_cb_g].astype(str).str.strip().str.replace('.0', '') == cb_int
+                df_match = df_g_raw[mask].copy()
+                if not df_match.empty:
+                    sincronizar_excel_geral_a_sqlite("Geral.xlsx")
+                    conn2 = obtener_conexion_db()
+                    df_fact = pd.read_sql_query(query, conn2, params=[cb_clean, cb_int, f"%{cb_int}%"])
+                    conn2.close()
+        except Exception:
+            pass
+
+    return df_fact
 
 def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
     """
