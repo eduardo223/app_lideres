@@ -5834,10 +5834,6 @@ def consultar_tableau_sql(grupo=None, sector=None):
     filtrando por grupo de líder o sector de gerencia.
     """
     conn = obtener_conexion_db()
-    try:
-        conn.cursor().execute("ALTER TABLE consultoras_tableau ADD COLUMN indicador TEXT")
-    except Exception:
-        pass
     query = """
     SELECT 
         codigo_cb AS 'Código CB',

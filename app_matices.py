@@ -728,20 +728,27 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             if "Notas / Comentarios Líder" in df_edit_view.columns:
                 col_config["Notas / Comentarios Líder"] = st.column_config.TextColumn("Notas / Comentarios Líder", disabled=False)
 
-            num_celdas = len(df_edit_view) * len(df_edit_view.columns)
+            total_filas_edit = len(df_edit_view)
+            if total_filas_edit > 300:
+                df_data_render = df_edit_view.iloc[:300]
+                st.caption(f"⚡ *Mostrando las primeras 300 de {total_filas_edit:,} consultoras para máxima velocidad. Usa el buscador o filtros para localizar a una consultora específica.*")
+            else:
+                df_data_render = df_edit_view
+
+            num_celdas = len(df_data_render) * len(df_data_render.columns)
             if num_celdas <= 250_000:
                 try:
-                    df_data_to_edit = df_edit_view.style.map(
-                        color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_edit_view.columns else []
+                    df_data_to_edit = df_data_render.style.map(
+                        color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_data_render.columns else []
                     ).map(
-                        color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_edit_view.columns else []
+                        color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_data_render.columns else []
                     ).map(
-                        color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_edit_view.columns else []
+                        color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_data_render.columns else []
                     )
                 except Exception:
-                    df_data_to_edit = df_edit_view
+                    df_data_to_edit = df_data_render
             else:
-                df_data_to_edit = df_edit_view
+                df_data_to_edit = df_data_render
 
             edited_df = st.data_editor(
                 df_data_to_edit,
@@ -761,8 +768,8 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     if "Notas / Comentarios Líder" in row_changes:
                         try:
                             row_idx = int(row_idx_str)
-                            if row_idx < len(df_edit_view):
-                                codigo_key = limpiar_codigo_cb_estandar(df_edit_view.iloc[row_idx].get('Código CB', ''))
+                            if row_idx < len(df_data_render):
+                                codigo_key = limpiar_codigo_cb_estandar(df_data_render.iloc[row_idx].get('Código CB', ''))
                                 nueva_nota = str(row_changes["Notas / Comentarios Líder"]).strip()
                                 if codigo_key:
                                     dict_autoguardar[codigo_key] = nueva_nota

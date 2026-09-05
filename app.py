@@ -139,6 +139,10 @@ def cached_export_csv(df):
 def cached_consultar_geral_sql(grupo=None, sector=None):
     return consultar_geral_sql(grupo=grupo, sector=sector)
 
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_consultar_tableau_sql(grupo=None, sector=None):
+    return consultar_tableau_sql(grupo=grupo, sector=sector)
+
 # Estilos CSS personalizados para mejorar el diseño estético
 st.markdown("""
 <style>
@@ -2429,7 +2433,7 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
         """
     st.markdown(css_theme, unsafe_allow_html=True)
 
-    df_tab_app = consultar_tableau_sql(
+    df_tab_app = cached_consultar_tableau_sql(
         grupo=(user_grupo if user_rol == 'lider' else None),
         sector=(user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
     )
@@ -2598,7 +2602,7 @@ elif user_rol == 'superadmin' and ('lider_seleccionada_sb' in locals() and lider
 if mostrar_banner_top:
     grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
     sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
-    df_tableau_cumple = consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
+    df_tableau_cumple = cached_consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
     renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector, key_suffix="full_top")
 
 if user_rol == 'lider':
@@ -3032,7 +3036,7 @@ else:
 # --- TAB 0: INFORME TABLEAU MANAGER ("INFORME TABLEAU CAM") ---
 with tab_tableau:
     # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada aislada por sector/grupo)
-    df_tableau = consultar_tableau_sql(
+    df_tableau = cached_consultar_tableau_sql(
         grupo=(user_grupo if user_rol == 'lider' else None),
         sector=(user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
     )
@@ -3294,20 +3298,27 @@ with tab_tableau:
             if "Notas / Comentarios Líder" in df_edit_view.columns:
                 col_config["Notas / Comentarios Líder"] = st.column_config.TextColumn("Notas / Comentarios Líder", disabled=False)
 
-            num_celdas = len(df_edit_view) * len(df_edit_view.columns)
+            total_filas_edit = len(df_edit_view)
+            if total_filas_edit > 500:
+                df_data_render = df_edit_view.iloc[:500]
+                st.caption(f"⚡ *Mostrando las primeras 500 de {total_filas_edit:,} consultoras para máxima velocidad y fluidez. Para ver o editar un grupo completo, selecciona una Líder en el filtro superior.*")
+            else:
+                df_data_render = df_edit_view
+
+            num_celdas = len(df_data_render) * len(df_data_render.columns)
             if num_celdas <= 250_000:
                 try:
-                    df_data_to_edit = df_edit_view.style.map(
-                        color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_edit_view.columns else []
+                    df_data_to_edit = df_data_render.style.map(
+                        color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_data_render.columns else []
                     ).map(
-                        color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_edit_view.columns else []
+                        color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_data_render.columns else []
                     ).map(
-                        color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_edit_view.columns else []
+                        color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_data_render.columns else []
                     )
                 except Exception:
-                    df_data_to_edit = df_edit_view
+                    df_data_to_edit = df_data_render
             else:
-                df_data_to_edit = df_edit_view
+                df_data_to_edit = df_data_render
 
             edited_df = st.data_editor(
                 df_data_to_edit,
@@ -3327,8 +3338,8 @@ with tab_tableau:
                     if "Notas / Comentarios Líder" in row_changes:
                         try:
                             row_idx = int(row_idx_str)
-                            if row_idx < len(df_edit_view):
-                                codigo_key = limpiar_codigo_cb_estandar(df_edit_view.iloc[row_idx].get('Código CB', ''))
+                            if row_idx < len(df_data_render):
+                                codigo_key = limpiar_codigo_cb_estandar(df_data_render.iloc[row_idx].get('Código CB', ''))
                                 nueva_nota = str(row_changes["Notas / Comentarios Líder"]).strip()
                                 if codigo_key:
                                     dict_autoguardar[codigo_key] = nueva_nota
@@ -7031,7 +7042,7 @@ with tab_usuarios:
                 st.markdown("##### 👤 1. Borrar Datos de un Grupo / Líder Específico")
                 st.caption("Elimina de SQLite las asesoras, facturación y comentarios de una líder determinada.")
                 
-                df_grupos_b = consultar_tableau_sql()
+                df_grupos_b = cached_consultar_tableau_sql()
                 lista_grupos_borrar = sorted([str(g).strip() for g in df_grupos_b['Grupo'].dropna().unique()]) if (df_grupos_b is not None and not df_grupos_b.empty and 'Grupo' in df_grupos_b.columns) else []
                 
                 grp_a_borrar = st.selectbox("Selecciona el Grupo / Líder a eliminar:", options=["-- Seleccionar --"] + lista_grupos_borrar, key="sel_grp_borrar")
