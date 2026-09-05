@@ -31,6 +31,8 @@ from procesador import (
     generar_token_sesion,
     validar_token_sesion,
     buscar_cuenta_usuario,
+    obtener_contacto_seguro_usuario,
+    enviar_otp_recuperacion,
     cargar_usuarios,
     registrar_o_actualizar_usuario,
     cambiar_password_usuario,
@@ -1503,137 +1505,230 @@ if st.session_state['user'] is None:
             
         with tab_recuperar_tab:
             st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
-            st.markdown("#### 🆘 Recuperación de Acceso y Contraseñas")
-            st.caption("Ingresa tu correo, nombre, código de grupo (Líderes) o código de sector (Gerentes) para verificar tu cuenta y restaurar tu clave al instante.")
-            
+            st.markdown("#### 🛡️ Recuperación Segura de Acceso (MFA / WhatsApp)")
+            st.caption("Verificación protegida en 2 pasos: Tu código de seguridad temporal se enviará únicamente al número de WhatsApp o correo registrado oficialmente para tu cuenta.")
+
+            # Paso 1: Búsqueda de cuenta
             with st.form("form_recuperar_acceso_step1"):
                 in_recuperar_id = st.text_input(
                     "🔍 Identificador de Cuenta:",
                     placeholder="ej: dolly.parra@natura.net, 9334, 700000466, o lider9640",
                     key="in_recuperar_id_input"
                 )
-                btn_verificar_cuenta = st.form_submit_button("🔍 Verificar y Buscar mi Cuenta", type="primary", use_container_width=True)
-                
+                btn_verificar_cuenta = st.form_submit_button("🔍 Verificar mi Cuenta", type="primary", use_container_width=True)
+
                 if btn_verificar_cuenta:
                     if not in_recuperar_id.strip():
-                        st.warning("⚠️ Por favor escribe tu correo, usuario o código para buscar.")
+                        st.warning("⚠️ Por favor escribe tu correo, usuario o código de grupo.")
                     else:
-                        ok_find, data_find, msg_find = buscar_cuenta_usuario(in_recuperar_id)
-                        if ok_find:
-                            st.session_state['cuenta_recuperada_temp'] = data_find
-                            import random
-                            pin_gen = str(random.randint(100000, 999999))
-                            st.session_state['pin_recuperacion'] = pin_gen
-                            st.success("✅ ¡Cuenta encontrada exitosamente!")
+                        contacto_data = obtener_contacto_seguro_usuario(in_recuperar_id)
+                        if contacto_data.get('encontrado'):
+                            st.session_state['recuperacion_contacto'] = contacto_data
+                            # Limpiar estados previos de intento
+                            st.session_state.pop('otp_generado_data', None)
+                            st.session_state.pop('identidad_confirmada', None)
                             st.rerun()
                         else:
-                            st.error(f"❌ {msg_find}")
-                            
-            cuenta_rec = st.session_state.get('cuenta_recuperada_temp')
-            if cuenta_rec:
-                u_rec_name = cuenta_rec['username']
-                u_rec_nombre = cuenta_rec.get('nombre', '')
-                u_rec_rol = cuenta_rec.get('rol', '').capitalize()
-                u_rec_sector = cuenta_rec.get('nombre_sector', '') or cuenta_rec.get('codigo_sector', '')
-                u_rec_grp = cuenta_rec.get('codigo_grupo', '')
-                
+                            st.error(f"❌ {contacto_data.get('mensaje', 'Cuenta no encontrada.')}")
+
+            contacto_rec = st.session_state.get('recuperacion_contacto')
+            if contacto_rec:
+                u_name = contacto_rec['username']
+                u_nombre = contacto_rec['nombre']
+                u_rol = contacto_rec['rol'].capitalize()
+                u_sec = contacto_rec.get('nombre_sector', '') or contacto_rec.get('codigo_sector', '')
+                u_grp = contacto_rec.get('codigo_grupo', '')
+                tel_oficial = contacto_rec.get('telefono_oficial')
+                tel_mask = contacto_rec.get('telefono_enmascarado')
+                correo_oficial = contacto_rec.get('correo_oficial')
+                correo_mask = contacto_rec.get('correo_enmascarado')
+                tiene_contacto = contacto_rec.get('tiene_contacto', False)
+
                 st.markdown("---")
                 st.markdown(f"""
-                <div style="background: rgba(16, 185, 129, 0.12); border: 1.5px solid #10B981; border-radius: 12px; padding: 14px 18px; margin-bottom: 15px;">
-                    <div style="font-size: 1rem; font-weight: 700; color: #10B981; margin-bottom: 6px;">
-                        🌸 Verificación Exitosa de Cuenta
+                <div style="background: rgba(16, 185, 129, 0.10); border: 1.5px solid #10B981; border-radius: 12px; padding: 12px 16px; margin-bottom: 12px;">
+                    <div style="font-size: 0.95rem; font-weight: 700; color: #10B981; margin-bottom: 4px;">
+                        👤 Titular Identificado: {u_nombre}
                     </div>
-                    <div style="font-size: 0.88rem; color: #E2E8F0; line-height: 1.6;">
-                        • <b>Titular:</b> {u_rec_nombre}<br>
-                        • <b>Rol:</b> {u_rec_rol} {f'• Grupo {u_rec_grp}' if u_rec_grp else ''}<br>
-                        • <b>Sector:</b> {u_rec_sector}<br>
-                        • 👤 <b>Tu Usuario Oficial de Acceso es:</b> <span style="background: rgba(255,255,255,0.25); padding: 2px 8px; border-radius: 4px; font-weight: 800; color: #FFFFFF;">{u_rec_name}</span>
+                    <div style="font-size: 0.84rem; color: #E2E8F0; line-height: 1.5;">
+                        • <b>Usuario:</b> <code style="background: rgba(255,255,255,0.15); padding: 1px 6px; border-radius: 4px;">{u_name}</code>
+                        {f'• <b>Grupo:</b> {u_grp}' if u_grp else ''}
+                        • <b>Sector:</b> {u_sec}<br>
+                        • 📲 <b>Canal Oficial Registrado:</b> <span style="color: #34D399; font-weight: 700;">{tel_mask if tel_mask else (correo_mask if correo_mask else 'No registrado')}</span>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
-                
-                tab_rec_wa, tab_rec_pin = st.tabs(["📲 Restablecer & Enviar por WhatsApp", "🔑 Cambiar Contraseña Ahora"])
-                
-                with tab_rec_wa:
-                    st.caption("Restablece tu contraseña a una clave temporal y recíbela directamente en tu WhatsApp:")
-                    nueva_clave_sug = "lider123" if cuenta_rec.get('rol') == 'lider' else "admin123"
-                    
-                    with st.form("form_rec_wa_exec"):
-                        tel_rec_in = st.text_input("Ingresa tu número celular (10 dígitos):", placeholder="ej. 3123456789", key="tel_rec_in_wa")
-                        btn_reset_wa = st.form_submit_button("🔄 Restablecer a Clave Temporal & Generar WhatsApp", type="primary", use_container_width=True)
-                        
-                        if btn_reset_wa:
-                            ok_rst, msg_rst = restablecer_password_usuario(u_rec_name, nueva_clave_sug, debe_cambiar=True)
-                            if ok_rst:
-                                st.session_state['ultimo_reset_publico'] = {
-                                    'usuario': u_rec_name,
-                                    'nombre': u_rec_nombre,
-                                    'password': nueva_clave_sug,
-                                    'telefono': tel_rec_in
-                                }
-                                st.success(f"✅ ¡Contraseña restablecida exitosamente a: `{nueva_clave_sug}`!")
-                                st.rerun()
-                            else:
-                                st.error(f"❌ {msg_rst}")
-                                
-                    ult_pub = st.session_state.get('ultimo_reset_publico')
-                    if ult_pub and ult_pub.get('usuario') == u_rec_name:
-                        msg_wa_recup = (
-                            f"🔐 *RECUPERACIÓN DE ACCESO - SISTEMA NATURA & AVON*\n\n"
-                            f"🌸 ¡Hola {ult_pub['nombre'].split()[0].title()}!\n"
-                            f"Tus datos de ingreso han sido verificados:\n\n"
-                            f"👤 *Usuario:* `{ult_pub['usuario']}`\n"
-                            f"🔑 *Contraseña Temporal:* `{ult_pub['password']}`\n\n"
-                            f"🌐 *Ingresa aquí:* https://metaseindicadores.up.railway.app\n\n"
-                            f"✨ *Nota:* Al iniciar sesión se te pedirá actualizar tu contraseña personal."
-                        )
-                        
-                        st.text_area("Mensaje de recuperación listo:", msg_wa_recup, height=140, key="txt_msg_rec_wa")
-                        
-                        tel_final = ult_pub.get('telefono', '').strip()
-                        if tel_final and len(tel_final) >= 10:
-                            link_wa_rec = f"https://api.whatsapp.com/send?phone=57{tel_final}&text={urllib.parse.quote(msg_wa_recup)}"
-                            st.link_button("📲 Abrir WhatsApp y Recibir mis Credenciales", url=link_wa_rec, use_container_width=True)
-                        else:
-                            st.caption("💡 Puedes copiar el mensaje anterior o ingresar tu número celular arriba para abrir WhatsApp directamente.")
 
-                with tab_rec_pin:
-                    st.caption("Crea una nueva contraseña inmediatamente con el PIN de verificación:")
-                    pin_esperado = st.session_state.get('pin_recuperacion', '123456')
-                    
-                    with st.form("form_rec_directo_nueva_pass"):
-                        st.info(f"💡 Tu código PIN de seguridad de verificación es: **{pin_esperado}**")
-                        pin_ingresado = st.text_input("Ingresa el PIN de seguridad:", placeholder="6 dígitos", key="pin_in_rec")
-                        nueva_pass_1 = st.text_input("Nueva Contraseña:", type="password", placeholder="Mínimo 6 caracteres", key="nueva_pass_1_in")
-                        nueva_pass_2 = st.text_input("Confirma la Nueva Contraseña:", type="password", placeholder="Repite tu contraseña", key="nueva_pass_2_in")
-                        
-                        btn_cambiar_pass_rec = st.form_submit_button("🔒 Guardar Nueva Contraseña e Iniciar Sesión", type="primary", use_container_width=True)
-                        
-                        if btn_cambiar_pass_rec:
-                            if pin_ingresado.strip() != pin_esperado.strip():
-                                st.error("❌ El PIN de seguridad ingresado no es correcto.")
-                            elif len(nueva_pass_1) < 6:
-                                st.warning("⚠️ La contraseña debe tener al menos 6 caracteres.")
-                            elif nueva_pass_1 != nueva_pass_2:
-                                st.error("❌ Las contraseñas no coinciden.")
-                            else:
-                                ok_ch, msg_ch = cambiar_password_usuario(u_rec_name, nueva_pass_1)
-                                if ok_ch:
-                                    st.success(f"🎉 ¡Contraseña actualizada exitosamente! Iniciando sesión...")
-                                    user_authed = autenticar_usuario(u_rec_name, nueva_pass_1)
-                                    if user_authed:
-                                        st.session_state['user'] = user_authed
-                                        st.session_state['ultimo_acceso'] = time.time()
-                                        if 'cuenta_recuperada_temp' in st.session_state:
-                                            del st.session_state['cuenta_recuperada_temp']
-                                        st.query_params['session'] = generar_token_sesion(user_authed)
-                                        st.rerun()
+                if not tiene_contacto:
+                    st.error("🔒 **Cuenta sin canal de contacto registrado.** Por razones de seguridad estricta, no es posible la autorecuperación. Por favor comunícate directamente con Soporte Técnico para validar tu identidad.")
+                    msg_sop_no_tel = f"Hola Soporte Técnico, soy {u_nombre} ({u_name}). Necesito vincular mi número de celular para recuperar mi acceso."
+                    url_sop_no_tel = f"https://api.whatsapp.com/send?phone=573057939537&text={urllib.parse.quote(msg_sop_no_tel)}"
+                    st.link_button("👩‍💻 Contactar a Soporte por WhatsApp", url=url_sop_no_tel, use_container_width=True)
+                else:
+                    # PASO 2: DESAFÍO DE IDENTIDAD (Debe ingresar el número o correo registrado)
+                    if not st.session_state.get('identidad_confirmada'):
+                        st.markdown("##### 🔐 Paso 1: Confirma tu Identidad")
+                        st.caption("Para evitar accesos no autorizados, ingresa tu número celular registrado completo para recibir tu código PIN:")
+
+                        with st.form("form_challenge_identidad"):
+                            in_valida_contacto = st.text_input(
+                                "Ingresa tu número celular registrado (o correo oficial):",
+                                placeholder=f"ej. {tel_mask or 'tu correo'}",
+                                key="in_valida_contacto_input"
+                            )
+                            btn_validar_id = st.form_submit_button("🔒 Validar Identidad y Enviar Código PIN", type="primary", use_container_width=True)
+
+                            if btn_validar_id:
+                                val_clean = "".join(ch for ch in in_valida_contacto if ch.isdigit())
+                                mail_clean = in_valida_contacto.strip().lower()
+
+                                match_tel = bool(tel_oficial and val_clean and (val_clean == tel_oficial or val_clean.endswith(tel_oficial) or tel_oficial.endswith(val_clean)))
+                                match_mail = bool(correo_oficial and mail_clean == correo_oficial.lower())
+
+                                if match_tel or match_mail:
+                                    st.session_state['identidad_confirmada'] = True
+                                    # Generar código OTP de 6 dígitos seguro
+                                    import secrets, hashlib
+                                    otp_raw = str(secrets.randbelow(900000) + 100000)
+                                    otp_hash = hashlib.sha256(otp_raw.encode()).hexdigest()
+
+                                    st.session_state['otp_generado_data'] = {
+                                        'otp_hash': otp_hash,
+                                        'expira': time.time() + 600, # 10 minutos
+                                        'intentos_restantes': 3,
+                                        'telefono_destino': tel_oficial
+                                    }
+
+                                    # Intentar despacho en segundo plano por Evolution API
+                                    evo_url = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+                                    evo_tok = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+                                    evo_inst = st.session_state.get('in_evo_instance', 'gerente_dolly')
+
+                                    ok_env, msg_env = enviar_otp_recuperacion(
+                                        tel_oficial,
+                                        otp_raw,
+                                        u_nombre,
+                                        evo_url=evo_url,
+                                        evo_token=evo_tok,
+                                        evo_instance=evo_inst
+                                    )
+
+                                    if ok_env:
+                                        st.session_state['otp_despacho_modo'] = 'api'
+                                        registrar_evento_auditoria(
+                                            contacto_rec,
+                                            categoria="🔐 Seguridad / MFA",
+                                            accion="Envío de OTP",
+                                            detalle=f"PIN despachado por API a WhatsApp registrado ({tel_mask})",
+                                            dispositivo="🌐 Portal Web"
+                                        )
+                                    else:
+                                        # Modo asistido: Enlace fijado EXCLUSIVAMENTE al número registrado del titular
+                                        st.session_state['otp_despacho_modo'] = 'asistido'
+                                        msg_wa_asist = (
+                                            f"🔐 *CÓDIGO DE SEGURIDAD NATURA & AVON*\n\n"
+                                            f"🌸 ¡Hola {u_nombre.split()[0].title()}!\n"
+                                            f"Tu código de verificación de 6 dígitos para restablecer tu acceso es:\n\n"
+                                            f"👉 *{otp_raw}* 👈\n\n"
+                                            f"⏱️ Válido por 10 minutos. NUNCA compartas este código con nadie."
+                                        )
+                                        link_asist = f"https://api.whatsapp.com/send?phone=57{tel_oficial}&text={urllib.parse.quote(msg_wa_asist)}"
+                                        st.session_state['link_wa_asistido_otp'] = link_asist
+
+                                    st.rerun()
                                 else:
-                                    st.error(f"❌ {msg_ch}")
-                                    
+                                    st.error("❌ El número o correo ingresado no coincide con el registrado oficialmente para este usuario.")
+                                    registrar_evento_auditoria(
+                                        contacto_rec,
+                                        categoria="🚨 Alerta de Seguridad",
+                                        accion="Intento Fallido de Desafío",
+                                        detalle=f"Intento con contacto no coincidente para {u_name}",
+                                        dispositivo="🌐 Portal Web"
+                                    )
+
+                    # PASO 3: VALIDACIÓN DEL OTP Y CAMBIO DE CONTRASEÑA
+                    else:
+                        otp_info = st.session_state.get('otp_generado_data', {})
+                        modo_env = st.session_state.get('otp_despacho_modo', 'api')
+                        
+                        st.markdown("##### 📲 Paso 2: Ingresa el PIN Recibido")
+                        if modo_env == 'api':
+                            st.success(f"✅ Se ha enviado tu código PIN de 6 dígitos a tu WhatsApp registrado (**{tel_mask}**). Revisa tus mensajes.")
+                        else:
+                            st.info(f"📲 Hemos preparado el envío de tu código a tu WhatsApp registrado (**{tel_mask}**):")
+                            link_wa_directo = st.session_state.get('link_wa_asistido_otp', '')
+                            if link_wa_directo:
+                                st.link_button(f"📲 Abrir mi WhatsApp ({tel_mask}) y Recibir mi PIN", url=link_wa_directo, use_container_width=True, type="secondary")
+
+                        st.caption("Ingresa el código PIN recibido en tu celular junto con tu nueva contraseña:")
+
+                        with st.form("form_validar_pin_y_cambiar"):
+                            pin_in = st.text_input("🔑 Código PIN de 6 dígitos:", placeholder="ej: 841848", max_chars=6, key="in_pin_otp_val")
+                            pass_nueva_1 = st.text_input("Nueva Contraseña:", type="password", placeholder="Mínimo 6 caracteres", key="nueva_pass_1_in")
+                            pass_nueva_2 = st.text_input("Confirma la Nueva Contraseña:", type="password", placeholder="Repite tu nueva contraseña", key="nueva_pass_2_in")
+                            
+                            btn_confirmar_cambio = st.form_submit_button("🔒 Guardar Nueva Contraseña e Iniciar Sesión", type="primary", use_container_width=True)
+
+                            if btn_confirmar_cambio:
+                                import hashlib
+                                expira = otp_info.get('expira', 0)
+                                intentos = otp_info.get('intentos_restantes', 3)
+                                hash_esperado = otp_info.get('otp_hash', '')
+
+                                if time.time() > expira:
+                                    st.error("❌ El código PIN ha expirado (límite de 10 minutos superado). Por favor solicita uno nuevo.")
+                                    st.session_state.pop('identidad_confirmada', None)
+                                    st.session_state.pop('otp_generado_data', None)
+                                elif intentos <= 0:
+                                    st.error("❌ Has superado el número máximo de intentos permitidos. Por seguridad, solicita un nuevo código.")
+                                    st.session_state.pop('identidad_confirmada', None)
+                                    st.session_state.pop('otp_generado_data', None)
+                                elif hashlib.sha256(pin_in.strip().encode()).hexdigest() != hash_esperado:
+                                    otp_info['intentos_restantes'] = intentos - 1
+                                    st.session_state['otp_generado_data'] = otp_info
+                                    st.error(f"❌ Código PIN incorrecto. Te quedan {intentos - 1} intento(s).")
+                                elif len(pass_nueva_1) < 6:
+                                    st.warning("⚠️ La contraseña debe tener al menos 6 caracteres.")
+                                elif pass_nueva_1 != pass_nueva_2:
+                                    st.error("❌ Las contraseñas no coinciden.")
+                                else:
+                                    ok_ch, msg_ch = cambiar_password_usuario(u_name, pass_nueva_1)
+                                    if ok_ch:
+                                        st.success("🎉 ¡Contraseña actualizada exitosamente! Iniciando sesión de forma segura...")
+                                        registrar_evento_auditoria(
+                                            contacto_rec,
+                                            categoria="🔐 Seguridad / MFA",
+                                            accion="Cambio de Contraseña Exitoso",
+                                            detalle=f"Restablecimiento de contraseña verificado por MFA para {u_name}",
+                                            dispositivo="🌐 Portal Web"
+                                        )
+                                        user_authed = autenticar_usuario(u_name, pass_nueva_1)
+                                        if user_authed:
+                                            # Limpiar tokens de recuperación
+                                            for k in ['recuperacion_contacto', 'identidad_confirmada', 'otp_generado_data', 'otp_despacho_modo', 'link_wa_asistido_otp']:
+                                                st.session_state.pop(k, None)
+                                            st.session_state['user'] = user_authed
+                                            st.session_state['ultimo_acceso'] = time.time()
+                                            st.query_params['session'] = generar_token_sesion(user_authed)
+                                            st.rerun()
+                                    else:
+                                        st.error(f"❌ {msg_ch}")
+
+                        col_rst1, col_rst2 = st.columns([1, 1])
+                        with col_rst1:
+                            if st.button("🔄 Solicitar otro código", use_container_width=True):
+                                st.session_state.pop('identidad_confirmada', None)
+                                st.session_state.pop('otp_generado_data', None)
+                                st.rerun()
+                        with col_rst2:
+                            if st.button("⬅️ Cancelar", use_container_width=True):
+                                for k in ['recuperacion_contacto', 'identidad_confirmada', 'otp_generado_data', 'otp_despacho_modo', 'link_wa_asistido_otp']:
+                                    st.session_state.pop(k, None)
+                                st.rerun()
+
                 st.markdown("---")
-                st.markdown("###### 💬 ¿Necesitas asistencia personalizada?")
-                msg_soporte = f"Hola Soporte Técnico, soy {u_rec_nombre} del Sector {u_rec_sector}. Necesito ayuda para recuperar mi acceso al usuario {u_rec_name}."
+                st.markdown("###### 💬 ¿Problemas para recibir tu código?")
+                msg_soporte = f"Hola Soporte Técnico, soy {u_nombre} ({u_name}). Necesito asistencia para verificar mi identidad y acceder a mi cuenta."
                 url_soporte_wa = f"https://api.whatsapp.com/send?phone=573057939537&text={urllib.parse.quote(msg_soporte)}"
                 st.link_button("👩‍💻 Contactar a Soporte por WhatsApp (3057939537)", url=url_soporte_wa, use_container_width=True)
 

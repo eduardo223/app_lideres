@@ -4054,6 +4054,179 @@ def buscar_cuenta_usuario(identificador):
             
     return False, None, "No encontramos ninguna cuenta registrada con esos datos. Por favor verifica o contacta a Soporte."
 
+def enmascarar_telefono(tel):
+    if not tel:
+        return ""
+    digits = "".join(ch for ch in str(tel) if ch.isdigit())
+    if len(digits) >= 10:
+        return f"+57 {digits[:3]} ••• ••{digits[-2:]}"
+    elif len(digits) >= 7:
+        return f"{digits[:3]} ••• ••{digits[-2:]}"
+    return "••••••••"
+
+def enmascarar_correo(correo):
+    if not correo or "@" not in correo:
+        return ""
+    partes = correo.strip().split("@")
+    usuario_p = partes[0]
+    dominio_p = partes[1]
+    if len(usuario_p) <= 2:
+        u_mask = usuario_p[0] + "•••"
+    else:
+        u_mask = usuario_p[:2] + "••••" + usuario_p[-1]
+    return f"{u_mask}@{dominio_p}"
+
+def obtener_contacto_seguro_usuario(identificador):
+    """
+    Recupera y blinda el canal de contacto oficial (celular y correo) registrado
+    para un usuario, garantizando que el flujo de recuperación y MFA no pueda
+    ser desviado a números arbitrarios o maliciosos.
+    Retorna diccionario con datos completos y versiones enmascaradas.
+    """
+    ok, u_info, msg = buscar_cuenta_usuario(identificador)
+    if not ok or not u_info:
+        return {
+            'encontrado': False,
+            'mensaje': msg or "Cuenta no encontrada"
+        }
+
+    u_name = str(u_info.get('username') or '').strip().lower()
+    nombre = str(u_info.get('nombre') or u_name).strip()
+    rol = str(u_info.get('rol') or 'lider').strip().lower()
+    grp = u_info.get('codigo_grupo')
+    sec = u_info.get('codigo_sector')
+    sec_nom = u_info.get('nombre_sector', '')
+
+    # 1. Resolver teléfono oficial
+    tel_oficial = None
+    
+    # Directo en el perfil
+    tel_dir = u_info.get('telefono') or u_info.get('celular')
+    if tel_dir:
+        d_raw = "".join(ch for ch in str(tel_dir).split('.')[0] if ch.isdigit())
+        if len(d_raw) >= 10:
+            tel_oficial = d_raw[-10:]
+
+    # Si no tiene teléfono en perfil, buscar en base_matices.db
+    if not tel_oficial:
+        try:
+            conn = obtener_conexion_db()
+            # Búsqueda por grupo y coincidencia de nombre de la líder
+            if grp:
+                tokens_n = [t for t in nombre.split() if len(t) >= 4]
+                if tokens_n:
+                    q_pat = f"%{tokens_n[0]}%"
+                    r_tab = conn.execute(
+                        "SELECT celular FROM consultoras_tableau WHERE grupo = ? AND nombre LIKE ? AND celular IS NOT NULL LIMIT 1",
+                        (str(grp).strip(), q_pat)
+                    ).fetchone()
+                    if r_tab and r_tab[0]:
+                        d_raw = "".join(ch for ch in str(r_tab[0]).split('.')[0] if ch.isdigit())
+                        if len(d_raw) >= 10:
+                            tel_oficial = d_raw[-10:]
+
+            # Búsqueda global por nombre en consultoras_tableau
+            if not tel_oficial and len(nombre) >= 6:
+                tokens = [t for t in nombre.split() if len(t) >= 4]
+                if len(tokens) >= 2:
+                    pat_2 = f"%{tokens[0]}%{tokens[-1]}%"
+                    r2 = conn.execute(
+                        "SELECT celular FROM consultoras_tableau WHERE nombre LIKE ? AND celular IS NOT NULL LIMIT 1",
+                        (pat_2,)
+                    ).fetchone()
+                    if r2 and r2[0]:
+                        d_raw = "".join(ch for ch in str(r2[0]).split('.')[0] if ch.isdigit())
+                        if len(d_raw) >= 10:
+                            tel_oficial = d_raw[-10:]
+            conn.close()
+        except Exception:
+            pass
+
+    # Teléfonos corporativos de contingencia para gerentes y admin
+    if not tel_oficial:
+        if rol == 'superadmin':
+            tel_oficial = "3057939537"
+        elif 'dolly' in u_name or 'dolly' in nombre.lower():
+            tel_oficial = "3113201145"
+        elif 'clery' in u_name or 'clery' in nombre.lower() or rol == 'gerente':
+            tel_oficial = "3057939537"
+
+    # 2. Resolver correo oficial
+    correo_oficial = None
+    if "@" in u_name:
+        correo_oficial = u_name
+    elif u_info.get("email"):
+        correo_oficial = str(u_info.get("email")).strip().lower()
+    elif 'dolly' in u_name or 'dolly' in nombre.lower():
+        correo_oficial = "dolly.parra@natura.net"
+
+    return {
+        'encontrado': True,
+        'username': u_name,
+        'nombre': nombre,
+        'rol': rol,
+        'codigo_grupo': grp,
+        'codigo_sector': sec,
+        'nombre_sector': sec_nom,
+        'telefono_oficial': tel_oficial,
+        'telefono_enmascarado': enmascarar_telefono(tel_oficial) if tel_oficial else None,
+        'correo_oficial': correo_oficial,
+        'correo_enmascarado': enmascarar_correo(correo_oficial) if correo_oficial else None,
+        'tiene_contacto': bool(tel_oficial or correo_oficial),
+        'mensaje': "Contacto resuelto exitosamente."
+    }
+
+def enviar_otp_recuperacion(telefono_destino, otp_codigo, nombre_titular, evo_url=None, evo_token=None, evo_instance=None):
+    """
+    Envía el código PIN OTP de 6 dígitos directamente al WhatsApp registrado del titular
+    utilizando Evolution API en segundo plano. Nunca expone el código en la pantalla.
+    Retorna (exitoso: bool, mensaje: str)
+    """
+    tel_clean = "".join(ch for ch in str(telefono_destino) if ch.isdigit())
+    if len(tel_clean) == 10:
+        tel_clean = f"57{tel_clean}"
+    elif len(tel_clean) < 10:
+        return False, "Número telefónico inválido (menos de 10 dígitos)."
+
+    nom_p = str(nombre_titular).split()[0].title() if nombre_titular else "Estimada(o)"
+    
+    mensaje_texto = (
+        f"🔐 *CÓDIGO DE VERIFICACIÓN - NATURA & AVON*\n\n"
+        f"🌸 ¡Hola *{nom_p}*!\n"
+        f"Has solicitado restablecer tu acceso al sistema. Tu código de seguridad temporal es:\n\n"
+        f"👉 *{otp_codigo}* 👈\n\n"
+        f"⏱️ Este código es válido durante *10 minutos*.\n"
+        f"⚠️ *Por tu seguridad:* NUNCA compartas este código con nadie. El equipo de soporte nunca te pedirá tu código.\n\n"
+        f"Si tú no solicitaste este código, puedes ignorar este mensaje; tu cuenta permanece totalmente segura."
+    )
+
+    url_base = (evo_url or "https://evolution-api-production-7a2f.up.railway.app").strip().rstrip('/')
+    token_api = (evo_token or "6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad").strip()
+    instancia = (evo_instance or "gerente_dolly").strip()
+
+    try:
+        url_send = f"{url_base}/message/sendText/{instancia}"
+        headers = {
+            "apikey": token_api,
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "number": tel_clean,
+            "text": mensaje_texto,
+            "options": {
+                "delay": 1200,
+                "presence": "composing",
+                "linkPreview": False
+            }
+        }
+        resp = requests.post(url_send, json=payload, headers=headers, timeout=10)
+        if resp.status_code in [200, 201]:
+            return True, "Código enviado exitosamente a tu WhatsApp registrado."
+        else:
+            return False, f"La pasarela respondió con estado {resp.status_code}."
+    except Exception as e:
+        return False, f"No fue posible conectar con la pasarela WhatsApp: {e}"
+
 def autenticar_usuario(username, password):
     """
     Valida credenciales. Retorna el diccionario del usuario si es correcto o None.

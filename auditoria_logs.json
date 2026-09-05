@@ -253,5 +253,50 @@
     "accion": "Inicio de Sesión",
     "detalle": "Ingreso exitoso al portal web (lider)",
     "dispositivo": "🖥️ PC / Escritorio"
+  },
+  {
+    "fecha_hora": "2026-09-04T20:18:28.456184",
+    "fecha": "2026-09-04",
+    "hora": "20:18:28",
+    "username": "admin",
+    "nombre": "Super Administrador del Sistema",
+    "rol": "superadmin",
+    "codigo_sector": "",
+    "nombre_sector": "Gestión Corporativa Global",
+    "codigo_grupo": "",
+    "categoria": "🔑 Acceso",
+    "accion": "Inicio de Sesión",
+    "detalle": "Ingreso exitoso al portal web (superadmin)",
+    "dispositivo": "🖥️ PC / Escritorio"
+  },
+  {
+    "fecha_hora": "2026-09-04T20:27:39.897179",
+    "fecha": "2026-09-04",
+    "hora": "20:27:39",
+    "username": "lider177",
+    "nombre": "DIANA LUZ AVELLA PINTO",
+    "rol": "lider",
+    "codigo_sector": "700000466",
+    "nombre_sector": "EMOCIONES DOLLY",
+    "codigo_grupo": "177",
+    "categoria": "🚨 Alerta de Seguridad",
+    "accion": "Intento Fallido de Desafío",
+    "detalle": "Intento con contacto no coincidente para lider177",
+    "dispositivo": "🌐 Portal Web"
+  },
+  {
+    "fecha_hora": "2026-09-04T20:27:49.971364",
+    "fecha": "2026-09-04",
+    "hora": "20:27:49",
+    "username": "lider177",
+    "nombre": "DIANA LUZ AVELLA PINTO",
+    "rol": "lider",
+    "codigo_sector": "700000466",
+    "nombre_sector": "EMOCIONES DOLLY",
+    "codigo_grupo": "177",
+    "categoria": "🚨 Alerta de Seguridad",
+    "accion": "Intento Fallido de Desafío",
+    "detalle": "Intento con contacto no coincidente para lider177",
+    "dispositivo": "🌐 Portal Web"
   }
 ]
