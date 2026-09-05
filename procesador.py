@@ -245,9 +245,9 @@ def calcular_metas_ciclo(origen=None):
     # Cálculo dinámico de Ganancia Estimada según Matriz y Potencializador de Saldo
     df = calcular_ganancia_estimada_df(df)
 
-    # Integrar Metas de Objetivos Arte (Desafíos LNN: Inicios + Reinicios y Recuperos)
+    # Integrar Metas de Objetivos Arte y Ajustes Desafíos de Zona
     try:
-        mapa_arte = cargar_objetivos_arte()
+        mapa_arte = obtener_metas_efectivas()
         mapa_grp = mapa_arte.get('por_grupo', {})
         mapa_nom = mapa_arte.get('por_nombre', {})
         
@@ -478,6 +478,446 @@ def procesar_archivo_objetivos_arte(origen_arte, ruta_guardar_excel='Objetivos A
         }
     except Exception as e:
         return {'exito': False, 'error': f"Error al procesar Objetivos Arte: {e}"}
+
+# --- MÓDULO DE AJUSTES DESAFÍOS DE ZONA (COMPARATIVO AUTOMATIZADO CON OBJETIVOS ARTE) ---
+
+RUTA_AJUSTES_DESAFIOS_JSON = ruta_persistente('ajustes_desafios.json')
+
+def cargar_ajustes_desafios(sector=None, campana=None):
+    """
+    Carga el diccionario persistente de ajustes de desafíos de zona.
+    Preserva el histórico completo de campañas (C13, C14, C15...) por sector.
+    """
+    data = {"historico": {}, "campana_activa_por_sector": {}}
+    if os.path.exists(RUTA_AJUSTES_DESAFIOS_JSON):
+        try:
+            with open(RUTA_AJUSTES_DESAFIOS_JSON, 'r', encoding='utf-8') as f:
+                c_data = json.load(f)
+                if isinstance(c_data, dict):
+                    data = c_data
+                    if 'historico' not in data:
+                        data['historico'] = {}
+                    if 'campana_activa_por_sector' not in data:
+                        data['campana_activa_por_sector'] = {}
+        except Exception as e:
+            safe_print(f"Error al cargar {RUTA_AJUSTES_DESAFIOS_JSON}: {e}")
+
+    sec_str = str(sector).strip().split('.')[0] if sector else None
+
+    if sec_str and campana:
+        c_str = str(campana).strip().upper()
+        return data.get('historico', {}).get(sec_str, {}).get(c_str, {})
+    elif sec_str and not campana:
+        c_activa = data.get('campana_activa_por_sector', {}).get(sec_str)
+        if c_activa:
+            return data.get('historico', {}).get(sec_str, {}).get(c_activa, {})
+        campanas_sec = data.get('historico', {}).get(sec_str, {})
+        if campanas_sec:
+            ult_c = sorted(list(campanas_sec.keys()))[-1]
+            return campanas_sec.get(ult_c, {})
+        return {}
+    
+    return data
+
+def guardar_ajustes_desafios(dict_data):
+    """
+    Guarda el diccionario de ajustes de desafíos en ajustes_desafios.json.
+    """
+    try:
+        with open(RUTA_AJUSTES_DESAFIOS_JSON, 'w', encoding='utf-8') as f:
+            json.dump(dict_data, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        safe_print(f"Error al guardar {RUTA_AJUSTES_DESAFIOS_JSON}: {e}")
+        return False
+
+def procesar_archivo_ajustes_desafios(origen_archivo, current_user=None, campana_label=None, nombre_archivo_subido=None):
+    """
+    Procesa un archivo de 'Ajustes Desafíos' (ej. C13 DESAFIOS SECTOR EMOCIONES.xlsx),
+    realiza la conciliación automática contra 'Objetivos Arte' (el archivo papá),
+    redondea recuperos al entero más cercano y almacena los datos en el histórico de campañas.
+    """
+    try:
+        # 1. Determinar nombre de archivo
+        nom_arch = ""
+        if nombre_archivo_subido:
+            nom_arch = str(nombre_archivo_subido)
+        elif hasattr(origen_archivo, 'name'):
+            nom_arch = str(origen_archivo.name)
+        elif isinstance(origen_archivo, str):
+            nom_arch = os.path.basename(origen_archivo)
+        else:
+            nom_arch = "Ajustes_Desafios.xlsx"
+
+        # 2. Guardar archivo temporal o en volumen
+        ruta_guardar = ruta_persistente(f"ajustes_{nom_arch}") if nom_arch else ruta_persistente("ajustes_desafios_temp.xlsx")
+        if hasattr(origen_archivo, 'read'):
+            try:
+                origen_archivo.seek(0)
+            except Exception:
+                pass
+            with open(ruta_guardar, 'wb') as f_out:
+                f_out.write(origen_archivo.read())
+            try:
+                origen_archivo.seek(0)
+            except Exception:
+                pass
+            ruta_leer = ruta_guardar
+        elif isinstance(origen_archivo, str):
+            ruta_leer = origen_archivo
+        else:
+            return {'exito': False, 'error': "Origen de archivo no soportado."}
+
+        # 3. Detectar campaña si no se especificó
+        campana_final = ""
+        if campana_label and str(campana_label).strip():
+            c_cand = str(campana_label).strip().upper()
+            campana_final = c_cand if c_cand.startswith('C') else f"C{c_cand}"
+        else:
+            match_c = re.search(r'[Cc](\d{1,2})', nom_arch)
+            if match_c:
+                campana_final = f"C{match_c.group(1)}"
+            else:
+                campana_final = "C13"
+
+        # 4. Cargar DataFrame de Excel
+        xl = pd.ExcelFile(ruta_leer)
+        hoja_target = next((s for s in xl.sheet_names if 'desaf' in s.lower()), xl.sheet_names[0])
+        df_raw = xl.parse(hoja_target)
+
+        # Detectar cabeceras si vienen con 'Unnamed'
+        if any('unnamed' in str(c).lower() for c in df_raw.columns[:5]):
+            for r_idx in range(min(5, len(df_raw))):
+                row_vals = [str(x).lower() for x in df_raw.iloc[r_idx].values if pd.notna(x)]
+                if any('grupo' in v or 'lider' in v or 'desafio' in v or 'desafío' in v for v in row_vals):
+                    df_raw.columns = [str(col_name).strip() for col_name in df_raw.iloc[r_idx]]
+                    df_raw = df_raw.iloc[r_idx + 1:].reset_index(drop=True)
+                    break
+
+        # 5. Normalizar nombres de columnas
+        cols_map = {}
+        for c in df_raw.columns:
+            c_low = str(c).lower().strip()
+            c_clean = re.sub(r'\s+', ' ', c_low)
+            
+            if any(k in c_clean for k in ['grupo', 'cod grupo', 'cód grupo', 'codigo grupo', 'cód. grupo']):
+                cols_map['grupo'] = c
+            elif 'lider' in c_clean or 'líder' in c_clean or 'nombre' in c_clean:
+                cols_map['lider'] = c
+            elif 'disponibles' in c_clean:
+                cols_map['disponibles'] = c
+            elif 'saldo' in c_clean and 'desafio' in c_clean:
+                cols_map['saldo'] = c
+            elif c_clean == 'saldo':
+                if 'saldo' not in cols_map:
+                    cols_map['saldo'] = c
+            elif 'inicios' in c_clean and ('desafio' in c_clean or 'meta' in c_clean or 'reinicios' in c_clean):
+                cols_map['inicios'] = c
+            elif c_clean == 'inicios' and 'inicios' not in cols_map:
+                cols_map['inicios'] = c
+            elif 'recuperos' in c_clean and ('desafio' in c_clean or 'meta' in c_clean):
+                cols_map['recuperos'] = c
+            elif c_clean == 'recuperos' and 'recuperos' not in cols_map:
+                cols_map['recuperos'] = c
+            elif 'activas' in c_clean and 'desafio' in c_clean and 'frecuente' not in c_clean:
+                cols_map['activas'] = c
+            elif 'facturacion' in c_clean or 'facturación' in c_clean:
+                cols_map['facturacion'] = c
+            elif 'in3' in c_clean and ('panel' in c_clean or 'dejar' in c_clean or 'meta' in c_clean):
+                cols_map['in3'] = c
+            elif 'in2' in c_clean and ('panel' in c_clean or 'dejar' in c_clean or 'meta' in c_clean):
+                cols_map['in2'] = c
+            elif 'in1' in c_clean and ('panel' in c_clean or 'dejar' in c_clean or 'meta' in c_clean):
+                cols_map['in1'] = c
+            elif 'frecuente' in c_clean and 'desafio' in c_clean and 'activas' in c_clean:
+                cols_map['activas_frecuentes'] = c
+
+        if 'grupo' not in cols_map:
+            return {'exito': False, 'error': "No se encontró la columna 'GRUPO' en la hoja de desafíos."}
+
+        # 6. Cargar base de Arte (Papá) para conciliación
+        arte_data = cargar_objetivos_arte().get('por_grupo', {})
+
+        usuarios_cat = cargar_usuarios()
+        grupos_a_sector = {}
+        for u in usuarios_cat.values():
+            g = str(u.get('codigo_grupo', '')).strip().split('.')[0]
+            s = str(u.get('codigo_sector', '')).strip()
+            if g and s:
+                grupos_a_sector[g] = s
+
+        sector_id_detectado = None
+        if current_user and current_user.get('codigo_sector'):
+            sector_id_detectado = str(current_user.get('codigo_sector')).strip()
+
+        # 7. Procesar cada fila
+        mapa_grupos_ajuste = {}
+        filas_comparativas = []
+        totales_var = {
+            'modificados': 0,
+            'nuevos': 0,
+            'sin_cambio': 0,
+            'facturacion_arte': 0.0,
+            'facturacion_ajuste': 0.0,
+            'activas_arte': 0,
+            'activas_ajuste': 0,
+            'inicios_arte': 0,
+            'inicios_ajuste': 0,
+            'recuperos_arte': 0,
+            'recuperos_ajuste': 0
+        }
+
+        for _, row in df_raw.iterrows():
+            g_raw = str(row.get(cols_map['grupo'], '')).strip().split('.')[0]
+            if not g_raw or g_raw in ['-', 'nan', 'None', '']:
+                continue
+
+            # Detectar sector si aún no se tiene
+            if not sector_id_detectado:
+                if g_raw in grupos_a_sector:
+                    sector_id_detectado = grupos_a_sector[g_raw]
+                elif g_raw in arte_data and arte_data[g_raw].get('sector'):
+                    sector_id_detectado = str(arte_data[g_raw].get('sector')).strip()
+
+            nom_lider = str(row.get(cols_map.get('lider', ''), '')).strip() if 'lider' in cols_map else ''
+            val_disp = int(round(limpiar_numero(row.get(cols_map.get('disponibles', ''), 0), 0))) if 'disponibles' in cols_map else 0
+            val_saldo = int(round(limpiar_numero(row.get(cols_map.get('saldo', ''), 2), 2))) if 'saldo' in cols_map else 2
+            val_ini = int(round(limpiar_numero(row.get(cols_map.get('inicios', ''), 0), 0))) if 'inicios' in cols_map else 0
+            
+            # REDONDEO DE RECUPEROS CONFIRMADO POR EL USUARIO
+            val_rec = int(round(limpiar_numero(row.get(cols_map.get('recuperos', ''), 0), 0))) if 'recuperos' in cols_map else 0
+            
+            val_act = int(round(limpiar_numero(row.get(cols_map.get('activas', ''), 0), 0))) if 'activas' in cols_map else 0
+            val_fact = float(limpiar_numero(row.get(cols_map.get('facturacion', ''), 0.0), 0.0)) if 'facturacion' in cols_map else 0.0
+            val_i1 = int(round(limpiar_numero(row.get(cols_map.get('in1', ''), 0), 0))) if 'in1' in cols_map else 0
+            val_i2 = int(round(limpiar_numero(row.get(cols_map.get('in2', ''), 0), 0))) if 'in2' in cols_map else 0
+            val_i3 = int(round(limpiar_numero(row.get(cols_map.get('in3', ''), 0), 0))) if 'in3' in cols_map else 0
+            val_act_frec = int(round(limpiar_numero(row.get(cols_map.get('activas_frecuentes', ''), 0), 0))) if 'activas_frecuentes' in cols_map else 0
+
+            item_ajuste = {
+                'grupo': g_raw,
+                'nombre_lider': nom_lider,
+                'disponibles_esperadas': val_disp,
+                'disponibles_proyectadas': val_disp,
+                'saldo_meta': val_saldo,
+                'meta_inicios_reinicios': val_ini,
+                'meta_recuperos': val_rec,
+                'desafio_activas': val_act,
+                'desafio_facturacion': val_fact,
+                'inactiva_1_meta': val_i1,
+                'inactiva_2_meta': val_i2,
+                'inactiva_3_meta': val_i3,
+                'desafio_activas_frecuentes': val_act_frec,
+                'es_ajuste_zona': True,
+                'campana': campana_final
+            }
+            mapa_grupos_ajuste[g_raw] = item_ajuste
+
+            # 8. Conciliación contra Arte (Papá)
+            arte_item = arte_data.get(g_raw)
+            if not arte_item:
+                tipo_estado = 'NUEVO'
+                totales_var['nuevos'] += 1
+                diff_ini = val_ini
+                diff_rec = val_rec
+                diff_act = val_act
+                diff_fact = val_fact
+                diff_saldo = val_saldo
+                nombre_mostrar = nom_lider if nom_lider else f"Líder {g_raw}"
+            else:
+                ini_p = arte_item.get('meta_inicios_reinicios', 0)
+                rec_p = arte_item.get('meta_recuperos', 0)
+                act_p = arte_item.get('desafio_activas', 0)
+                fact_p = float(arte_item.get('desafio_facturacion', 0.0))
+                sal_p = arte_item.get('saldo_meta', 2)
+
+                diff_ini = val_ini - ini_p
+                diff_rec = val_rec - rec_p
+                diff_act = val_act - act_p
+                diff_fact = val_fact - fact_p
+                diff_saldo = val_saldo - sal_p
+
+                totales_var['facturacion_arte'] += fact_p
+                totales_var['activas_arte'] += act_p
+                totales_var['inicios_arte'] += ini_p
+                totales_var['recuperos_arte'] += rec_p
+
+                if any([diff_ini != 0, diff_rec != 0, diff_act != 0, round(diff_fact) != 0, diff_saldo != 0]):
+                    tipo_estado = 'MODIFICADO'
+                    totales_var['modificados'] += 1
+                else:
+                    tipo_estado = 'SIN_CAMBIO'
+                    totales_var['sin_cambio'] += 1
+
+                nombre_mostrar = arte_item.get('nombre_lider') or nom_lider
+
+            totales_var['facturacion_ajuste'] += val_fact
+            totales_var['activas_ajuste'] += val_act
+            totales_var['inicios_ajuste'] += val_ini
+            totales_var['recuperos_ajuste'] += val_rec
+
+            filas_comparativas.append({
+                'grupo': g_raw,
+                'lider': nombre_mostrar,
+                'estado': tipo_estado,
+                'inicios_arte': arte_item.get('meta_inicios_reinicios', 0) if arte_item else 0,
+                'inicios_ajuste': val_ini,
+                'diff_inicios': diff_ini,
+                'recuperos_arte': arte_item.get('meta_recuperos', 0) if arte_item else 0,
+                'recuperos_ajuste': val_rec,
+                'diff_recuperos': diff_rec,
+                'activas_arte': arte_item.get('desafio_activas', 0) if arte_item else 0,
+                'activas_ajuste': val_act,
+                'diff_activas': diff_act,
+                'facturacion_arte': float(arte_item.get('desafio_facturacion', 0.0)) if arte_item else 0.0,
+                'facturacion_ajuste': val_fact,
+                'diff_facturacion': diff_fact,
+                'saldo_arte': arte_item.get('saldo_meta', 2) if arte_item else 2,
+                'saldo_ajuste': val_saldo,
+                'diff_saldo': diff_saldo
+            })
+
+        if not sector_id_detectado:
+            sector_id_detectado = "700000466"
+
+        # 9. Guardar en histórico de ajustes
+        store = cargar_ajustes_desafios()
+        if 'historico' not in store:
+            store['historico'] = {}
+        if sector_id_detectado not in store['historico']:
+            store['historico'][sector_id_detectado] = {}
+
+        sector_nombre = (current_user.get('nombre_sector') if current_user else None) or f"Sector {sector_id_detectado}"
+        usuario_nom = (current_user.get('nombre') if current_user else None) or "Gerencia"
+
+        store['historico'][sector_id_detectado][campana_final] = {
+            'campana': campana_final,
+            'sector_id': sector_id_detectado,
+            'sector_nombre': sector_nombre,
+            'fecha_carga': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'usuario_carga': usuario_nom,
+            'archivo_origen': nom_arch,
+            'total_lideres': len(mapa_grupos_ajuste),
+            'resumen': totales_var,
+            'por_grupo': mapa_grupos_ajuste
+        }
+        if 'campana_activa_por_sector' not in store:
+            store['campana_activa_por_sector'] = {}
+        store['campana_activa_por_sector'][sector_id_detectado] = campana_final
+
+        guardar_ajustes_desafios(store)
+
+        if current_user:
+            try:
+                registrar_evento_auditoria(
+                    current_user,
+                    categoria="🎯 Metas",
+                    accion="Carga Ajustes Desafíos",
+                    detalle=f"Campaña {campana_final}: {totales_var['modificados']} metas ajustadas, {totales_var['nuevos']} nuevas líderes.",
+                    dispositivo="🖥️ PC / Escritorio"
+                )
+            except Exception:
+                pass
+
+        return {
+            'exito': True,
+            'campana': campana_final,
+            'sector_id': sector_id_detectado,
+            'total_lideres': len(mapa_grupos_ajuste),
+            'totales_variacion': totales_var,
+            'comparativo': filas_comparativas,
+            'por_grupo': mapa_grupos_ajuste
+        }
+
+    except Exception as e:
+        return {'exito': False, 'error': f"Error al procesar Ajustes Desafíos: {e}"}
+
+def obtener_metas_efectivas(grupo=None, sector=None, campana=None):
+    """
+    Retorna las metas efectivas consolidadas combinando:
+    1. Ajustes Desafíos de Zona (si existen para la campaña activa o solicitada)
+    2. Fallback oficial: Objetivos Arte (Papá)
+    Soporta acceso tanto directo por grupo como por .get('por_grupo') y .get('por_nombre').
+    """
+    arte_papa = cargar_objetivos_arte()
+    arte_dict = dict(arte_papa.get('por_grupo', {}))
+    arte_nom_dict = dict(arte_papa.get('por_nombre', {}))
+    store_ajustes = cargar_ajustes_desafios()
+    historico = store_ajustes.get('historico', {})
+    activas_map = store_ajustes.get('campana_activa_por_sector', {})
+
+    # Caso 1: Consulta para un Grupo específico (Vista Líder)
+    if grupo:
+        g_clean = str(grupo).strip().split('.')[0]
+        for sec_id, campanas_sec in historico.items():
+            c_target = campana or activas_map.get(sec_id)
+            if not c_target and campanas_sec:
+                c_target = sorted(list(campanas_sec.keys()))[-1]
+            if c_target and c_target in campanas_sec:
+                grps_camp = campanas_sec[c_target].get('por_grupo', {})
+                if g_clean in grps_camp:
+                    res_ajustada = dict(grps_camp[g_clean])
+                    res_ajustada['es_ajuste_zona'] = True
+                    return res_ajustada
+
+        res_arte = dict(arte_dict.get(g_clean, {}))
+        if not res_arte:
+            # Búsqueda por nombre de líder como fallback
+            g_lower = str(grupo).strip().lower()
+            res_arte = dict(arte_nom_dict.get(g_lower, {}))
+        res_arte['es_ajuste_zona'] = False
+        return res_arte
+
+    # Helper para construir estructura bivalente (dict de grupos + 'por_grupo' + 'por_nombre')
+    def _empaquetar_mapa(mapa_items):
+        resultado = dict(mapa_items)
+        por_nom = dict(arte_nom_dict)
+        for gk, it in mapa_items.items():
+            nom = str(it.get('lider', '')).strip().lower()
+            if nom:
+                por_nom[nom] = it
+        resultado['por_grupo'] = dict(mapa_items)
+        resultado['por_nombre'] = por_nom
+        return resultado
+
+    # Caso 2: Consulta para un Sector específico (Vista Gerente)
+    if sector:
+        sec_clean = str(sector).strip().split('.')[0]
+        c_target = campana or activas_map.get(sec_clean)
+        campanas_sec = historico.get(sec_clean, {})
+        if not c_target and campanas_sec:
+            c_target = sorted(list(campanas_sec.keys()))[-1]
+
+        mapa_sector_ajuste = campanas_sec.get(c_target, {}).get('por_grupo', {}) if c_target else {}
+
+        mapa_final_sector = {}
+        for g_k, g_v in arte_dict.items():
+            s_g = str(g_v.get('sector', '')).strip()
+            if sec_clean in s_g or not sec_clean:
+                item = dict(g_v)
+                item['es_ajuste_zona'] = False
+                mapa_final_sector[g_k] = item
+
+        for g_k, g_v in mapa_sector_ajuste.items():
+            item = dict(g_v)
+            item['es_ajuste_zona'] = True
+            mapa_final_sector[g_k] = item
+
+        return _empaquetar_mapa(mapa_final_sector)
+
+    # Caso 3: Mapa global consolidado (SuperAdmin)
+    mapa_global = {k: dict(v) for k, v in arte_dict.items()}
+    for sec_id, campanas_sec in historico.items():
+        c_target = campana or activas_map.get(sec_id)
+        if not c_target and campanas_sec:
+            c_target = sorted(list(campanas_sec.keys()))[-1]
+        if c_target and c_target in campanas_sec:
+            for g_k, g_v in campanas_sec[c_target].get('por_grupo', {}).items():
+                item = dict(g_v)
+                item['es_ajuste_zona'] = True
+                mapa_global[g_k] = item
+
+    return _empaquetar_mapa(mapa_global)
 
 # --- REGLAS DE GANANCIA ESTIMADA SEGÚN MATRIZ Y POTENCIALIZADOR DE SALDO ---
 
@@ -4508,6 +4948,8 @@ def inicializar_db_sqlite(conn=None):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_grupo ON consultoras_tableau (grupo)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_sector ON consultoras_tableau (sector)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_cod_sector ON consultoras_tableau (cod_sector)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_codigo_cb ON consultoras_tableau (codigo_cb)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_codigo_cb_txt ON consultoras_tableau (CAST(codigo_cb AS TEXT))")
 
     # 4. Tabla de Metas "Cómo Vamos"
     cursor.execute("""
@@ -4575,6 +5017,8 @@ def inicializar_db_sqlite(conn=None):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_cod_sector ON cartera_geral (cod_sector)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_situacion ON cartera_geral (situacion)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_fecha_venc ON cartera_geral (fecha_vencimiento)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_codigo_cb ON cartera_geral (codigo_cb)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_geral_codigo_cb_txt ON cartera_geral (CAST(codigo_cb AS TEXT))")
 
     # 6. Tabla de Auditoría, Logs & Usabilidad
     cursor.execute("""
@@ -5424,9 +5868,9 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             clean_cols[col] = 'titulo'
         elif 'cuota' in norm:
             clean_cols[col] = 'cuota'
-        elif 'pedido' in norm and ('numero' in norm or 'num' in norm):
+        elif 'pedido' in norm and ('numero' in norm or 'num' in norm or 'nro' in norm):
             clean_cols[col] = 'numero_pedido'
-        elif 'factura' in norm and ('numero' in norm or 'num' in norm):
+        elif ('factura' in norm) or ('nro' in norm and 'fact' in norm) or ('num' in norm and 'fact' in norm) or ('doc' in norm and 'fact' in norm):
             clean_cols[col] = 'numero_factura'
         elif 'captacion' in norm:
             clean_cols[col] = 'ciclo_captacion'
@@ -5438,7 +5882,7 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             clean_cols[col] = 'fecha_pedido'
         elif 'vencimiento' in norm and 'orig' in norm:
             clean_cols[col] = 'fecha_vencimiento_original'
-        elif 'vencimiento' in norm and 'orig' not in norm:
+        elif ('vencimiento' in norm or 'vcto' in norm or 'venc' in norm) and 'orig' not in norm:
             clean_cols[col] = 'fecha_vencimiento'
         elif 'valor' in norm and 'titulo' in norm:
             clean_cols[col] = 'valor_titulo'
@@ -5446,13 +5890,13 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             clean_cols[col] = 'saldo_principal'
         elif 'saldo' in norm and 'financiero' in norm:
             clean_cols[col] = 'saldo_financiero'
-        elif 'saldo' in norm and 'total' in norm:
+        elif 'saldo' in norm and ('total' in norm or 'deuda' in norm or 'actual' in norm):
             clean_cols[col] = 'saldo_total'
         elif 'saldo' in norm and 'actualizado' in norm:
             clean_cols[col] = 'saldo_actualizado'
-        elif 'situacion' in norm:
+        elif 'situacion' in norm or 'estado' in norm or 'status' in norm or 'situacao' in norm:
             clean_cols[col] = 'situacion'
-        elif 'retraso' in norm:
+        elif 'retraso' in norm or 'mora' in norm:
             clean_cols[col] = 'dias_retraso'
         elif 'fase' in norm:
             clean_cols[col] = 'fase_cobro'
@@ -5460,9 +5904,9 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             clean_cols[col] = 'cod_sector'
         elif 'estructura' in norm and 'padre' not in norm and 'cod' not in norm:
             clean_cols[col] = 'sector'
-        elif 'persona' in norm and ('codigo' in norm or 'cod' in norm):
+        elif ('persona' in norm or 'consultora' in norm or 'cb' in norm) and ('codigo' in norm or 'cod' in norm):
             clean_cols[col] = 'codigo_cb'
-        elif 'nombre' in norm:
+        elif 'nombre' in norm or 'consultora' in norm or 'asesora' in norm or 'cliente' in norm:
             clean_cols[col] = 'nombre'
         elif 'direccion' in norm:
             clean_cols[col] = 'direccion'
@@ -5479,6 +5923,34 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             clean_cols[col] = 'origen_empresa'
 
     df = df_raw.rename(columns=clean_cols)
+    
+    # Fallbacks inteligentes para tolerar variaciones en descargas de Geral
+    if 'numero_factura' not in df.columns:
+        if 'titulo' in df.columns:
+            df['numero_factura'] = df['titulo']
+        elif 'numero_pedido' in df.columns:
+            df['numero_factura'] = df['numero_pedido']
+            
+    if 'saldo_total' not in df.columns:
+        if 'saldo_principal' in df.columns:
+            df['saldo_total'] = df['saldo_principal']
+        elif 'valor_titulo' in df.columns:
+            df['saldo_total'] = df['valor_titulo']
+        elif any('saldo' in str(c).lower() for c in df.columns):
+            col_s = next(c for c in df.columns if 'saldo' in str(c).lower())
+            df['saldo_total'] = df[col_s]
+
+    if 'situacion' not in df.columns:
+        df['situacion'] = 'Pendiente'
+
+    if 'nombre' not in df.columns:
+        df['nombre'] = 'Consultora'
+
+    if 'fecha_vencimiento' not in df.columns:
+        if 'fecha_vencimiento_original' in df.columns:
+            df['fecha_vencimiento'] = df['fecha_vencimiento_original']
+        else:
+            df['fecha_vencimiento'] = datetime.now().strftime('%Y-%m-%d')
     
     # Validar columnas mínimas requeridas
     columnas_minimas = ['titulo', 'numero_factura', 'fecha_vencimiento', 'saldo_total', 'situacion', 'nombre']
@@ -5501,13 +5973,16 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
         secs_encontrados = [str(x).strip().split('.')[0] for x in df['cod_sector'].dropna().unique() if str(x).strip()]
         
         # Códigos válidos aceptados (código completo o código corto)
-        codigos_validos = {sec_esp_str}
+        codigos_validos = {sec_esp_str, f"700000{sec_esp_str}"}
         if len(sec_esp_str) > 3 and sec_esp_str.startswith("700000"):
             codigos_validos.add(sec_esp_str[6:])
             if sec_esp_str[6:].isdigit():
                 codigos_validos.add(str(int(sec_esp_str[6:])))
                 
-        if secs_encontrados and not any(s in codigos_validos for s in secs_encontrados):
+        if any(s in codigos_validos for s in secs_encontrados):
+            # Si el archivo contiene el sector esperado, filtrar solo los registros correspondientes
+            df = df[df['cod_sector'].astype(str).str.strip().str.split('.').str[0].isin(codigos_validos)].copy()
+        elif secs_encontrados:
             return False, 0, f"❌ El archivo subido pertenece al Sector '{secs_encontrados[0]}', el cual no coincide con tu Sector asignado ({sec_esp_str})."
 
     close_at_end = False
@@ -5683,7 +6158,9 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
         COALESCE(NULLIF(ct.nombre, ''), cg.nombre) AS nombre,
         cg.direccion,
         COALESCE(NULLIF(ct.celular, ''), cg.telefono_movil) AS telefono_movil,
-        cg.telefono_movil_2, cg.correo, cg.plan_recibimiento, cg.origen_empresa, cg.fecha_carga
+        cg.telefono_movil_2, cg.correo, cg.plan_recibimiento, cg.origen_empresa, cg.fecha_carga,
+        COALESCE(NULLIF(ct.sit_comercial, ''), NULLIF(ct.situacion, ''), 'Sin Definir') AS sit_comercial,
+        COALESCE(NULLIF(ct.color, ''), 'Sin Nivel') AS color
     FROM cartera_geral cg
     LEFT JOIN consultoras_tableau ct ON CAST(cg.codigo_cb AS TEXT) = CAST(ct.codigo_cb AS TEXT)
     """
@@ -5701,14 +6178,17 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
         
     if sector and str(sector).strip():
         sec_str = str(sector).strip()
-        where_clauses.append("(COALESCE(NULLIF(ct.cod_sector, ''), cg.cod_sector) = ? OR COALESCE(NULLIF(ct.sector, ''), cg.sector) LIKE ?)")
-        params.extend([sec_str, f"%{sec_str}%"])
+        sec_short = sec_str[6:] if (len(sec_str) > 6 and sec_str.startswith("700000")) else sec_str
+        sec_full = f"700000{sec_str}" if not sec_str.startswith("700000") else sec_str
+        where_clauses.append("(COALESCE(NULLIF(ct.cod_sector, ''), cg.cod_sector) = ? OR COALESCE(NULLIF(ct.cod_sector, ''), cg.cod_sector) = ? OR COALESCE(NULLIF(ct.cod_sector, ''), cg.cod_sector) = ? OR COALESCE(NULLIF(ct.sector, ''), cg.sector) LIKE ?)")
+        params.extend([sec_str, sec_short, sec_full, f"%{sec_short}%"])
         
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
         
     query += " ORDER BY cg.fecha_vencimiento ASC, cg.saldo_total DESC"
     
+    df = pd.DataFrame()
     try:
         df = pd.read_sql_query(query, conn, params=params)
     except Exception as e:
@@ -5729,6 +6209,8 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
             conn2.close()
         except Exception:
             pass
+
+    return df if (df is not None and not df.empty) else pd.DataFrame()
             
 def consultar_facturas_consultora_geral(codigo_cb, sector=None):
     """

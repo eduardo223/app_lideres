@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import urllib.parse
 import os
+import io
+import time
+from datetime import datetime
+import requests
 
 import procesador
 from procesador import (
@@ -10,6 +14,7 @@ from procesador import (
     validar_token_sesion,
     cargar_usuarios,
     cargar_objetivos_arte,
+    obtener_metas_efectivas,
     consultar_tableau_sql,
     consultar_geral_sql,
     calcular_metas_ciclo,
@@ -90,33 +95,117 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
     # CSS Ultra-Compacto y Responsivo para Smartphones y Tablets (Tema Natura & Avon)
     st.markdown("""
     <style>
+        header[data-testid="stHeader"] {
+            background: transparent !important;
+        }
         .block-container {
-            padding-top: 0.5rem !important;
+            padding-top: clamp(2.8rem, 4.5vw, 3.5rem) !important;
             padding-bottom: 2rem !important;
-            padding-left: 0.5rem !important;
-            padding-right: 0.5rem !important;
+            padding-left: clamp(0.5rem, 2vw, 1rem) !important;
+            padding-right: clamp(0.5rem, 2vw, 1rem) !important;
             max-width: 100% !important;
         }
-        .stTabs [data-baseweb="tab-list"] {
-            gap: 4px !important;
-            background-color: rgba(227, 0, 123, 0.06);
+        /* Tarjeta de Encabezado Móvil Premium */
+        .mob-header-card {
+            background: linear-gradient(135deg, rgba(255, 107, 0, 0.08) 0%, rgba(227, 0, 123, 0.08) 100%);
+            border: 1px solid rgba(227, 0, 123, 0.22);
             border-radius: 14px;
-            padding: 4px;
-            margin-bottom: 10px;
-            border: 1px solid rgba(227, 0, 123, 0.15);
+            padding: 10px 14px;
+            margin-bottom: 12px;
+            backdrop-filter: blur(12px);
+            box-shadow: 0 4px 15px -2px rgba(227, 0, 123, 0.08);
+        }
+        .mob-header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+            gap: 8px;
+        }
+        .mob-header-title {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+        }
+        .mob-title-icon {
+            font-size: 1.25rem;
+            line-height: 1;
+        }
+        .mob-title-text {
+            font-size: 1.25rem;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            line-height: 1.2;
+        }
+        .mob-badge-group {
+            background: linear-gradient(135deg, rgba(255, 107, 0, 0.15) 0%, rgba(227, 0, 123, 0.15) 100%);
+            color: #FF6B00;
+            border: 1px solid rgba(255, 107, 0, 0.35);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 2.5px 9px;
+            border-radius: 20px;
+            white-space: nowrap;
+        }
+        .mob-header-sub {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11.5px;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+        .mob-user-text {
+            opacity: 0.9;
+            letter-spacing: -0.01em;
+            font-size: 12px;
+        }
+        .mob-badge-mode {
+            font-size: 10px;
+            font-weight: 700;
+            color: #E3007B;
+            background: rgba(227, 0, 123, 0.1);
+            padding: 2px 8px;
+            border-radius: 10px;
+            border: 1px solid rgba(227, 0, 123, 0.22);
+            white-space: nowrap;
+        }
+        /* Pestañas Ultra-Estilizadas con Soporte Dark/Light */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 5px !important;
+            background-color: rgba(227, 0, 123, 0.07) !important;
+            border-radius: 14px !important;
+            padding: 4px !important;
+            margin-bottom: 12px !important;
+            border: 1px solid rgba(227, 0, 123, 0.18) !important;
         }
         .stTabs [data-baseweb="tab"] {
             font-size: 11.5px !important;
             font-weight: 700 !important;
-            padding: 8px 10px !important;
-            border-radius: 10px;
-            color: #475569;
-            transition: all 0.2s ease;
+            padding: 8px 11px !important;
+            border-radius: 10px !important;
+            color: inherit !important;
+            opacity: 0.75 !important;
+            transition: all 0.2s ease !important;
+            border: none !important;
+        }
+        .stTabs [data-baseweb="tab"]:hover {
+            opacity: 1 !important;
+            background-color: rgba(227, 0, 123, 0.12) !important;
         }
         .stTabs [aria-selected="true"] {
             background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%) !important;
             color: #ffffff !important;
-            box-shadow: 0 4px 12px rgba(227, 0, 123, 0.35);
+            opacity: 1 !important;
+            font-weight: 800 !important;
+            box-shadow: 0 4px 14px rgba(227, 0, 123, 0.35) !important;
+        }
+        .stTabs [data-baseweb="tab-highlight"],
+        .stTabs [data-baseweb="tab-border"] {
+            display: none !important;
         }
         .kpi-grid {
             display: grid;
@@ -194,24 +283,139 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             padding: 2px 6px;
             border-radius: 9999px;
         }
+        /* Desplegadores (Selectbox & Multiselect) Compactos */
+        div[data-testid="stSelectbox"],
+        div[data-testid="stMultiSelect"] {
+            margin-bottom: 2px !important;
+        }
+        div[data-testid="stSelectbox"] label,
+        div[data-testid="stMultiSelect"] label,
+        div[data-testid="stTextInput"] label {
+            min-height: 0 !important;
+            margin-bottom: 2px !important;
+            padding: 0 !important;
+        }
+        div[data-testid="stSelectbox"] label p,
+        div[data-testid="stMultiSelect"] label p,
+        div[data-testid="stTextInput"] label p {
+            font-size: 0.74rem !important;
+            font-weight: 700 !important;
+            line-height: 1.15 !important;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            margin: 0 !important;
+        }
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+        div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+            min-height: 31px !important;
+            height: 31px !important;
+            padding-top: 1px !important;
+            padding-bottom: 1px !important;
+            padding-left: 8px !important;
+            padding-right: 4px !important;
+            border-radius: 8px !important;
+            font-size: 0.80rem !important;
+            line-height: 1.2 !important;
+        }
+        div[data-testid="stTextInput"] input {
+            min-height: 31px !important;
+            height: 31px !important;
+            padding: 2px 8px !important;
+            border-radius: 8px !important;
+            font-size: 0.80rem !important;
+        }
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] [data-testid="stSelectboxVirtualDropdown"],
+        div[data-testid="stSelectbox"] div[data-baseweb="select"] div {
+            font-size: 0.80rem !important;
+            line-height: 1.2 !important;
+        }
+        div[data-baseweb="select"] button,
+        div[data-testid="stSelectbox"] button,
+        div[data-testid="stMultiSelect"] button {
+            background: transparent !important;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            padding: 0 2px !important;
+            margin: 0 !important;
+            min-width: 0 !important;
+            width: auto !important;
+            height: auto !important;
+            border-radius: 0 !important;
+            transform: none !important;
+        }
+        div[data-baseweb="select"] button:hover,
+        div[data-testid="stSelectbox"] button:hover,
+        div[data-testid="stMultiSelect"] button:hover {
+            background: transparent !important;
+            background-color: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+        div[data-baseweb="select"] svg,
+        div[data-testid="stSelectbox"] svg {
+            width: 13px !important;
+            height: 13px !important;
+        }
+        div[data-baseweb="tag"] {
+            height: 20px !important;
+            font-size: 10.5px !important;
+            padding: 0 4px !important;
+            margin: 1px 2px !important;
+        }
+        ul[data-baseweb="menu"] li {
+            font-size: 0.80rem !important;
+            padding: 5px 8px !important;
+        }
     </style>
     """, unsafe_allow_html=True)
 
-    # Header Móvil
+    # Header Móvil Premium
+    grupo_str = f"Grupo {user_grupo}" if user_grupo else "General"
+
     if mostrar_salir:
         st.info("💡 **Portal Unificado**: Ahora puedes ingresar directamente a la dirección oficial: [https://metaseindicadores.up.railway.app](https://metaseindicadores.up.railway.app)")
         col_h1, col_h2 = st.columns([3, 1])
         with col_h1:
-            st.markdown(f"**📱 App Matices** • `Grupo {user_grupo if user_grupo else 'General'}`")
-            st.caption(f"👤 {user_nombre}")
+            st.markdown(f"""
+            <div class="mob-header-card">
+                <div class="mob-header-top">
+                    <div class="mob-header-title">
+                        <span class="mob-title-icon">📱</span>
+                        <span class="mob-title-text">App Matices</span>
+                    </div>
+                    <span class="mob-badge-group">🏷️ {grupo_str}</span>
+                </div>
+                <div class="mob-header-sub">
+                    <span class="mob-user-text">👤 <b>{user_nombre}</b></span>
+                    <span class="mob-badge-mode">✨ Vista Móvil</span>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
         with col_h2:
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
             if st.button("🚪 Salir", key="btn_logout_mob_standalone", use_container_width=True):
                 st.session_state['user'] = None
                 st.query_params.clear()
                 st.rerun()
     else:
-        st.markdown(f"#### 📱 App Matices • `Grupo {user_grupo if user_grupo else 'General'}`")
-        st.caption(f"👤 {user_nombre} • *Vista Móvil Optimizada*")
+        st.markdown(f"""
+        <div class="mob-header-card">
+            <div class="mob-header-top">
+                <div class="mob-header-title">
+                    <span class="mob-title-icon">📱</span>
+                    <span class="mob-title-text">App Matices</span>
+                </div>
+                <span class="mob-badge-group">🏷️ {grupo_str}</span>
+            </div>
+            <div class="mob-header-sub">
+                <span class="mob-user-text">👤 <b>{user_nombre}</b></span>
+                <span class="mob-badge-mode">✨ Vista Móvil Optimizada</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
     # Si es Gerente o Admin, permitir seleccionar qué grupo auditar
     grupo_activo = user_grupo
@@ -239,9 +443,9 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         sector=user_sector if (not grupo_activo and user_sector and user_rol != 'superadmin') else None
     )
 
-    # Carga de Objetivos Arte
+    # Carga de Metas Efectivas (Objetivos Arte oficial + Ajustes Desafíos de Zona)
     mapa_arte = cargar_objetivos_arte()
-    arte_lider = mapa_arte.get('por_grupo', {}).get(str(grupo_activo).strip(), {}) if grupo_activo else {}
+    arte_lider = obtener_metas_efectivas(grupo=grupo_activo) if grupo_activo else {}
 
     # Carga de Cómo Vamos
     df_cv_all = None
@@ -278,10 +482,11 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         if col_g:
             df_cv = df_cv_all[df_cv_all[col_g].astype(str).str.split('.').str[0].str.strip() == str(grupo_activo).strip()]
 
-    # 6. Pestañas Principales Móviles (3 Pestañas Condensadas en MAYÚSCULAS)
-    tab_cv, tab_tab, tab_lideres = st.tabs([
+    # 6. Pestañas Principales Móviles (4 Pestañas Condensadas en MAYÚSCULAS)
+    tab_cv, tab_tab, tab_cartera, tab_lideres = st.tabs([
         "🎯 MIS DESAFÍOS",
         "📋 MI LISTADO",
+        "💳 MI CARTERA",
         "👑 MIS LÍDERES"
     ])
 
@@ -290,6 +495,8 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
     # ==============================================================================
     with tab_cv:
         st.markdown("##### 🎯 Cuadro de Mando de Desafíos Líder")
+        if arte_lider.get('es_ajuste_zona'):
+            st.caption(f"✨ *Metas calibradas por Gerencia de Zona ({arte_lider.get('campana', 'Campaña Activa')})*")
 
         if df_cv.empty:
             st.info(f"ℹ️ **Metas del ciclo para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo de metas se sincronizará automáticamente. Puedes gestionar tu red en **'📋 MI LISTADO'** y consultar el comparativo en **'👑 MIS LÍDERES'**.")
@@ -589,8 +796,360 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             with col_s2:
                 st.caption("🟢 **Guardado automático activo**: Al escribir una nota y pulsar `Enter`, se guarda de forma instantánea.")
 
+            # --- SECCIÓN DE MENSAJERÍA WHATSAPP DIRECTA DEL LISTADO FILTRADO (MÓVIL) ---
+            st.markdown("---")
+            with st.expander(f"📲 Contacto & WhatsApp del Listado Filtrado ({len(df_edit_view)} Asesoras)", expanded=False):
+                st.markdown("##### 📲 Envíos y Campaña de WhatsApp sobre el Listado Filtrado")
+                st.caption("Contacta a las consultoras que acabas de filtrar en tu tabla. Puedes enviarles tus notas personalizadas, recordatorios o promociones en 1 clic.")
+
+                # Identificar columnas canónicas
+                c_col_cb = 'Código CB' if 'Código CB' in df_edit_view.columns else ('Codigo CB' if 'Codigo CB' in df_edit_view.columns else None)
+                c_col_nom = 'Asesora / Consultora' if 'Asesora / Consultora' in df_edit_view.columns else ('Nombre' if 'Nombre' in df_edit_view.columns else None)
+                c_col_cel = 'Celular' if 'Celular' in df_edit_view.columns else ('celular' if 'celular' in df_edit_view.columns else None)
+                c_col_sit = 'Sit. Comercial' if 'Sit. Comercial' in df_edit_view.columns else None
+                c_col_col = 'Nivel / Color' if 'Nivel / Color' in df_edit_view.columns else None
+                c_col_nota = 'Notas / Comentarios Líder' if 'Notas / Comentarios Líder' in df_edit_view.columns else None
+                c_col_ped = 'Ped. Pendientes' if 'Ped. Pendientes' in df_edit_view.columns else None
+                c_col_mora = 'Deuda Mora' if 'Deuda Mora' in df_edit_view.columns else None
+                c_col_pts = 'Pts Acum' if 'Pts Acum' in df_edit_view.columns else None
+
+                if c_col_cb and c_col_nom:
+                    # Mapeo de asesoras disponibles
+                    mapa_wa_mob = {}
+                    for _, r_w in df_edit_view.iterrows():
+                        k_cb = str(r_w.get(c_col_cb, '')).strip()
+                        n_asesora = str(r_w.get(c_col_nom, '')).strip()
+                        n_color = str(r_w.get(c_col_col, 'Nivel')) if c_col_col else ''
+                        n_sit = str(r_w.get(c_col_sit, 'Estado')) if c_col_sit else ''
+                        n_nota = str(r_w.get(c_col_nota, '')).strip() if c_col_nota else ''
+                        
+                        etiqueta = f"[{n_color}] [{n_sit}] {n_asesora} (CB: {k_cb})"
+                        if n_nota and n_nota.lower() not in ['nan', 'none']:
+                            etiqueta += f' — 💬 "{n_nota[:24]}..."'
+                        mapa_wa_mob[k_cb] = etiqueta
+
+                    # Subgrupos para selección rápida
+                    cbs_con_notas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if str(r.get(c_col_nota, '')).strip() and str(r.get(c_col_nota, '')).strip().lower() not in ['nan', 'none']] if c_col_nota else []
+                    cbs_inactivas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if 'inactiva' in str(r.get(c_col_sit, '')).lower()] if c_col_sit else []
+                    cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
+
+                    # Botones de selección rápida móviles
+                    b_cols_m = st.columns(3 if not cbs_con_notas else 4)
+                    with b_cols_m[0]:
+                        if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_mob_wa", use_container_width=True):
+                            st.session_state['cbs_sel_mob_wa'] = list(mapa_wa_mob.keys())
+                            st.rerun()
+                    with b_cols_m[1]:
+                        if st.button("🧹 Limpiar", key="btn_desel_todas_mob_wa", use_container_width=True):
+                            st.session_state['cbs_sel_mob_wa'] = []
+                            st.rerun()
+                    c_idx_m = 2
+                    if cbs_con_notas and c_idx_m < len(b_cols_m):
+                        with b_cols_m[c_idx_m]:
+                            if st.button(f"💬 Con Notas ({len(cbs_con_notas)})", key="btn_sel_notas_mob_wa", use_container_width=True):
+                                st.session_state['cbs_sel_mob_wa'] = cbs_con_notas
+                                st.rerun()
+                        c_idx_m += 1
+                    if cbs_inactivas and c_idx_m < len(b_cols_m):
+                        with b_cols_m[c_idx_m]:
+                            if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_mob_wa", use_container_width=True):
+                                st.session_state['cbs_sel_mob_wa'] = cbs_inactivas
+                                st.rerun()
+
+                    # Inicializar estado de selección
+                    if 'cbs_sel_mob_wa' not in st.session_state:
+                        st.session_state['cbs_sel_mob_wa'] = list(mapa_wa_mob.keys())
+
+                    st.caption("💡 **Tip:** Pulsa **'🧹 Limpiar'** y busca el nombre o código de la consultora para enviarle a ella sola.")
+                    sel_cbs_activos_m = st.multiselect(
+                        "👥 Consultoras para el Mensaje:",
+                        options=list(mapa_wa_mob.keys()),
+                        default=[c for c in st.session_state['cbs_sel_mob_wa'] if c in mapa_wa_mob],
+                        format_func=lambda c: mapa_wa_mob.get(c, c),
+                        key="multiselect_mob_wa_widget"
+                    )
+                    st.session_state['cbs_sel_mob_wa'] = sel_cbs_activos_m
+
+                    if sel_cbs_activos_m:
+                        df_target_mob_wa = df_edit_view[df_edit_view[c_col_cb].astype(str).str.strip().isin(sel_cbs_activos_m)].copy()
+                        if len(df_target_mob_wa) == 1:
+                            r_uno = df_target_mob_wa.iloc[0]
+                            st.success(f"🎯 **Envío a:** **{r_uno.get(c_col_nom)}** ({r_uno.get(c_col_col, '')}) — Cel: **{r_uno.get(c_col_cel, 'Sin celular')}**")
+                        else:
+                            st.info(f"🎯 **{len(df_target_mob_wa)} consultora(s) seleccionada(s)** listas.")
+
+                        tipo_camp_mob = st.selectbox(
+                            "Tipo de Plantilla de Mensaje:",
+                            options=[
+                                "💬 1. Usar mis Notas / Comentarios",
+                                "🎁 2. Reactivación Comercial (Inactivas)",
+                                "🌟 3. Impulso de Puntos & Nivel",
+                                "📦 4. Pedido Pendiente / Retenido",
+                                "🌸 5. Saludo & Seguimiento General",
+                                "✍️ 6. Mensaje Libre / Personalizado"
+                            ],
+                            index=0 if cbs_con_notas else 1,
+                            key="sel_tipo_camp_mob_widget"
+                        )
+                        remitente_mob_wa = user_nombre if user_nombre else "Tu Líder"
+
+                        # Plantilla predeterminada según tipo
+                        if "1. Usar mis Notas" in tipo_camp_mob:
+                            tpl_mob_def = (
+                                "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                "Te contacto para contarte: *{nota}*.\n\n"
+                                "¡Quedo muy atenta a lo que necesites para apoyarte! ✨"
+                            )
+                        elif "2. Reactivación" in tipo_camp_mob:
+                            tpl_mob_def = (
+                                "¡Hola *{primer_nombre}*! 🌸 Te extrañamos mucho en nuestro equipo de *Natura & Avon*.\n\n"
+                                "En este ciclo tenemos promociones exclusivas y descuentos pensados para ti.\n\n"
+                                "¿Te gustaría que te comparta el catálogo virtual interactivo de este ciclo? 📖✨"
+                            )
+                        elif "3. Impulso" in tipo_camp_mob:
+                            tpl_mob_def = (
+                                "¡Hola *{primer_nombre}*! 🌟 Felicitaciones por tus *{pts_acum} puntos* acumulados en tu nivel *{nivel}*.\n\n"
+                                "Estás muy cerca de tu siguiente meta de premios de este ciclo. ¡Pasa tu pedido y gana más con Natura & Avon! 🎁✨"
+                            )
+                        elif "4. Pedido" in tipo_camp_mob:
+                            tpl_mob_def = (
+                                "Hola *{primer_nombre}* 🛍️, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                "Tienes *{pedidos} pedido(s)* en espera de despacho por saldo de *{deuda_mora}*.\n\n"
+                                "Al poner al día tu pago hoy, tu pedido saldrá de inmediato para entrega. ¡Quedo atenta para ayudarte! 📦✨"
+                            )
+                        elif "5. Saludo" in tipo_camp_mob:
+                            tpl_mob_def = (
+                                "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                "Quería saludarte y desearte muchos éxitos en tus ventas de este ciclo. ¡Cuenta conmigo para cualquier apoyo! ✨"
+                            )
+                        else:
+                            tpl_mob_def = "Hola *{primer_nombre}* 🌸, te escribe tu Líder {remitente}.\n\n"
+
+                        texto_plantilla_mob = st.text_area(
+                            "✏️ Personaliza la Plantilla:",
+                            value=tpl_mob_def,
+                            height=100,
+                            key=f"txt_tpl_mob_{tipo_camp_mob[:2]}"
+                        )
+                        st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
+
+                        # Generar filas de mensajes
+                        filas_wa_mob = []
+                        for _, r_t in df_target_mob_wa.iterrows():
+                            n_full = str(r_t.get(c_col_nom, '')).strip()
+                            p_nom = n_full.split()[0].title() if n_full else "Consultora"
+                            cel_raw = str(r_t.get(c_col_cel, '')).strip().replace(' ', '').replace('-', '').replace('+', '')
+                            cel_val = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
+                            
+                            nota_val = str(r_t.get(c_col_nota, '')).strip() if c_col_nota else ''
+                            if not nota_val or nota_val.lower() in ['nan', 'none']:
+                                nota_val = ""
+                            nivel_val = str(r_t.get(c_col_col, 'Consultora')) if c_col_col else 'Consultora'
+                            pts_val = str(r_t.get(c_col_pts, '0')) if c_col_pts else '0'
+                            ped_val = str(r_t.get(c_col_ped, '0')) if c_col_ped else '0'
+                            mora_val = formato_cop(r_t.get(c_col_mora, 0)) if c_col_mora else '$0'
+
+                            # Reemplazar variables
+                            msg_m = (
+                                texto_plantilla_mob
+                                .replace("{primer_nombre}", p_nom)
+                                .replace("{nombre}", n_full.title())
+                                .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                                .replace("{nivel}", nivel_val)
+                                .replace("{pts_acum}", pts_val)
+                                .replace("{pedidos}", ped_val)
+                                .replace("{deuda_mora}", mora_val)
+                                .replace("{remitente}", remitente_mob_wa)
+                            )
+
+                            link_m = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_m)}" if cel_val and len(cel_val) >= 10 else ""
+
+                            filas_wa_mob.append({
+                                'Asesora': n_full,
+                                'Código CB': str(r_t.get(c_col_cb, '')),
+                                'Sit. Comercial': str(r_t.get(c_col_sit, '')),
+                                'Celular': cel_val if cel_val else "Sin celular",
+                                'Nota Líder': nota_val if nota_val else "-",
+                                'Enlace WhatsApp': link_m,
+                                'Mensaje': msg_m
+                            })
+
+                        df_campana_mob_out = pd.DataFrame(filas_wa_mob)
+
+                        # Despacho 1 a 1 para celular
+                        st.markdown("###### 📲 Abrir WhatsApp Directo:")
+                        nom_sel_mob = st.selectbox("Elige la asesora para enviar de inmediato:", options=df_campana_mob_out['Asesora'].tolist(), key="sel_rapido_mob_wa")
+                        row_sel_mob = df_campana_mob_out[df_campana_mob_out['Asesora'] == nom_sel_mob].iloc[0]
+                        link_wa_mob_env = row_sel_mob.get('Enlace WhatsApp')
+                        if link_wa_mob_env:
+                            st.link_button(f"📲 Abrir WhatsApp a {str(nom_sel_mob).split()[0].title()}", url=link_wa_mob_env, type="primary", use_container_width=True)
+                        else:
+                            st.warning("⚠️ Esta asesora no tiene celular válido.")
+
+                        # Tabla en vivo con enlaces interactivos
+                        st.dataframe(
+                            df_campana_mob_out[['Asesora', 'Sit. Comercial', 'Celular', 'Nota Líder', 'Enlace WhatsApp']],
+                            column_config={
+                                "Enlace WhatsApp": st.column_config.LinkColumn(
+                                    "📲 Enviar WhatsApp",
+                                    display_text="Abrir WhatsApp"
+                                )
+                            },
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+                        # Descarga de respaldo
+                        towrite_mob_wa = io.BytesIO()
+                        with pd.ExcelWriter(towrite_mob_wa, engine='openpyxl') as writer:
+                            df_campana_mob_out.to_excel(writer, sheet_name="Campana_Tableau_WA", index=False)
+                        towrite_mob_wa.seek(0)
+                        st.download_button(
+                            label=f"📥 Descargar Base en Excel ({len(df_campana_mob_out)} Mensajes)",
+                            data=towrite_mob_wa,
+                            file_name=f"Campana_Tableau_WA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="btn_descargar_mob_wa_excel"
+                        )
+                    else:
+                        st.info("👆 Selecciona al menos una consultora arriba para preparar los mensajes.")
+                else:
+                    st.warning("⚠️ No se encontraron las columnas necesarias en la tabla.")
+
     # ==============================================================================
-    # TAB 3: MIS LÍDERES (TODAS LAS TABLAS Y SEGUIMIENTO COMPARATIVO)
+    # TAB 3: MI CARTERA & COBRANZA PREVENTIVA
+    # ==============================================================================
+    with tab_cartera:
+        st.markdown("##### 💳 Mi Cartera & Cobranza Preventiva")
+        st.caption("Control de facturas por vencer y cobranza preventiva por WhatsApp para tu grupo.")
+
+        if df_geral is None or df_geral.empty:
+            st.info("🎉 ¡Excelente noticia! No hay facturas de cobranza pendientes en tu grupo.")
+        else:
+            df_g_mob = df_geral.copy()
+            # 1. Limpiar números y calcular días
+            if 'saldo_total' in df_g_mob.columns:
+                df_g_mob['saldo_num'] = df_g_mob['saldo_total'].apply(lambda x: float(limpiar_numero(x, 0.0)))
+            else:
+                df_g_mob['saldo_num'] = 0.0
+
+            dias_col = 'dias_para_vencer' if 'dias_para_vencer' in df_g_mob.columns else None
+            if dias_col:
+                df_g_mob['dias_num'] = df_g_mob[dias_col].apply(lambda x: int(limpiar_numero(x, 0)))
+            else:
+                df_g_mob['dias_num'] = 0
+
+            # KPIs Superiores Móviles
+            total_facturas_g = len(df_g_mob)
+            total_deuda_g = df_g_mob['saldo_num'].sum()
+            mora_g = df_g_mob[df_g_mob['dias_num'] < 0]['saldo_num'].sum()
+            manana_g = len(df_g_mob[df_g_mob['dias_num'] == 1])
+            pasado_g = len(df_g_mob[df_g_mob['dias_num'] == 2])
+
+            st.markdown(f"""
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px;">
+                <div style="background: white; border-radius: 10px; padding: 10px; border: 1px solid #E2E8F0; text-align: center;">
+                    <div style="font-size: 11px; color: #64748B; font-weight: 700;">💳 FACTURAS PENDIENTES</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #0F172A;">{total_facturas_g} ({formato_cop(total_deuda_g)})</div>
+                </div>
+                <div style="background: white; border-radius: 10px; padding: 10px; border: 1px solid #FEE2E2; text-align: center;">
+                    <div style="font-size: 11px; color: #DC2626; font-weight: 700;">🔴 EN MORA</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #DC2626;">{formato_cop(mora_g)}</div>
+                </div>
+                <div style="background: white; border-radius: 10px; padding: 10px; border: 1px solid #FEF3C7; text-align: center;">
+                    <div style="font-size: 11px; color: #D97706; font-weight: 700;">🟡 VENCEN MAÑANA</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #D97706;">{manana_g} facturas</div>
+                </div>
+                <div style="background: white; border-radius: 10px; padding: 10px; border: 1px solid #DCFCE7; text-align: center;">
+                    <div style="font-size: 11px; color: #16A34A; font-weight: 700;">🟢 PASADO MAÑANA</div>
+                    <div style="font-size: 18px; font-weight: 800; color: #16A34A;">{pasado_g} facturas</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Filtro por vencimiento
+            filtro_venc_mob = st.radio(
+                "📅 **Filtrar por Vencimiento:**",
+                options=[
+                    "🗓️ Todas las Facturas",
+                    "🟡 Vencen Mañana",
+                    "🟢 Pasado Mañana",
+                    "🔴 En Mora",
+                    "📅 Próximos 7 Días"
+                ],
+                horizontal=True,
+                key="radio_venc_geral_mob"
+            )
+
+            df_g_filt = df_g_mob.copy()
+            if "Mañana" in filtro_venc_mob:
+                df_g_filt = df_g_filt[df_g_filt['dias_num'] == 1]
+            elif "Pasado Mañana" in filtro_venc_mob:
+                df_g_filt = df_g_filt[df_g_filt['dias_num'] == 2]
+            elif "En Mora" in filtro_venc_mob:
+                df_g_filt = df_g_filt[df_g_filt['dias_num'] < 0]
+            elif "Próximos 7" in filtro_venc_mob:
+                df_g_filt = df_g_filt[(df_g_filt['dias_num'] >= 0) & (df_g_filt['dias_num'] <= 7)]
+
+            if df_g_filt.empty:
+                st.info("🎉 No hay facturas en esta categoría.")
+            else:
+                st.markdown(f"###### 📋 {len(df_g_filt)} Facturas Seleccionadas:")
+                # Selector de cobro individual
+                nombres_cartera = [str(r.get('nombre', '')).strip() for _, r in df_g_filt.iterrows()]
+                sel_asesora_cobro = st.selectbox("Elige la asesora para enviar recordatorio de pago:", options=nombres_cartera, key="sel_asesora_cobro_mob")
+                row_cobro = df_g_filt[df_g_filt['nombre'] == sel_asesora_cobro].iloc[0]
+
+                # Armar mensaje de cobro
+                nom_c_p = str(row_cobro.get('nombre', '')).split()[0].title()
+                val_deuda_str = formato_cop(row_cobro.get('saldo_total', 0))
+                d_rest = int(limpiar_numero(row_cobro.get('dias_para_vencer', 0)))
+                fact_num = str(row_cobro.get('numero_factura', ''))
+                
+                if d_rest < 0:
+                    estado_cobro = f"tu factura {fact_num} presenta *{abs(d_rest)} día(s) de mora*"
+                elif d_rest == 0:
+                    estado_cobro = f"tu factura {fact_num} *vence hoy*"
+                elif d_rest == 1:
+                    estado_cobro = f"tu factura {fact_num} *vence mañana*"
+                else:
+                    estado_cobro = f"tu factura {fact_num} vencerá en *{d_rest} días*"
+
+                remitente_cobro = user_nombre if user_nombre else "Tu Líder"
+                msg_cobro = (
+                    f"Hola *{nom_c_p}* 🌸, te saluda tu Líder {remitente_cobro} de *Natura & Avon*.\n\n"
+                    f"Queremos recordarte cordialmente que {estado_cobro} por valor de *{val_deuda_str}*.\n\n"
+                    f"Te invitamos a realizar tu pago oportunamente para mantener tu crédito activo y seguir disfrutando de tus beneficios. ¡Quedo atenta para apoyarte! 💳✨"
+                )
+
+                tel_raw = str(row_cobro.get('telefono_movil', row_cobro.get('telefono_movil_2', ''))).strip().replace(' ', '').replace('-', '').replace('+', '')
+                tel_c = tel_raw.split('.')[0] if '.' in tel_raw else tel_raw
+                link_cobro_wa = f"https://api.whatsapp.com/send?phone=57{tel_c}&text={urllib.parse.quote(msg_cobro)}" if tel_c and len(tel_c) >= 10 else ""
+
+                if link_cobro_wa:
+                    st.link_button(f"📲 Cobrar por WhatsApp a {nom_c_p} ({val_deuda_str})", url=link_cobro_wa, type="primary", use_container_width=True)
+                else:
+                    st.warning("⚠️ Esta asesora no tiene teléfono móvil registrado.")
+
+                # Tabla resumen de cartera
+                cols_g_disp = ['nombre', 'codigo_cb', 'sit_comercial', 'numero_factura', 'fecha_vencimiento', 'dias_num', 'saldo_num']
+                cols_g_exist = [c for c in cols_g_disp if c in df_g_filt.columns]
+                df_g_view = df_g_filt[cols_g_exist].copy()
+                df_g_view['saldo_num'] = df_g_view['saldo_num'].apply(formato_cop)
+                df_g_view.rename(columns={
+                    'nombre': 'Consultora',
+                    'codigo_cb': 'Código CB',
+                    'sit_comercial': 'Sit. Comercial',
+                    'numero_factura': 'Factura',
+                    'fecha_vencimiento': 'Vence',
+                    'dias_num': 'Días Rest.',
+                    'saldo_num': 'Saldo Deuda'
+                }, inplace=True)
+                st.dataframe(df_g_view, use_container_width=True, hide_index=True)
+
+    # ==============================================================================
+    # TAB 4: MIS LÍDERES (TODAS LAS TABLAS Y SEGUIMIENTO COMPARATIVO)
     # ==============================================================================
     with tab_lideres:
         st.markdown("##### 👑 Mis Líderes - Diagnóstico y Comparativo")

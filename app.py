@@ -84,6 +84,9 @@ from procesador import (
     obtener_nombre_sector_usuario,
     procesar_archivo_objetivos_arte,
     cargar_objetivos_arte,
+    procesar_archivo_ajustes_desafios,
+    cargar_ajustes_desafios,
+    obtener_metas_efectivas,
     cargar_catalogo_sectores,
     extraer_catalogo_sectores_desde_arte,
     limpiar_nombre_sector_solo,
@@ -129,6 +132,10 @@ def cached_export_excel_tableau(df):
 def cached_export_csv(df):
     return df.to_csv(index=False).encode('utf-8-sig')
 
+@st.cache_data(ttl=60, show_spinner=False)
+def cached_consultar_geral_sql(grupo=None, sector=None):
+    return consultar_geral_sql(grupo=grupo, sector=sector)
+
 # Estilos CSS personalizados para mejorar el diseño estético
 st.markdown("""
 <style>
@@ -143,13 +150,17 @@ st.markdown("""
         font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
+    header[data-testid="stHeader"] {
+        background: transparent !important;
+    }
+
     /* Gradient Brand Text Headers */
     /* ========================================================= */
     /* SISTEMA DE DISEÑO ULTRA-RESPONSIVO (LAPTOPS, TABLETS, PC) */
     /* ========================================================= */
     
     .block-container {
-        padding-top: clamp(1.2rem, 2.2vw, 2.2rem) !important;
+        padding-top: clamp(2.4rem, 3.2vw, 3.2rem) !important;
         padding-bottom: clamp(2rem, 3vw, 3.5rem) !important;
         padding-left: clamp(1rem, 2vw, 2.8rem) !important;
         padding-right: clamp(1rem, 2vw, 2.8rem) !important;
@@ -266,6 +277,105 @@ st.markdown("""
             flex: 1 1 calc(50% - 8px) !important;
             min-width: 140px !important;
         }
+    }
+
+    /* ========================================================================= */
+    /* DESPLEGADORES (SELECTBOX & MULTISELECT) COMPACTOS Y RESPONSIVOS */
+    /* ========================================================================= */
+    div[data-testid="stSelectbox"],
+    div[data-testid="stMultiSelect"] {
+        margin-bottom: 2px !important;
+    }
+
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stMultiSelect"] label,
+    div[data-testid="stTextInput"] label {
+        min-height: 0 !important;
+        margin-bottom: 2px !important;
+        padding: 0 !important;
+    }
+
+    div[data-testid="stSelectbox"] label p,
+    div[data-testid="stMultiSelect"] label p,
+    div[data-testid="stTextInput"] label p {
+        font-size: 0.74rem !important;
+        font-weight: 700 !important;
+        line-height: 1.15 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        margin: 0 !important;
+    }
+
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+        min-height: 31px !important;
+        height: 31px !important;
+        padding-top: 1px !important;
+        padding-bottom: 1px !important;
+        padding-left: 8px !important;
+        padding-right: 4px !important;
+        border-radius: 8px !important;
+        font-size: 0.80rem !important;
+        line-height: 1.2 !important;
+    }
+
+    div[data-testid="stTextInput"] input {
+        min-height: 31px !important;
+        height: 31px !important;
+        padding: 2px 8px !important;
+        border-radius: 8px !important;
+        font-size: 0.80rem !important;
+    }
+
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] [data-testid="stSelectboxVirtualDropdown"],
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] div {
+        font-size: 0.80rem !important;
+        line-height: 1.2 !important;
+    }
+
+    div[data-baseweb="select"] button,
+    div[data-testid="stSelectbox"] button,
+    div[data-testid="stMultiSelect"] button {
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 2px !important;
+        margin: 0 !important;
+        min-width: 0 !important;
+        width: auto !important;
+        height: auto !important;
+        border-radius: 0 !important;
+        transform: none !important;
+    }
+
+    div[data-baseweb="select"] button:hover,
+    div[data-testid="stSelectbox"] button:hover,
+    div[data-testid="stMultiSelect"] button:hover {
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    div[data-baseweb="select"] svg,
+    div[data-testid="stSelectbox"] svg {
+        width: 13px !important;
+        height: 13px !important;
+    }
+
+    div[data-baseweb="tag"] {
+        height: 20px !important;
+        font-size: 10.5px !important;
+        padding: 0 4px !important;
+        margin: 1px 2px !important;
+    }
+
+    ul[data-baseweb="menu"] li {
+        font-size: 0.80rem !important;
+        padding: 5px 8px !important;
     }
 
     /* ========================================================================= */
@@ -1102,6 +1212,214 @@ def load_and_process_data(ruta_o_buffer=None):
         df_uploaded = pd.read_excel(ruta_o_buffer, sheet_name="Base para el como vamos")
         return calcular_metas_ciclo(df_uploaded)
 
+def renderizar_tablero_conciliacion_desafios(user_rol, user_sector, current_user):
+    """
+    Renderiza el Tablero Ejecutivo de Conciliación 'Ajustes Desafíos' vs 'Objetivos Arte (Papá)'.
+    Permite a Gerentes y Administradores:
+    1. Visualizar KPIs de calibración de campaña (Diferencial de Facturación, Activas, Nuevas Líderes).
+    2. Filtrar por estado (Modificadas, Nuevas Incorporadas, Sin Cambio).
+    3. Consultar campañas históricas guardadas de forma persistente.
+    4. Descargar el reporte de conciliación en Excel.
+    """
+    store_ajustes = cargar_ajustes_desafios()
+    historico = store_ajustes.get('historico', {})
+    activas_map = store_ajustes.get('campana_activa_por_sector', {})
+
+    # Determinar sectores disponibles
+    if user_rol == 'superadmin':
+        sectores_disp = list(historico.keys())
+        if not sectores_disp:
+            st.info("ℹ️ No hay archivos de 'Ajustes Desafíos' cargados aún en el sistema.")
+            return
+        c_sec1, c_sec2 = st.columns([2, 2])
+        with c_sec1:
+            sec_seleccionado = st.selectbox(
+                "🏢 Seleccionar Sector para Conciliación:",
+                options=sectores_disp,
+                format_func=lambda s: f"Sector {s}" + (f" ({historico[s].get(list(historico[s].keys())[-1], {}).get('sector_nombre', '')})" if historico.get(s) else ""),
+                key="sel_sec_conciliacion_admin"
+            )
+    else:
+        sec_seleccionado = str(user_sector).strip() if user_sector else None
+        if not sec_seleccionado or sec_seleccionado not in historico:
+            st.info("ℹ️ Aún no has registrado calibraciones de 'Ajustes Desafíos' para tu sector en el histórico. Puedes cargar tu archivo de proyección de zona desde la barra lateral (**✨ 5. Ajustes Desafíos**).")
+            return
+
+    campanas_sector = historico.get(sec_seleccionado, {})
+    if not campanas_sector:
+        st.info("ℹ️ No hay campañas registradas para este sector.")
+        return
+
+    campanas_lista = sorted(list(campanas_sector.keys()), reverse=True)
+    c_activa = activas_map.get(sec_seleccionado) or campanas_lista[0]
+
+    # Selector de Campaña Histórica
+    col_c1, col_c2, col_c3 = st.columns([1.5, 2.5, 2])
+    with col_c1:
+        campana_sel = st.selectbox(
+            "🏷️ Campaña Histórica:",
+            options=campanas_lista,
+            index=campanas_lista.index(c_activa) if c_activa in campanas_lista else 0,
+            key=f"sel_camp_hist_{sec_seleccionado}"
+        )
+
+    datos_campana = campanas_sector.get(campana_sel, {})
+    resumen = datos_campana.get('resumen', {})
+    por_grupo = datos_campana.get('por_grupo', {})
+
+    with col_c2:
+        st.caption(f"📁 **Archivo:** `{datos_campana.get('archivo_origen', 'N/A')}`\n\n📅 **Carga:** {datos_campana.get('fecha_carga', 'N/A')}")
+    with col_c3:
+        st.caption(f"👤 **Cargado por:** {datos_campana.get('usuario_carga', 'Gerencia')}\n\n🎯 **Sector:** {datos_campana.get('sector_nombre', sec_seleccionado)}")
+
+    # KPIs de la campaña
+    kpi_tot = datos_campana.get('total_lideres', len(por_grupo))
+    kpi_mod = resumen.get('modificados', 0)
+    kpi_nuevos = resumen.get('nuevos', 0)
+    fact_arte = resumen.get('facturacion_arte', 0.0)
+    fact_ajuste = resumen.get('facturacion_ajuste', 0.0)
+    delta_fact = fact_ajuste - fact_arte
+
+    act_arte = resumen.get('activas_arte', 0)
+    act_ajuste = resumen.get('activas_ajuste', 0)
+    delta_act = act_ajuste - act_arte
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        st.metric("👥 Líderes Totales", f"{kpi_tot}", f"{kpi_mod} Ajustadas")
+    with c2:
+        st.metric("🆕 Líderes Nuevas", f"{kpi_nuevos}", "Incorporadas a Red")
+    with c3:
+        st.metric("💰 Facturación Zona", f"${fact_ajuste/1e6:.1f}M", f"{delta_fact/1e6:+.1f}M vs Arte" if abs(delta_fact) > 1000 else "Sin variación")
+    with c4:
+        st.metric("👥 Activas Proyectadas", f"{act_ajuste}", f"{delta_act:+d} vs Arte" if delta_act != 0 else "Sin variación")
+    with c5:
+        ini_aj = resumen.get('inicios_ajuste', 0)
+        ini_ar = resumen.get('inicios_arte', 0)
+        st.metric("🚀 Inicios + Reinicios", f"{ini_aj}", f"{ini_aj - ini_ar:+d} vs Arte" if (ini_aj - ini_ar) != 0 else "Sin variación")
+
+    # Construir tabla comparativa Grupo a Grupo con el Arte Papá
+    arte_papa = cargar_objetivos_arte().get('por_grupo', {})
+    filas = []
+    for g_id, g_ajuste in por_grupo.items():
+        g_arte = arte_papa.get(g_id, {})
+        es_nuevo = not bool(g_arte)
+        
+        f_arte = float(g_arte.get('desafio_facturacion', 0.0))
+        f_zona = float(g_ajuste.get('desafio_facturacion', 0.0))
+        df_f = f_zona - f_arte
+
+        a_arte = int(g_arte.get('desafio_activas', 0))
+        a_zona = int(g_ajuste.get('desafio_activas', 0))
+        df_a = a_zona - a_arte
+
+        d_arte = int(g_arte.get('disponibles_proyectadas', 0) or g_arte.get('disponibles_esperadas', 0))
+        d_zona = int(g_ajuste.get('disponibles_esperadas', 0) or g_ajuste.get('disponibles_proyectadas', 0))
+
+        ini_arte = int(g_arte.get('meta_inicios_reinicios', 0))
+        ini_zona = int(g_ajuste.get('meta_inicios_reinicios', 0))
+
+        rec_arte = int(g_arte.get('meta_recuperos', 0))
+        rec_zona = int(g_ajuste.get('meta_recuperos', 0))
+
+        saldo_zona = int(g_ajuste.get('saldo_meta', 2))
+
+        hay_cambio = (abs(df_f) > 100) or (df_a != 0) or (ini_arte != ini_zona) or (rec_arte != rec_zona) or (d_arte != d_zona)
+
+        if es_nuevo:
+            estado = "🆕 NUEVA"
+        elif hay_cambio:
+            estado = "⚡ AJUSTADA"
+        else:
+            estado = "⚪ SIN CAMBIO"
+
+        filas.append({
+            'Grupo': g_id,
+            'Líder': g_ajuste.get('nombre_lider', g_arte.get('lider', 'N/A')),
+            'Estado': estado,
+            'Fact. Zona': f_zona,
+            'Fact. Arte': f_arte,
+            'Delta Fact ($)': df_f,
+            'Act. Zona': a_zona,
+            'Act. Arte': a_arte,
+            'Delta Act': df_a,
+            'Disp. Zona': d_zona,
+            'Disp. Arte': d_arte,
+            'Ini+Rei Zona': ini_zona,
+            'Ini+Rei Arte': ini_arte,
+            'Recup. Zona': rec_zona,
+            'Recup. Arte': rec_arte,
+            'Saldo Desafío': saldo_zona
+        })
+
+    if not filas:
+        st.info("No se encontraron registros de conciliación.")
+        return
+
+    df_comp = pd.DataFrame(filas)
+
+    # Filtro de Estado
+    col_flt1, col_flt2 = st.columns([3, 1])
+    with col_flt1:
+        filtro_estado = st.radio(
+            "🔍 **Filtrar por Estado:**",
+            options=["Todas las Líderes", "Solo Ajustadas", "Solo Nuevas Incorporadas"],
+            horizontal=True,
+            key=f"filtro_est_comp_{sec_seleccionado}_{campana_sel}"
+        )
+    with col_flt2:
+        # Descarga Excel
+        towrite = io.BytesIO()
+        with pd.ExcelWriter(towrite, engine='openpyxl') as writer:
+            df_comp.to_excel(writer, sheet_name=f"Conciliacion_{campana_sel}", index=False)
+        towrite.seek(0)
+        st.download_button(
+            label="📥 Descargar Conciliación (Excel)",
+            data=towrite,
+            file_name=f"Conciliacion_Desafios_{sec_seleccionado}_{campana_sel}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True,
+            key=f"btn_descarga_comp_{sec_seleccionado}_{campana_sel}"
+        )
+
+    if filtro_estado == "Solo Ajustadas":
+        df_mostrar = df_comp[df_comp['Estado'] == "⚡ AJUSTADA"].copy()
+    elif filtro_estado == "Solo Nuevas Incorporadas":
+        df_mostrar = df_comp[df_comp['Estado'] == "🆕 NUEVA"].copy()
+    else:
+        df_mostrar = df_comp.copy()
+
+    # Formateo para Styler
+    df_fmt = df_mostrar.copy()
+    df_fmt['Fact. Zona'] = df_fmt['Fact. Zona'].apply(formato_cop)
+    df_fmt['Fact. Arte'] = df_fmt['Fact. Arte'].apply(formato_cop)
+    df_fmt['Delta Fact ($)'] = df_fmt['Delta Fact ($)'].apply(formato_cop_signo)
+    df_fmt['Delta Act'] = df_fmt['Delta Act'].apply(lambda v: f"{v:+d}" if v != 0 else "0")
+
+    def _estilo_estado(val):
+        if "NUEVA" in str(val):
+            return "background-color: #d1fae5; color: #065f46; font-weight: 800; text-align: center;"
+        elif "AJUSTADA" in str(val):
+            return "background-color: #fef3c7; color: #92400e; font-weight: 800; text-align: center;"
+        else:
+            return "background-color: #f1f5f9; color: #475569; text-align: center;"
+
+    def _estilo_delta(val):
+        s = str(val).strip()
+        if s.startswith('+') and not s.startswith('+$0'):
+            return "color: #10B981; font-weight: 700;"
+        elif s.startswith('-') and not s.startswith('-$0'):
+            return "color: #EF4444; font-weight: 700;"
+        return "color: #64748B;"
+
+    styler_c = df_fmt.style
+    if hasattr(styler_c, 'map'):
+        styler_c = styler_c.map(_estilo_estado, subset=['Estado']).map(_estilo_delta, subset=['Delta Fact ($)', 'Delta Act'])
+    elif hasattr(styler_c, 'applymap'):
+        styler_c = styler_c.applymap(_estilo_estado, subset=['Estado']).applymap(_estilo_delta, subset=['Delta Fact ($)', 'Delta Act'])
+
+    st.dataframe(styler_c, use_container_width=True, height=420)
+
 # --- CONTROL DE SESIÓN (12 HORAS DE JORNADA LABORAL) Y LOGIN ---
 TIEMPO_INACTIVIDAD_SEGUNDOS = 12 * 3600  # 12 horas continuas sin interrupciones
 
@@ -1728,11 +2046,24 @@ if puede_subir_archivos:
                 )
             file_geral_sb = st.file_uploader("Cargar Archivo 'Geral.xlsx':", type=["xlsx", "xls"], key="sb_geral_uploader")
             if file_geral_sb is not None:
+                st.caption(f"📄 Archivo listo: **{file_geral_sb.name}** ({file_geral_sb.size/1024:.1f} KB)")
                 if st.button("🚀 Sincronizar Base Geral", type="primary", use_container_width=True, key="btn_sb_geral_proc"):
                     with st.spinner("Sincronizando registros en SQLite..."):
                         sec_para_validar = user_sector if user_rol == 'gerente' else None
                         ok_g, num_g, msg_g = sincronizar_excel_geral_a_sqlite(file_geral_sb, sector_esperado=sec_para_validar)
                         if ok_g:
+                            try:
+                                with open("Geral.xlsx", "wb") as f_g:
+                                    f_g.write(file_geral_sb.getbuffer())
+                                p_ger_pers = ruta_persistente("Geral.xlsx")
+                                if p_ger_pers and p_ger_pers != "Geral.xlsx":
+                                    try:
+                                        with open(p_ger_pers, "wb") as f_gp:
+                                            f_gp.write(file_geral_sb.getbuffer())
+                                    except Exception:
+                                        pass
+                            except Exception:
+                                pass
                             registrar_evento_auditoria(
                                 current_user,
                                 categoria="📁 Carga de Datos",
@@ -1770,6 +2101,40 @@ if puede_subir_archivos:
                                 st.error(f"❌ Error al procesar: {res_oa.get('error')}")
                     except Exception as ex_oa:
                         st.error(f"❌ Error: {ex_oa}")
+
+        # 5. AJUSTES DESAFÍOS (PROYECCIÓN GERENCIA DE ZONA)
+        with st.sidebar.expander("✨ 5. Ajustes Desafíos", expanded=False):
+            st.caption("Sube el archivo de calibración de zona (ej. `C13 DESAFIOS SECTOR...xlsx`) para ajustar metas y registrar histórico:")
+            hist_sec = cargar_ajustes_desafios(sector=user_sector)
+            c_act_sug = hist_sec.get('campana', 'C13') if (isinstance(hist_sec, dict) and hist_sec.get('campana')) else 'C13'
+            campana_input = st.text_input("🏷️ Campaña:", value=c_act_sug, key="sb_campana_ajuste_desafios")
+            ajuste_file_sb = st.file_uploader("Cargar archivo 'Ajustes Desafíos':", type=["xlsx", "xls"], key="sb_uploader_ajustes_desafios")
+            if ajuste_file_sb is not None:
+                if st.button("🚀 Cargar y Conciliar Desafíos", type="primary", use_container_width=True, key="btn_sb_ajuste_desafios_proc"):
+                    try:
+                        with st.spinner("Conciliando con Objetivos Arte y guardando histórico..."):
+                            res_aj = procesar_archivo_ajustes_desafios(
+                                ajuste_file_sb,
+                                current_user=current_user,
+                                campana_label=campana_input,
+                                nombre_archivo_subido=ajuste_file_sb.name
+                            )
+                            if res_aj.get('exito'):
+                                st.session_state['ultimo_resumen_ajuste_desafios'] = res_aj
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="📁 Carga de Datos",
+                                    accion="Ajuste Desafíos Zona",
+                                    detalle=f"Campaña {res_aj.get('campana')} ({res_aj.get('total_lideres', 0)} líderes conciliadas)",
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                st.cache_data.clear()
+                                st.success(f"✅ ¡Desafíos {res_aj.get('campana')} calibrados! ({res_aj.get('total_lideres', 0)} líderes)")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ Error al procesar: {res_aj.get('error')}")
+                    except Exception as ex_aj:
+                        st.error(f"❌ Error: {ex_aj}")
 
         st.sidebar.markdown("---")
 else:
@@ -2129,9 +2494,9 @@ renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grup
 
 if user_rol == 'lider':
     # --- CUADRO DE MANDO DE DESAFÍOS OPERATIVOS EXCLUSIVO PARA LÍDERES ---
-    mapa_arte_global = cargar_objetivos_arte()
-    arte_por_grupo = mapa_arte_global.get('por_grupo', {})
-    arte_lider = arte_por_grupo.get(str(user_grupo).strip(), {}) if user_grupo else {}
+    arte_lider = obtener_metas_efectivas(grupo=user_grupo) if user_grupo else {}
+    if arte_lider.get('es_ajuste_zona'):
+        st.caption(f"✨ **Desafíos Calibrados por Gerencia de Zona** (Campaña {arte_lider.get('campana', 'Activa')})")
 
     # 1. Disponibles (Proyectadas de Arte vs Real)
     disp_real = int(df_filtrado['Disponibles'].sum()) if 'Disponibles' in df_filtrado.columns else 0
@@ -2363,11 +2728,11 @@ else:
         scrollbar-width: thin !important;
     }
 
-    /* Estilo de Cápsulas/Botones para TODAS las pestañas */
+    /* Estilo de Cápsulas/Botones para las pestañas únicamente */
+    div[data-testid="stTabs"] [role="tablist"] button,
     div[data-testid="stTabs"] button[role="tab"],
     div[data-testid="stTabs"] button[data-baseweb="tab"],
-    div[data-baseweb="tab-list"] button,
-    .stTabs button {
+    div[data-baseweb="tab-list"] button {
         border-radius: 14px !important;
         padding: 10px 20px !important;
         font-weight: 700 !important;
@@ -2383,10 +2748,10 @@ else:
     }
 
     /* Hover en pestañas */
+    div[data-testid="stTabs"] [role="tablist"] button:hover,
     div[data-testid="stTabs"] button[role="tab"]:hover,
     div[data-testid="stTabs"] button[data-baseweb="tab"]:hover,
-    div[data-baseweb="tab-list"] button:hover,
-    .stTabs button:hover {
+    div[data-baseweb="tab-list"] button:hover {
         background: linear-gradient(135deg, rgba(255, 107, 0, 0.15), rgba(227, 0, 123, 0.15)) !important;
         background-color: #fff0f5 !important;
         border-color: rgba(227, 0, 123, 0.65) !important;
@@ -2396,10 +2761,10 @@ else:
     }
 
     /* Pestaña ACTIVA: Gradiente Radiante Fucsia/Naranja Neón */
+    div[data-testid="stTabs"] [role="tablist"] button[aria-selected="true"],
     div[data-testid="stTabs"] button[role="tab"][aria-selected="true"],
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"],
-    div[data-baseweb="tab-list"] button[aria-selected="true"],
-    .stTabs button[aria-selected="true"] {
+    div[data-baseweb="tab-list"] button[aria-selected="true"] {
         background: linear-gradient(135deg, #FF5500 0%, #E3007B 52%, #8B0053 100%) !important;
         background-color: #E3007B !important;
         border: 1.5px solid rgba(255, 255, 255, 0.65) !important;
@@ -2409,10 +2774,10 @@ else:
     }
 
     /* Texto interno de la pestaña activa */
+    div[data-testid="stTabs"] [role="tablist"] button[aria-selected="true"] *,
     div[data-testid="stTabs"] button[role="tab"][aria-selected="true"] *,
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="true"] *,
-    div[data-baseweb="tab-list"] button[aria-selected="true"] *,
-    .stTabs button[aria-selected="true"] * {
+    div[data-baseweb="tab-list"] button[aria-selected="true"] * {
         color: #FFFFFF !important;
         font-weight: 800 !important;
         -webkit-text-fill-color: #FFFFFF !important;
@@ -2420,13 +2785,114 @@ else:
     }
 
     /* Texto interno de las pestañas inactivas */
+    div[data-testid="stTabs"] [role="tablist"] button[aria-selected="false"] *,
     div[data-testid="stTabs"] button[role="tab"][aria-selected="false"] *,
     div[data-testid="stTabs"] button[data-baseweb="tab"][aria-selected="false"] *,
-    div[data-baseweb="tab-list"] button[aria-selected="false"] *,
-    .stTabs button[aria-selected="false"] * {
+    div[data-baseweb="tab-list"] button[aria-selected="false"] * {
         color: #1e293b !important;
         font-weight: 700 !important;
         -webkit-text-fill-color: #1e293b !important;
+    }
+
+    /* ========================================================================= */
+    /* DESPLEGADORES (SELECTBOX & MULTISELECT) COMPACTOS Y ELEGANTE */
+    /* ========================================================================= */
+    div[data-testid="stSelectbox"],
+    div[data-testid="stMultiSelect"] {
+        margin-bottom: 2px !important;
+    }
+
+    div[data-testid="stSelectbox"] label,
+    div[data-testid="stMultiSelect"] label,
+    div[data-testid="stTextInput"] label {
+        min-height: 0 !important;
+        margin-bottom: 2px !important;
+        padding: 0 !important;
+    }
+
+    div[data-testid="stSelectbox"] label p,
+    div[data-testid="stMultiSelect"] label p,
+    div[data-testid="stTextInput"] label p {
+        font-size: 0.74rem !important;
+        font-weight: 700 !important;
+        line-height: 1.15 !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        margin: 0 !important;
+    }
+
+    /* Control principal del desplegador */
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] > div,
+    div[data-testid="stMultiSelect"] div[data-baseweb="select"] > div {
+        min-height: 31px !important;
+        height: 31px !important;
+        padding-top: 1px !important;
+        padding-bottom: 1px !important;
+        padding-left: 8px !important;
+        padding-right: 4px !important;
+        border-radius: 8px !important;
+        font-size: 0.80rem !important;
+        line-height: 1.2 !important;
+    }
+
+    div[data-testid="stTextInput"] input {
+        min-height: 31px !important;
+        height: 31px !important;
+        padding: 2px 8px !important;
+        border-radius: 8px !important;
+        font-size: 0.80rem !important;
+    }
+
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] [data-testid="stSelectboxVirtualDropdown"],
+    div[data-testid="stSelectbox"] div[data-baseweb="select"] div {
+        font-size: 0.80rem !important;
+        line-height: 1.2 !important;
+    }
+
+    /* Flecha del desplegador: transparente, pequeña y sin píldoras blancas */
+    div[data-baseweb="select"] button,
+    div[data-testid="stSelectbox"] button,
+    div[data-testid="stMultiSelect"] button {
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        padding: 0 2px !important;
+        margin: 0 !important;
+        min-width: 0 !important;
+        width: auto !important;
+        height: auto !important;
+        border-radius: 0 !important;
+        transform: none !important;
+    }
+
+    div[data-baseweb="select"] button:hover,
+    div[data-testid="stSelectbox"] button:hover,
+    div[data-testid="stMultiSelect"] button:hover {
+        background: transparent !important;
+        background-color: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        transform: none !important;
+    }
+
+    div[data-baseweb="select"] svg,
+    div[data-testid="stSelectbox"] svg {
+        width: 13px !important;
+        height: 13px !important;
+    }
+
+    div[data-baseweb="tag"] {
+        height: 20px !important;
+        font-size: 10.5px !important;
+        padding: 0 4px !important;
+        margin: 1px 2px !important;
+    }
+
+    ul[data-baseweb="menu"] li {
+        font-size: 0.80rem !important;
+        padding: 5px 8px !important;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -2787,6 +3253,287 @@ with tab_tableau:
                         st.rerun()
             with col_save2:
                 st.caption("🟢 **Guardado en segundo plano activo**: Al escribir una nota y presionar `Enter` o cambiar de fila, se guarda de forma instantánea y liviana.")
+
+            # --- SECCIÓN DE MENSAJERÍA WHATSAPP DIRECTA DEL LISTADO FILTRADO (MODELO GERAL) ---
+            st.markdown("---")
+            with st.expander(f"📲 Contacto & Mensajería WhatsApp del Listado Filtrado ({len(df_edit_view)} Asesoras)", expanded=False):
+                st.markdown("##### 📲 Envíos y Campaña de WhatsApp sobre el Listado Filtrado")
+                st.caption("Contacta a las consultoras que acabas de filtrar en la tabla superior. Puedes enviarles tus notas personalizadas, recordatorios o promociones usando enlaces directos de 1-clic o despacho masivo.")
+
+                # Identificar columnas canónicas de la tabla
+                c_col_cb = 'Código CB' if 'Código CB' in df_edit_view.columns else ('Codigo CB' if 'Codigo CB' in df_edit_view.columns else None)
+                c_col_nom = 'Asesora / Consultora' if 'Asesora / Consultora' in df_edit_view.columns else ('Nombre' if 'Nombre' in df_edit_view.columns else None)
+                c_col_cel = 'Celular' if 'Celular' in df_edit_view.columns else ('celular' if 'celular' in df_edit_view.columns else None)
+                c_col_sit = 'Sit. Comercial' if 'Sit. Comercial' in df_edit_view.columns else None
+                c_col_col = 'Nivel / Color' if 'Nivel / Color' in df_edit_view.columns else None
+                c_col_nota = 'Notas / Comentarios Líder' if 'Notas / Comentarios Líder' in df_edit_view.columns else None
+                c_col_ped = 'Ped. Pendientes' if 'Ped. Pendientes' in df_edit_view.columns else None
+                c_col_mora = 'Deuda Mora' if 'Deuda Mora' in df_edit_view.columns else None
+                c_col_pts = 'Pts Acum' if 'Pts Acum' in df_edit_view.columns else None
+
+                if c_col_cb and c_col_nom:
+                    # Mapeo de asesoras disponibles
+                    mapa_wa_tab = {}
+                    for _, r_w in df_edit_view.iterrows():
+                        k_cb = str(r_w.get(c_col_cb, '')).strip()
+                        n_asesora = str(r_w.get(c_col_nom, '')).strip()
+                        n_color = str(r_w.get(c_col_col, 'Nivel')) if c_col_col else ''
+                        n_sit = str(r_w.get(c_col_sit, 'Estado')) if c_col_sit else ''
+                        n_nota = str(r_w.get(c_col_nota, '')).strip() if c_col_nota else ''
+                        
+                        etiqueta = f"[{n_color}] [{n_sit}] {n_asesora} (CB: {k_cb})"
+                        if n_nota:
+                            etiqueta += f' — 💬 "{n_nota[:28]}..."'
+                        mapa_wa_tab[k_cb] = etiqueta
+
+                    # Subgrupos para botones de lote
+                    cbs_con_notas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if str(r.get(c_col_nota, '')).strip()] if c_col_nota else []
+                    cbs_inactivas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if 'inactiva' in str(r.get(c_col_sit, '')).lower()] if c_col_sit else []
+                    cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
+                    cbs_con_mora = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_mora, 0))) > 0] if c_col_mora else []
+
+                    # Botones de selección rápida
+                    b_cols = st.columns(5 if cbs_con_notas or cbs_inactivas else 3)
+                    with b_cols[0]:
+                        if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_tab_wa", use_container_width=True):
+                            st.session_state['cbs_sel_tab_wa'] = list(mapa_wa_tab.keys())
+                            st.rerun()
+                    with b_cols[1]:
+                        if st.button("🧹 Deseleccionar", key="btn_desel_todas_tab_wa", use_container_width=True):
+                            st.session_state['cbs_sel_tab_wa'] = []
+                            st.rerun()
+                    col_idx_b = 2
+                    if cbs_con_notas and col_idx_b < len(b_cols):
+                        with b_cols[col_idx_b]:
+                            if st.button(f"💬 Con Notas ({len(cbs_con_notas)})", key="btn_sel_notas_tab_wa", use_container_width=True):
+                                st.session_state['cbs_sel_tab_wa'] = cbs_con_notas
+                                st.rerun()
+                        col_idx_b += 1
+                    if cbs_inactivas and col_idx_b < len(b_cols):
+                        with b_cols[col_idx_b]:
+                            if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_tab_wa", use_container_width=True):
+                                st.session_state['cbs_sel_tab_wa'] = cbs_inactivas
+                                st.rerun()
+                        col_idx_b += 1
+                    if cbs_con_ped and col_idx_b < len(b_cols):
+                        with b_cols[col_idx_b]:
+                            if st.button(f"⌛ Con Pedidos ({len(cbs_con_ped)})", key="btn_sel_ped_tab_wa", use_container_width=True):
+                                st.session_state['cbs_sel_tab_wa'] = cbs_con_ped
+                                st.rerun()
+
+                    # Inicializar estado de selección
+                    if 'cbs_sel_tab_wa' not in st.session_state:
+                        st.session_state['cbs_sel_tab_wa'] = list(mapa_wa_tab.keys())
+
+                    st.caption("💡 **Tip para enviar a una sola consultora:** Haz clic en **'🧹 Deseleccionar'** y luego búscala por su nombre o código en el cuadro de abajo, o pulsa la **'✖️'** sobre las que desees quitar.")
+                    sel_cbs_activos = st.multiselect(
+                        "👥 Consultoras Seleccionadas para la Campaña WhatsApp:",
+                        options=list(mapa_wa_tab.keys()),
+                        default=[c for c in st.session_state['cbs_sel_tab_wa'] if c in mapa_wa_tab],
+                        format_func=lambda c: mapa_wa_tab.get(c, c),
+                        key="multiselect_tab_wa_widget"
+                    )
+                    st.session_state['cbs_sel_tab_wa'] = sel_cbs_activos
+                    df_campana_tab_out = pd.DataFrame()
+
+                    if sel_cbs_activos:
+                        df_target_tab_wa = df_edit_view[df_edit_view[c_col_cb].astype(str).str.strip().isin(sel_cbs_activos)].copy()
+                        if len(df_target_tab_wa) == 1:
+                            r_uno = df_target_tab_wa.iloc[0]
+                            st.success(f"🎯 **Envío Individual Seleccionado:** **{r_uno.get(c_col_nom)}** ({r_uno.get(c_col_col, '')} · {r_uno.get(c_col_sit, '')}) — Celular: **{r_uno.get(c_col_cel, 'Sin celular')}**")
+                        else:
+                            st.info(f"🎯 **{len(df_target_tab_wa)} consultora(s) seleccionada(s)** listas para recibir mensaje.")
+
+                        col_cfg_t1, col_cfg_t2 = st.columns([1.2, 1.8])
+                        with col_cfg_t1:
+                            tipo_camp_tab = st.selectbox(
+                                "Tipo de Plantilla de Mensaje:",
+                                options=[
+                                    "💬 1. Usar mis Notas / Comentarios",
+                                    "🎁 2. Reactivación Comercial (Inactivas)",
+                                    "🌟 3. Impulso de Puntos & Nivel",
+                                    "📦 4. Pedido Pendiente / Retenido",
+                                    "🌸 5. Saludo & Seguimiento General",
+                                    "✍️ 6. Mensaje Libre / Personalizado"
+                                ],
+                                index=0 if cbs_con_notas else 1,
+                                key="sel_tipo_camp_tab_widget"
+                            )
+                            remitente_tab_wa = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_tab_wa")
+
+                        with col_cfg_t2:
+                            # Plantilla predeterminada según tipo
+                            if "1. Usar mis Notas" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                    "Te contacto para contarte: *{nota}*.\n\n"
+                                    "¡Quedo muy atenta a lo que necesites para apoyarte! ✨"
+                                )
+                            elif "2. Reactivación" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "¡Hola *{primer_nombre}*! 🌸 Te extrañamos mucho en nuestro equipo de *Natura & Avon*.\n\n"
+                                    "En este ciclo tenemos promociones exclusivas, descuentos especiales y kits de reinicio pensados para ti.\n\n"
+                                    "¿Te gustaría que te comparta el catálogo virtual interactivo de este ciclo? 📖✨"
+                                )
+                            elif "3. Impulso" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "¡Hola *{primer_nombre}*! 🌟 Felicitaciones por tus *{pts_acum} puntos* acumulados en tu nivel *{nivel}*.\n\n"
+                                    "Estás muy cerca de tu siguiente meta de premios y beneficios de este ciclo. ¡Pasa tu pedido y gana más con Natura & Avon! 🎁✨"
+                                )
+                            elif "4. Pedido" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "Hola *{primer_nombre}* 🛍️, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                    "Tienes *{pedidos} pedido(s)* en espera de despacho por saldo de *{deuda_mora}*.\n\n"
+                                    "Al poner al día tu pago hoy, tu pedido saldrá de inmediato para entrega. ¡Quedo atenta para ayudarte! 📦✨"
+                                )
+                            elif "5. Saludo" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                    "Quería saludarte y desearte una semana llena de éxitos y ventas. ¡Cuenta conmigo para cualquier duda o apoyo comercial! ✨"
+                                )
+                            else:
+                                tpl_tab_def = "Hola *{primer_nombre}* 🌸, te escribe {remitente}.\n\n"
+
+                            texto_plantilla_tab = st.text_area(
+                                "✏️ Personaliza la Plantilla:",
+                                value=tpl_tab_def,
+                                height=110,
+                                key=f"txt_tpl_tab_{tipo_camp_tab[:2]}"
+                            )
+                            st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
+
+                        # Generar filas de mensajes
+                        filas_wa_tab = []
+                        for _, r_t in df_target_tab_wa.iterrows():
+                            n_full = str(r_t.get(c_col_nom, '')).strip()
+                            p_nom = n_full.split()[0].title() if n_full else "Consultora"
+                            cel_raw = str(r_t.get(c_col_cel, '')).strip().replace(' ', '').replace('-', '').replace('+', '')
+                            cel_val = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
+                            
+                            nota_val = str(r_t.get(c_col_nota, '')).strip() if c_col_nota else ''
+                            nivel_val = str(r_t.get(c_col_col, 'Consultora')) if c_col_col else 'Consultora'
+                            pts_val = str(r_t.get(c_col_pts, '0')) if c_col_pts else '0'
+                            ped_val = str(r_t.get(c_col_ped, '0')) if c_col_ped else '0'
+                            mora_val = formato_cop(r_t.get(c_col_mora, 0)) if c_col_mora else '$0'
+
+                            # Reemplazar variables
+                            msg_t = (
+                                texto_plantilla_tab
+                                .replace("{primer_nombre}", p_nom)
+                                .replace("{nombre}", n_full.title())
+                                .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                                .replace("{nivel}", nivel_val)
+                                .replace("{pts_acum}", pts_val)
+                                .replace("{pedidos}", ped_val)
+                                .replace("{deuda_mora}", mora_val)
+                                .replace("{remitente}", remitente_tab_wa)
+                            )
+
+                            link_t = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_t)}" if cel_val and len(cel_val) >= 10 else ""
+
+                            filas_wa_tab.append({
+                                'Asesora': n_full,
+                                'Código CB': str(r_t.get(c_col_cb, '')),
+                                'Sit. Comercial': str(r_t.get(c_col_sit, '')),
+                                'Nivel / Color': nivel_val,
+                                'Celular': cel_val if cel_val else "Sin celular",
+                                'Nota Líder': nota_val if nota_val else "-",
+                                'Enlace Directo WhatsApp': link_t,
+                                'Mensaje Personalizado': msg_t
+                            })
+
+                        df_campana_tab_out = pd.DataFrame(filas_wa_tab)
+
+                        # Tabla previa con enlace interactivo
+                        st.dataframe(
+                            df_campana_tab_out[['Asesora', 'Código CB', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Nota Líder', 'Enlace Directo WhatsApp', 'Mensaje Personalizado']],
+                            column_config={
+                                "Enlace Directo WhatsApp": st.column_config.LinkColumn(
+                                    "📲 Enviar WhatsApp",
+                                    display_text="Abrir WhatsApp"
+                                )
+                            },
+                            use_container_width=True,
+                            hide_index=True
+                        )
+
+                        # Acciones inferiores: Despacho individual y Descargas
+                        col_t_d1, col_t_d2 = st.columns([1.5, 1.5])
+                        with col_t_d1:
+                            st.markdown("###### 📲 Despachar Asesora Individual:")
+                            nom_sel_rap_t = st.selectbox("Elige la asesora para enviar de inmediato:", options=df_campana_tab_out['Asesora'].tolist(), key="sel_rapido_tab_wa")
+                            row_sel_rap_t = df_campana_tab_out[df_campana_tab_out['Asesora'] == nom_sel_rap_t].iloc[0]
+                            link_wa_t_env = row_sel_rap_t.get('Enlace Directo WhatsApp')
+                            if link_wa_t_env:
+                                st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rap_t).split()[0].title()}", url=link_wa_t_env, use_container_width=True)
+                            else:
+                                st.warning("⚠️ Esta asesora no tiene celular válido registrado.")
+
+                        with col_t_d2:
+                            st.markdown("###### 📥 Descargar Base de Campaña:")
+                            towrite_tab_wa = io.BytesIO()
+                            with pd.ExcelWriter(towrite_tab_wa, engine='openpyxl') as writer:
+                                df_campana_tab_out.to_excel(writer, sheet_name="Campana_Tableau_WA", index=False)
+                            towrite_tab_wa.seek(0)
+                            st.download_button(
+                                label=f"📥 Descargar Campaña en Excel ({len(df_campana_tab_out)} Mensajes)",
+                                data=towrite_tab_wa,
+                                file_name=f"Campana_Tableau_WA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                use_container_width=True,
+                                key="btn_descargar_camp_tab_wa_excel"
+                            )
+
+                        # Envío automático por Evolution API
+                        with st.expander("🔌 Envío Masivo Automático por Evolution API (Opcional)", expanded=False):
+                            st.markdown("##### 🚀 Envío Automático a Asesoras Seleccionadas:")
+                            evo_url_tab = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+                            inst_def_tab = f"lider_{user_grupo}" if user_rol == 'lider' and user_grupo else f"gerente_{str(current_user).lower().split('@')[0].replace('.', '_')}"
+                            evo_inst_tab = st.session_state.get('in_evo_instance', inst_def_tab)
+                            evo_tok_tab = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+
+                            st.caption(f"📡 Conectando a instancia: **`{evo_inst_tab}`** en `{evo_url_tab}`")
+                            delay_tab_wa = st.slider("⏱️ Pausa entre mensajes (Segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_tab_wa")
+
+                            btn_disparar_tab_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_tab_out)} Asesoras", type="primary", use_container_width=True, key="btn_disparar_api_tab")
+
+                            if btn_disparar_tab_api:
+                                prog_bar_tab = st.progress(0.0)
+                                stat_txt_tab = st.empty()
+                                ok_cnt_tab = 0
+                                err_cnt_tab = 0
+
+                                for i_t, r_ct in enumerate(df_campana_tab_out.iterrows()):
+                                    r_ct = r_ct[1]
+                                    c_num = str(r_ct['Celular']).strip()
+                                    if c_num and len(c_num) >= 10:
+                                        try:
+                                            c_clean_t = f"57{c_num}" if not c_num.startswith('57') else c_num
+                                            e_url_t = f"{evo_url_tab.strip().rstrip('/')}/message/sendText/{evo_inst_tab.strip()}"
+                                            e_payload_t = {
+                                                "number": c_clean_t,
+                                                "text": r_ct['Mensaje Personalizado'],
+                                                "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                            }
+                                            e_headers_t = {"apikey": evo_tok_tab.strip(), "Content-Type": "application/json"}
+                                            res_t = requests.post(e_url_t, json=e_payload_t, headers=e_headers_t, timeout=12)
+                                            if res_t.status_code in [200, 201]:
+                                                ok_cnt_tab += 1
+                                            else:
+                                                err_cnt_tab += 1
+                                        except Exception:
+                                            err_cnt_tab += 1
+
+                                    prog_bar_tab.progress((i_t + 1) / len(df_campana_tab_out))
+                                    stat_txt_tab.caption(f"Despachando {i_t+1} de {len(df_campana_tab_out)}: {r_ct['Asesora']}...")
+                                    if i_t < len(df_campana_tab_out) - 1:
+                                        time.sleep(delay_tab_wa)
+
+                                st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {ok_cnt_tab} | Fallidos: {err_cnt_tab}")
+                    else:
+                        st.info("👆 Selecciona al menos una consultora arriba o pulsa un botón de selección rápida para preparar los mensajes.")
+                else:
+                    st.warning("⚠️ No se identificaron las columnas mínimas de Código y Nombre para preparar los mensajes de WhatsApp.")
 
             # --- BARRA DE DESCARGAS DINÁMICAS (XLSX Y CSV CON FILTROS Y ORDEN EXACTO) ---
             st.markdown("---")
@@ -3196,6 +3943,7 @@ with tab_tableau:
                 tipo_camp = st.selectbox(
                     "🎯 Tipo de Campaña / Objetivo:",
                     options=[
+                        "💬 0. Listado Actualmente Filtrado (con Notas)",
                         "💳 1. Cobro de Cartera en Mora",
                         "⌛ 2. Liberación de Pedidos Retenidos",
                         "🌟 3. Impulso de Puntos & Ascenso de Nivel",
@@ -3206,7 +3954,14 @@ with tab_tableau:
                 )
 
                 # Segmentación automática según tipo de campaña
-                if "1. Cobro" in tipo_camp:
+                if "0. Listado" in tipo_camp:
+                    df_wa_target = df_tab_filt.copy()
+                    plantilla_def = (
+                        "Hola *{primer_nombre}* 🌸, te saluda tu Líder de *Natura & Avon*.\n\n"
+                        "Te contacto para contarte: *{nota}*.\n\n"
+                        "¡Quedo atenta para apoyarte en lo que necesites! ✨"
+                    )
+                elif "1. Cobro" in tipo_camp:
                     df_wa_target = df_tab_filt[(df_tab_filt['Deuda Mora'] > 0) | (df_tab_filt['Deuda Total'] > 0)].copy()
                     plantilla_def = (
                         "Hola *{primer_nombre}* 🌸, te saluda tu Líder de *Natura & Avon*.\n\n"
@@ -3256,7 +4011,7 @@ with tab_tableau:
 
             with col_camp2:
                 plantilla_txt = st.text_area(
-                    "✏️ Plantilla del Mensaje (Variables: `{primer_nombre}`, `{nombre}`, `{deuda_mora}`, `{deuda_total}`, `{pedidos}`, `{nivel}`, `{pts_acum}`, `{credito_disp}`):",
+                    "✏️ Plantilla del Mensaje (Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{remitente}`, `{deuda_mora}`, `{deuda_total}`, `{pedidos}`, `{nivel}`, `{pts_acum}`, `{credito_disp}`):",
                     value=plantilla_def,
                     height=130,
                     key=f"plantilla_txt_{tipo_camp[:2]}"
@@ -3424,7 +4179,12 @@ with tab_tableau:
                 for idx, r in df_wa_target.iterrows():
                     nom_full = str(r.get('Nombre', r.get('Asesora / Consultora', ''))).strip()
                     primer_n = nom_full.split()[0].title() if nom_full else "Consultora"
-                    cel = str(r.get('celular', '')).strip().replace(' ', '').replace('-', '').replace('+', '')
+                    cel_raw = str(r.get('Celular', r.get('celular', ''))).strip().replace(' ', '').replace('-', '').replace('+', '')
+                    cel = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
+
+                    nota_val = str(r.get('Notas / Comentarios Líder', r.get('Comentarios_Lider', r.get('nota', '')))).strip()
+                    if not nota_val or nota_val.lower() in ['nan', 'none']:
+                        nota_val = ""
 
                     deuda_m = formato_cop(r.get('Deuda Mora', 0))
                     deuda_t = formato_cop(r.get('Deuda Total', 0))
@@ -3432,12 +4192,15 @@ with tab_tableau:
                     ped_val = int(limpiar_numero(r.get('Ped. Pendientes', 0)))
                     pts_val = int(limpiar_numero(r.get('Pts Acum', 0)))
                     col_nivel = str(r.get('Color', r.get('Nivel / Color', 'Consultora')))
+                    remitente_wa = user_nombre if user_nombre else "Tu Líder"
 
                     # Reemplazar variables en plantilla
                     msg_personalizado = (
                         plantilla_txt
                         .replace("{primer_nombre}", primer_n)
                         .replace("{nombre}", nom_full.title())
+                        .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                        .replace("{remitente}", remitente_wa)
                         .replace("{deuda_mora}", deuda_m)
                         .replace("{deuda_total}", deuda_t)
                         .replace("{credito_disp}", cred_d)
@@ -3454,6 +4217,7 @@ with tab_tableau:
                         'Grupo': str(r.get('Grupo', '')),
                         'Celular': cel if cel else "Sin registrar",
                         'Sit. Comercial': str(r.get('Sit. Comercial', '')),
+                        'Nota Líder': nota_val if nota_val else "-",
                         'Deuda Mora': deuda_m,
                         'Ped. Pendientes': ped_val,
                         'Adjunto': '🖼️ Flyer Listo' if uploaded_flyer else 'Solo Texto',
@@ -3465,7 +4229,7 @@ with tab_tableau:
                 df_wa_table = pd.DataFrame(filas_wa)
 
                 # Columnas a mostrar según si hay imagen
-                cols_mostrar_wa = ['Código CB', 'Asesora', 'Grupo', 'Celular', 'Sit. Comercial', 'Deuda Mora', 'Ped. Pendientes']
+                cols_mostrar_wa = ['Código CB', 'Asesora', 'Grupo', 'Celular', 'Sit. Comercial', 'Nota Líder', 'Deuda Mora', 'Ped. Pendientes']
                 if uploaded_flyer is not None:
                     cols_mostrar_wa.append('Adjunto')
                 cols_mostrar_wa.append('Enlace WhatsApp')
@@ -3527,18 +4291,95 @@ with tab_geral:
     sec_filtro_g = user_sector if user_rol == 'gerente' else None
     grp_filtro_g = user_grupo if user_rol == 'lider' else None
     
-    df_geral_raw = consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
+    df_geral_raw = cached_consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
     
     # Si SQLite está vacío pero existe Geral.xlsx local en disco, sincronizar automáticamente
     if (df_geral_raw is None or df_geral_raw.empty) and os.path.exists("Geral.xlsx"):
         sincronizar_excel_geral_a_sqlite("Geral.xlsx")
-        df_geral_raw = consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
+        cached_consultar_geral_sql.clear()
+        df_geral_raw = cached_consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
         
     if df_geral_raw is None or df_geral_raw.empty:
         st.info("ℹ️ No hay registros de crédito y cobranza en el sistema. Por favor sube el archivo **Geral.xlsx** desde **💳 3. Gera** en la barra lateral izquierda.")
     else:
-        # Procesar análisis financiero
-        analisis_g = procesar_analisis_geral_cobranza(df_geral_raw)
+        # --- 2. BARRA DE FILTROS INTELIGENTES (GRUPO, SIT. COMERCIAL, COLOR Y BÚSQUEDA) ---
+        df_geral_filt = df_geral_raw.copy()
+
+        # Opciones dinámicas extraídas de los datos
+        sits_disponibles_g = sorted([str(s) for s in df_geral_raw['sit_comercial'].dropna().unique() if str(s).strip() and str(s).lower() != 'sin definir'])
+        colores_disponibles_g = sorted([str(c) for c in df_geral_raw['color'].dropna().unique() if str(c).strip() and str(c).lower() not in ['sin nivel', 'nan', 'none']])
+
+        if user_rol in ['gerente', 'superadmin']:
+            grupos_disp_g = sorted([str(g).strip().split('.')[0] for g in df_geral_raw['grupo'].dropna().unique() if str(g).strip() and str(g).lower() not in ['sin grupo', 'nan', 'none']])
+            col_fg1, col_fg2, col_fg3, col_fg4 = st.columns([1.3, 1.3, 1.2, 1.6])
+            with col_fg1:
+                sel_grp_g = st.selectbox(
+                    "👤 Líder / Grupo:",
+                    options=["Todas las Líderes"] + grupos_disp_g,
+                    format_func=lambda g: f"Grupo {g}" if g != "Todas las Líderes" else "Todas las Líderes (Consolidado)",
+                    key="filtro_grp_geral_cb"
+                )
+            with col_fg2:
+                sel_sit_g = st.multiselect(
+                    "🚦 Sit. Comercial:",
+                    options=sits_disponibles_g,
+                    default=[],
+                    placeholder="Todas las situaciones",
+                    key="filtro_sit_com_geral"
+                )
+            with col_fg3:
+                sel_col_g = st.multiselect(
+                    "🏆 Nivel / Color:",
+                    options=colores_disponibles_g,
+                    default=[],
+                    placeholder="Todos los colores",
+                    key="filtro_color_geral"
+                )
+            with col_fg4:
+                busq_g = st.text_input("🔍 Buscar Asesora (Nombre o Código CB):", "", key="filtro_busq_geral")
+        else:
+            sel_grp_g = "Todas las Líderes"
+            col_fg1, col_fg2, col_fg3 = st.columns([1.5, 1.5, 2])
+            with col_fg1:
+                sel_sit_g = st.multiselect(
+                    "🚦 Sit. Comercial:",
+                    options=sits_disponibles_g,
+                    default=[],
+                    placeholder="Todas las situaciones",
+                    key="filtro_sit_com_geral"
+                )
+            with col_fg2:
+                sel_col_g = st.multiselect(
+                    "🏆 Nivel / Color:",
+                    options=colores_disponibles_g,
+                    default=[],
+                    placeholder="Todos los colores",
+                    key="filtro_color_geral"
+                )
+            with col_fg3:
+                busq_g = st.text_input("🔍 Buscar Asesora (Nombre o Código CB):", "", key="filtro_busq_geral")
+
+        # Aplicar filtros dinámicos
+        if sel_grp_g != "Todas las Líderes" and 'grupo' in df_geral_filt.columns:
+            df_geral_filt = df_geral_filt[df_geral_filt['grupo'].astype(str).str.strip().str.split('.').str[0] == str(sel_grp_g).strip()]
+
+        if sel_sit_g and 'sit_comercial' in df_geral_filt.columns:
+            df_geral_filt = df_geral_filt[df_geral_filt['sit_comercial'].astype(str).isin(sel_sit_g)]
+
+        if sel_col_g and 'color' in df_geral_filt.columns:
+            df_geral_filt = df_geral_filt[df_geral_filt['color'].astype(str).isin(sel_col_g)]
+
+        if busq_g.strip():
+            b_val = busq_g.strip()
+            mask_b = (
+                df_geral_filt['nombre'].astype(str).str.contains(b_val, case=False, na=False) |
+                df_geral_filt['codigo_cb'].astype(str).str.contains(b_val, case=False, na=False) |
+                df_geral_filt['numero_factura'].astype(str).str.contains(b_val, case=False, na=False)
+            )
+            df_geral_filt = df_geral_filt[mask_b]
+
+        # Procesar análisis financiero sobre el conjunto filtrado
+        analisis_g = procesar_analisis_geral_cobranza(df_geral_filt)
         kpis_g = analisis_g['kpis']
         df_pendientes = analisis_g['df_pendientes']
         df_manana = analisis_g['df_vence_manana']
@@ -3579,7 +4420,7 @@ with tab_geral:
             st.metric(
                 "👥 Consultoras con Deuda",
                 f"{kpis_g['consultoras_unicas']}",
-                f"{len(df_geral_raw[df_geral_raw['situacion'] == 'Pagado'])} Pagadas / Al Día"
+                f"{len(df_geral_filt[df_geral_filt['situacion'] == 'Pagado'])} Pagadas / Al Día"
             )
 
         st.markdown("---")
@@ -3594,7 +4435,7 @@ with tab_geral:
             f"🚨 En Mora ({len(df_mora)})",
             f"📅 Próximos 7 Días ({len(df_7d)})",
             f"🗓️ Todas las Pendientes ({len(df_pendientes)})",
-            f"✅ Historial Pagados ({len(df_geral_raw[df_geral_raw['situacion'] == 'Pagado'])})"
+            f"✅ Historial Pagados ({len(df_geral_filt[df_geral_filt['situacion'] == 'Pagado'])})"
         ])
 
         def _limpiar_texto_plan_pago(val):
@@ -3701,7 +4542,7 @@ with tab_geral:
                 df_ordenado['plan_recibimiento'] = df_ordenado['plan_recibimiento'].apply(_limpiar_texto_plan_pago)
 
             cols_mostrar = [
-                'nombre', 'codigo_cb', 'grupo', 'numero_factura', 'fecha_vencimiento',
+                'nombre', 'codigo_cb', 'grupo', 'sit_comercial', 'color', 'numero_factura', 'fecha_vencimiento',
                 'Estado Vencimiento', 'Nivel Deuda', 'saldo_principal', 'saldo_financiero',
                 'saldo_total', 'plan_recibimiento', 'telefono_movil', 'telefono_movil_2'
             ]
@@ -3712,6 +4553,8 @@ with tab_geral:
                 'nombre': 'Consultora',
                 'codigo_cb': 'Código CB',
                 'grupo': 'Grupo',
+                'sit_comercial': 'Sit. Comercial',
+                'color': 'Nivel / Color',
                 'numero_factura': 'Factura',
                 'fecha_vencimiento': 'Vencimiento',
                 'saldo_principal': 'Saldo Capital',
@@ -3733,6 +4576,10 @@ with tab_geral:
 
             styler = df_disp.style.format(format_dict)
 
+            if 'Sit. Comercial' in df_disp.columns:
+                styler = styler.map(color_situacion, subset=['Sit. Comercial'])
+            if 'Nivel / Color' in df_disp.columns:
+                styler = styler.map(color_nivel, subset=['Nivel / Color'])
             if 'Saldo Total' in df_disp.columns:
                 styler = styler.map(_color_saldo_total_armonico, subset=['Saldo Total'])
             if 'Nivel Deuda' in df_disp.columns:
@@ -3776,7 +4623,7 @@ with tab_geral:
 
         with tab_v_pagadas:
             st.markdown("###### ✅ Títulos Pagados y Conciliados (Excluidos de Cartera)")
-            df_pagados = df_geral_raw[df_geral_raw['situacion'] == 'Pagado']
+            df_pagados = df_geral_filt[df_geral_filt['situacion'] == 'Pagado']
             df_pag_disp = _formatear_tabla_geral(df_pagados)
             if df_pag_disp is not None:
                 st.dataframe(df_pag_disp, use_container_width=True, hide_index=True)
@@ -3785,44 +4632,49 @@ with tab_geral:
 
         # 5. SELECCIÓN MÚLTIPLE & DESPACHADOR MASIVO DE WHATSAPP
         st.markdown("##### 📢 Envío Masivo & Recordatorios de Cobranza por WhatsApp")
-        st.caption("Selecciona una, varias o todas las consultoras de un tramo para generar sus mensajes personalizados en lote y enviarlos con 1 clic o conectarte con un API.")
+        st.caption("Selecciona las consultoras específicas a las que deseas enviar recordatorios. Puedes usar los botones de lote rápido, buscar por nombre, o seleccionarlas directamente con las casillas:")
         
         # Botones de Carga Rápida de Lotes
-        col_btn_m1, col_btn_m2, col_btn_m3, col_btn_m4, col_btn_m5 = st.columns(5)
+        col_btn_m1, col_btn_m2, col_btn_m3, col_btn_m4, col_btn_m5, col_btn_m6 = st.columns(6)
         
         if 'titulos_seleccionados_masivo' not in st.session_state:
             st.session_state['titulos_seleccionados_masivo'] = df_manana['titulo'].tolist() if not df_manana.empty else []
             
         with col_btn_m1:
-            if st.button("🟡 Vencen Mañana", use_container_width=True):
+            if st.button(f"🟡 Vencen Mañana ({len(df_manana)})", use_container_width=True):
                 st.session_state['titulos_seleccionados_masivo'] = df_manana['titulo'].tolist()
                 st.rerun()
         with col_btn_m2:
-            if st.button("🚨 En Mora", use_container_width=True):
+            if st.button(f"🚨 En Mora ({len(df_mora)})", use_container_width=True):
                 st.session_state['titulos_seleccionados_masivo'] = df_mora['titulo'].tolist()
                 st.rerun()
         with col_btn_m3:
-            if st.button("🟢 Pasado Mañana", use_container_width=True):
+            if st.button(f"🟢 Pasado Mañana ({len(df_pasado)})", use_container_width=True):
                 st.session_state['titulos_seleccionados_masivo'] = df_pasado['titulo'].tolist()
                 st.rerun()
         with col_btn_m4:
-            if st.button("📅 Próximos 7 Días", use_container_width=True):
+            if st.button(f"📅 Próximos 7d ({len(df_7d)})", use_container_width=True):
                 st.session_state['titulos_seleccionados_masivo'] = df_7d['titulo'].tolist()
                 st.rerun()
         with col_btn_m5:
-            if st.button("🧹 Limpiar Todo", use_container_width=True):
+            if st.button(f"👥 Todas las Filtradas ({len(df_pendientes)})", use_container_width=True):
+                st.session_state['titulos_seleccionados_masivo'] = df_pendientes['titulo'].tolist()
+                st.rerun()
+        with col_btn_m6:
+            if st.button("🧹 Deseleccionar Todas", use_container_width=True):
                 st.session_state['titulos_seleccionados_masivo'] = []
                 st.rerun()
 
-        # Opciones para el multiselect
+        # Opciones para el multiselect enriquecidas con Nivel / Color y Sit. Comercial
         mapa_titulos_dict = {
-            row['titulo']: f"{row['nombre']} — Fact. {row['numero_factura']} (${row['saldo_total']:,.0f}) [Días: {row['dias_para_vencer']}]"
+            row['titulo']: f"[{row.get('color', 'Nivel')}] [{row.get('sit_comercial', 'Sit')}] {row['nombre']} — Fact. {row['numero_factura']} (${row['saldo_total']:,.0f}) [Días: {row.get('dias_para_vencer', 0)}]"
             for _, row in df_pendientes.iterrows()
         }
         
-        # Multiselect de asesoras
+        # Multiselect de asesoras con buscador integrado
+        st.caption("💡 **Tip para enviar a una sola consultora:** Haz clic en **'🧹 Deseleccionar Todas'** y luego búscala por su nombre o código en el cuadro de abajo, o pulsa la **'✖️'** sobre las que desees quitar.")
         sel_titulos_activos = st.multiselect(
-            "👥 Asesoras Seleccionadas para la Campaña:",
+            "👥 Consultoras Seleccionadas para la Campaña (Busca por Nombre, Color o Situación):",
             options=list(mapa_titulos_dict.keys()),
             default=[t for t in st.session_state['titulos_seleccionados_masivo'] if t in mapa_titulos_dict],
             format_func=lambda t: mapa_titulos_dict.get(t, t),
@@ -3830,15 +4682,20 @@ with tab_geral:
         )
         
         st.session_state['titulos_seleccionados_masivo'] = sel_titulos_activos
+        df_campana_out = pd.DataFrame()
         
         if sel_titulos_activos:
             df_target_masivo = df_pendientes[df_pendientes['titulo'].isin(sel_titulos_activos)].copy()
-            st.info(f"🎯 **{len(df_target_masivo)} asesora(s) seleccionada(s)** — Monto total de campaña: **${df_target_masivo['saldo_total'].sum():,.0f} COP**".replace(",", "."))
+            if len(df_target_masivo) == 1:
+                row_u = df_target_masivo.iloc[0]
+                st.success(f"🎯 **Envío Individual Seleccionado:** **{row_u['nombre']}** ({row_u.get('color', '')} · {row_u.get('sit_comercial', '')}) — Saldo pendiente: **${row_u['saldo_total']:,.0f} COP** · Factura #{row_u.get('numero_factura', '')}".replace(",", "."))
+            else:
+                st.info(f"🎯 **{len(df_target_masivo)} consultoras seleccionadas** — Monto total de campaña: **${df_target_masivo['saldo_total'].sum():,.0f} COP**".replace(",", "."))
             
             col_cfg1, col_cfg2 = st.columns([1.2, 1.8])
             with col_cfg1:
                 tipo_camp_sel = st.selectbox(
-                    "Tipo de Plantilla:",
+                    "Tipo de Plantilla de Mensaje:",
                     options=['auto', 'manana', 'hoy', 'mora', 'general'],
                     format_func=lambda x: {
                         'auto': '⚡ Automático (Detecta si vence mañana, hoy o mora)',
@@ -3852,7 +4709,7 @@ with tab_geral:
                 nombre_remit_masivo = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_masivo")
 
             with col_cfg2:
-                st.caption("Variables que se reemplazan en cada mensaje: `{primer_nombre}`, `{nombre}`, `{factura}`, `{saldo_total}`, `{vencimiento}`")
+                st.caption("Variables que se personalizan en cada mensaje: `{primer_nombre}`, `{nombre}`, `{factura}`, `{saldo_total}`, `{vencimiento}`")
                 
             # Generar tabla de mensajes
             filas_campana = []
@@ -3873,23 +4730,28 @@ with tab_geral:
                     'Asesora': r.get('nombre'),
                     'Código CB': r.get('codigo_cb'),
                     'Grupo': r.get('grupo'),
+                    'Sit. Comercial': r.get('sit_comercial', 'Sin Definir'),
+                    'Nivel / Color': r.get('color', 'Sin Nivel'),
                     'Celular': cel if cel else "Sin celular",
-                    'Movil 2': cel2 if cel2 else "",
                     'Factura': r.get('numero_factura'),
                     'Vencimiento': r.get('fecha_vencimiento'),
                     'Días Restantes': r.get('dias_para_vencer'),
                     'Saldo Total': f"${r.get('saldo_total'):,.0f} COP".replace(",", "."),
-                    'Mensaje Personalizado': msg_ind,
-                    'Enlace Directo': link_w1,
                     'Enlace Directo WhatsApp': link_w1,
-                    'Enlace Móvil 2': link_w2
+                    'Mensaje Personalizado': msg_ind
                 })
                 
             df_campana_out = pd.DataFrame(filas_campana)
             
-            # Vista previa del lote
+            # Vista previa del lote con LinkColumn directo para abrir WhatsApp
             st.dataframe(
-                df_campana_out[['Asesora', 'Grupo', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 'Saldo Total', 'Mensaje Personalizado']],
+                df_campana_out[['Asesora', 'Grupo', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 'Saldo Total', 'Enlace Directo WhatsApp', 'Mensaje Personalizado']],
+                column_config={
+                    "Enlace Directo WhatsApp": st.column_config.LinkColumn(
+                        "📲 Enviar WhatsApp",
+                        display_text="Abrir WhatsApp"
+                    )
+                },
                 use_container_width=True,
                 hide_index=True
             )
@@ -3900,7 +4762,7 @@ with tab_geral:
                 st.markdown("###### 📲 Despachar Asesora Individual:")
                 nom_sel_rapido = st.selectbox("Elige la asesora para enviar de inmediato:", options=df_campana_out['Asesora'].tolist(), key="sel_rapido_camp")
                 row_sel_rap = df_campana_out[df_campana_out['Asesora'] == nom_sel_rapido].iloc[0]
-                link_wa_enviar = row_sel_rap.get('Enlace Directo') or row_sel_rap.get('Enlace Directo WhatsApp')
+                link_wa_enviar = row_sel_rap.get('Enlace Directo WhatsApp')
                 if link_wa_enviar:
                     st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rapido).split()[0].title()}", url=link_wa_enviar, use_container_width=True)
                 else:
@@ -3908,18 +4770,23 @@ with tab_geral:
                     
             with col_d2:
                 st.markdown("###### 📥 Descargar Base de Campaña:")
-                csv_camp = df_campana_out.to_csv(index=False).encode('utf-8-sig')
+                towrite_c = io.BytesIO()
+                with pd.ExcelWriter(towrite_c, engine='openpyxl') as writer:
+                    df_campana_out.to_excel(writer, sheet_name="Campana_Cobranza", index=False)
+                towrite_c.seek(0)
                 st.download_button(
-                    label=f"📥 Descargar Campaña CSV ({len(df_campana_out)} Mensajes)",
-                    data=csv_camp,
-                    file_name=f"Campana_Cobranza_WA_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
+                    label=f"📥 Descargar Campaña en Excel ({len(df_campana_out)} Mensajes)",
+                    data=towrite_c,
+                    file_name=f"Campana_Cobranza_WA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                     use_container_width=True,
-                    key="btn_descargar_camp_wa"
+                    key="btn_descargar_camp_wa_excel"
                 )
+        else:
+            st.info("ℹ️ **No hay ninguna consultora seleccionada en este momento.** Haz clic en uno de los botones rápidos de arriba (por ejemplo: **🚨 En Mora**) o escribe el nombre de una consultora en el buscador para prepararle su mensaje de WhatsApp.")
 
-            # 6. INTEGRACIÓN Y PASARELAS PARA ENVÍOS AUTOMÁTICOS
-            with st.expander("🔌 Integración & Conexión con Pasarelas de WhatsApp (Envío Automático)", expanded=False):
+        # 6. INTEGRACIÓN Y PASARELAS PARA ENVÍOS AUTOMÁTICOS
+        with st.expander("🔌 Integración & Conexión con Pasarelas de WhatsApp (Envío Automático)", expanded=False):
                 st.markdown("##### 🚀 Pasarela de Envíos Masivos Automáticos")
                 st.markdown("""
                 Para enviar mensajes masivos a cientos de asesoras sin tocar tu teléfono 1 a 1, te recomendamos conectar una **API de WhatsApp**:
@@ -3948,11 +4815,12 @@ with tab_geral:
                 import time
 
                 if "Evolution API" in prov_opc:
-                    col_evo1, col_evo2, col_evo3 = st.columns([2, 1, 2])
+                    col_evo1, col_evo2, col_evo3 = st.columns([2, 1.2, 1.8])
                     with col_evo1:
                         evo_base_url = st.text_input("URL Base de Evolution API:", value="https://evolution-api-production-7a2f.up.railway.app", placeholder="https://mi-evolution.up.railway.app", key="in_evo_url")
                     with col_evo2:
-                        evo_instance = st.text_input("Nombre de Instancia:", value="instancia_prueba", placeholder="ej. lider_dolly", key="in_evo_instance")
+                        instancia_default = f"lider_{user_grupo}" if user_rol == 'lider' and user_grupo else f"gerente_{str(current_user).lower().split('@')[0].replace('.', '_')}"
+                        evo_instance = st.text_input("Instancia (Única por Usuario):", value=instancia_default, placeholder="ej. lider_177", key="in_evo_instance")
                     with col_evo3:
                         evo_token = st.text_input("API Key (Global Token):", value="6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad", type="password", key="in_evo_token")
 
@@ -4143,42 +5011,43 @@ with tab_geral:
 
                 # --- DESPACHO MASIVO DE CAMPAÑA ---
                 st.markdown("##### 🚀 Envío Masivo a Asesoras Seleccionadas:")
-                delay_anti_ban = st.slider("⏱️ Pausa entre mensajes (Segundos - Protección Anti-Ban):", min_value=1, max_value=10, value=3, help="Meta/WhatsApp recomienda dejar al menos 3 a 5 segundos entre cada mensaje para evitar bloqueos por spam.")
-                
-                btn_disparar_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_out)} Asesoras", type="primary", use_container_width=True, key="btn_disparar_api_geral")
-                
-                if btn_disparar_api:
-                    progress_bar = st.progress(0.0)
-                    status_txt = st.empty()
-                    enviados_ok = 0
-                    errores_cnt = 0
+                if not df_campana_out.empty:
+                    delay_anti_ban = st.slider("⏱️ Pausa entre mensajes (Segundos - Protección Anti-Ban):", min_value=1, max_value=10, value=3, help="Meta/WhatsApp recomienda dejar al menos 3 a 5 segundos entre cada mensaje para evitar bloqueos por spam.")
                     
-                    for i, r_c in enumerate(df_campana_out.iterrows()):
-                        r_c = r_c[1]
-                        cel_num = str(r_c['Celular']).strip()
-                        if cel_num and len(cel_num) >= 10:
-                            try:
-                                d_url, d_payload, d_headers, d_mode = resolver_datos_envio(cel_num, r_c['Mensaje Personalizado'])
-                                if d_mode == "data":
-                                    res = requests.post(d_url, data=d_payload, headers=d_headers, timeout=12)
-                                else:
-                                    res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=12)
-                                    
-                                if res.status_code in [200, 201]:
-                                    enviados_ok += 1
-                                else:
-                                    errores_cnt += 1
-                            except Exception:
-                                errores_cnt += 1
-                                
-                        progress_bar.progress((i + 1) / len(df_campana_out))
-                        status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Asesora']}...")
-                        if i < len(df_campana_out) - 1:
-                            time.sleep(delay_anti_ban)
+                    btn_disparar_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_out)} Asesoras", type="primary", use_container_width=True, key="btn_disparar_api_geral")
+                    
+                    if btn_disparar_api:
+                        progress_bar = st.progress(0.0)
+                        status_txt = st.empty()
+                        enviados_ok = 0
+                        errores_cnt = 0
                         
-                    st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {enviados_ok} | Fallidos: {errores_cnt}")
-        else:
-            st.info("👆 Selecciona al menos una asesora arriba o usa los botones de carga rápida para armar la campaña.")
+                        for i, r_c in enumerate(df_campana_out.iterrows()):
+                            r_c = r_c[1]
+                            cel_num = str(r_c['Celular']).strip()
+                            if cel_num and len(cel_num) >= 10:
+                                try:
+                                    d_url, d_payload, d_headers, d_mode = resolver_datos_envio(cel_num, r_c['Mensaje Personalizado'])
+                                    if d_mode == "data":
+                                        res = requests.post(d_url, data=d_payload, headers=d_headers, timeout=12)
+                                    else:
+                                        res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=12)
+                                        
+                                    if res.status_code in [200, 201]:
+                                        enviados_ok += 1
+                                    else:
+                                        errores_cnt += 1
+                                except Exception:
+                                    errores_cnt += 1
+                                    
+                            progress_bar.progress((i + 1) / len(df_campana_out))
+                            status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Asesora']}...")
+                            if i < len(df_campana_out) - 1:
+                                time.sleep(delay_anti_ban)
+                            
+                        st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {enviados_ok} | Fallidos: {errores_cnt}")
+                else:
+                    st.info("👆 Selecciona al menos una consultora arriba o pulsa un botón de carga rápida (por ejemplo: **🚨 En Mora**) para habilitar el envío masivo automático por API.")
 
         st.markdown("---")
 
@@ -4634,6 +5503,12 @@ with tab_diagnostico:
     st.subheader("👑 Mis Líderes")
     st.markdown("Generación de tablas dinámicas automatizadas para medición y seguimiento comparativo entre todas las Líderes de Negocio.")
     
+    # Tablero Ejecutivo de Conciliación (Objetivos Arte vs Ajustes Desafíos de Zona)
+    if user_rol in ['gerente', 'superadmin']:
+        con_expand = bool(st.session_state.get('ultimo_resumen_ajuste_desafios'))
+        with st.expander("⚖️ Tablero de Conciliación: Objetivos Arte (Papá) vs. Ajustes Desafíos de Zona", expanded=con_expand):
+            renderizar_tablero_conciliacion_desafios(user_rol, user_sector, current_user)
+        st.markdown("---")
     # Utilizar el conjunto de datos completo (df) o filtrado por Líder de Negocio
     df_diag = df.copy()
     if user_rol == 'lider' and user_grupo and not df_diag.empty:
@@ -4919,7 +5794,7 @@ with tab_diagnostico:
             df_disp_prep = df_diag.copy()
             col_grp_diag = next((c for c in df_disp_prep.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'cód. grupo', 'cod grupo', 'grupo'])), None)
             
-            mapa_arte_disp = cargar_objetivos_arte()
+            mapa_arte_disp = obtener_metas_efectivas(sector=user_sector if user_rol == 'gerente' else None)
             mapa_grp_disp = mapa_arte_disp.get('por_grupo', {})
             mapa_nom_disp = mapa_arte_disp.get('por_nombre', {})
 
