@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+pd.set_option("styler.render.max_elements", 3_000_000)
 from datetime import datetime, date, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
@@ -3293,16 +3294,23 @@ with tab_tableau:
             if "Notas / Comentarios Líder" in df_edit_view.columns:
                 col_config["Notas / Comentarios Líder"] = st.column_config.TextColumn("Notas / Comentarios Líder", disabled=False)
 
-            df_edit_styled = df_edit_view.style.map(
-                color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_edit_view.columns else []
-            ).map(
-                color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_edit_view.columns else []
-            ).map(
-                color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_edit_view.columns else []
-            )
+            num_celdas = len(df_edit_view) * len(df_edit_view.columns)
+            if num_celdas <= 250_000:
+                try:
+                    df_data_to_edit = df_edit_view.style.map(
+                        color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_edit_view.columns else []
+                    ).map(
+                        color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_edit_view.columns else []
+                    ).map(
+                        color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_edit_view.columns else []
+                    )
+                except Exception:
+                    df_data_to_edit = df_edit_view
+            else:
+                df_data_to_edit = df_edit_view
 
             edited_df = st.data_editor(
-                df_edit_styled,
+                df_data_to_edit,
                 column_config=col_config,
                 use_container_width=True,
                 hide_index=True,
@@ -4685,20 +4693,24 @@ with tab_geral:
             if 'Saldo Total' in df_disp.columns:
                 format_dict['Saldo Total'] = lambda v: f"${v:,.0f} COP".replace(",", ".")
 
-            styler = df_disp.style.format(format_dict)
-
-            if 'Sit. Comercial' in df_disp.columns:
-                styler = styler.map(color_situacion, subset=['Sit. Comercial'])
-            if 'Nivel / Color' in df_disp.columns:
-                styler = styler.map(color_nivel, subset=['Nivel / Color'])
-            if 'Saldo Total' in df_disp.columns:
-                styler = styler.map(_color_saldo_total_armonico, subset=['Saldo Total'])
-            if 'Nivel Deuda' in df_disp.columns:
-                styler = styler.map(_color_nivel_deuda_badge, subset=['Nivel Deuda'])
-            if 'Estado Vencimiento' in df_disp.columns:
-                styler = styler.map(_color_dias_restantes_badge, subset=['Estado Vencimiento'])
-
-            return styler
+            if len(df_disp) * len(df_disp.columns) <= 250_000:
+                try:
+                    styler = df_disp.style.format(format_dict)
+                    if 'Sit. Comercial' in df_disp.columns:
+                        styler = styler.map(color_situacion, subset=['Sit. Comercial'])
+                    if 'Nivel / Color' in df_disp.columns:
+                        styler = styler.map(color_nivel, subset=['Nivel / Color'])
+                    if 'Saldo Total' in df_disp.columns:
+                        styler = styler.map(_color_saldo_total_armonico, subset=['Saldo Total'])
+                    if 'Nivel Deuda' in df_disp.columns:
+                        styler = styler.map(_color_nivel_deuda_badge, subset=['Nivel Deuda'])
+                    if 'Estado Vencimiento' in df_disp.columns:
+                        styler = styler.map(_color_dias_restantes_badge, subset=['Estado Vencimiento'])
+                    return styler
+                except Exception:
+                    return df_disp
+            else:
+                return df_disp
 
         with tab_v_manana:
             st.markdown("###### 🟡 Facturas que Vencen Mañana (Recordatorio Preventivo)")
