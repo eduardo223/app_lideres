@@ -5922,12 +5922,12 @@ def consultar_tableau_sql(grupo=None, sector=None):
         comentarios = cargar_comentarios_lideres()
         if comentarios:
             df['__cb_clean_sync__'] = df['Código CB'].apply(limpiar_codigo_cb_estandar)
-            for idx, row in df.iterrows():
-                cb_clean_val = row['__cb_clean_sync__']
-                if cb_clean_val in comentarios:
-                    nota_guardada = str(comentarios[cb_clean_val]).strip()
-                    if nota_guardada:
-                        df.at[idx, 'Notas / Comentarios Líder'] = nota_guardada
+            notas_map = df['__cb_clean_sync__'].map(comentarios)
+            if 'Notas / Comentarios Líder' in df.columns:
+                mask_nota = notas_map.notna() & (notas_map.astype(str).str.strip() != "")
+                df.loc[mask_nota, 'Notas / Comentarios Líder'] = notas_map[mask_nota]
+            else:
+                df['Notas / Comentarios Líder'] = notas_map.fillna("")
             df = df.drop(columns=['__cb_clean_sync__'], errors='ignore')
 
     # Añadir alias de columnas para máxima compatibilidad con las pestañas de app.py
@@ -6818,7 +6818,9 @@ def obtener_cumpleanos_equipo(df_tableau, user_nombre="Líder", plantilla_wa=Non
     registros_semana = []
     registros_mes = []
     
-    for _, row in df_tableau.iterrows():
+    cols_exist = [c for c in [col_fecha, col_nombre, col_cel, col_cb, col_grupo, col_nivel, col_sit, col_ped, col_deuda] if c and c in df_tableau.columns]
+    records = df_tableau[cols_exist].to_dict('records')
+    for row in records:
         f_val = row.get(col_fecha, '')
         d, m = parse_dia_mes_fecha(f_val)
         if not d or not m:

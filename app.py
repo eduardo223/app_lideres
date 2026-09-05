@@ -885,8 +885,10 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                 st.info("🌸 No hay cumpleaños en este rango actualmente.")
                 return
                 
-            cols_grid = st.columns(2 if len(items_list) > 1 else 1)
-            for idx, item in enumerate(items_list):
+            total_items = len(items_list)
+            items_mostrar = items_list[:25]
+            cols_grid = st.columns(2 if len(items_mostrar) > 1 else 1)
+            for idx, item in enumerate(items_mostrar):
                 with cols_grid[idx % 2]:
                     nivel_style = color_nivel(item['nivel'])
                     tag_t = item.get('etiqueta_tiempo', f"Día {item['dia']}")
@@ -918,6 +920,9 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                     else:
                         st.caption("📵 *Sin número de celular registrado*")
                     st.write("")
+            
+            if total_items > 25:
+                st.caption(f"ℹ️ *Mostrando las primeras 25 de {total_items} cumpleañeras para máxima velocidad de respuesta. Consulta o descarga el listado completo en la pestaña '🗓️ Todo el Mes'.*")
                     
         with tab_c_hoy:
             if hoy_list:
@@ -2582,10 +2587,18 @@ reinicios_totales = float(df_filtrado['Reinicios'].sum()) if 'Reinicios' in df_f
 
 # 4. TARJETAS DE KPIS SUPERIORES (VISTA COMPLETA)
 # Recordatorio y Banner de Cumpleaños para Líderes y Gerentes
-grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
-sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
-df_tableau_cumple = consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
-renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector, key_suffix="full_top")
+# En vista consolidada de Super Administrador (sin líder específica seleccionada), se omite para asegurar máxima velocidad
+mostrar_banner_top = False
+if user_rol in ['lider', 'gerente']:
+    mostrar_banner_top = True
+elif user_rol == 'superadmin' and ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes"):
+    mostrar_banner_top = True
+
+if mostrar_banner_top:
+    grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
+    sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
+    df_tableau_cumple = consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
+    renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector, key_suffix="full_top")
 
 if user_rol == 'lider':
     # --- CUADRO DE MANDO DE DESAFÍOS OPERATIVOS EXCLUSIVO PARA LÍDERES ---
@@ -4373,7 +4386,10 @@ with tab_tableau:
         with tab_tab_cumple:
             st.subheader("🎂 Calendario & Reconocimiento de Cumpleaños")
             st.markdown("Seguimiento de fechas especiales para fortalecer el vínculo comercial y humano con las asesoras de tu red.")
-            renderizar_banner_cumpleanos(df_tab_filt, user_rol, user_nombre, user_grupo, user_sector, key_suffix="tableau_tab")
+            if user_rol == 'superadmin' and ('lider_sel_t' in locals() and lider_sel_t == "Todas las Líderes (Consolidado Zona)"):
+                st.info("💡 **Vista Corporativa Consolidada**: Para consultar y gestionar los cumpleaños con botones de WhatsApp, selecciona un **Grupo o Líder** en el filtro superior.")
+            else:
+                renderizar_banner_cumpleanos(df_tab_filt, user_rol, user_nombre, user_grupo, user_sector, key_suffix="tableau_tab")
 
 st.markdown("---")
 
