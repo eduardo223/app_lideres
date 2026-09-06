@@ -7,9 +7,7 @@
     "codigo_sector": null,
     "debe_cambiar_password": false,
     "nombre_sector": "Gestión Corporativa Global",
-    "estado_suscripcion": "activo",
-    "telefono": "",
-    "fecha_vencimiento": null
+    "estado_suscripcion": "activo"
   },
   "gerente": {
     "nombre": "Clery Cuellar",
@@ -18,7 +16,7 @@
     "codigo_grupo": null,
     "codigo_sector": "700000459",
     "nombre_sector": "MATICES CLERY",
-    "telefono": "",
+    "telefono": "3057939537",
     "estado_suscripcion": "activo",
     "fecha_vencimiento": null,
     "debe_cambiar_password": false
@@ -30,7 +28,7 @@
     "codigo_grupo": null,
     "codigo_sector": "700000466",
     "nombre_sector": "EMOCIONES DOLLY",
-    "telefono": "",
+    "telefono": "3113201145",
     "estado_suscripcion": "activo",
     "fecha_vencimiento": null,
     "debe_cambiar_password": false

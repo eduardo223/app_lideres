@@ -986,7 +986,25 @@ def limpiar_numero(val, default=0.0):
     if isinstance(val, (int, float)):
         return float(val)
     try:
-        s = str(val).replace('$', '').replace(',', '').replace(' ', '').strip()
+        s = str(val).replace('$', '').replace(' ', '').strip()
+        if not s:
+            return default
+        if '.' in s and ',' in s:
+            s = s.replace('.', '').replace(',', '.')
+        elif '.' in s and ',' not in s:
+            partes = s.split('.')
+            if len(partes) > 2:
+                s = s.replace('.', '')
+            elif len(partes) == 2 and len(partes[1]) == 3 and partes[0].isdigit() and int(partes[0]) > 0:
+                s = s.replace('.', '')
+        elif ',' in s and '.' not in s:
+            partes = s.split(',')
+            if len(partes) > 2:
+                s = s.replace(',', '')
+            elif len(partes) == 2 and len(partes[1]) == 3 and partes[0].isdigit() and int(partes[0]) > 0:
+                s = s.replace(',', '')
+            else:
+                s = s.replace(',', '.')
         return float(s)
     except:
         return default
@@ -5005,20 +5023,28 @@ import sqlite3
 
 RUTA_DB_SQLITE = ruta_persistente('base_matices.db')
 
-def obtener_conexion_db():
-    conn = sqlite3.connect(RUTA_DB_SQLITE, timeout=30.0)
+def obtener_conexion_db(timeout=60.0):
+    conn = sqlite3.connect(RUTA_DB_SQLITE, timeout=timeout)
     conn.row_factory = sqlite3.Row
     try:
         conn.execute("PRAGMA journal_mode=WAL;")
+        conn.execute("PRAGMA busy_timeout=60000;")
+        conn.execute("PRAGMA synchronous=NORMAL;")
     except Exception:
         pass
     return conn
 
-def inicializar_db_sqlite(conn=None):
+_DB_INICIALIZADA = False
+
+def inicializar_db_sqlite(conn=None, forzar=False):
     """
     Inicializa la base de datos relacional SQLite 'base_matices.db' y crea las tablas indexadas.
     Sincroniza automáticamente los datos de Excel y JSON si la base se crea por primera vez.
     """
+    global _DB_INICIALIZADA
+    if _DB_INICIALIZADA and not forzar and conn is None:
+        return
+
     close_at_end = False
     if conn is None:
         conn = obtener_conexion_db()
@@ -5219,13 +5245,25 @@ def inicializar_db_sqlite(conn=None):
 
     conn.commit()
 
-    # Sincronización inicial
-    sincronizar_usuarios_a_sqlite(conn)
-    sincronizar_configuracion_a_sqlite(conn)
-    sincronizar_auditoria_a_sqlite(conn)
+    # Sincronización inicial solo si usuarios está vacío o si se fuerza explícitamente
+    try:
+        cursor.execute("SELECT COUNT(*) FROM usuarios")
+        count_users = cursor.fetchone()[0]
+    except Exception:
+        count_users = 0
 
-    if close_at_end:
-        conn.close()
+    if count_users == 0 or forzar:
+        sincronizar_usuarios_a_sqlite(conn)
+        sincronizar_configuracion_a_sqlite(conn)
+        sincronizar_auditoria_a_sqlite(conn)
+
+    _DB_INICIALIZADA = True
+
+    if close_at_end and conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 def sincronizar_usuarios_a_sqlite(conn=None):
     close_at_end = False
@@ -5648,7 +5686,7 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
     
     close_at_end = False
     if conn is None:
-        conn = obtener_conexion_db()
+        conn = obtener_conexion_db(timeout=90.0)
         close_at_end = True
     
     cursor = conn.cursor()
@@ -5766,8 +5804,11 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         ))
     
     conn.commit()
-    if close_at_end:
-        conn.close()
+    if close_at_end and conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
     return True
 
 def sincronizar_excel_metas_a_sqlite(df_metas, conn=None):
@@ -5779,54 +5820,68 @@ def sincronizar_excel_metas_a_sqlite(df_metas, conn=None):
     
     close_at_end = False
     if conn is None:
-        conn = obtener_conexion_db()
+        conn = obtener_conexion_db(timeout=90.0)
         close_at_end = True
     
-    col_sec = 'Nombre Setor' if 'Nombre Setor' in df_metas.columns else 'Sector'
-    if not df_metas[col_sec].dropna().empty:
-        sec_val = str(df_metas[col_sec].dropna().iloc[0]).strip()
-        cursor.execute("DELETE FROM metas_como_vamos WHERE nombre_sector = ? OR nombre_sector LIKE ?", (sec_val, f"%{sec_val}%"))
-    else:
-        cursor.execute("DELETE FROM metas_como_vamos")
-    
-    col_cb = 'Código de consultora' if 'Código de consultora' in df_metas.columns else 'Cd Consultora'
-    col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else 'Nombre Consultora'
-    col_ger = 'Nombre Gerencia' if 'Nombre Gerencia' in df_metas.columns else 'Gerencia'
-    col_grp = 'Código de grupo' if 'Código de grupo' in df_metas.columns else 'Cód. Grupo'
-    
-    for _, row in df_metas.iterrows():
-        cb = str(row.get(col_cb, '')).strip()
-        cursor.execute("""
-        INSERT INTO metas_como_vamos (
-            codigo_cb, nombre_consultora, nombre_gerencia, nombre_sector, codigo_grupo, color,
-            obj_facturacion, real_facturacion, cump_facturacion, obj_activas, real_activas, cump_activas,
-            saldo, disponibles, inicios, reinicios, recuperos, ganancia_estimada
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            cb,
-            str(row.get(col_nom, '')),
-            str(row.get(col_ger, '')),
-            str(row.get(col_sec, '')),
-            str(int(limpiar_numero(row.get(col_grp, 0)))) if limpiar_numero(row.get(col_grp, 0)) > 0 else str(row.get(col_grp, '')),
-            str(row.get('Color', '')),
-            float(limpiar_numero(row.get('Objetivo Facturación', 0.0))),
-            float(limpiar_numero(row.get('Real Facturación', 0.0))),
-            float(limpiar_numero(row.get('Cumplimiento Facturación', 0.0))),
-            float(limpiar_numero(row.get('Objetivo Activas', 0.0))),
-            float(limpiar_numero(row.get('Real Activas', 0.0))),
-            float(limpiar_numero(row.get('Cumplimiento Activas', 0.0))),
-            float(limpiar_numero(row.get('Saldo', 0.0))),
-            int(limpiar_numero(row.get('Disponibles', 0))),
-            int(limpiar_numero(row.get('Inicios', 0))),
-            int(limpiar_numero(row.get('Reinicios', 0))),
-            int(limpiar_numero(row.get('Recuperos', 0))),
-            float(limpiar_numero(row.get('Ganancia estimada', 0.0)))
-        ))
+    try:
+        cursor = conn.cursor()
+        col_sec = 'Nombre Setor' if 'Nombre Setor' in df_metas.columns else 'Sector'
+        if not df_metas[col_sec].dropna().empty:
+            sec_val = str(df_metas[col_sec].dropna().iloc[0]).strip()
+            cursor.execute("DELETE FROM metas_como_vamos WHERE nombre_sector = ? OR nombre_sector LIKE ?", (sec_val, f"%{sec_val}%"))
+        else:
+            cursor.execute("DELETE FROM metas_como_vamos")
         
-    conn.commit()
-    if close_at_end:
-        conn.close()
-    return True
+        col_cb = 'Código de consultora' if 'Código de consultora' in df_metas.columns else 'Cd Consultora'
+        col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else 'Nombre Consultora'
+        col_ger = 'Nombre Gerencia' if 'Nombre Gerencia' in df_metas.columns else 'Gerencia'
+        col_grp = 'Código de grupo' if 'Código de grupo' in df_metas.columns else 'Cód. Grupo'
+        
+        for _, row in df_metas.iterrows():
+            cb = str(row.get(col_cb, '')).strip()
+            cursor.execute("""
+            INSERT INTO metas_como_vamos (
+                codigo_cb, nombre_consultora, nombre_gerencia, nombre_sector, codigo_grupo, color,
+                obj_facturacion, real_facturacion, cump_facturacion, obj_activas, real_activas, cump_activas,
+                saldo, disponibles, inicios, reinicios, recuperos, ganancia_estimada
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                cb,
+                str(row.get(col_nom, '')),
+                str(row.get(col_ger, '')),
+                str(row.get(col_sec, '')),
+                str(int(limpiar_numero(row.get(col_grp, 0)))) if limpiar_numero(row.get(col_grp, 0)) > 0 else str(row.get(col_grp, '')),
+                str(row.get('Color', '')),
+                float(limpiar_numero(row.get('Objetivo Facturación', 0.0))),
+                float(limpiar_numero(row.get('Real Facturación', 0.0))),
+                float(limpiar_numero(row.get('Cumplimiento Facturación', 0.0))),
+                float(limpiar_numero(row.get('Objetivo Activas', 0.0))),
+                float(limpiar_numero(row.get('Real Activas', 0.0))),
+                float(limpiar_numero(row.get('Cumplimiento Activas', 0.0))),
+                float(limpiar_numero(row.get('Saldo', 0.0))),
+                int(limpiar_numero(row.get('Disponibles', 0))),
+                int(limpiar_numero(row.get('Inicios', 0))),
+                int(limpiar_numero(row.get('Reinicios', 0))),
+                int(limpiar_numero(row.get('Recuperos', 0))),
+                float(limpiar_numero(row.get('Ganancia estimada', 0.0)))
+            ))
+            
+        conn.commit()
+        return True
+    except Exception as e_metas:
+        if conn is not None:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        safe_print(f"Error al sincronizar Metas en SQLite: {e_metas}")
+        return False
+    finally:
+        if close_at_end and conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def consultar_tableau_sql(grupo=None, sector=None):
     """
@@ -5910,8 +5965,17 @@ def consultar_tableau_sql(grupo=None, sector=None):
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
     
-    df = pd.read_sql_query(query, conn, params=params)
-    conn.close()
+    df = pd.DataFrame()
+    try:
+        df = pd.read_sql_query(query, conn, params=params)
+    except Exception as e_sql:
+        safe_print(f"Error al consultar Tableau en SQLite: {e_sql}")
+        df = pd.DataFrame()
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
     # Sincronizar dinámicamente con comentarios_lideres.json para asegurar consistencia total
     if not df.empty and 'Código CB' in df.columns:
@@ -6156,7 +6220,7 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
 
     close_at_end = False
     if conn is None:
-        conn = obtener_conexion_db()
+        conn = obtener_conexion_db(timeout=90.0)
         close_at_end = True
         
     cursor = conn.cursor()
@@ -6287,21 +6351,52 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
     """, registros_insertar)
     
     conn.commit()
-    if close_at_end:
-        conn.close()
-        
+    if close_at_end and conn is not None:
+        try:
+            conn.close()
+        except Exception:
+            pass
     return True, len(registros_insertar), f"¡Se sincronizaron exitosamente {len(registros_insertar)} títulos comerciales en la base de Crédito & Cobranza con cruce de grupo de líder!"
+
+_GERAL_SEEDING_INTENTADO = False
+
+def verificar_seeding_inicial_geral():
+    """
+    Si la base de datos está completamente vacía (0 registros en toda la tabla cartera_geral)
+    y existe Geral.xlsx en disco, realiza una carga inicial segura una única vez por proceso.
+    """
+    global _GERAL_SEEDING_INTENTADO
+    if _GERAL_SEEDING_INTENTADO:
+        return
+    _GERAL_SEEDING_INTENTADO = True
+    
+    if not os.path.exists("Geral.xlsx"):
+        return
+
+    conn = None
+    try:
+        conn = obtener_conexion_db(timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM cartera_geral")
+        count = cursor.fetchone()[0]
+        if count == 0:
+            conn.close()
+            conn = None
+            sincronizar_excel_geral_a_sqlite("Geral.xlsx")
+    except Exception as e:
+        safe_print(f"Nota en verificación inicial Geral: {e}")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def consultar_geral_sql(grupo=None, sector=None, situacion=None):
     """
     Consulta la base relacional de cartera_geral en SQLite con cruce dinámico hacia consultoras_tableau
     para garantizar que cada consultora refleje su verdadero grupo de líder (y no el código de sector 5515/5522).
     """
-    try:
-        inicializar_db_sqlite()
-    except Exception:
-        pass
-
     conn = obtener_conexion_db()
     
     # Asegurar que la tabla exista
@@ -6309,7 +6404,7 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
         cursor = conn.cursor()
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cartera_geral'")
         if not cursor.fetchone():
-            inicializar_db_sqlite()
+            inicializar_db_sqlite(forzar=True)
     except Exception:
         pass
 
@@ -6361,21 +6456,14 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
     try:
         df = pd.read_sql_query(query, conn, params=params)
     except Exception as e:
-        inicializar_db_sqlite()
+        safe_print(f"Nota al consultar cartera_geral: {e}")
         try:
             df = pd.read_sql_query(query, conn, params=params)
         except Exception:
             df = pd.DataFrame()
     finally:
-        conn.close()
-        
-    # Si la consulta viene vacía y existe Geral.xlsx en disco, auto-sincronizar
-    if (df is None or df.empty) and os.path.exists("Geral.xlsx"):
         try:
-            sincronizar_excel_geral_a_sqlite("Geral.xlsx")
-            conn2 = obtener_conexion_db()
-            df = pd.read_sql_query(query, conn2, params=params)
-            conn2.close()
+            conn.close()
         except Exception:
             pass
 
@@ -6420,26 +6508,14 @@ def consultar_facturas_consultora_geral(codigo_cb, sector=None):
        OR CAST(codigo_cb AS TEXT) LIKE ?
     ORDER BY fecha_vencimiento ASC, dias_retraso DESC
     """
+    df_fact = pd.DataFrame()
     try:
         df_fact = pd.read_sql_query(query, conn, params=[cb_clean, cb_int, f"%{cb_int}%"])
     except Exception:
         df_fact = pd.DataFrame()
     finally:
-        conn.close()
-
-    # Si no se encontró en SQLite pero existe Geral.xlsx en disco, intentar sincronizar
-    if df_fact.empty and os.path.exists("Geral.xlsx"):
         try:
-            df_g_raw = pd.read_excel("Geral.xlsx")
-            col_cb_g = next((c for c in df_g_raw.columns if any(k in str(c).lower() for k in ['codigopersona', 'codigo_cb', 'codigo cb'])), None)
-            if col_cb_g:
-                mask = df_g_raw[col_cb_g].astype(str).str.strip().str.replace('.0', '') == cb_int
-                df_match = df_g_raw[mask].copy()
-                if not df_match.empty:
-                    sincronizar_excel_geral_a_sqlite("Geral.xlsx")
-                    conn2 = obtener_conexion_db()
-                    df_fact = pd.read_sql_query(query, conn2, params=[cb_clean, cb_int, f"%{cb_int}%"])
-                    conn2.close()
+            conn.close()
         except Exception:
             pass
 

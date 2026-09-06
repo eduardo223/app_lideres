@@ -42,6 +42,7 @@ from procesador import (
     guardar_configuracion,
     DEFAULT_PERMISOS_PESTANAS,
     inicializar_db_sqlite,
+    verificar_seeding_inicial_geral,
     consultar_tableau_sql,
     sincronizar_excel_tableau_a_sqlite,
     sincronizar_excel_metas_a_sqlite,
@@ -112,6 +113,7 @@ st.set_page_config(
 # Inicializar y verificar tablas relacionales de SQLite
 try:
     inicializar_db_sqlite()
+    verificar_seeding_inicial_geral()
 except Exception as _e_init:
     print(f"Nota de inicialización SQLite: {_e_init}")
 
@@ -1964,7 +1966,15 @@ if modo_vista == "📱 Móvil (App Matices)":
     import app_matices
     app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
     st.markdown("---")
-    st.caption(f"📈 Panel Móvil {user_sector_nombre} | Desarrollado por: Tao-System by xyz")
+    st.markdown(f"""
+    <div style="text-align: center; padding: 10px 0 15px 0; color: #94A3B8; font-size: 0.84rem; letter-spacing: 0.3px;">
+        <span>📈 <b>Panel Móvil {user_sector_nombre}</b></span>
+        <span style="margin: 0 8px; opacity: 0.4;">•</span>
+        <span>Desarrollado por <b>Tao-System</b></span>
+        <span style="margin: 0 6px; opacity: 0.4;">|</span>
+        <span style="color: #64748B; font-weight: 500;">Powered by <b>XYZ</b></span>
+    </div>
+    """, unsafe_allow_html=True)
     st.stop()
 
 # Activador de corrector ortográfico nativo del explorador en celdas y campos editables
@@ -3905,33 +3915,215 @@ with tab_tableau:
         # --- SUBPESTAÑA 3: ANÁLISIS POR NIVEL Y ESTADO COMERCIAL ---
         with tab_tab_niveles:
             st.markdown("##### 🎨 Clasificación por Niveles y Estado Comercial")
+            
+            # Preparación de datos de cálculo común para las tablas y la matriz
+            orden_niveles = ['Bronce', 'Plata', 'Oro', 'Zafiro', 'Diamante']
+            orden_sit = ['Activa', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3', 'Inactiva 4', 'Inactiva 5', 'Inactiva 6', 'Cesada', 'Posible Baja', 'Registrada']
+
+            df_calc_tab = df_tab_filt.copy() if not df_tab_filt.empty else pd.DataFrame()
+            
+            if not df_calc_tab.empty:
+                # Asegurar cálculo preciso de Facturación en pesos colombianos ($ COP)
+                if 'Fact. Total' in df_calc_tab.columns:
+                    df_calc_tab['__fact_val__'] = pd.to_numeric(df_calc_tab['Fact. Total'], errors='coerce').fillna(0.0)
+                    if df_calc_tab['__fact_val__'].sum() == 0 and 'Fact. Natura' in df_calc_tab.columns:
+                        df_calc_tab['__fact_val__'] = (
+                            pd.to_numeric(df_calc_tab['Fact. Natura'], errors='coerce').fillna(0.0) +
+                            pd.to_numeric(df_calc_tab.get('Fact. AVON', 0), errors='coerce').fillna(0.0) +
+                            pd.to_numeric(df_calc_tab.get('Fact. C&E', 0), errors='coerce').fillna(0.0) +
+                            pd.to_numeric(df_calc_tab.get('Fact. VOL', 0), errors='coerce').fillna(0.0)
+                        )
+                elif 'Fact. Natura' in df_calc_tab.columns:
+                    df_calc_tab['__fact_val__'] = (
+                        pd.to_numeric(df_calc_tab['Fact. Natura'], errors='coerce').fillna(0.0) +
+                        pd.to_numeric(df_calc_tab.get('Fact. AVON', 0), errors='coerce').fillna(0.0) +
+                        pd.to_numeric(df_calc_tab.get('Fact. C&E', 0), errors='coerce').fillna(0.0) +
+                        pd.to_numeric(df_calc_tab.get('Fact. VOL', 0), errors='coerce').fillna(0.0)
+                    )
+                else:
+                    df_calc_tab['__fact_val__'] = 0.0
+
+                # Si los valores de facturación vienen expresados en miles (ej. 348.0 en lugar de 348.000 COP), normalizar a pesos completos
+                mask_fact_pos = df_calc_tab['__fact_val__'] > 0
+                if mask_fact_pos.any():
+                    if df_calc_tab.loc[mask_fact_pos, '__fact_val__'].quantile(0.9) < 10000:
+                        df_calc_tab['__fact_val__'] = df_calc_tab['__fact_val__'] * 1000.0
+
+                df_calc_tab['__es_activa__'] = df_calc_tab['Sit. Comercial'].astype(str).str.strip().str.lower() == 'activa' if 'Sit. Comercial' in df_calc_tab.columns else False
+                
+                # Normalizar columnas de texto para agrupaciones limpias
+                if 'Color' in df_calc_tab.columns:
+                    df_calc_tab['Color'] = df_calc_tab['Color'].astype(str).str.strip()
+                if 'Sit. Comercial' in df_calc_tab.columns:
+                    df_calc_tab['Sit. Comercial'] = df_calc_tab['Sit. Comercial'].astype(str).str.strip()
+
             col_n1, col_n2 = st.columns(2)
 
             with col_n1:
                 st.markdown("###### 🏆 Distribución por Nivel (`Color`)")
-                if 'Color' in df_tab_filt.columns:
-                    df_color_group = df_tab_filt.groupby('Color').agg(
+                if not df_calc_tab.empty and 'Color' in df_calc_tab.columns:
+                    df_calc_valid_c = df_calc_tab[~df_calc_tab['Color'].str.lower().isin(['nan', 'none', ''])]
+                    df_color_group = df_calc_valid_c.groupby('Color').agg(
                         Cantidad=('Color', 'count'),
-                        Total_Pts_Acum=('Pts Acum', 'sum'),
-                        Total_Deuda=('Deuda Total', 'sum')
+                        Activas=('__es_activa__', 'sum'),
+                        Facturacion_Total=('__fact_val__', 'sum')
                     ).reset_index()
-                    df_color_group['Total_Deuda'] = df_color_group['Total_Deuda'].apply(formato_cop)
-                    st.dataframe(df_color_group, use_container_width=True)
+
+                    # Orden lógico según jerarquía oficial (1: Bronce, 2: Plata, 3: Oro, 4: Zafiro, 5: Diamante)
+                    df_color_group['__orden__'] = df_color_group['Color'].apply(
+                        lambda c: orden_niveles.index(c) if c in orden_niveles else 99
+                    )
+                    df_color_group = df_color_group.sort_values(by='__orden__').drop(columns=['__orden__'])
+
+                    df_color_group['% Actividad'] = (df_color_group['Activas'] / df_color_group['Cantidad'] * 100).round(1)
+                    df_color_group['Ticket Promedio'] = df_color_group.apply(
+                        lambda r: r['Facturacion_Total'] / r['Activas'] if r['Activas'] > 0 else 0.0, axis=1
+                    )
+
+                    df_color_render = df_color_group.copy()
+                    df_color_render['% Actividad'] = df_color_render['% Actividad'].apply(lambda x: f"{x:.1f}%")
+                    df_color_render['Facturación Total'] = df_color_render['Facturacion_Total'].apply(formato_cop)
+                    df_color_render['Ticket Promedio'] = df_color_render['Ticket Promedio'].apply(formato_cop)
+                    df_color_render = df_color_render.rename(columns={
+                        'Color': 'Nivel / Color',
+                        'Cantidad': 'Total Consultoras',
+                        'Activas': 'N° Activas'
+                    })
+                    cols_c_render = ['Nivel / Color', 'Total Consultoras', 'N° Activas', '% Actividad', 'Facturación Total', 'Ticket Promedio']
+                    df_color_render = df_color_render[[c for c in cols_c_render if c in df_color_render.columns]]
+
+                    st.dataframe(
+                        df_color_render.style.map(color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_color_render.columns else []),
+                        use_container_width=True,
+                        hide_index=True
+                    )
 
             with col_n2:
                 st.markdown("###### 📊 Distribución por Situación Comercial")
-                if 'Sit. Comercial' in df_tab_filt.columns:
-                    df_sit_group = df_tab_filt.groupby('Sit. Comercial').agg(
+                if not df_calc_tab.empty and 'Sit. Comercial' in df_calc_tab.columns:
+                    df_calc_valid_s = df_calc_tab[~df_calc_tab['Sit. Comercial'].str.lower().isin(['nan', 'none', ''])]
+                    
+                    df_sit_group = df_calc_valid_s.groupby('Sit. Comercial').agg(
                         Cantidad=('Sit. Comercial', 'count'),
-                        Total_Deuda_Mora=('Deuda Mora', 'sum')
+                        Facturacion_Total=('__fact_val__', 'sum'),
+                        Total_Deuda_Mora=('Deuda Mora', 'sum') if 'Deuda Mora' in df_calc_valid_s.columns else ('Cantidad', lambda x: 0.0)
                     ).reset_index()
-                    df_sit_group['Total_Deuda_Mora'] = df_sit_group['Total_Deuda_Mora'].apply(formato_cop)
-                    st.dataframe(
-                        df_sit_group.style
-                        .map(color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_sit_group.columns else [])
-                        .map(color_deuda_mora, subset=['Total_Deuda_Mora'] if 'Total_Deuda_Mora' in df_sit_group.columns else []),
-                        use_container_width=True
+
+                    tot_asesoras_s = len(df_calc_valid_s)
+                    df_sit_group['% Red'] = (df_sit_group['Cantidad'] / tot_asesoras_s * 100).round(1) if tot_asesoras_s > 0 else 0.0
+
+                    df_sit_group['__orden__'] = df_sit_group['Sit. Comercial'].apply(
+                        lambda s: orden_sit.index(s) if s in orden_sit else 99
                     )
+                    df_sit_group = df_sit_group.sort_values(by='__orden__').drop(columns=['__orden__'])
+
+                    df_sit_render = df_sit_group.copy()
+                    df_sit_render['% Red'] = df_sit_render['% Red'].apply(lambda x: f"{x:.1f}%")
+                    df_sit_render['Facturación Total'] = df_sit_render['Facturacion_Total'].apply(formato_cop)
+                    df_sit_render['Total Deuda Mora'] = df_sit_render['Total_Deuda_Mora'].apply(formato_cop)
+                    df_sit_render = df_sit_render.rename(columns={
+                        'Cantidad': 'N° Consultoras'
+                    })
+                    cols_s_render = ['Sit. Comercial', 'N° Consultoras', '% Red', 'Facturación Total', 'Total Deuda Mora']
+                    df_sit_render = df_sit_render[[c for c in cols_s_render if c in df_sit_render.columns]]
+
+                    st.dataframe(
+                        df_sit_render.style
+                        .map(color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_sit_render.columns else [])
+                        .map(color_deuda_mora, subset=['Total Deuda Mora'] if 'Total Deuda Mora' in df_sit_render.columns else []),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+            # --- MATRIZ DETALLADA CRUZADA: NIVEL VS SITUACIÓN COMERCIAL ---
+            if not df_calc_tab.empty and 'Color' in df_calc_tab.columns and 'Sit. Comercial' in df_calc_tab.columns:
+                st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
+                st.markdown("###### 🔍 Detalle Cruzado por Clasificación: Niveles vs. Situación Comercial")
+                st.caption("Desglose exacto del número de consultoras Activas, Inactivas 1 a 6 y Cesadas dentro de cada Nivel, con su respectiva facturación de pedido.")
+
+                df_calc_mat = df_calc_tab[
+                    (~df_calc_tab['Color'].str.lower().isin(['nan', 'none', ''])) &
+                    (~df_calc_tab['Sit. Comercial'].str.lower().isin(['nan', 'none', '']))
+                ]
+
+                if not df_calc_mat.empty:
+                    df_pivot = pd.crosstab(df_calc_mat['Color'], df_calc_mat['Sit. Comercial'])
+                    df_pivot.columns.name = None
+                    cols_sit_en_mat = [s for s in orden_sit if s in df_pivot.columns] + [c for c in df_pivot.columns if c not in orden_sit]
+                    df_pivot = df_pivot[cols_sit_en_mat].reset_index()
+
+                    df_pivot['Total'] = df_pivot[cols_sit_en_mat].sum(axis=1)
+
+                    if 'Activa' in df_pivot.columns:
+                        df_pivot['% Actividad'] = (df_pivot['Activa'] / df_pivot['Total'] * 100).round(1).apply(lambda x: f"{x:.1f}%")
+                    else:
+                        df_pivot['% Actividad'] = "0.0%"
+
+                    fact_x_color = df_calc_mat.groupby('Color')['__fact_val__'].sum().to_dict()
+                    df_pivot['Facturación Activas'] = df_pivot['Color'].map(fact_x_color).fillna(0.0).apply(formato_cop)
+
+                    df_pivot['__orden__'] = df_pivot['Color'].apply(
+                        lambda c: orden_niveles.index(c) if c in orden_niveles else 99
+                    )
+                    df_pivot = df_pivot.sort_values(by='__orden__').drop(columns=['__orden__'])
+
+                    cols_mat_final = ['Color', 'Total']
+                    if 'Activa' in df_pivot.columns:
+                        cols_mat_final.append('Activa')
+                    for s_col in cols_sit_en_mat:
+                        if s_col != 'Activa' and s_col in df_pivot.columns:
+                            cols_mat_final.append(s_col)
+                    cols_mat_final.extend(['Facturación Activas', '% Actividad'])
+
+                    df_mat_render = df_pivot[[c for c in cols_mat_final if c in df_pivot.columns]].copy()
+                    df_mat_render = df_mat_render.rename(columns={'Color': 'Nivel / Color', 'Total': 'Total Red'})
+
+                    def _style_celda_activa(val):
+                        try:
+                            if int(val) > 0:
+                                return 'background-color: #DCFCE7; color: #166534; font-weight: bold;'
+                        except Exception:
+                            pass
+                        return ''
+
+                    def _style_celda_inactiva_1(val):
+                        try:
+                            if int(val) > 0:
+                                return 'background-color: #FEF9C3; color: #854D0E; font-weight: 500;'
+                        except Exception:
+                            pass
+                        return ''
+
+                    def _style_celda_inactiva_2(val):
+                        try:
+                            if int(val) > 0:
+                                return 'background-color: #FFEDD5; color: #C2410C; font-weight: 500;'
+                        except Exception:
+                            pass
+                        return ''
+
+                    def _style_celda_inactiva_riesgo(val):
+                        try:
+                            if int(val) > 0:
+                                return 'background-color: #FEE2E2; color: #991B1B; font-weight: 500;'
+                        except Exception:
+                            pass
+                        return ''
+
+                    mat_styler = df_mat_render.style.map(
+                        color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_mat_render.columns else []
+                    )
+                    if 'Activa' in df_mat_render.columns:
+                        mat_styler = mat_styler.map(_style_celda_activa, subset=['Activa'])
+                    if 'Inactiva 1' in df_mat_render.columns:
+                        mat_styler = mat_styler.map(_style_celda_inactiva_1, subset=['Inactiva 1'])
+                    if 'Inactiva 2' in df_mat_render.columns:
+                        mat_styler = mat_styler.map(_style_celda_inactiva_2, subset=['Inactiva 2'])
+                    for inact_crit in ['Inactiva 3', 'Inactiva 4', 'Inactiva 5', 'Inactiva 6', 'Cesada']:
+                        if inact_crit in df_mat_render.columns:
+                            mat_styler = mat_styler.map(_style_celda_inactiva_riesgo, subset=[inact_crit])
+
+                    st.dataframe(mat_styler, use_container_width=True, hide_index=True)
 
             st.markdown("---")
             st.markdown("##### 🚀 Monitoreo de Activaciones: Progreso de Consultoras Activas")
@@ -4089,7 +4281,20 @@ with tab_tableau:
                         "¡Quedo atenta para apoyarte en lo que necesites! ✨"
                     )
                 elif "1. Cobro" in tipo_camp:
-                    df_wa_target = df_tab_filt[(df_tab_filt['Deuda Mora'] > 0) | (df_tab_filt['Deuda Total'] > 0)].copy()
+                    opt_filtro_mora = st.radio(
+                        "🔍 Filtro de Cartera:",
+                        options=["🚨 Solo Consultoras con Saldo en Mora (> $0) [Recomendado]", "📋 Todas con Deuda Total (> $0)"],
+                        index=0,
+                        horizontal=True,
+                        key="radio_filtro_cobro_wa"
+                    )
+                    if "Solo Consultoras con Saldo en Mora" in opt_filtro_mora:
+                        df_wa_target = df_tab_filt[pd.to_numeric(df_tab_filt['Deuda Mora'], errors='coerce').fillna(0) > 0].copy()
+                        df_wa_target = df_wa_target.sort_values(by='Deuda Mora', ascending=False)
+                    else:
+                        df_wa_target = df_tab_filt[pd.to_numeric(df_tab_filt['Deuda Total'], errors='coerce').fillna(0) > 0].copy()
+                        df_wa_target = df_wa_target.sort_values(by=['Deuda Total', 'Deuda Mora'], ascending=[False, False])
+
                     plantilla_def = (
                         "Hola *{primer_nombre}* 🌸, te saluda tu Líder de *Natura & Avon*.\n\n"
                         "Queremos recordarte que tienes un saldo pendiente de *{deuda_mora}* (Total: {deuda_total}).\n\n"
@@ -4346,6 +4551,7 @@ with tab_tableau:
                         'Sit. Comercial': str(r.get('Sit. Comercial', '')),
                         'Nota Líder': nota_val if nota_val else "-",
                         'Deuda Mora': deuda_m,
+                        'Deuda Total': deuda_t,
                         'Ped. Pendientes': ped_val,
                         'Adjunto': '🖼️ Flyer Listo' if uploaded_flyer else 'Solo Texto',
                         'Flyer Archivo': uploaded_flyer.name if uploaded_flyer else '',
@@ -4356,7 +4562,10 @@ with tab_tableau:
                 df_wa_table = pd.DataFrame(filas_wa)
 
                 # Columnas a mostrar según si hay imagen
-                cols_mostrar_wa = ['Código CB', 'Asesora', 'Grupo', 'Celular', 'Sit. Comercial', 'Nota Líder', 'Deuda Mora', 'Ped. Pendientes']
+                cols_mostrar_wa = ['Código CB', 'Asesora', 'Grupo', 'Celular', 'Sit. Comercial', 'Nota Líder', 'Deuda Mora']
+                if "1. Cobro" in tipo_camp:
+                    cols_mostrar_wa.append('Deuda Total')
+                cols_mostrar_wa.append('Ped. Pendientes')
                 if uploaded_flyer is not None:
                     cols_mostrar_wa.append('Adjunto')
                 cols_mostrar_wa.append('Enlace WhatsApp')
@@ -4417,20 +4626,17 @@ with tab_geral:
     st.subheader("💳 Geral: Crédito & Cobranza Inteligente")
     st.markdown("Control dinámico de cartera Natura & Avon, alertas de vencimiento preventivo (*Mañana*, *Pasado Mañana*), semáforo de mora y despachador de WhatsApp con 1 clic.")
 
-    # 1. CONSULTA DE DATOS DESDE SQLITE CON AUTO-RECUPERACIÓN
+    # 1. CONSULTA DE DATOS DESDE SQLITE
     sec_filtro_g = user_sector if user_rol == 'gerente' else None
     grp_filtro_g = user_grupo if user_rol == 'lider' else None
     
     df_geral_raw = cached_consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
-    
-    # Si SQLite está vacío pero existe Geral.xlsx local en disco, sincronizar automáticamente
-    if (df_geral_raw is None or df_geral_raw.empty) and os.path.exists("Geral.xlsx"):
-        sincronizar_excel_geral_a_sqlite("Geral.xlsx")
-        cached_consultar_geral_sql.clear()
-        df_geral_raw = cached_consultar_geral_sql(grupo=grp_filtro_g, sector=sec_filtro_g)
         
     if df_geral_raw is None or df_geral_raw.empty:
-        st.info("ℹ️ No hay registros de crédito y cobranza en el sistema. Por favor sube el archivo **Geral.xlsx** desde **💳 3. Gera** en la barra lateral izquierda.")
+        if user_rol == 'lider':
+            st.info("🎉 ¡Excelente! No tienes consultoras con saldo pendiente ni mora registradas en Crédito & Cobranza para tu Grupo.")
+        else:
+            st.info("ℹ️ No hay registros de crédito y cobranza registrados para este sector. Puedes cargar el archivo **Geral.xlsx** desde **💳 3. Gera** en la barra lateral izquierda.")
     else:
         # --- 2. BARRA DE FILTROS INTELIGENTES (GRUPO, SIT. COMERCIAL, COLOR Y BÚSQUEDA) ---
         df_geral_filt = df_geral_raw.copy()
@@ -7245,4 +7451,12 @@ with tab_lideres_gerente:
 
 # Footer
 st.markdown("---")
-st.caption(f"📈 Panel de Control {user_sector_nombre} | Desarrollado por: Tao-System by xyz")
+st.markdown(f"""
+<div style="text-align: center; padding: 15px 0 25px 0; color: #94A3B8; font-size: 0.85rem; letter-spacing: 0.3px;">
+    <span>📈 <b>Panel de Control {user_sector_nombre}</b></span>
+    <span style="margin: 0 10px; opacity: 0.4;">•</span>
+    <span>Desarrollado por <b>Tao-System</b></span>
+    <span style="margin: 0 8px; opacity: 0.4;">|</span>
+    <span style="color: #64748B; font-weight: 500;">Powered by <b>XYZ</b></span>
+</div>
+""", unsafe_allow_html=True)
