@@ -699,6 +699,130 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         </div>
         """, unsafe_allow_html=True)
 
+        # --- DESGLOSE ANALÍTICO POR NIVEL Y ESTADO COMERCIAL (MÓVIL) ---
+        with st.expander("🎨 Ver Análisis de Niveles, Estados y Facturación", expanded=False):
+            st.markdown("##### 🎨 Clasificación por Niveles y Estado Comercial")
+            orden_niveles = ['Bronce', 'Plata', 'Oro', 'Zafiro', 'Diamante']
+            orden_sit = ['Activa', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3', 'Inactiva 4', 'Inactiva 5', 'Inactiva 6', 'Cesada', 'Posible Baja', 'Registrada']
+
+            df_calc_tab_m = df_tab_filtrado.copy() if not df_tab_filtrado.empty else pd.DataFrame()
+            if not df_calc_tab_m.empty:
+                if 'Fact. Total' in df_calc_tab_m.columns:
+                    df_calc_tab_m['__fact_val__'] = pd.to_numeric(df_calc_tab_m['Fact. Total'], errors='coerce').fillna(0.0)
+                    if df_calc_tab_m['__fact_val__'].sum() == 0 and 'Fact. Natura' in df_calc_tab_m.columns:
+                        df_calc_tab_m['__fact_val__'] = (
+                            pd.to_numeric(df_calc_tab_m['Fact. Natura'], errors='coerce').fillna(0.0) +
+                            pd.to_numeric(df_calc_tab_m.get('Fact. AVON', 0), errors='coerce').fillna(0.0) +
+                            pd.to_numeric(df_calc_tab_m.get('Fact. C&E', 0), errors='coerce').fillna(0.0) +
+                            pd.to_numeric(df_calc_tab_m.get('Fact. VOL', 0), errors='coerce').fillna(0.0)
+                        )
+                elif 'Fact. Natura' in df_calc_tab_m.columns:
+                    df_calc_tab_m['__fact_val__'] = (
+                        pd.to_numeric(df_calc_tab_m['Fact. Natura'], errors='coerce').fillna(0.0) +
+                        pd.to_numeric(df_calc_tab_m.get('Fact. AVON', 0), errors='coerce').fillna(0.0) +
+                        pd.to_numeric(df_calc_tab_m.get('Fact. C&E', 0), errors='coerce').fillna(0.0) +
+                        pd.to_numeric(df_calc_tab_m.get('Fact. VOL', 0), errors='coerce').fillna(0.0)
+                    )
+                else:
+                    df_calc_tab_m['__fact_val__'] = 0.0
+
+                mask_fact_pos_m = df_calc_tab_m['__fact_val__'] > 0
+                if mask_fact_pos_m.any():
+                    if df_calc_tab_m.loc[mask_fact_pos_m, '__fact_val__'].quantile(0.9) < 10000:
+                        df_calc_tab_m['__fact_val__'] = df_calc_tab_m['__fact_val__'] * 1000.0
+
+                col_sit_m = 'Sit. Comercial' if 'Sit. Comercial' in df_calc_tab_m.columns else ('Situación' if 'Situación' in df_calc_tab_m.columns else None)
+                df_calc_tab_m['__es_activa__'] = df_calc_tab_m[col_sit_m].astype(str).str.strip().str.lower() == 'activa' if col_sit_m else False
+
+                col_color_m = 'Color' if 'Color' in df_calc_tab_m.columns else ('Nivel / Color' if 'Nivel / Color' in df_calc_tab_m.columns else None)
+                if col_color_m:
+                    df_calc_tab_m[col_color_m] = df_calc_tab_m[col_color_m].astype(str).str.strip()
+                if col_sit_m:
+                    df_calc_tab_m[col_sit_m] = df_calc_tab_m[col_sit_m].astype(str).str.strip()
+
+                # Tabla 1: Niveles
+                st.markdown("###### 🏆 Distribución por Nivel")
+                if col_color_m:
+                    df_calc_valid_c_m = df_calc_tab_m[~df_calc_tab_m[col_color_m].str.lower().isin(['nan', 'none', ''])]
+                    df_color_group_m = df_calc_valid_c_m.groupby(col_color_m).agg(
+                        Cantidad=(col_color_m, 'count'),
+                        Activas=('__es_activa__', 'sum'),
+                        Facturacion_Total=('__fact_val__', 'sum')
+                    ).reset_index()
+
+                    df_color_group_m['__orden__'] = df_color_group_m[col_color_m].apply(
+                        lambda c: orden_niveles.index(c) if c in orden_niveles else 99
+                    )
+                    df_color_group_m = df_color_group_m.sort_values(by='__orden__').drop(columns=['__orden__'])
+
+                    df_color_group_m['% Actividad'] = (df_color_group_m['Activas'] / df_color_group_m['Cantidad'] * 100).round(1)
+                    df_color_group_m['Ticket Promedio'] = df_color_group_m.apply(
+                        lambda r: r['Facturacion_Total'] / r['Activas'] if r['Activas'] > 0 else 0.0, axis=1
+                    )
+
+                    df_color_render_m = df_color_group_m.copy()
+                    df_color_render_m['% Actividad'] = df_color_render_m['% Actividad'].apply(lambda x: f"{x:.1f}%")
+                    df_color_render_m['Facturación Total'] = df_color_render_m['Facturacion_Total'].apply(formato_cop)
+                    df_color_render_m['Ticket Promedio'] = df_color_render_m['Ticket Promedio'].apply(formato_cop)
+                    df_color_render_m = df_color_render_m.rename(columns={
+                        col_color_m: 'Nivel / Color',
+                        'Cantidad': 'Total Red',
+                        'Activas': 'Activas'
+                    })
+
+                    cols_c_render_m = ['Nivel / Color', 'Total Red', 'Activas', '% Actividad', 'Facturación Total', 'Ticket Promedio']
+                    df_color_render_m = df_color_render_m[[c for c in cols_c_render_m if c in df_color_render_m.columns]]
+
+                    st.dataframe(
+                        df_color_render_m.style.map(color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_color_render_m.columns else []),
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                # Tabla 2: Matriz Cruzada
+                if col_color_m and col_sit_m:
+                    st.markdown("<div style='margin-top: 10px;'></div>", unsafe_allow_html=True)
+                    st.markdown("###### 🔍 Matriz Cruzada: Nivel vs. Situación Comercial")
+                    df_calc_mat_m = df_calc_tab_m[
+                        (~df_calc_tab_m[col_color_m].str.lower().isin(['nan', 'none', ''])) &
+                        (~df_calc_tab_m[col_sit_m].str.lower().isin(['nan', 'none', '']))
+                    ]
+                    if not df_calc_mat_m.empty:
+                        df_pivot_m = pd.crosstab(df_calc_mat_m[col_color_m], df_calc_mat_m[col_sit_m])
+                        df_pivot_m.columns.name = None
+                        cols_sit_en_mat_m = [s for s in orden_sit if s in df_pivot_m.columns] + [c for c in df_pivot_m.columns if c not in orden_sit]
+                        df_pivot_m = df_pivot_m[cols_sit_en_mat_m].reset_index()
+                        df_pivot_m['Total'] = df_pivot_m[cols_sit_en_mat_m].sum(axis=1)
+
+                        if 'Activa' in df_pivot_m.columns:
+                            df_pivot_m['% Actividad'] = (df_pivot_m['Activa'] / df_pivot_m['Total'] * 100).round(1).apply(lambda x: f"{x:.1f}%")
+                        else:
+                            df_pivot_m['% Actividad'] = "0.0%"
+
+                        fact_x_color_m = df_calc_mat_m.groupby(col_color_m)['__fact_val__'].sum().to_dict()
+                        df_pivot_m['Facturación Activas'] = df_pivot_m[col_color_m].map(fact_x_color_m).fillna(0.0).apply(formato_cop)
+
+                        df_pivot_m['__orden__'] = df_pivot_m[col_color_m].apply(
+                            lambda c: orden_niveles.index(c) if c in orden_niveles else 99
+                        )
+                        df_pivot_m = df_pivot_m.sort_values(by='__orden__').drop(columns=['__orden__'])
+
+                        cols_mat_final_m = [col_color_m, 'Total']
+                        if 'Activa' in df_pivot_m.columns:
+                            cols_mat_final_m.append('Activa')
+                        for s_col in cols_sit_en_mat_m:
+                            if s_col != 'Activa' and s_col in df_pivot_m.columns:
+                                cols_mat_final_m.append(s_col)
+                        cols_mat_final_m.extend(['Facturación Activas', '% Actividad'])
+
+                        df_mat_render_m = df_pivot_m[[c for c in cols_mat_final_m if c in df_pivot_m.columns]].copy()
+                        df_mat_render_m = df_mat_render_m.rename(columns={col_color_m: 'Nivel / Color', 'Total': 'Total Red'})
+
+                        mat_styler_m = df_mat_render_m.style.map(
+                            color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_mat_render_m.columns else []
+                        )
+                        st.dataframe(mat_styler_m, use_container_width=True, hide_index=True)
+
         if df_tab_filtrado.empty:
             st.info("ℹ️ No hay consultoras con los filtros seleccionados.")
         else:
@@ -1739,7 +1863,15 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     st.dataframe(styler_i2, use_container_width=True)
 
     st.markdown("---")
-    st.markdown("<p style='text-align:center; font-size:10px; color:#94a3b8; margin:0;'>App Matices Móvil • Natura & Avon • Diseñada para Celulares y Tablets</p>", unsafe_allow_html=True)
+    st.markdown(f"""
+    <div style="text-align: center; padding: 10px 0 15px 0; color: #94A3B8; font-size: 0.82rem; letter-spacing: 0.3px;">
+        <span>📱 <b>App Matices Móvil</b></span>
+        <span style="margin: 0 8px; opacity: 0.4;">•</span>
+        <span>Desarrollado por <b>Tao-System</b></span>
+        <span style="margin: 0 6px; opacity: 0.4;">|</span>
+        <span style="color: #64748B; font-weight: 500;">Powered by <b>XYZ</b></span>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 
