@@ -4638,62 +4638,18 @@ with tab_geral:
         else:
             st.info("ℹ️ No hay registros de crédito y cobranza registrados para este sector. Puedes cargar el archivo **Geral.xlsx** desde **💳 3. Gera** en la barra lateral izquierda.")
     else:
-        # --- 2. BARRA DE FILTROS INTELIGENTES (GRUPO, SIT. COMERCIAL, COLOR Y BÚSQUEDA) ---
-        df_geral_filt = df_geral_raw.copy()
-
         # Opciones dinámicas extraídas de los datos
         sits_disponibles_g = sorted([str(s) for s in df_geral_raw['sit_comercial'].dropna().unique() if str(s).strip() and str(s).lower() != 'sin definir'])
         colores_disponibles_g = sorted([str(c) for c in df_geral_raw['color'].dropna().unique() if str(c).strip() and str(c).lower() not in ['sin nivel', 'nan', 'none']])
+        grupos_disp_g = sorted([str(g).strip().split('.')[0] for g in df_geral_raw['grupo'].dropna().unique() if str(g).strip() and str(g).lower() not in ['sin grupo', 'nan', 'none']]) if 'grupo' in df_geral_raw.columns else []
 
-        if user_rol in ['gerente', 'superadmin']:
-            grupos_disp_g = sorted([str(g).strip().split('.')[0] for g in df_geral_raw['grupo'].dropna().unique() if str(g).strip() and str(g).lower() not in ['sin grupo', 'nan', 'none']])
-            col_fg1, col_fg2, col_fg3, col_fg4 = st.columns([1.3, 1.3, 1.2, 1.6])
-            with col_fg1:
-                sel_grp_g = st.selectbox(
-                    "👤 Líder / Grupo:",
-                    options=["Todas las Líderes"] + grupos_disp_g,
-                    format_func=lambda g: f"Grupo {g}" if g != "Todas las Líderes" else "Todas las Líderes (Consolidado)",
-                    key="filtro_grp_geral_cb"
-                )
-            with col_fg2:
-                sel_sit_g = st.multiselect(
-                    "🚦 Sit. Comercial:",
-                    options=sits_disponibles_g,
-                    default=[],
-                    placeholder="Todas las situaciones",
-                    key="filtro_sit_com_geral"
-                )
-            with col_fg3:
-                sel_col_g = st.multiselect(
-                    "🏆 Nivel / Color:",
-                    options=colores_disponibles_g,
-                    default=[],
-                    placeholder="Todos los colores",
-                    key="filtro_color_geral"
-                )
-            with col_fg4:
-                busq_g = st.text_input("🔍 Buscar Asesora (Nombre o Código CB):", "", key="filtro_busq_geral")
-        else:
-            sel_grp_g = "Todas las Líderes"
-            col_fg1, col_fg2, col_fg3 = st.columns([1.5, 1.5, 2])
-            with col_fg1:
-                sel_sit_g = st.multiselect(
-                    "🚦 Sit. Comercial:",
-                    options=sits_disponibles_g,
-                    default=[],
-                    placeholder="Todas las situaciones",
-                    key="filtro_sit_com_geral"
-                )
-            with col_fg2:
-                sel_col_g = st.multiselect(
-                    "🏆 Nivel / Color:",
-                    options=colores_disponibles_g,
-                    default=[],
-                    placeholder="Todos los colores",
-                    key="filtro_color_geral"
-                )
-            with col_fg3:
-                busq_g = st.text_input("🔍 Buscar Asesora (Nombre o Código CB):", "", key="filtro_busq_geral")
+        # 1. Recuperar valores de filtros activos desde st.session_state para sincronización en tiempo real
+        sel_grp_g = st.session_state.get("filtro_grp_geral_cb", "Todas las Líderes")
+        sel_sit_g = st.session_state.get("filtro_sit_com_geral", [])
+        sel_col_g = st.session_state.get("filtro_color_geral", [])
+        busq_g = st.session_state.get("filtro_busq_geral", "")
+
+        df_geral_filt = df_geral_raw.copy()
 
         # Aplicar filtros dinámicos
         if sel_grp_g != "Todas las Líderes" and 'grupo' in df_geral_filt.columns:
@@ -4724,7 +4680,7 @@ with tab_geral:
         df_7d = analisis_g['df_proximos_7d']
         heatmap_df = analisis_g['heatmap_data']
         
-        # 3. FILA DE KPIS EJECUTIVOS FINANCIEROS
+        # 2. FILA DE KPIS EJECUTIVOS FINANCIEROS (ARRIBA COMO CUADRO DE MANDO)
         kg1, kg2, kg3, kg4, kg5 = st.columns(5)
         with kg1:
             st.metric(
@@ -4761,8 +4717,59 @@ with tab_geral:
 
         st.markdown("---")
 
-        # 4. CRONOGRAMA DE PROYECCIÓN Y VISTAS RÁPIDAS (ORDENADO DE MAYOR A MENOR DEUDA Y CON COLORES ARMÓNICOS)
+        # 3. CRONOGRAMA DE CARTERA & GESTIÓN
         st.markdown("##### 📋 Cronograma de Cartera & Gestión por Tramo de Vencimiento")
+
+        # 4. BARRA DE FILTROS INTELIGENTES PEGADOS DIRECTAMENTE A LA TABLA
+        if user_rol in ['gerente', 'superadmin']:
+            col_fg1, col_fg2, col_fg3, col_fg4 = st.columns([1.3, 1.3, 1.2, 1.6])
+            with col_fg1:
+                st.selectbox(
+                    "👤 Líder / Grupo:",
+                    options=["Todas las Líderes"] + grupos_disp_g,
+                    format_func=lambda g: f"Grupo {g}" if g != "Todas las Líderes" else "Todas las Líderes (Consolidado)",
+                    key="filtro_grp_geral_cb"
+                )
+            with col_fg2:
+                st.multiselect(
+                    "🚦 Sit. Comercial:",
+                    options=sits_disponibles_g,
+                    default=[],
+                    placeholder="Todas las situaciones",
+                    key="filtro_sit_com_geral"
+                )
+            with col_fg3:
+                st.multiselect(
+                    "🏆 Nivel / Color:",
+                    options=colores_disponibles_g,
+                    default=[],
+                    placeholder="Todos los colores",
+                    key="filtro_color_geral"
+                )
+            with col_fg4:
+                st.text_input("🔍 Buscar Asesora (Nombre o Código CB):", "", key="filtro_busq_geral")
+        else:
+            col_fg1, col_fg2, col_fg3 = st.columns([1.5, 1.5, 2])
+            with col_fg1:
+                st.multiselect(
+                    "🚦 Sit. Comercial:",
+                    options=sits_disponibles_g,
+                    default=[],
+                    placeholder="Todas las situaciones",
+                    key="filtro_sit_com_geral"
+                )
+            with col_fg2:
+                st.multiselect(
+                    "🏆 Nivel / Color:",
+                    options=colores_disponibles_g,
+                    default=[],
+                    placeholder="Todos los colores",
+                    key="filtro_color_geral"
+                )
+            with col_fg3:
+                st.text_input("🔍 Buscar Asesora (Nombre o Código CB):", "", key="filtro_busq_geral")
+
+        st.markdown("<div style='margin-bottom: 6px;'></div>", unsafe_allow_html=True)
         st.caption(r"Ordenado de mayor a menor deuda con semáforo armónico: 🔴 **Deuda Alta / Mora** (>= \$300.000 COP) | 🟠 **Deuda Media** (\$150.000 - \$300.000 COP) | 🟢 **Deuda Controlada** (< \$150.000 COP)")
 
         tab_v_manana, tab_v_pasado, tab_v_mora, tab_v_7d, tab_v_todas, tab_v_pagadas = st.tabs([
