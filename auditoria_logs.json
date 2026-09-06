@@ -358,5 +358,20 @@
     "accion": "Inicio de Sesión",
     "detalle": "Ingreso exitoso al portal web (gerente)",
     "dispositivo": "🖥️ PC / Escritorio"
+  },
+  {
+    "fecha_hora": "2026-09-05T22:47:20.088891",
+    "fecha": "2026-09-05",
+    "hora": "22:47:20",
+    "username": "admin",
+    "nombre": "Super Administrador del Sistema",
+    "rol": "superadmin",
+    "codigo_sector": "",
+    "nombre_sector": "Gestión Corporativa Global",
+    "codigo_grupo": "",
+    "categoria": "🔑 Acceso",
+    "accion": "Inicio de Sesión",
+    "detalle": "Ingreso exitoso al portal web (superadmin)",
+    "dispositivo": "🖥️ PC / Escritorio"
   }
 ]
