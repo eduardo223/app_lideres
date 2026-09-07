@@ -3507,6 +3507,42 @@ def obtener_nombre_sector_usuario(user_info):
         
     return "Liderazgo Empresarial"
 
+def obtener_nombre_corto_sector(sector_completo_o_user):
+    """
+    Retorna el nombre limpio y amigable del sector para branding dinámico
+    (ej: 'Emociones', 'Matices', 'Colores', 'Acuarela', 'Lienzo', 'Pincel').
+    """
+    if isinstance(sector_completo_o_user, dict):
+        sector_completo = obtener_nombre_sector_usuario(sector_completo_o_user)
+    else:
+        sector_completo = str(sector_completo_o_user or "")
+        
+    s = sector_completo.strip()
+    if not s or s.lower() in ["none", "nan", "null", "liderazgo empresarial", "gestión corporativa global"]:
+        return "Líderes"
+        
+    s_upper = s.upper()
+    if "MATICES" in s_upper:
+        return "Matices"
+    elif "EMOCIONES" in s_upper:
+        return "Emociones"
+    elif "COLORES" in s_upper:
+        return "Colores"
+    elif "ACUARELA" in s_upper:
+        return "Acuarela"
+    elif "LIENZO" in s_upper:
+        return "Lienzo"
+    elif "PINCEL" in s_upper:
+        return "Pincel"
+        
+    if s_upper.startswith("SECTOR "):
+        s = s[7:].strip()
+        
+    partes = s.split()
+    if partes:
+        return partes[0].capitalize()
+    return s.title()
+
 def verificar_estado_suscripcion(user_info_o_sector):
     """
     Determina si un usuario o sector tiene acceso permitido al sistema de forma dinámica y tolerante a fallos.

@@ -373,5 +373,35 @@
     "accion": "Inicio de Sesión",
     "detalle": "Ingreso exitoso al portal web (superadmin)",
     "dispositivo": "🖥️ PC / Escritorio"
+  },
+  {
+    "fecha_hora": "2026-09-07T14:40:21.522274",
+    "fecha": "2026-09-07",
+    "hora": "14:40:21",
+    "username": "gerente",
+    "nombre": "Clery Cuellar",
+    "rol": "gerente",
+    "codigo_sector": "700000459",
+    "nombre_sector": "MATICES CLERY",
+    "codigo_grupo": "",
+    "categoria": "🔑 Acceso",
+    "accion": "Inicio de Sesión",
+    "detalle": "Ingreso exitoso al portal web (gerente)",
+    "dispositivo": "🖥️ PC / Escritorio"
+  },
+  {
+    "fecha_hora": "2026-09-07T15:36:26.363337",
+    "fecha": "2026-09-07",
+    "hora": "15:36:26",
+    "username": "lider177",
+    "nombre": "DIANA LUZ AVELLA PINTO",
+    "rol": "lider",
+    "codigo_sector": "700000466",
+    "nombre_sector": "EMOCIONES DOLLY",
+    "codigo_grupo": "177",
+    "categoria": "🔑 Acceso",
+    "accion": "Inicio de Sesión",
+    "detalle": "Ingreso exitoso al portal web (lider)",
+    "dispositivo": "🖥️ PC / Escritorio"
   }
 ]
