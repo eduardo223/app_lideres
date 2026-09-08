@@ -5962,6 +5962,8 @@ def obtener_estado_componentes_archivos(sector=None):
             "detalle": ult_aj_det
         }
     }
+
+def obtener_metricas_usabilidad(dias_atras=30):
     """
     Calcula métricas agregadas de adopción, usabilidad y actividad para el dashboard.
     """
