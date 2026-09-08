@@ -108,7 +108,9 @@ from procesador import (
     contar_ajustes_sector_desafios,
     eliminar_ajustes_desafios_sector,
     contar_registros_sector_tableau,
-    eliminar_tableau_sector
+    eliminar_tableau_sector,
+    consultar_logs_archivos_df,
+    obtener_estado_componentes_archivos
 )
 
 # 1. Configuración de la página
@@ -2432,19 +2434,19 @@ if puede_subir_archivos:
 
         # 3. GERA (CRÉDITO & COBRANZA)
         with st.sidebar.expander("💳 3. Gera", expanded=False):
-            st.caption("Carga el archivo maestro descargado de Geral para actualizar deudas y vencimientos:")
-            with st.popover("💡 ¿Cómo descargarlo en Geral?"):
+            st.caption("Carga el archivo maestro descargado de Gera para actualizar deudas y vencimientos:")
+            with st.popover("💡 ¿Cómo descargarlo en Gera?"):
                 st.markdown(
-                    "1️⃣ Ingresa a **Geral** ➔ **Crédito & Cobranza**\n\n"
+                    "1️⃣ Ingresa a **Gera** ➔ **Crédito & Cobranza**\n\n"
                     "2️⃣ Selecciona **Consultar Deuda**\n\n"
                     "3️⃣ En **Ciclo de Captación**, selecciona los ciclos a consultar\n\n"
                     "4️⃣ Haz clic en el botón **Consultar**\n\n"
                     "5️⃣ Presiona **Exportar Listado** ➔ Selecciona **Excel Inmediata**"
                 )
-            file_geral_sb = st.file_uploader("Cargar Archivo 'Geral.xlsx':", type=["xlsx", "xls"], key="sb_geral_uploader")
+            file_geral_sb = st.file_uploader("Cargar Archivo 'Gera.xlsx' (o Geral):", type=["xlsx", "xls"], key="sb_geral_uploader")
             if file_geral_sb is not None:
                 st.caption(f"📄 Archivo listo: **{file_geral_sb.name}** ({file_geral_sb.size/1024:.1f} KB)")
-                if st.button("🚀 Sincronizar Base Geral", type="primary", use_container_width=True, key="btn_sb_geral_proc"):
+                if st.button("🚀 Sincronizar Base Gera", type="primary", use_container_width=True, key="btn_sb_geral_proc"):
                     with st.spinner("Sincronizando registros en SQLite..."):
                         sec_para_validar = user_sector if user_rol == 'gerente' else None
                         ok_g, num_g, msg_g = sincronizar_excel_geral_a_sqlite(file_geral_sb, sector_esperado=sec_para_validar)
@@ -2464,7 +2466,7 @@ if puede_subir_archivos:
                             registrar_evento_auditoria(
                                 current_user,
                                 categoria="📁 Carga de Datos",
-                                accion="Carga Cartera Geral",
+                                accion="Carga Cartera Gera",
                                 detalle=f"Cartera sincronizada ({num_g} títulos)",
                                 dispositivo="🖥️ PC / Escritorio"
                             )
@@ -2476,6 +2478,9 @@ if puede_subir_archivos:
 
             # Borrado seguro y aislado por sector
             st.markdown("---")
+            if 'msg_cartera_geral_eliminada' in st.session_state:
+                st.success(f"✅ {st.session_state.pop('msg_cartera_geral_eliminada')}")
+
             titulos_actuales_geral = contar_registros_sector_geral(user_sector if user_rol == 'gerente' else None)
             if titulos_actuales_geral > 0:
                 st.caption(f"🟢 **Cartera activa**: {titulos_actuales_geral:,} títulos ({user_sector_nombre if user_rol == 'gerente' else 'Global'})".replace(",", "."))
@@ -2490,12 +2495,16 @@ if puede_subir_archivos:
                                 registrar_evento_auditoria(
                                     current_user,
                                     categoria="🗑️ Eliminación de Datos",
-                                    accion="Borrado Cartera Geral",
+                                    accion="Borrado Cartera Gera",
                                     detalle=f"{msg_e} ({user_sector_nombre})",
                                     dispositivo="🖥️ PC / Escritorio"
                                 )
+                                try:
+                                    cached_consultar_geral_sql.clear()
+                                except Exception:
+                                    pass
                                 st.cache_data.clear()
-                                st.success(f"✅ {msg_e}")
+                                st.session_state['msg_cartera_geral_eliminada'] = msg_e
                                 st.rerun()
                             else:
                                 st.error(f"❌ {msg_e}")
@@ -2625,6 +2634,19 @@ if puede_subir_archivos:
             else:
                 st.caption("⚪ **Sin ajustes de zona** para este sector.")
 
+        # 6. BITÁCORA RÁPIDA DE ARCHIVOS (LOGS DE AGREGO, ACTUALIZACIÓN Y BORRADO)
+        with st.sidebar.expander("📜 Bitácora de Archivos (Recientes)", expanded=False):
+            st.caption("Últimos movimientos de carga, actualización y borrado en tu sector:")
+            sec_log_sb = user_sector if user_rol == 'gerente' else None
+            df_logs_sb = consultar_logs_archivos_df(sector=sec_log_sb, limite=5)
+            if not df_logs_sb.empty:
+                for _, r_log in df_logs_sb.iterrows():
+                    st.markdown(f"**{r_log['Componente']}** • `{r_log['Operación']}`")
+                    st.caption(f"⏱️ {r_log['Fecha y Hora']} • {r_log['Detalle de Impacto']}")
+                    st.markdown("<hr style='margin:4px 0; border:none; border-top:1px dashed rgba(227,0,123,0.25);'>", unsafe_allow_html=True)
+            else:
+                st.caption("⚪ Sin movimientos recientes registrados.")
+
         st.sidebar.markdown("---")
 else:
     st.sidebar.info("🔒 **Carga restringida**: La opción de subida de archivos está desactivada por la Gerencia General para tu perfil.")
@@ -2687,7 +2709,7 @@ if df.empty:
             f"Aún no se han cargado las metas del ciclo actual en **'Cómo Vamos'** para tu sector.\n\n"
             f"✅ **Tus otros módulos se encuentran 100% operativos:**\n"
             f"- Puedes gestionar tu red de consultoras en la pestaña **'📊 Informe Tableau Cam'**.\n"
-            f"- Puedes consultar los reportes de cartera y cobranza en **'💳 Geral_Credito&Cobranza'**.\n\n"
+            f"- Puedes consultar los reportes de cartera y cobranza en **'💳 Gera_Credito&Cobranza'**.\n\n"
             f"📥 **Para activar los tacómetros y gráficas de metas de tu sector:**\n"
             f"Sube el archivo Excel de metas desde la barra lateral izquierda en **'🔄 Rotación de Ciclo (Nuevo)'**."
         )
@@ -2695,7 +2717,7 @@ if df.empty:
         st.info(
             f"ℹ️ **Información de Metas de Ciclo (Grupo {user_grupo}):**\n\n"
             f"Aún no se encuentran cargadas las metas del ciclo actual en el archivo 'Cómo Vamos' para tu grupo. "
-            f"Puedes seguir consultando a tus consultoras y estados de cartera en las pestañas de **Tableau** y **Geral**."
+            f"Puedes seguir consultando a tus consultoras y estados de cartera en las pestañas de **Tableau** y **Gera**."
         )
 else:
     # Alerta visual si se cargó un archivo sin metas financieras (ej. Reporte de Niveles en vez de Cómo Vamos)
@@ -3167,7 +3189,7 @@ permisos_tab_config = app_config.get("permisos_pestanas", DEFAULT_PERMISOS_PESTA
 if user_rol == 'lider':
     tabs_definidas = [
         ("tab_tableau", "📋 MI LISTADO"),
-        ("tab_geral", "💳 GERAL_CREDITO&COBRANZA"),
+        ("tab_geral", "💳 GERA_CREDITO&COBRANZA"),
         ("tab_resumen", "📊 RESUMEN & KPIS"),
         ("tab_ganancia", "🧮 SIMULADORES"),
         ("tab_diagnostico", "👑 MIS LÍDERES"),
@@ -3177,7 +3199,7 @@ if user_rol == 'lider':
 else:
     tabs_definidas = [
         ("tab_tableau", "📊 INFORME TABLEAU CAM"),
-        ("tab_geral", "💳 GERAL_CREDITO&COBRANZA"),
+        ("tab_geral", "💳 GERA_CREDITO&COBRANZA"),
         ("tab_resumen", "📊 RESUMEN & KPIS"),
         ("tab_ganancia", "🧮 SIMULADORES"),
         ("tab_diagnostico", "👑 MIS LÍDERES"),
@@ -5235,9 +5257,9 @@ with tab_tableau:
 
 st.markdown("---")
 
-# --- TAB GERAL: CRÉDITO & COBRANZA PREVENTIVA Y CARTERA ("Geral_Credito&Cobranza") ---
+# --- TAB GERA: CRÉDITO & COBRANZA PREVENTIVA Y CARTERA ("Gera_Credito&Cobranza") ---
 with tab_geral:
-    st.subheader("💳 Geral: Crédito & Cobranza Inteligente")
+    st.subheader("💳 Gera: Crédito & Cobranza Inteligente")
     st.markdown("Control dinámico de cartera Natura & Avon, alertas de vencimiento preventivo (*Mañana*, *Pasado Mañana*), semáforo de mora y despachador de WhatsApp con 1 clic.")
 
     # 1. CONSULTA DE DATOS DESDE SQLITE
@@ -5250,7 +5272,7 @@ with tab_geral:
         if user_rol == 'lider':
             st.info("🎉 ¡Excelente! No tienes consultoras con saldo pendiente ni mora registradas en Crédito & Cobranza para tu Grupo.")
         else:
-            st.info("ℹ️ No hay registros de crédito y cobranza registrados para este sector. Puedes cargar el archivo **Geral.xlsx** desde **💳 3. Gera** en la barra lateral izquierda.")
+            st.info("ℹ️ No hay registros de crédito y cobranza registrados para este sector. Puedes cargar el archivo **Gera.xlsx** desde **💳 3. Gera** en la barra lateral izquierda.")
     else:
         # Opciones dinámicas extraídas de los datos
         sits_disponibles_g = sorted([str(s) for s in df_geral_raw['sit_comercial'].dropna().unique() if str(s).strip() and str(s).lower() != 'sin definir'])
@@ -6021,7 +6043,7 @@ with tab_geral:
         st.download_button(
             label="📥 Descargar Base Completa de Cartera Pendiente (CSV / Excel)",
             data=csv_geral_exp,
-            file_name=f"Cartera_Geral_Pendiente_{datetime.now().strftime('%Y%m%d')}.csv",
+            file_name=f"Cartera_Gera_Pendiente_{datetime.now().strftime('%Y%m%d')}.csv",
             mime="text/csv",
             use_container_width=True,
             key="btn_descargar_cartera_geral_csv"
@@ -6492,13 +6514,14 @@ with tab_diagnostico:
         st.info("ℹ️ No hay datos de 'Cómo Vamos' cargados para mostrar las tablas dinámicas de diagnóstico. Sube un archivo desde 'Rotación de Ciclo' para comenzar.")
     else:
         # Clasificación: Emprendedoras (Desafío <= 0) vs Líderes (Desafío > 0)
-        col_obj_fact_chk = 'Objetivo Facturación' if 'Objetivo Facturación' in df_diag.columns else None
-        if col_obj_fact_chk:
-            df_diag['Tipo_Red'] = df_diag[col_obj_fact_chk].apply(
-                lambda v: '👑 LN' if limpiar_numero(v, 0.0) > 0 else '🌱 CE+'
-            )
-        else:
-            df_diag['Tipo_Red'] = '👑 LN'
+        if 'Tipo_Red' not in df_diag.columns:
+            col_obj_fact_chk = 'Objetivo Facturación' if 'Objetivo Facturación' in df_diag.columns else None
+            if col_obj_fact_chk:
+                df_diag['Tipo_Red'] = df_diag[col_obj_fact_chk].apply(
+                    lambda v: '👑 LN' if limpiar_numero(v, 0.0) > 0 else '🌱 CE+'
+                )
+            else:
+                df_diag['Tipo_Red'] = '👑 LN'
 
         count_tot = len(df_diag)
         count_lideres = int((df_diag['Tipo_Red'] == '👑 LN').sum())
@@ -6910,12 +6933,11 @@ with tab_diagnostico:
 
             if col_meta_ing:
                 df_ing_calc['Meta'] = df_ing_prep[col_meta_ing].apply(lambda v: int(limpiar_numero(v, 0)))
-                df_ing_calc['Meta'] = df_ing_calc.apply(lambda r: r['Meta'] if r['Meta'] > 0 else max(5, int(r['Hoy'] + 3)), axis=1)
             else:
                 df_ing_calc['Meta'] = df_ing_calc['Hoy'].apply(lambda h: max(5, int(h + 3)))
 
             df_ing_calc['Avance'] = df_ing_calc.apply(
-                lambda r: (r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0,
+                lambda r: 100.0 if r['Meta'] == 0 and r['Hoy'] >= 0 else ((r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0),
                 axis=1
             )
             df_ing_calc['para activar!'] = df_ing_calc.apply(
@@ -6928,7 +6950,7 @@ with tab_diagnostico:
 
             tot_meta_ing = int(df_ing_calc['Meta'].sum())
             tot_hoy_ing = int(df_ing_calc['Hoy'].sum())
-            tot_av_ing = (tot_hoy_ing / tot_meta_ing * 100.0) if tot_meta_ing > 0 else 0.0
+            tot_av_ing = (tot_hoy_ing / tot_meta_ing * 100.0) if tot_meta_ing > 0 else (100.0 if tot_hoy_ing >= 0 else 0.0)
             tot_act_ing = max(0, tot_meta_ing - tot_hoy_ing)
 
             row_total_ing = pd.DataFrame([{
@@ -6994,12 +7016,11 @@ with tab_diagnostico:
 
             if col_meta_rec:
                 df_rec_calc['Meta'] = df_rec_prep[col_meta_rec].apply(lambda v: int(limpiar_numero(v, 0)))
-                df_rec_calc['Meta'] = df_rec_calc.apply(lambda r: r['Meta'] if r['Meta'] > 0 else max(4, int(r['Hoy'] + 2)), axis=1)
             else:
                 df_rec_calc['Meta'] = df_rec_calc['Hoy'].apply(lambda h: max(4, int(h + 2)))
 
             df_rec_calc['Avance'] = df_rec_calc.apply(
-                lambda r: (r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0,
+                lambda r: 100.0 if r['Meta'] == 0 and r['Hoy'] >= 0 else ((r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0),
                 axis=1
             )
             df_rec_calc['para activar!'] = df_rec_calc.apply(
@@ -7011,7 +7032,7 @@ with tab_diagnostico:
 
             tot_meta_rec = int(df_rec_calc['Meta'].sum())
             tot_hoy_rec = int(df_rec_calc['Hoy'].sum())
-            tot_av_rec = (tot_hoy_rec / tot_meta_rec * 100.0) if tot_meta_rec > 0 else 0.0
+            tot_av_rec = (tot_hoy_rec / tot_meta_rec * 100.0) if tot_meta_rec > 0 else (100.0 if tot_hoy_rec >= 0 else 0.0)
             tot_act_rec = max(0, tot_meta_rec - tot_hoy_rec)
 
             row_total_rec = pd.DataFrame([{
@@ -7854,7 +7875,7 @@ with tab_usuarios:
 
         col_f_a1, col_f_a2, col_f_a3, col_f_a4 = st.columns(4)
         with col_f_a1:
-            f_aud_cat = st.selectbox("Categoría:", options=["Todas", "🔑 Acceso", "📁 Carga de Datos", "🔄 Rotación Ciclo", "💬 Gestión Comercial", "💳 Suscripción", "🔑 Seguridad", "🎉 Registro", "👥 Usuarios", "🎛️ Configuración", "🗑️ Administración"], key="aud_sel_cat")
+            f_aud_cat = st.selectbox("Categoría:", options=["Todas", "📁 Carga de Datos", "🗑️ Eliminación de Datos", "🔄 Rotación Ciclo", "🔑 Acceso", "💬 Gestión Comercial", "💳 Suscripción", "🔑 Seguridad", "🎉 Registro", "👥 Usuarios", "🎛️ Configuración", "🗑️ Administración"], key="aud_sel_cat")
         with col_f_a2:
             f_aud_rol = st.selectbox("Rol:", options=["Todos", "gerente", "lider", "superadmin", "asesor"], format_func=lambda r: "consultora" if r == "asesor" else r, key="aud_sel_rol")
         with col_f_a3:
@@ -8030,105 +8051,182 @@ with tab_usuarios:
 
 # --- TAB: DIRECTORIO & GESTIÓN DE MIS LÍDERES (EXCLUSIVO GERENTES) ---
 with tab_lideres_gerente:
-    st.subheader(f"👥 Directorio de Mis Líderes & Gestión de Accesos")
-    st.markdown(f"Administración centralizada de usuarios para las líderes de tu Sector **{user_sector if user_sector else 'General'}** (*{user_nombre}*). Consulta sus datos de acceso, descarga el archivo de respaldo o restablece contraseñas en 1 clic.")
+    st.subheader(f"👥 Panel de Gestión & Control de Archivos del Sector")
+    st.markdown(f"Administración centralizada para el Sector **{user_sector if user_sector else 'General'}** (*{user_nombre}*): gestión de cuentas de líderes, auditoría y bitácora de archivos integrados.")
 
-    users_dict = cargar_usuarios()
-    # Filtrar líderes de este sector
-    lideres_sector = []
-    for uname, udata in users_dict.items():
-        es_de_sector = True if not user_sector else (str(udata.get("codigo_sector", "")).strip() == str(user_sector).strip())
-        if udata.get("rol") == "lider" and es_de_sector:
-            lideres_sector.append({
-                "Usuario (Login)": uname,
-                "Nombre Líder": udata.get("nombre", ""),
-                "Código de Grupo": str(udata.get("codigo_grupo", "")),
-                "Estado Suscripción": udata.get("estado_suscripcion", "activo"),
-                "Debe Cambiar Clave": "Sí" if udata.get("debe_cambiar_password") else "No"
-            })
+    sub_tab_dir_lideres, sub_tab_bitacora_archivos = st.tabs([
+        "👥 Directorio & Accesos de Líderes",
+        "📜 Bitácora de Archivos (Agrego, Actualización y Borrado)"
+    ])
 
-    col_ger_u1, col_ger_u2 = st.columns([1.3, 1])
+    with sub_tab_dir_lideres:
+        users_dict = cargar_usuarios()
+        # Filtrar líderes de este sector
+        lideres_sector = []
+        for uname, udata in users_dict.items():
+            es_de_sector = True if not user_sector else (str(udata.get("codigo_sector", "")).strip() == str(user_sector).strip())
+            if udata.get("rol") == "lider" and es_de_sector:
+                lideres_sector.append({
+                    "Usuario (Login)": uname,
+                    "Nombre Líder": udata.get("nombre", ""),
+                    "Código de Grupo": str(udata.get("codigo_grupo", "")),
+                    "Estado Suscripción": udata.get("estado_suscripcion", "activo"),
+                    "Debe Cambiar Clave": "Sí" if udata.get("debe_cambiar_password") else "No"
+                })
 
-    with col_ger_u1:
-        st.markdown("##### 📋 Listado de Líderes Registradas en tu Sector")
-        if lideres_sector:
-            df_lid_sec = pd.DataFrame(lideres_sector)
-            st.dataframe(df_lid_sec, use_container_width=True, hide_index=True)
+        col_ger_u1, col_ger_u2 = st.columns([1.3, 1])
 
-            csv_lid = df_lid_sec.to_csv(index=False).encode('utf-8-sig')
+        with col_ger_u1:
+            st.markdown("##### 📋 Listado de Líderes Registradas en tu Sector")
+            if lideres_sector:
+                df_lid_sec = pd.DataFrame(lideres_sector)
+                st.dataframe(df_lid_sec, use_container_width=True, hide_index=True)
+
+                csv_lid = df_lid_sec.to_csv(index=False).encode('utf-8-sig')
+                st.download_button(
+                    label="📥 Descargar Directorio de Mis Líderes (CSV / Excel)",
+                    data=csv_lid,
+                    file_name=f"Directorio_Lideres_Sector_{user_sector if user_sector else 'General'}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                    key="btn_descargar_lideres_gerente"
+                )
+            else:
+                st.info(f"No hay cuentas de líderes registradas asociadas al código de sector {user_sector}.")
+
+        with col_ger_u2:
+            st.markdown("##### ⚡ Restablecer Contraseña de una Líder")
+            st.caption("Si una líder olvidó su contraseña o perdió sus datos, selecciónala y restablécela a **'lider123'** de inmediato:")
+
+            if lideres_sector:
+                with st.form("form_reset_gerente"):
+                    u_sel_ger = st.selectbox(
+                        "Selecciona la Líder a gestionar:",
+                        options=[l["Usuario (Login)"] for l in lideres_sector],
+                        format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} (Grupo {users_dict[u].get('codigo_grupo', '')})"
+                    )
+                    pass_nueva_ger = st.text_input("Nueva Contraseña:", value="lider123")
+                    btn_reset_ger = st.form_submit_button("🔄 Restablecer Contraseña", type="primary", use_container_width=True)
+
+                    if btn_reset_ger:
+                        ok_r_g, msg_r_g = restablecer_password_usuario(u_sel_ger, pass_nueva_ger, debe_cambiar=False)
+                        if ok_r_g:
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="🔑 Seguridad",
+                                accion="Restablecimiento Clave Líder",
+                                detalle=f"Gerente {user_nombre} restableció clave de {u_sel_ger}",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
+                            st.success(f"✅ ¡Listo! La contraseña de **{u_sel_ger}** ahora es: `{pass_nueva_ger}`")
+                            st.session_state['ultimo_reseteo_gerente'] = {
+                                'usuario': u_sel_ger,
+                                'nombre': users_dict[u_sel_ger].get('nombre', ''),
+                                'grupo': users_dict[u_sel_ger].get('codigo_grupo', ''),
+                                'password': pass_nueva_ger
+                            }
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_r_g}")
+
+                # Sub-panel de WhatsApp directo
+                ult_g = st.session_state.get('ultimo_reseteo_gerente')
+                if ult_g:
+                    st.markdown("---")
+                    st.markdown("###### 📲 Enviar Credenciales a la Líder por WhatsApp")
+                    cel_auto = ""
+                    if 'df_tableau' in locals() and df_tableau is not None and not df_tableau.empty:
+                        match_l = df_tableau[df_tableau['Grupo'].astype(str) == str(ult_g['grupo'])]
+                        if not match_l.empty and 'celular' in match_l.columns:
+                            cel_val = str(match_l['celular'].iloc[0]).replace('.0', '').strip()
+                            cel_auto = "".join(ch for ch in cel_val if ch.isdigit())
+
+                    tel_ger_in = st.text_input("Número celular de la líder (10 dígitos):", value=cel_auto, key="tel_ger_reset_in")
+                    msg_wa_ger = (
+                        f"🌸 ¡Hola {ult_g['nombre'].split()[0].title() if ult_g['nombre'] else 'Líder'}! Te comparto tus credenciales de acceso al Sistema de Gestión Natura & Avon:\n\n"
+                        f"👤 *Usuario:* `{ult_g['usuario']}`\n"
+                        f"🔑 *Contraseña:* `{ult_g['password']}`\n\n"
+                        f"🌐 *Enlace de Ingreso:* https://metaseindicadores.up.railway.app\n\n"
+                        f"¡Muchos éxitos! ✨ — Tu Gerente {user_nombre}"
+                    )
+                    st.text_area("Mensaje listo para WhatsApp:", msg_wa_ger, height=120, key="txt_wa_ger_msg")
+                    if tel_ger_in and len(tel_ger_in.strip()) >= 10:
+                        link_wa_g = f"https://api.whatsapp.com/send?phone=57{tel_ger_in.strip()}&text={urllib.parse.quote(msg_wa_ger)}"
+                        st.link_button("📲 Enviar Datos por WhatsApp a la Líder", url=link_wa_g, use_container_width=True)
+                    else:
+                        st.caption("💡 Ingresa el número celular para habilitar el botón de WhatsApp.")
+
+    with sub_tab_bitacora_archivos:
+        st.markdown("#### 📜 Bitácora de Movimientos de Archivos")
+        st.caption(f"Trazabilidad completa de operaciones de **Carga / Agrego**, **Actualización** y **Borrado** de archivos para el Sector **{user_sector_nombre if user_sector_nombre else 'General'}**:")
+
+        # Tarjetas de diagnóstico en tiempo real de cada componente
+        est_comps = obtener_estado_componentes_archivos(user_sector if user_rol == 'gerente' else None)
+        c_k1, c_k2, c_k3, c_k4, c_k5 = st.columns(5)
+        with c_k1:
+            t_info = est_comps.get("tableau", {})
+            st.metric("📊 Tableau", f"{t_info.get('cantidad', 0):,} consultoras".replace(",", "."), delta=t_info.get("estado", "-"), delta_color="normal")
+            st.caption(f"**Última op:** {t_info.get('ultima_op', '-')}")
+        with c_k2:
+            m_info = est_comps.get("como_vamos", {})
+            st.metric("🔄 Cómo Vamos", f"{m_info.get('cantidad', 0)} líderes", delta=m_info.get("estado", "-"), delta_color="normal")
+            st.caption(f"**Última op:** {m_info.get('ultima_op', '-')}")
+        with c_k3:
+            g_info = est_comps.get("gera", {})
+            st.metric("💳 Gera", f"{g_info.get('cantidad', 0):,} títulos".replace(",", "."), delta=g_info.get("estado", "-"), delta_color="normal")
+            st.caption(f"**Última op:** {g_info.get('ultima_op', '-')}")
+        with c_k4:
+            a_info = est_comps.get("objetivos_arte", {})
+            st.metric("🎯 Objetivos Arte", f"{a_info.get('cantidad', 0)} líderes", delta=a_info.get("estado", "-"), delta_color="normal")
+            st.caption(f"**Última op:** {a_info.get('ultima_op', '-')}")
+        with c_k5:
+            d_info = est_comps.get("ajustes_desafios", {})
+            st.metric("✨ Ajustes Desafíos", f"{d_info.get('cantidad', 0)} campañas", delta=d_info.get("estado", "-"), delta_color="normal")
+            st.caption(f"**Última op:** {d_info.get('ultima_op', '-')}")
+
+        st.markdown("---")
+        st.markdown("##### 🔍 Historial Detallado de Operaciones")
+        col_fl1, col_fl2, col_fl3 = st.columns([1.5, 1.2, 1])
+        with col_fl1:
+            f_comp_sel = st.selectbox(
+                "Filtrar por Componente:",
+                options=["Todos", "📊 Tableau", "🔄 Cómo Vamos (Rotación)", "💳 Gera (Cobranza)", "🎯 Objetivos Arte", "✨ Ajustes Desafíos", "⚡ Activas / Mi Grupo"],
+                key="filtro_log_comp_ger"
+            )
+        with col_fl2:
+            f_op_sel = st.selectbox(
+                "Tipo de Operación:",
+                options=["Todas", "🟢 Agrego", "🔄 Actualización", "🗑️ Borrado"],
+                key="filtro_log_op_ger"
+            )
+        with col_fl3:
+            f_lim_sel = st.selectbox(
+                "Límite de registros:",
+                options=[25, 50, 100, 250, 500],
+                index=1,
+                key="filtro_log_lim_ger"
+            )
+
+        df_logs_g = consultar_logs_archivos_df(
+            sector=user_sector if user_rol == 'gerente' else None,
+            componente=f_comp_sel if f_comp_sel != "Todos" else None,
+            operacion=f_op_sel if f_op_sel != "Todas" else None,
+            limite=f_lim_sel
+        )
+
+        if not df_logs_g.empty:
+            st.dataframe(df_logs_g, use_container_width=True, hide_index=True)
+            csv_logs_bytes = df_logs_g.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                label="📥 Descargar Directorio de Mis Líderes (CSV / Excel)",
-                data=csv_lid,
-                file_name=f"Directorio_Lideres_Sector_{user_sector if user_sector else 'General'}.csv",
+                label="📥 Descargar Bitácora de Archivos (CSV / Excel)",
+                data=csv_logs_bytes,
+                file_name=f"Bitacora_Archivos_Sector_{user_sector if user_sector else 'General'}_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
                 mime="text/csv",
                 use_container_width=True,
-                key="btn_descargar_lideres_gerente"
+                key="btn_descarga_bitacora_gerente"
             )
         else:
-            st.info(f"No hay cuentas de líderes registradas asociadas al código de sector {user_sector}.")
-
-    with col_ger_u2:
-        st.markdown("##### ⚡ Restablecer Contraseña de una Líder")
-        st.caption("Si una líder olvidó su contraseña o perdió sus datos, selecciónala y restablécela a **'lider123'** de inmediato:")
-
-        if lideres_sector:
-            with st.form("form_reset_gerente"):
-                u_sel_ger = st.selectbox(
-                    "Selecciona la Líder a gestionar:",
-                    options=[l["Usuario (Login)"] for l in lideres_sector],
-                    format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} (Grupo {users_dict[u].get('codigo_grupo', '')})"
-                )
-                pass_nueva_ger = st.text_input("Nueva Contraseña:", value="lider123")
-                btn_reset_ger = st.form_submit_button("🔄 Restablecer Contraseña", type="primary", use_container_width=True)
-
-                if btn_reset_ger:
-                    ok_r_g, msg_r_g = restablecer_password_usuario(u_sel_ger, pass_nueva_ger, debe_cambiar=False)
-                    if ok_r_g:
-                        registrar_evento_auditoria(
-                            current_user,
-                            categoria="🔑 Seguridad",
-                            accion="Restablecimiento Clave Líder",
-                            detalle=f"Gerente {user_nombre} restableció clave de {u_sel_ger}",
-                            dispositivo="🖥️ PC / Escritorio"
-                        )
-                        st.success(f"✅ ¡Listo! La contraseña de **{u_sel_ger}** ahora es: `{pass_nueva_ger}`")
-                        st.session_state['ultimo_reseteo_gerente'] = {
-                            'usuario': u_sel_ger,
-                            'nombre': users_dict[u_sel_ger].get('nombre', ''),
-                            'grupo': users_dict[u_sel_ger].get('codigo_grupo', ''),
-                            'password': pass_nueva_ger
-                        }
-                        st.rerun()
-                    else:
-                        st.error(f"❌ {msg_r_g}")
-
-            # Sub-panel de WhatsApp directo
-            ult_g = st.session_state.get('ultimo_reseteo_gerente')
-            if ult_g:
-                st.markdown("---")
-                st.markdown("###### 📲 Enviar Credenciales a la Líder por WhatsApp")
-                # Intentar buscar celular de la líder desde df_tableau
-                cel_auto = ""
-                if 'df_tableau' in locals() and df_tableau is not None and not df_tableau.empty:
-                    match_l = df_tableau[df_tableau['Grupo'].astype(str) == str(ult_g['grupo'])]
-                    if not match_l.empty and 'celular' in match_l.columns:
-                        cel_val = str(match_l['celular'].iloc[0]).replace('.0', '').strip()
-                        cel_auto = "".join(ch for ch in cel_val if ch.isdigit())
-
-                tel_ger_in = st.text_input("Número celular de la líder (10 dígitos):", value=cel_auto, key="tel_ger_reset_in")
-                msg_wa_ger = (
-                    f"🌸 ¡Hola {ult_g['nombre'].split()[0].title() if ult_g['nombre'] else 'Líder'}! Te comparto tus credenciales de acceso al Sistema de Gestión Natura & Avon:\n\n"
-                    f"👤 *Usuario:* `{ult_g['usuario']}`\n"
-                    f"🔑 *Contraseña:* `{ult_g['password']}`\n\n"
-                    f"🌐 *Enlace de Ingreso:* https://metaseindicadores.up.railway.app\n\n"
-                    f"¡Muchos éxitos! ✨ — Tu Gerente {user_nombre}"
-                )
-                st.text_area("Mensaje listo para WhatsApp:", msg_wa_ger, height=120, key="txt_wa_ger_msg")
-                if tel_ger_in and len(tel_ger_in.strip()) >= 10:
-                    link_wa_g = f"https://api.whatsapp.com/send?phone=57{tel_ger_in.strip()}&text={urllib.parse.quote(msg_wa_ger)}"
-                    st.link_button("📲 Enviar Datos por WhatsApp a la Líder", url=link_wa_g, use_container_width=True)
-                else:
-                    st.caption("💡 Ingresa el número celular para habilitar el botón de WhatsApp.")
+            st.info("No se encontraron registros de movimientos de archivos que coincidan con los filtros seleccionados.")
 
 # Footer
 st.markdown("---")

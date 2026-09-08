@@ -253,7 +253,20 @@ def calcular_metas_ciclo(origen=None):
         
         col_cv_grp = next((c for c in df.columns if 'grupo' in str(c).lower()), None)
         col_cv_nom = next((c for c in df.columns if 'nombre' in str(c).lower() and 'consultora' in str(c).lower()), None)
-        
+        col_cv_obj_fact = next((c for c in df.columns if 'objetivo' in str(c).lower() and 'factura' in str(c).lower()), None)
+        col_cv_real_fact = next((c for c in df.columns if 'real' in str(c).lower() and 'factura' in str(c).lower()), None)
+        col_cv_obj_act = next((c for c in df.columns if 'objetivo' in str(c).lower() and 'activa' in str(c).lower()), None)
+        col_cv_real_act = next((c for c in df.columns if 'real' in str(c).lower() and 'activa' in str(c).lower()), None)
+
+        # 1. Blindar clasificación de Tipo_Red antes de tocar metas de desafíos
+        if 'Tipo_Red' not in df.columns:
+            if col_cv_obj_fact:
+                df['Tipo_Red'] = df[col_cv_obj_fact].apply(
+                    lambda v: '👑 LN' if limpiar_numero(v, 0.0) > 0 else '🌱 CE+'
+                )
+            else:
+                df['Tipo_Red'] = '👑 LN'
+
         def _obtener_meta_ini(row):
             g = str(row.get(col_cv_grp, '')).strip().split('.')[0] if col_cv_grp else ''
             nom = str(row.get(col_cv_nom, '')).strip().lower() if col_cv_nom else ''
@@ -286,10 +299,41 @@ def calcular_metas_ciclo(origen=None):
                 return target.get('desafio_activas', 0)
             return 0
 
+        def _obtener_desafio_fact(row):
+            g = str(row.get(col_cv_grp, '')).strip().split('.')[0] if col_cv_grp else ''
+            nom = str(row.get(col_cv_nom, '')).strip().lower() if col_cv_nom else ''
+            target = mapa_grp.get(g) or mapa_nom.get(nom)
+            if target:
+                return float(target.get('desafio_facturacion', 0.0))
+            return 0.0
+
         df['Meta Inicios + Reinicios'] = df.apply(_obtener_meta_ini, axis=1)
         df['Meta Recuperos'] = df.apply(_obtener_meta_rec, axis=1)
         df['Meta Disponibles Esperadas'] = df.apply(_obtener_meta_disp, axis=1)
         df['Desafío Activas Arte'] = df.apply(_obtener_desafio_act, axis=1)
+        df['Desafío Facturación'] = df.apply(_obtener_desafio_fact, axis=1)
+
+        # 2. Inyección de Metas de Desafío para CE+ (cuando la meta original de Cómo Vamos es $0)
+        # Esto permite que la ganancia/facturación y activas de las CE+ sumen fielmente a la meta de gerencia
+        for idx, row in df.iterrows():
+            es_ce = (row.get('Tipo_Red') == '🌱 CE+')
+            d_fact = float(row.get('Desafío Facturación', 0.0))
+            d_act = int(row.get('Desafío Activas Arte', 0))
+            
+            # Si es CE+ y la gerente calibró desafío en el archivo
+            if es_ce:
+                if d_fact > 0 and col_cv_obj_fact:
+                    df.at[idx, col_cv_obj_fact] = d_fact
+                    r_f = float(limpiar_numero(row.get(col_cv_real_fact, 0.0), 0.0)) if col_cv_real_fact else 0.0
+                    df.at[idx, 'Cumplimiento Facturación'] = (r_f / d_fact * 100.0)
+                    df.at[idx, 'Falta para el 100%'] = max(0.0, d_fact - r_f)
+                    df.at[idx, 'Brecha Meta 100%'] = max(0.0, d_fact - r_f)
+                    df.at[idx, 'Falta para el 110%'] = max(0.0, (d_fact * 1.10) - r_f)
+                
+                if d_act > 0 and col_cv_obj_act:
+                    df.at[idx, col_cv_obj_act] = d_act
+                    r_a = float(limpiar_numero(row.get(col_cv_real_act, 0.0), 0.0)) if col_cv_real_act else 0.0
+                    df.at[idx, 'Cumplimiento Activas'] = (r_a / d_act * 100.0)
     except Exception as e_arte:
         safe_print(f"Nota al integrar Objetivos Arte en calcular_metas_ciclo: {e_arte}")
 
@@ -883,8 +927,15 @@ def obtener_metas_efectivas(grupo=None, sector=None, campana=None):
     # Caso 2: Consulta para un Sector específico (Vista Gerente)
     if sector:
         sec_clean = str(sector).strip().split('.')[0]
-        c_target = campana or activas_map.get(sec_clean)
-        campanas_sec = historico.get(sec_clean, {})
+        # Búsqueda flexible en historico (ej. '466' coincide con '700000466' y viceversa)
+        target_sec_key = sec_clean
+        for k_sec in historico.keys():
+            if k_sec == sec_clean or k_sec.endswith(sec_clean) or sec_clean.endswith(k_sec):
+                target_sec_key = k_sec
+                break
+
+        c_target = campana or activas_map.get(target_sec_key) or activas_map.get(sec_clean)
+        campanas_sec = historico.get(target_sec_key, {})
         if not c_target and campanas_sec:
             c_target = sorted(list(campanas_sec.keys()))[-1]
 
@@ -893,7 +944,7 @@ def obtener_metas_efectivas(grupo=None, sector=None, campana=None):
         mapa_final_sector = {}
         for g_k, g_v in arte_dict.items():
             s_g = str(g_v.get('sector', '')).strip()
-            if sec_clean in s_g or not sec_clean:
+            if sec_clean in s_g or target_sec_key in s_g or not sec_clean:
                 item = dict(g_v)
                 item['es_ajuste_zona'] = False
                 mapa_final_sector[g_k] = item
@@ -981,7 +1032,19 @@ def calcular_matriz_ganancia(cump_activas, cump_fact, inicios=6):
     return pct_base, idx_act, idx_fact
 
 def limpiar_numero(val, default=0.0):
-    if pd.isna(val):
+    if isinstance(val, (pd.Series, list, tuple)):
+        if len(val) == 0:
+            return default
+        val = val.iloc[0] if isinstance(val, pd.Series) else val[0]
+    if hasattr(val, 'item') and not isinstance(val, (str, bytes)):
+        try:
+            val = val.item()
+        except Exception:
+            pass
+    try:
+        if pd.isna(val):
+            return default
+    except (ValueError, TypeError):
         return default
     if isinstance(val, (int, float)):
         return float(val)
@@ -5099,7 +5162,7 @@ RUTA_CONFIG = ruta_persistente('configuracion.json')
 
 DEFAULT_PERMISOS_PESTANAS = {
     "tab_tableau": {"nombre": "📊 Informe Tableau Cam", "gerente": True, "lider": True, "asesor": False},
-    "tab_geral": {"nombre": "💳 Geral_Credito&Cobranza", "gerente": True, "lider": True, "asesor": False},
+    "tab_geral": {"nombre": "💳 Gera_Credito&Cobranza", "gerente": True, "lider": True, "asesor": False},
     "tab_resumen": {"nombre": "📊 Resumen & KPIs", "gerente": True, "lider": True, "asesor": False},
     "tab_ganancia": {"nombre": "🧮 Simuladores", "gerente": True, "lider": True, "asesor": False},
     "tab_diagnostico": {"nombre": "👑 Mis Líderes", "gerente": True, "lider": True, "asesor": True},
@@ -5681,7 +5744,224 @@ def consultar_auditoria_df(filtro_fecha_inicio=None, filtro_fecha_fin=None, filt
             pass
         return pd.DataFrame()
 
-def obtener_metricas_usabilidad(dias_atras=30):
+def contar_metas_sector_como_vamos(sector=None):
+    """
+    Cuenta cuántos líderes tienen metas asignadas en metas_como_vamos para el sector especificado (o total si es None).
+    """
+    conn = None
+    try:
+        conn = obtener_conexion_db(timeout=10.0)
+        cursor = conn.cursor()
+        if not sector:
+            cursor.execute("SELECT COUNT(*) FROM metas_como_vamos")
+            res = cursor.fetchone()
+            return res[0] if res else 0
+        vars_sec = list(obtener_variantes_sector(sector))
+        conds = []
+        params = []
+        for v in vars_sec:
+            conds.append("nombre_sector = ? OR nombre_sector LIKE ?")
+            params.extend([v, f"%{v}%"])
+        cursor.execute(f"SELECT COUNT(*) FROM metas_como_vamos WHERE {' OR '.join(conds)}", params)
+        res = cursor.fetchone()
+        return res[0] if res else 0
+    except Exception as e:
+        safe_print(f"Error al contar metas_como_vamos: {e}")
+        return 0
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+def consultar_logs_archivos_df(sector=None, componente=None, operacion=None, limite=500):
+    """
+    Retorna un DataFrame enriquecido y normalizado con los registros históricos
+    de Agrego, Actualización y Borrado de todos los archivos integrados en la plataforma.
+    """
+    conn = None
+    df = pd.DataFrame()
+    try:
+        conn = obtener_conexion_db(timeout=15.0)
+        query = """
+        SELECT id, fecha_hora, fecha, hora, username, nombre, rol, codigo_sector, nombre_sector, categoria, accion, detalle, dispositivo
+        FROM auditoria_eventos
+        WHERE categoria IN ('📁 Carga de Datos', '🗑️ Eliminación de Datos', '🔄 Rotación Ciclo', '📁 Integración de Archivos')
+           OR accion LIKE '%Carga%' OR accion LIKE '%Borrado%' OR accion LIKE '%Ajuste%' OR accion LIKE '%Rotaci%'
+        ORDER BY id DESC LIMIT ?
+        """
+        df = pd.read_sql_query(query, conn, params=[int(limite)])
+    except Exception as e_sql:
+        safe_print(f"Nota en consultar_logs_archivos_df SQLite: {e_sql}")
+        try:
+            rutas = [RUTA_AUDITORIA_JSON, 'auditoria_logs.json']
+            for r in rutas:
+                if r and os.path.exists(r):
+                    with open(r, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        if isinstance(data, list) and data:
+                            df = pd.DataFrame(data)
+                            break
+        except Exception:
+            pass
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    if df.empty:
+        return pd.DataFrame(columns=['Fecha y Hora', 'Componente', 'Operación', 'Detalle de Impacto', 'Usuario', 'Sector'])
+
+    registros = []
+    for _, r in df.iterrows():
+        act = str(r.get('accion') or '')
+        det = str(r.get('detalle') or '')
+        cat = str(r.get('categoria') or '')
+        
+        # 1. Identificar componente
+        if 'Tableau' in act or 'Base Tableau' in act or 'Base de Datos.xlsx' in det:
+            comp = '📊 Tableau'
+        elif any(k in act for k in ['Gera', 'Geral', 'Cartera']) or 'títulos' in det.lower():
+            comp = '💳 Gera (Cobranza)'
+        elif any(k in act for k in ['Ciclo', 'Cómo Vamos', 'Como Vamos']) or 'ciclo' in act.lower():
+            comp = '🔄 Cómo Vamos (Rotación)'
+        elif 'Arte' in act or 'Objetivos Arte' in act:
+            comp = '🎯 Objetivos Arte'
+        elif any(k in act for k in ['Desafíos', 'Desafios', 'Ajuste Desaf']):
+            comp = '✨ Ajustes Desafíos'
+        elif 'mi_grupo' in act:
+            comp = '🔄 mi_grupo (Cruce)'
+        elif 'Activas' in act:
+            comp = '⚡ Activas (Cruce)'
+        else:
+            comp = '📁 Archivo General'
+
+        # 2. Identificar operación
+        if any(k in act.lower() for k in ['borrado', 'elimina', 'vaciar', 'reset']):
+            op = '🗑️ Borrado'
+        elif any(k in act.lower() for k in ['rotación', 'rotar', 'ajuste', 'cruzar', 'actualiz', 'calibr']):
+            op = '🔄 Actualización'
+        else:
+            op = '🟢 Agrego'
+
+        usr = str(r.get('nombre') or r.get('username') or 'Sistema').strip()
+        nom_sec = str(r.get('nombre_sector') or '').strip()
+        cod_sec = str(r.get('codigo_sector') or '').strip()
+        sec_disp = nom_sec if nom_sec else (f"Sector {cod_sec}" if cod_sec else "Global")
+        f_h = f"{r.get('fecha', '')} {r.get('hora', '')}".strip()
+        if not f_h and r.get('fecha_hora'):
+            f_h = str(r['fecha_hora'])[:19].replace('T', ' ')
+
+        registros.append({
+            'ID': r.get('id', 0),
+            'Fecha y Hora': f_h,
+            'Componente': comp,
+            'Operación': op,
+            'Acción Original': act,
+            'Detalle de Impacto': det,
+            'Usuario': usr,
+            'Sector': sec_disp,
+            '_cod_sec': cod_sec,
+            '_nom_sec': nom_sec
+        })
+
+    res_df = pd.DataFrame(registros)
+    if res_df.empty:
+        return pd.DataFrame(columns=['Fecha y Hora', 'Componente', 'Operación', 'Acción Original', 'Detalle de Impacto', 'Usuario', 'Sector'])
+
+    if sector:
+        s_str = str(sector).strip()
+        vars_s = list(obtener_variantes_sector(s_str))
+        mask = (
+            res_df['_cod_sec'].isin(vars_s) |
+            res_df['_nom_sec'].str.contains(s_str, case=False, na=False) |
+            res_df['Sector'].str.contains(s_str, case=False, na=False) |
+            res_df['Detalle de Impacto'].str.contains(s_str, case=False, na=False)
+        )
+        res_df = res_df[mask]
+
+    if componente and componente != 'Todos':
+        res_df = res_df[res_df['Componente'] == componente]
+
+    if operacion and operacion != 'Todas':
+        res_df = res_df[res_df['Operación'] == operacion]
+
+    cols_finales = ['Fecha y Hora', 'Componente', 'Operación', 'Detalle de Impacto', 'Usuario', 'Sector']
+    return res_df[cols_finales].reset_index(drop=True)
+
+def obtener_estado_componentes_archivos(sector=None):
+    """
+    Retorna un diccionario de diagnóstico con el estado actual (recuentos, estado y última operación)
+    de cada uno de los componentes de archivos integrados para el sector (o global).
+    """
+    reg_tab = contar_registros_sector_tableau(sector)
+    reg_como = contar_metas_sector_como_vamos(sector)
+    reg_ger = contar_registros_sector_geral(sector)
+    reg_arte = contar_metas_sector_arte(sector)
+    reg_aj = contar_ajustes_sector_desafios(sector)
+
+    logs_df = consultar_logs_archivos_df(sector=sector, limite=100)
+
+    def _ultima_accion(comp_nombre):
+        if logs_df.empty:
+            return "Sin movimientos registrados", "-"
+        match = logs_df[logs_df['Componente'].str.contains(comp_nombre, case=False, na=False)]
+        if not match.empty:
+            primero = match.iloc[0]
+            return f"{primero['Operación']} ({primero['Fecha y Hora']})", primero['Detalle de Impacto']
+        return "Sin movimientos recientes", "-"
+
+    ult_tab_op, ult_tab_det = _ultima_accion("Tableau")
+    ult_como_op, ult_como_det = _ultima_accion("Cómo Vamos")
+    ult_ger_op, ult_ger_det = _ultima_accion("Gera")
+    ult_arte_op, ult_arte_det = _ultima_accion("Arte")
+    ult_aj_op, ult_aj_det = _ultima_accion("Desafíos")
+
+    return {
+        "tableau": {
+            "nombre": "📊 Base Tableau",
+            "tipo_dato": "Consultoras registradas",
+            "cantidad": reg_tab,
+            "estado": "🟢 Activo" if reg_tab > 0 else "⚪ Sin datos / Vaciado",
+            "ultima_op": ult_tab_op,
+            "detalle": ult_tab_det
+        },
+        "como_vamos": {
+            "nombre": "🔄 Rotación Ciclo (Cómo Vamos)",
+            "tipo_dato": "Metas de líderes",
+            "cantidad": reg_como,
+            "estado": "🟢 Activo" if reg_como > 0 else "⚪ Sin metas cargadas",
+            "ultima_op": ult_como_op,
+            "detalle": ult_como_det
+        },
+        "gera": {
+            "nombre": "💳 Gera (Crédito & Cobranza)",
+            "tipo_dato": "Títulos de deuda",
+            "cantidad": reg_ger,
+            "estado": "🟢 Cartera Activa" if reg_ger > 0 else "⚪ Sin cartera / Limpio",
+            "ultima_op": ult_ger_op,
+            "detalle": ult_ger_det
+        },
+        "objetivos_arte": {
+            "nombre": "🎯 Objetivos Arte",
+            "tipo_dato": "Líderes con metas oficiales",
+            "cantidad": reg_arte,
+            "estado": "🟢 Metas Calibradas" if reg_arte > 0 else "⚪ Sin metas específicas",
+            "ultima_op": ult_arte_op,
+            "detalle": ult_arte_det
+        },
+        "ajustes_desafios": {
+            "nombre": "✨ Ajustes Desafíos",
+            "tipo_dato": "Calibraciones de zona",
+            "cantidad": reg_aj,
+            "estado": "🟢 Calibración Activa" if reg_aj > 0 else "⚪ Sin calibración registrada",
+            "ultima_op": ult_aj_op,
+            "detalle": ult_aj_det
+        }
+    }
     """
     Calcula métricas agregadas de adopción, usabilidad y actividad para el dashboard.
     """
@@ -6254,10 +6534,10 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             clean_cols[col] = 'saldo_principal'
         elif 'saldo' in norm and 'financiero' in norm:
             clean_cols[col] = 'saldo_financiero'
-        elif 'saldo' in norm and ('total' in norm or 'deuda' in norm or 'actual' in norm):
-            clean_cols[col] = 'saldo_total'
         elif 'saldo' in norm and 'actualizado' in norm:
             clean_cols[col] = 'saldo_actualizado'
+        elif 'saldo' in norm and ('total' in norm or 'deuda' in norm or norm.endswith('actual') or 'saldoactual' in norm):
+            clean_cols[col] = 'saldo_total'
         elif 'situacion' in norm or 'estado' in norm or 'status' in norm or 'situacao' in norm:
             clean_cols[col] = 'situacion'
         elif 'retraso' in norm or 'mora' in norm:
@@ -6287,8 +6567,10 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             clean_cols[col] = 'origen_empresa'
 
     df = df_raw.rename(columns=clean_cols)
+    # Deduplicar columnas para asegurar nombres únicos y evitar ambigüedad de Series
+    df = df.loc[:, ~df.columns.duplicated()].copy()
     
-    # Fallbacks inteligentes para tolerar variaciones en descargas de Geral
+    # Fallbacks inteligentes para tolerar variaciones en descargas de Gera
     if 'numero_factura' not in df.columns:
         if 'titulo' in df.columns:
             df['numero_factura'] = df['titulo']
@@ -6322,8 +6604,8 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
     if faltantes:
         msg_guia = (
             f"El archivo no contiene las columnas requeridas: `{', '.join(faltantes)}`.\n\n"
-            f"📌 **Guía paso a paso para descargar el archivo correcto desde Geral:**\n\n"
-            f"1️⃣ Ingresa a **Geral** ➔ **Crédito & Cobranza**\n"
+            f"📌 **Guía paso a paso para descargar el archivo correcto desde Gera:**\n\n"
+            f"1️⃣ Ingresa a **Gera** ➔ **Crédito & Cobranza**\n"
             f"2️⃣ Selecciona **Consultar Deuda**\n"
             f"3️⃣ En **Ciclo de Captación**, selecciona los ciclos a consultar\n"
             f"4️⃣ Haz clic en el botón **Consultar**\n"
@@ -6356,8 +6638,10 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
         
     cursor = conn.cursor()
     try:
-        cursor.execute("ALTER TABLE cartera_geral ADD COLUMN telefono_movil_2 TEXT")
-        conn.commit()
+        cols_existentes = [r[1] for r in cursor.execute("PRAGMA table_info(cartera_geral)").fetchall()]
+        if 'telefono_movil_2' not in cols_existentes:
+            cursor.execute("ALTER TABLE cartera_geral ADD COLUMN telefono_movil_2 TEXT")
+            conn.commit()
     except Exception:
         pass
     
@@ -6366,8 +6650,10 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
         secs_a_borrar = [str(x).strip().split('.')[0] for x in df['cod_sector'].dropna().unique() if str(x).strip()]
         for cod_sec_val in secs_a_borrar:
             cursor.execute("DELETE FROM cartera_geral WHERE cod_sector = ? OR cod_sector = ? OR sector LIKE ?", (cod_sec_val, f"700000{cod_sec_val}", f"%{cod_sec_val}%"))
+        conn.commit()
     else:
         cursor.execute("DELETE FROM cartera_geral")
+        conn.commit()
         
     fecha_carga_actual = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -6489,39 +6775,12 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
             pass
     return True, len(registros_insertar), f"¡Se sincronizaron exitosamente {len(registros_insertar)} títulos comerciales en la base de Crédito & Cobranza con cruce de grupo de líder!"
 
-_GERAL_SEEDING_INTENTADO = False
-
 def verificar_seeding_inicial_geral():
     """
-    Si la base de datos está completamente vacía (0 registros en toda la tabla cartera_geral)
-    y existe Geral.xlsx en disco, realiza una carga inicial segura una única vez por proceso.
+    Función desactivada para evitar que la aplicación re-cargue automáticamente
+    archivos de cartera que el usuario ha decidido eliminar.
     """
-    global _GERAL_SEEDING_INTENTADO
-    if _GERAL_SEEDING_INTENTADO:
-        return
-    _GERAL_SEEDING_INTENTADO = True
-    
-    if not os.path.exists("Geral.xlsx"):
-        return
-
-    conn = None
-    try:
-        conn = obtener_conexion_db(timeout=10.0)
-        cursor = conn.cursor()
-        cursor.execute("SELECT COUNT(*) FROM cartera_geral")
-        count = cursor.fetchone()[0]
-        if count == 0:
-            conn.close()
-            conn = None
-            sincronizar_excel_geral_a_sqlite("Geral.xlsx")
-    except Exception as e:
-        safe_print(f"Nota en verificación inicial Geral: {e}")
-    finally:
-        if conn is not None:
-            try:
-                conn.close()
-            except Exception:
-                pass
+    return
 
 def consultar_geral_sql(grupo=None, sector=None, situacion=None):
     """
@@ -6912,13 +7171,25 @@ def eliminar_cartera_geral_sector(sector=None, usuario=None, user_rol='gerente')
 
             cursor.execute(f"DELETE FROM cartera_geral WHERE {where_clause}", params)
             conn.commit()
+
+            # Si la tabla quedó totalmente vacía tras borrar este sector, limpiar archivos en disco
+            cursor.execute("SELECT COUNT(*) FROM cartera_geral")
+            total_restante = cursor.fetchone()[0]
+            if total_restante == 0:
+                for p in ["Geral.xlsx", "Gera.xlsx", ruta_persistente("Geral.xlsx"), ruta_persistente("Gera.xlsx")]:
+                    if p and os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
+
             return True, num_prev, f"Se eliminaron {num_prev} títulos de cartera correspondientes a tu sector."
         else:
             cursor.execute("SELECT COUNT(*) FROM cartera_geral")
             num_prev = cursor.fetchone()[0]
             cursor.execute("DELETE FROM cartera_geral")
             conn.commit()
-            for p in ["Geral.xlsx", ruta_persistente("Geral.xlsx")]:
+            for p in ["Geral.xlsx", "Gera.xlsx", ruta_persistente("Geral.xlsx"), ruta_persistente("Gera.xlsx")]:
                 if p and os.path.exists(p):
                     try:
                         os.remove(p)
