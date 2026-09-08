@@ -100,7 +100,15 @@ from procesador import (
     PLANTILLA_CUMPLEANOS_DEFAULT,
     registrar_evento_auditoria,
     consultar_auditoria_df,
-    obtener_metricas_usabilidad
+    obtener_metricas_usabilidad,
+    contar_registros_sector_geral,
+    eliminar_cartera_geral_sector,
+    contar_metas_sector_arte,
+    eliminar_objetivos_arte_sector,
+    contar_ajustes_sector_desafios,
+    eliminar_ajustes_desafios_sector,
+    contar_registros_sector_tableau,
+    eliminar_tableau_sector
 )
 
 # 1. Configuración de la página
@@ -145,6 +153,44 @@ def cached_consultar_geral_sql(grupo=None, sector=None):
 @st.cache_data(ttl=60, show_spinner=False)
 def cached_consultar_tableau_sql(grupo=None, sector=None):
     return consultar_tableau_sql(grupo=grupo, sector=sector)
+
+def obtener_instancia_evolution(current_user, user_rol, user_grupo):
+    """
+    Genera un identificador de instancia limpio y válido para Evolution API:
+    - Líderes: 'lider_{user_grupo}'
+    - Gerentes: 'gerente_clery', 'gerente_dolly' o 'gerente_{nombre}'
+    Nunca serializa diccionarios ni expone hashes de contraseña.
+    """
+    if user_rol == 'lider' and user_grupo:
+        g_clean = str(user_grupo).strip()
+        return f"lider_{g_clean}"
+
+    if isinstance(current_user, dict):
+        nom = str(current_user.get('nombre') or '').strip().lower()
+        if 'clery' in nom:
+            return 'gerente_clery'
+        elif 'dolly' in nom:
+            return 'gerente_dolly'
+        primer_nombre = nom.split()[0] if nom else ''
+        clean_nom = "".join(c for c in primer_nombre if c.isalnum() or c == '_')
+        if clean_nom:
+            return f"gerente_{clean_nom}"
+
+        # Probar con nombre de sector
+        sec_nom = str(current_user.get('nombre_sector') or '').strip().lower()
+        if 'matices' in sec_nom:
+            return 'gerente_clery'
+        elif 'emociones' in sec_nom:
+            return 'gerente_dolly'
+
+        u_name = str(current_user.get('username') or 'gerente').strip().lower()
+        u_clean = "".join(c for c in u_name.split('@')[0] if c.isalnum() or c == '_')
+        return f"gerente_{u_clean}" if u_clean else "gerente"
+    else:
+        u_str = str(current_user or 'gerente').strip().lower().split('@')[0].replace('.', '_')
+        u_clean = "".join(c for c in u_str if c.isalnum() or c == '_')
+        return f"gerente_{u_clean}" if u_clean else "gerente"
+
 
 # Estilos CSS personalizados para mejorar el diseño estético
 st.markdown("""
@@ -752,7 +798,7 @@ def aplicar_estilo_styler(styler, func, subset):
 def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, user_sector, key_suffix="top"):
     """
     Renderiza el módulo y recordatorio de cumpleaños para las líderes y gerentes.
-    Identifica de forma automática las asesoras de cumpleaños HOY, en los próximos 7 días
+    Identifica de forma automática las consultoras de cumpleaños HOY, en los próximos 7 días
     y en el mes en curso, con botón de felicitación directa 1-clic por WhatsApp.
     """
     if df_tableau is None or df_tableau.empty:
@@ -795,7 +841,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         badge_bg = "linear-gradient(135deg, #FF6B00 0%, #E3007B 100%)"
         badge_color = "#FFFFFF"
         badge_border = "1px solid rgba(255, 255, 255, 0.45)"
-        badge_txt = f"📅 PRÓXIMOS 7 DÍAS • {len(semana_list)} ASESORA{'S' if len(semana_list) > 1 else ''}"
+        badge_txt = f"📅 PRÓXIMOS 7 DÍAS • {len(semana_list)} CONSULTORA{'S' if len(semana_list) > 1 else ''}"
         icon_main = "🎁"
         expanded_default = False
     else:
@@ -804,7 +850,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
         badge_bg = "rgba(255, 255, 255, 0.18)"
         badge_color = "#FFFFFF"
         badge_border = "1px solid rgba(255, 255, 255, 0.35)"
-        badge_txt = f"🗓️ CUMPLEAÑOS DEL MES • {total_mes} ASESORA{'S' if total_mes > 1 else ''}"
+        badge_txt = f"🗓️ CUMPLEAÑOS DEL MES • {total_mes} CONSULTORA{'S' if total_mes > 1 else ''}"
         icon_main = "🗓️"
         expanded_default = False
     # Formato unificado del título del expander con todas las opciones y texto de acción
@@ -931,10 +977,119 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
             
             if total_items > 25:
                 st.caption(f"ℹ️ *Mostrando las primeras 25 de {total_items} cumpleañeras para máxima velocidad de respuesta. Consulta o descarga el listado completo en la pestaña '🗓️ Todo el Mes'.*")
-                    
+
+        def _render_despachador_cumple_evolution(lista_cumple, label_periodo="Hoy", key_pfx="hoy"):
+            if not lista_cumple:
+                return
+
+            import requests
+            evo_url_c = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+            evo_tok_c = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+            cur_u = st.session_state.get('user') or {}
+            inst_def_c = obtener_instancia_evolution(cur_u, user_rol, user_grupo)
+            if 'in_evo_instance' in st.session_state:
+                val_inst_prev = str(st.session_state['in_evo_instance'])
+                if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
+                    st.session_state['in_evo_instance'] = inst_def_c
+            instancia_evo = st.session_state.get('in_evo_instance', inst_def_c)
+            if '{' in str(instancia_evo) or 'password_hash' in str(instancia_evo):
+                instancia_evo = inst_def_c
+                st.session_state['in_evo_instance'] = inst_def_c
+
+            with st.expander(f"🔌 Envío Automático por Evolution API ({len(lista_cumple)} Cumpleañeras de {label_periodo})", expanded=True if label_periodo == "Hoy" else False):
+                st.markdown(f"##### 🚀 Felicitar Automáticamente por WhatsApp ({label_periodo}):")
+                st.caption("Envía el saludo de cumpleaños personalizado a todas las consultoras con un solo clic usando tu WhatsApp vinculado.")
+
+                col_c_info1, col_c_info2 = st.columns([1.8, 1.2])
+                with col_c_info1:
+                    st.markdown(f"""
+                    <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
+                        📡 WhatsApp Conectado: <strong style="color: #25D366;">{instancia_evo}</strong> (Rol: <em>{user_rol.title()}</em>)<br>
+                        🌐 Servidor API: <code>{evo_url_c}</code>
+                    </div>
+                    """, unsafe_allow_html=True)
+                with col_c_info2:
+                    delay_c_wa = st.slider("⏱️ Pausa anti-ban (seg):", min_value=1, max_value=8, value=3, key=f"slider_delay_{key_pfx}_{key_suffix}")
+
+                # Selección de destinatarias (todas por defecto)
+                mapa_dest_c = {str(it['codigo_cb']): f"🌸 {it['nombre']} ({it['nivel']}) — Cel: {it['celular'] if it['celular'] else 'Sin cel'}" for it in lista_cumple}
+
+                col_s1, col_s2 = st.columns([1.5, 3])
+                with col_s1:
+                    if st.button(f"👥 Todas ({len(mapa_dest_c)})", key=f"btn_all_{key_pfx}_{key_suffix}", use_container_width=True):
+                        st.session_state[f'sel_cbs_{key_pfx}_{key_suffix}'] = list(mapa_dest_c.keys())
+                        st.rerun()
+                with col_s2:
+                    if st.button("🧹 Deseleccionar (Elegir Pocas)", key=f"btn_desel_{key_pfx}_{key_suffix}", use_container_width=True):
+                        st.session_state[f'sel_cbs_{key_pfx}_{key_suffix}'] = []
+                        st.rerun()
+
+                if f'sel_cbs_{key_pfx}_{key_suffix}' not in st.session_state:
+                    st.session_state[f'sel_cbs_{key_pfx}_{key_suffix}'] = list(mapa_dest_c.keys())
+
+                sel_cbs_elegidos = st.multiselect(
+                    "Cumpleañeras a las que se les enviará felicitación:",
+                    options=list(mapa_dest_c.keys()),
+                    default=[c for c in st.session_state[f'sel_cbs_{key_pfx}_{key_suffix}'] if c in mapa_dest_c],
+                    format_func=lambda c: mapa_dest_c.get(c, c),
+                    key=f"ms_dest_{key_pfx}_{key_suffix}"
+                )
+                st.session_state[f'sel_cbs_{key_pfx}_{key_suffix}'] = sel_cbs_elegidos
+
+                items_a_enviar = [it for it in lista_cumple if str(it['codigo_cb']) in sel_cbs_elegidos]
+
+                btn_enviar_cumple_api = st.button(
+                    f"🚀 Iniciar Envío Automático a las {len(items_a_enviar)} Cumpleañeras",
+                    type="primary",
+                    disabled=(len(items_a_enviar) == 0),
+                    use_container_width=True,
+                    key=f"btn_send_api_{key_pfx}_{key_suffix}"
+                )
+
+                if btn_enviar_cumple_api and items_a_enviar:
+                    prog_bar_c = st.progress(0.0)
+                    stat_txt_c = st.empty()
+                    ok_c = 0
+                    err_c = 0
+                    tot_c = len(items_a_enviar)
+
+                    for i_c, it_c in enumerate(items_a_enviar):
+                        c_num = str(it_c.get('celular', '')).strip()
+                        c_nom = str(it_c.get('nombre', '')).strip()
+                        msg_body = it_c.get('msg_wa', '')
+
+                        if c_num and len(c_num) >= 10 and c_num.lower() not in ['sin celular', 'nan', 'none']:
+                            try:
+                                c_clean = f"57{c_num}" if not c_num.startswith('57') else c_num
+                                e_headers = {"apikey": evo_tok_c.strip(), "Content-Type": "application/json"}
+                                url_text = f"{evo_url_c.strip().rstrip('/')}/message/sendText/{instancia_evo.strip()}"
+                                payload_text = {
+                                    "number": c_clean,
+                                    "text": msg_body,
+                                    "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                }
+                                res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
+                                if res_t.status_code in [200, 201]:
+                                    ok_c += 1
+                                else:
+                                    err_c += 1
+                            except Exception:
+                                err_c += 1
+                        else:
+                            err_c += 1
+
+                        prog_bar_c.progress((i_c + 1) / tot_c)
+                        stat_txt_c.caption(f"Enviando felicitación {i_c + 1} de {tot_c}: **{c_nom}** ({c_num})...")
+                        if i_c < tot_c - 1:
+                            time.sleep(delay_c_wa)
+
+                    st.success(f"✅ ¡Felicitaciones de cumpleaños enviadas con éxito! Éxitos: **{ok_c}** | Fallidos / Sin celular: **{err_c}**")
+
         with tab_c_hoy:
             if hoy_list:
-                st.success(f"🎂 **¡Hoy tenemos {len(hoy_list)} cumpleañera{'s' if len(hoy_list) > 1 else ''} en tu equipo!** Toca el botón para enviarles el mensaje personalizado por WhatsApp:")
+                st.success(f"🎂 **¡Hoy tenemos {len(hoy_list)} cumpleañera{'s' if len(hoy_list) > 1 else ''} en tu equipo!** Puedes felicitarlas automáticamente por la API o con el botón individual de cada tarjeta:")
+                _render_despachador_cumple_evolution(hoy_list, label_periodo="Hoy", key_pfx="hoy")
+                st.markdown("<br>", unsafe_allow_html=True)
                 _render_cards_cumple(hoy_list, es_hoy=True)
                 col_b1, col_b2 = st.columns([2, 2])
                 with col_b1:
@@ -942,10 +1097,12 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                         st.balloons()
             else:
                 st.info("🌸 Hoy no hay cumpleaños en tu equipo. ¡Revisa la pestaña de los **Próximos 7 Días** para prepararte!")
-                
+
         with tab_c_sem:
             if semana_list:
-                st.markdown(f"###### 📅 Cumpleaños en los próximos 7 días ({len(semana_list)} asesoras):")
+                st.markdown(f"###### 📅 Cumpleaños en los próximos 7 días ({len(semana_list)} consultoras):")
+                _render_despachador_cumple_evolution(semana_list, label_periodo="Próximos 7 Días", key_pfx="sem")
+                st.markdown("<br>", unsafe_allow_html=True)
                 _render_cards_cumple(semana_list, es_hoy=False)
             else:
                 st.info("📅 No hay cumpleaños registrados en los próximos 7 días.")
@@ -956,7 +1113,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                 df_mes_vista = pd.DataFrame([
                     {
                         'Día': f"{it['dia']} de {nombre_mes}",
-                        'Asesora': it['nombre'],
+                        'Consultora': it['nombre'],
                         'Nivel': it['nivel'],
                         'Grupo': it['grupo'],
                         'Código CB': it['codigo_cb'],
@@ -1927,7 +2084,7 @@ elif user_rol == 'gerente':
 elif user_rol == 'lider':
     st.sidebar.caption(f"👩‍💼 **Rol**: Líder de Negocio (Grupo `{user_grupo}` • {user_sector_nombre})")
 else:
-    st.sidebar.caption(f"👤 **Rol**: Asesora / Consulta de Facturación ({user_sector_nombre})")
+    st.sidebar.caption(f"👤 **Rol**: Consultora / Consulta de Facturación ({user_sector_nombre})")
 
 if info_suscripcion.get("estado") == "prueba":
     st.sidebar.info(f"⏳ **Modo Prueba**: Te quedan **{info_suscripcion['dias_restantes']} días** de prueba gratuita (Vence el {info_suscripcion['fecha_vencimiento_str']}).")
@@ -2062,31 +2219,107 @@ if puede_subir_archivos:
                             except Exception as e_up:
                                 st.error(f"Error: {e_up}")
 
+                st.markdown("---")
+                cons_actuales = contar_registros_sector_tableau(user_sector if user_rol == 'gerente' else None)
+                if cons_actuales > 0:
+                    st.caption(f"🟢 **Base Consultoras**: {cons_actuales:,} registradas ({user_sector_nombre if user_rol == 'gerente' else 'Global'})".replace(",", "."))
+                    with st.expander("🗑️ Vaciar Consultoras de este Sector", expanded=False):
+                        st.warning("⚠️ Esta acción vaciará el directorio de consultoras de tu sector hasta cargar una nueva base Tableau.")
+                        cod_conf_tab = st.text_input("Escribe **BORRAR** para confirmar:", key="input_conf_borrar_tab")
+                        if st.button("🗑️ Confirmar y Vaciar Consultoras", type="secondary", use_container_width=True, key="btn_conf_borrar_tab"):
+                            if cod_conf_tab.strip().upper() == "BORRAR":
+                                sec_elim = user_sector if user_rol == 'gerente' else None
+                                ok_e, n_e, msg_e = eliminar_tableau_sector(sector=sec_elim, usuario=current_user, user_rol=user_rol)
+                                if ok_e:
+                                    registrar_evento_auditoria(
+                                        current_user,
+                                        categoria="🗑️ Eliminación de Datos",
+                                        accion="Borrado Base Tableau",
+                                        detalle=f"{msg_e} ({user_sector_nombre})",
+                                        dispositivo="🖥️ PC / Escritorio"
+                                    )
+                                    if 'last_processed_tableau' in st.session_state:
+                                        del st.session_state['last_processed_tableau']
+                                    st.cache_data.clear()
+                                    st.success(f"✅ {msg_e}")
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {msg_e}")
+                            else:
+                                st.error("⚠️ Código incorrecto. Debes escribir exactamente la palabra **BORRAR**.")
+                else:
+                    st.caption("⚪ **Sin consultoras registradas** para este sector.")
+
             with tab_sb_mg:
                 file_mg_sb = st.file_uploader("Cargar `mi_grupo.xls`:", type=["xls", "xlsx"], key="sb_mi_grupo_uploader")
+                sec_filtro_mg = user_sector if user_rol == 'gerente' else None
                 if file_mg_sb is not None:
                     st.caption(f"📄 Listo: **{file_mg_sb.name}**")
                     if st.button("🚀 Cruzar Estados Ahora", type="primary", use_container_width=True, key="btn_sb_mg_subido"):
-                        res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg_sb)
+                        res_mg = actualizar_situacion_comercial_desde_mi_grupo(file_mg_sb, sector=sec_filtro_mg)
                         if res_mg.get('exito'):
                             st.cache_data.clear()
-                            st.session_state['res_mg_log'] = {
-                                'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
-                                'detalles': res_mg.get('detalles', [])
-                            }
+                            if 'historial_acumulado_mg' not in st.session_state:
+                                st.session_state['historial_acumulado_mg'] = []
+                            cbs_existentes = {str(d.get('Código CB')).strip() for d in st.session_state['historial_acumulado_mg']}
+                            for n in res_mg.get('detalles', []):
+                                cb_n = str(n.get('Código CB')).strip()
+                                if cb_n not in cbs_existentes:
+                                    st.session_state['historial_acumulado_mg'].append(n)
+                                    cbs_existentes.add(cb_n)
+
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="📁 Carga de Datos",
+                                accion="Carga mi_grupo",
+                                detalle=f"{res_mg['cambios']} consultoras activadas ({user_sector_nombre})",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
+
+                            if res_mg.get('es_duplicado'):
+                                st.session_state['res_mg_log'] = {
+                                    'tipo': 'info',
+                                    'msg': f"ℹ️ **Información al día**: Este archivo no tiene consultoras nuevas por activar. Las {res_mg.get('ya_activas', 0)} consultoras de este archivo ya se encuentran registradas como Activas en el sistema.",
+                                    'detalles': st.session_state['historial_acumulado_mg']
+                                }
+                            else:
+                                total_acum = len(st.session_state['historial_acumulado_mg'])
+                                st.session_state['res_mg_log'] = {
+                                    'tipo': 'success',
+                                    'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} nueva(s) consultora(s) activada(s) ahora. Total acumuladas hoy: {total_acum}.",
+                                    'detalles': st.session_state['historial_acumulado_mg']
+                                }
                             st.rerun()
                         else:
                             st.error(f"Error: {res_mg.get('error')}")
                 elif os.path.exists("mi_grupo.xls"):
                     st.caption("🟢 Base `mi_grupo.xls` guardada")
                     if st.button("🔄 Re-cruzar base guardada", type="secondary", use_container_width=True, key="btn_sb_mg_local"):
-                        res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls")
+                        res_mg = actualizar_situacion_comercial_desde_mi_grupo("mi_grupo.xls", sector=sec_filtro_mg)
                         if res_mg.get('exito'):
                             st.cache_data.clear()
-                            st.session_state['res_mg_log'] = {
-                                'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} cambio(s) de estado.",
-                                'detalles': res_mg.get('detalles', [])
-                            }
+                            if 'historial_acumulado_mg' not in st.session_state:
+                                st.session_state['historial_acumulado_mg'] = []
+                            cbs_existentes = {str(d.get('Código CB')).strip() for d in st.session_state['historial_acumulado_mg']}
+                            for n in res_mg.get('detalles', []):
+                                cb_n = str(n.get('Código CB')).strip()
+                                if cb_n not in cbs_existentes:
+                                    st.session_state['historial_acumulado_mg'].append(n)
+                                    cbs_existentes.add(cb_n)
+
+                            if res_mg.get('es_duplicado'):
+                                st.session_state['res_mg_log'] = {
+                                    'tipo': 'info',
+                                    'msg': f"ℹ️ **Información al día**: La base guardada no tiene consultoras nuevas por activar. Las {res_mg.get('ya_activas', 0)} consultoras ya están registradas como Activas.",
+                                    'detalles': st.session_state['historial_acumulado_mg']
+                                }
+                            else:
+                                total_acum = len(st.session_state['historial_acumulado_mg'])
+                                st.session_state['res_mg_log'] = {
+                                    'tipo': 'success',
+                                    'msg': f"✅ ¡Actualización exitosa! {res_mg['coincidencias']} coincidencia(s), {res_mg['cambios']} nueva(s) consultora(s) activada(s). Total acumuladas hoy: {total_acum}.",
+                                    'detalles': st.session_state['historial_acumulado_mg']
+                                }
                             st.rerun()
                         else:
                             st.error(f"Error: {res_mg.get('error')}")
@@ -2094,29 +2327,74 @@ if puede_subir_archivos:
             with tab_sb_act:
                 file_act_sb = st.file_uploader("Cargar archivo `activas`:", type=["xlsx", "xls", "csv"], key="sb_activas_uploader")
                 local_act_path = next((p for p in ["activas.xlsx", "activas.xls", "activas.csv", "Activas.xlsx", "Activas.xls"] if os.path.exists(p)), None)
+                sec_filtro_act = user_sector if user_rol == 'gerente' else None
                 if file_act_sb is not None:
                     st.caption(f"📄 Listo: **{file_act_sb.name}**")
                     if st.button("🚀 Cruzar Activas Ahora", type="primary", use_container_width=True, key="btn_sb_act_subido"):
-                        res_act = actualizar_base_desde_activas(file_act_sb)
+                        res_act = actualizar_base_desde_activas(file_act_sb, sector=sec_filtro_act)
                         if res_act.get('exito'):
                             st.cache_data.clear()
-                            st.session_state['res_act_log'] = {
-                                'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
-                                'detalles': res_act.get('detalles', [])
-                            }
+                            if 'historial_acumulado_act' not in st.session_state:
+                                st.session_state['historial_acumulado_act'] = []
+                            cbs_existentes = {str(d.get('Código CB')).strip() for d in st.session_state['historial_acumulado_act']}
+                            for n in res_act.get('detalles', []):
+                                cb_n = str(n.get('Código CB')).strip()
+                                if cb_n not in cbs_existentes:
+                                    st.session_state['historial_acumulado_act'].append(n)
+                                    cbs_existentes.add(cb_n)
+
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="📁 Carga de Datos",
+                                accion="Carga Activas",
+                                detalle=f"{res_act['cambios_totales']} consultoras activadas ({user_sector_nombre})",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
+
+                            if res_act.get('es_duplicado'):
+                                st.session_state['res_act_log'] = {
+                                    'tipo': 'info',
+                                    'msg': f"ℹ️ **Información al día**: Este archivo no tiene consultoras nuevas por activar. Las {res_act.get('ya_activas', 0)} consultoras de este archivo ya se encuentran registradas como Activas en el sistema.",
+                                    'detalles': st.session_state['historial_acumulado_act']
+                                }
+                            else:
+                                total_acum = len(st.session_state['historial_acumulado_act'])
+                                st.session_state['res_act_log'] = {
+                                    'tipo': 'success',
+                                    'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} nueva(s) consultora(s) activada(s) ahora. Total acumuladas hoy: {total_acum}.",
+                                    'detalles': st.session_state['historial_acumulado_act']
+                                }
                             st.rerun()
                         else:
                             st.error(f"Error: {res_act.get('error')}")
                 elif local_act_path:
                     st.caption(f"🟢 Base `{local_act_path}` guardada")
                     if st.button("🔄 Re-cruzar base guardada", type="secondary", use_container_width=True, key="btn_sb_act_local"):
-                        res_act = actualizar_base_desde_activas(local_act_path)
+                        res_act = actualizar_base_desde_activas(local_act_path, sector=sec_filtro_act)
                         if res_act.get('exito'):
                             st.cache_data.clear()
-                            st.session_state['res_act_log'] = {
-                                'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} consultora(s) actualizada(s).",
-                                'detalles': res_act.get('detalles', [])
-                            }
+                            if 'historial_acumulado_act' not in st.session_state:
+                                st.session_state['historial_acumulado_act'] = []
+                            cbs_existentes = {str(d.get('Código CB')).strip() for d in st.session_state['historial_acumulado_act']}
+                            for n in res_act.get('detalles', []):
+                                cb_n = str(n.get('Código CB')).strip()
+                                if cb_n not in cbs_existentes:
+                                    st.session_state['historial_acumulado_act'].append(n)
+                                    cbs_existentes.add(cb_n)
+
+                            if res_act.get('es_duplicado'):
+                                st.session_state['res_act_log'] = {
+                                    'tipo': 'info',
+                                    'msg': f"ℹ️ **Información al día**: La base guardada no tiene consultoras nuevas por activar. Las {res_act.get('ya_activas', 0)} consultoras ya están registradas como Activas.",
+                                    'detalles': st.session_state['historial_acumulado_act']
+                                }
+                            else:
+                                total_acum = len(st.session_state['historial_acumulado_act'])
+                                st.session_state['res_act_log'] = {
+                                    'tipo': 'success',
+                                    'msg': f"✅ ¡Cruce de Activas exitoso! {res_act['coincidencias']} coincidencia(s), {res_act['cambios_totales']} nueva(s) consultora(s) activada(s). Total acumuladas hoy: {total_acum}.",
+                                    'detalles': st.session_state['historial_acumulado_act']
+                                }
                             st.rerun()
                         else:
                             st.error(f"Error: {res_act.get('error')}")
@@ -2196,6 +2474,36 @@ if puede_subir_archivos:
                         else:
                             st.error(f"❌ {msg_g}")
 
+            # Borrado seguro y aislado por sector
+            st.markdown("---")
+            titulos_actuales_geral = contar_registros_sector_geral(user_sector if user_rol == 'gerente' else None)
+            if titulos_actuales_geral > 0:
+                st.caption(f"🟢 **Cartera activa**: {titulos_actuales_geral:,} títulos ({user_sector_nombre if user_rol == 'gerente' else 'Global'})".replace(",", "."))
+                with st.expander("🗑️ Borrar Cartera de este Sector", expanded=False):
+                    st.warning("⚠️ Esta acción eliminará los títulos de deuda de tu sector para permitir subir una cartera limpia o analizar sin deudas.")
+                    cod_conf_geral = st.text_input("Escribe **BORRAR** para confirmar:", key="input_conf_borrar_geral")
+                    if st.button("🗑️ Confirmar y Eliminar Cartera", type="secondary", use_container_width=True, key="btn_conf_borrar_geral"):
+                        if cod_conf_geral.strip().upper() == "BORRAR":
+                            sec_elim = user_sector if user_rol == 'gerente' else None
+                            ok_e, n_e, msg_e = eliminar_cartera_geral_sector(sector=sec_elim, usuario=current_user, user_rol=user_rol)
+                            if ok_e:
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="🗑️ Eliminación de Datos",
+                                    accion="Borrado Cartera Geral",
+                                    detalle=f"{msg_e} ({user_sector_nombre})",
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                st.cache_data.clear()
+                                st.success(f"✅ {msg_e}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_e}")
+                        else:
+                            st.error("⚠️ Código incorrecto. Debes escribir exactamente la palabra **BORRAR**.")
+            else:
+                st.caption("⚪ **Sin cartera cargada** para este sector.")
+
         # 4. OBJETIVOS ARTE
         with st.sidebar.expander("🎯 4. Objetivos Arte", expanded=False):
             st.caption("Sube `Objetivos Arte.xlsx` (Hoja *Desafíos LNN*) para actualizar metas de Inicios, Reinicios y Recuperos:")
@@ -2220,6 +2528,36 @@ if puede_subir_archivos:
                                 st.error(f"❌ Error al procesar: {res_oa.get('error')}")
                     except Exception as ex_oa:
                         st.error(f"❌ Error: {ex_oa}")
+
+            # Borrado seguro y aislado por sector
+            st.markdown("---")
+            metas_actuales_arte = contar_metas_sector_arte(user_sector if user_rol == 'gerente' else None)
+            if metas_actuales_arte > 0:
+                st.caption(f"🟢 **Metas activas**: {metas_actuales_arte} líderes mapeadas ({user_sector_nombre if user_rol == 'gerente' else 'Global'})")
+                with st.expander("🗑️ Borrar Objetivos Arte de este Sector", expanded=False):
+                    st.warning("⚠️ Esta acción eliminará las metas oficiales de Inicios, Reinicios y Recuperos para este sector.")
+                    cod_conf_arte = st.text_input("Escribe **BORRAR** para confirmar:", key="input_conf_borrar_arte")
+                    if st.button("🗑️ Confirmar y Eliminar Metas", type="secondary", use_container_width=True, key="btn_conf_borrar_arte"):
+                        if cod_conf_arte.strip().upper() == "BORRAR":
+                            sec_elim = user_sector if user_rol == 'gerente' else None
+                            ok_e, n_e, msg_e = eliminar_objetivos_arte_sector(sector=sec_elim, usuario=current_user, user_rol=user_rol)
+                            if ok_e:
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="🗑️ Eliminación de Datos",
+                                    accion="Borrado Objetivos Arte",
+                                    detalle=f"{msg_e} ({user_sector_nombre})",
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                st.cache_data.clear()
+                                st.success(f"✅ {msg_e}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_e}")
+                        else:
+                            st.error("⚠️ Código incorrecto. Debes escribir exactamente la palabra **BORRAR**.")
+            else:
+                st.caption("⚪ **Sin metas de Objetivos Arte** para este sector.")
 
         # 5. AJUSTES DESAFÍOS (PROYECCIÓN GERENCIA DE ZONA)
         with st.sidebar.expander("✨ 5. Ajustes Desafíos", expanded=False):
@@ -2254,6 +2592,38 @@ if puede_subir_archivos:
                                 st.error(f"❌ Error al procesar: {res_aj.get('error')}")
                     except Exception as ex_aj:
                         st.error(f"❌ Error: {ex_aj}")
+
+            # Borrado seguro y aislado por sector
+            st.markdown("---")
+            ajustes_actuales = contar_ajustes_sector_desafios(user_sector if user_rol == 'gerente' else None)
+            if ajustes_actuales > 0:
+                st.caption(f"🟢 **Calibraciones activas**: {ajustes_actuales} campaña(s) ({user_sector_nombre if user_rol == 'gerente' else 'Global'})")
+                with st.expander("🗑️ Borrar Ajustes Desafíos de este Sector", expanded=False):
+                    st.warning("⚠️ Esta acción eliminará el histórico de calibraciones de zona para este sector.")
+                    cod_conf_aj = st.text_input("Escribe **BORRAR** para confirmar:", key="input_conf_borrar_aj")
+                    if st.button("🗑️ Confirmar y Eliminar Ajustes", type="secondary", use_container_width=True, key="btn_conf_borrar_aj"):
+                        if cod_conf_aj.strip().upper() == "BORRAR":
+                            sec_elim = user_sector if user_rol == 'gerente' else None
+                            ok_e, n_e, msg_e = eliminar_ajustes_desafios_sector(sector=sec_elim, usuario=current_user, user_rol=user_rol)
+                            if ok_e:
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="🗑️ Eliminación de Datos",
+                                    accion="Borrado Ajustes Desafíos",
+                                    detalle=f"{msg_e} ({user_sector_nombre})",
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                if 'ultimo_resumen_ajuste_desafios' in st.session_state:
+                                    del st.session_state['ultimo_resumen_ajuste_desafios']
+                                st.cache_data.clear()
+                                st.success(f"✅ {msg_e}")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_e}")
+                        else:
+                            st.error("⚠️ Código incorrecto. Debes escribir exactamente la palabra **BORRAR**.")
+            else:
+                st.caption("⚪ **Sin ajustes de zona** para este sector.")
 
         st.sidebar.markdown("---")
 else:
@@ -2520,7 +2890,7 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
         if df_tab_app.empty:
             st.info("No se encontraron registros de consultoras para esta vista.")
         else:
-            cols_show = [c for c in ['Código CB', 'Líder / Grupo', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial', 'Pts Acum', 'Deuda Mora', 'Ped. Pendientes', 'Notas / Comentarios'] if c in df_tab_app.columns]
+            cols_show = [c for c in ['Código CB', 'Líder / Grupo', 'Consultora', 'Asesora / Consultora', 'Nivel / Color', 'Sit. Comercial', 'Pts Acum', 'Deuda Mora', 'Ped. Pendientes', 'Notas / Comentarios'] if c in df_tab_app.columns]
             st.dataframe(
                 df_tab_app[cols_show] if cols_show else df_tab_app,
                 use_container_width=True,
@@ -3148,26 +3518,43 @@ with tab_tableau:
             st.metric("⌛ Aguardando Pago", f"{tot_pago} pers.")
 
         # Notificaciones de actualización de Tableau / mi_grupo / Activas (ejecutadas desde la barra lateral)
+        def _cerrar_notificacion_mg():
+            st.session_state.pop('res_mg_log', None)
+
+        def _cerrar_notificacion_act():
+            st.session_state.pop('res_act_log', None)
 
         if st.session_state.get('res_mg_log'):
             log_mg = st.session_state['res_mg_log']
-            st.success(log_mg['msg'])
-            if log_mg.get('detalles'):
-                with st.expander("📋 Ver detalle de Consultoras Actualizadas con mi_grupo", expanded=True):
-                    st.dataframe(pd.DataFrame(log_mg['detalles']), use_container_width=True, hide_index=True)
-            if st.button("Cerrar notificación (mi_grupo)", key="btn_close_mg_log"):
-                del st.session_state['res_mg_log']
-                st.rerun()
+            c_notif, c_btn = st.columns([5, 1])
+            with c_notif:
+                if log_mg.get('tipo') == 'info':
+                    st.info(log_mg['msg'])
+                else:
+                    st.success(log_mg['msg'])
+            with c_btn:
+                st.button("✖️ Cerrar", key="btn_close_mg_log", on_click=_cerrar_notificacion_mg, use_container_width=True)
+
+            detalles_mg = log_mg.get('detalles', [])
+            if detalles_mg:
+                with st.expander(f"📋 Ver detalle de Consultoras Actualizadas con mi_grupo ({len(detalles_mg)} acumuladas hoy)", expanded=True):
+                    st.dataframe(pd.DataFrame(detalles_mg), use_container_width=True, hide_index=True)
 
         if st.session_state.get('res_act_log'):
             log_data = st.session_state['res_act_log']
-            st.success(log_data['msg'])
-            if log_data.get('detalles'):
-                with st.expander("📋 Ver detalle de Consultoras Actualizadas con Activas", expanded=True):
-                    st.dataframe(pd.DataFrame(log_data['detalles']), use_container_width=True, hide_index=True)
-            if st.button("Cerrar notificación (activas)", key="btn_close_act_log"):
-                del st.session_state['res_act_log']
-                st.rerun()
+            c_notif_act, c_btn_act = st.columns([5, 1])
+            with c_notif_act:
+                if log_data.get('tipo') == 'info':
+                    st.info(log_data['msg'])
+                else:
+                    st.success(log_data['msg'])
+            with c_btn_act:
+                st.button("✖️ Cerrar", key="btn_close_act_log", on_click=_cerrar_notificacion_act, use_container_width=True)
+
+            detalles_act = log_data.get('detalles', [])
+            if detalles_act:
+                with st.expander(f"📋 Ver detalle de Consultoras Actualizadas con Activas ({len(detalles_act)} acumuladas hoy)", expanded=True):
+                    st.dataframe(pd.DataFrame(detalles_act), use_container_width=True, hide_index=True)
 
         # 3. Después: Los Filtros (Organizados en cuadrícula limpia y responsiva de 2 filas)
         mapa_lideres_tab = obtener_mapa_lideres()
@@ -3202,7 +3589,7 @@ with tab_tableau:
             with col_r1_3:
                 colores_tab_sel = st.multiselect("🏆 Nivel / Color", options=colores_tab_disp, default=[], key="filt_color_tab")
             with col_r1_4:
-                busq_t = st.text_input("🔍 Buscar Asesora (Nombre o Código)", "", key="tab_busq")
+                busq_t = st.text_input("🔍 Buscar Consultora (Nombre o Código)", "", key="tab_busq")
 
             # Fila 2: Filtros de Cartera, Ubicación y Portal (Responsivos)
             col_r2_1, col_r2_2, col_r2_3, col_r2_4, col_r2_5, col_r2_6 = st.columns([1.1, 1.0, 1.1, 1.1, 1.3, 0.9])
@@ -3241,7 +3628,7 @@ with tab_tableau:
             with col_r1_2:
                 colores_tab_sel = st.multiselect("🏆 Nivel / Color", options=colores_tab_disp, default=[], key="filt_color_tab")
             with col_r1_3:
-                busq_t = st.text_input("🔍 Buscar Asesora (Nombre o Código)", "", key="tab_busq")
+                busq_t = st.text_input("🔍 Buscar Consultora (Nombre o Código)", "", key="tab_busq")
 
             # Fila 2: Cartera, Ubicación y Portal para Líder
             col_r2_1, col_r2_2, col_r2_3, col_r2_4, col_r2_5, col_r2_6 = st.columns([1.1, 1.0, 1.1, 1.1, 1.3, 0.9])
@@ -3285,7 +3672,7 @@ with tab_tableau:
         with tab_tab_main:
             # Editor de Comentarios en Masa / Guardar Comentarios
             st.markdown("##### 📝 Comentarios y Notas Persistentes de la Líder")
-            st.caption("Escribe las notas de gestión por cada asesora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
+            st.caption("Escribe las notas de gestión por cada consultora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
 
             # Limpiar, ordenar y estandarizar columnas para que coincidan exactamente con la base canónica
             df_edit_view = limpiar_y_ordenar_columnas_tableau(df_tab_filt, mapa_lideres_tab, es_lider=(user_rol == 'lider'))
@@ -3398,13 +3785,13 @@ with tab_tableau:
 
             # --- SECCIÓN DE MENSAJERÍA WHATSAPP DIRECTA DEL LISTADO FILTRADO (MODELO GERAL) ---
             st.markdown("---")
-            with st.expander(f"📲 Contacto & Mensajería WhatsApp del Listado Filtrado ({len(df_edit_view)} Asesoras)", expanded=False):
+            with st.expander(f"📲 Contacto & Mensajería WhatsApp del Listado Filtrado ({len(df_edit_view)} Consultoras)", expanded=False):
                 st.markdown("##### 📲 Envíos y Campaña de WhatsApp sobre el Listado Filtrado")
                 st.caption("Contacta a las consultoras que acabas de filtrar en la tabla superior. Puedes enviarles tus notas personalizadas, recordatorios o promociones usando enlaces directos de 1-clic o despacho masivo.")
 
                 # Identificar columnas canónicas de la tabla
                 c_col_cb = 'Código CB' if 'Código CB' in df_edit_view.columns else ('Codigo CB' if 'Codigo CB' in df_edit_view.columns else None)
-                c_col_nom = 'Asesora / Consultora' if 'Asesora / Consultora' in df_edit_view.columns else ('Nombre' if 'Nombre' in df_edit_view.columns else None)
+                c_col_nom = 'Consultora' if 'Consultora' in df_edit_view.columns else ('Asesora / Consultora' if 'Asesora / Consultora' in df_edit_view.columns else ('Nombre' if 'Nombre' in df_edit_view.columns else None))
                 c_col_cel = 'Celular' if 'Celular' in df_edit_view.columns else ('celular' if 'celular' in df_edit_view.columns else None)
                 c_col_sit = 'Sit. Comercial' if 'Sit. Comercial' in df_edit_view.columns else None
                 c_col_col = 'Nivel / Color' if 'Nivel / Color' in df_edit_view.columns else None
@@ -3414,16 +3801,16 @@ with tab_tableau:
                 c_col_pts = 'Pts Acum' if 'Pts Acum' in df_edit_view.columns else None
 
                 if c_col_cb and c_col_nom:
-                    # Mapeo de asesoras disponibles
+                    # Mapeo de consultoras disponibles
                     mapa_wa_tab = {}
                     for _, r_w in df_edit_view.iterrows():
                         k_cb = str(r_w.get(c_col_cb, '')).strip()
-                        n_asesora = str(r_w.get(c_col_nom, '')).strip()
+                        n_consultora = str(r_w.get(c_col_nom, '')).strip()
                         n_color = str(r_w.get(c_col_col, 'Nivel')) if c_col_col else ''
                         n_sit = str(r_w.get(c_col_sit, 'Estado')) if c_col_sit else ''
                         n_nota = str(r_w.get(c_col_nota, '')).strip() if c_col_nota else ''
                         
-                        etiqueta = f"[{n_color}] [{n_sit}] {n_asesora} (CB: {k_cb})"
+                        etiqueta = f"[{n_color}] [{n_sit}] {n_consultora} (CB: {k_cb})"
                         if n_nota:
                             etiqueta += f' — 💬 "{n_nota[:28]}..."'
                         mapa_wa_tab[k_cb] = etiqueta
@@ -3574,7 +3961,7 @@ with tab_tableau:
                             link_t = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_t)}" if cel_val and len(cel_val) >= 10 else ""
 
                             filas_wa_tab.append({
-                                'Asesora': n_full,
+                                'Consultora': n_full,
                                 'Código CB': str(r_t.get(c_col_cb, '')),
                                 'Sit. Comercial': str(r_t.get(c_col_sit, '')),
                                 'Nivel / Color': nivel_val,
@@ -3588,7 +3975,7 @@ with tab_tableau:
 
                         # Tabla previa con enlace interactivo
                         st.dataframe(
-                            df_campana_tab_out[['Asesora', 'Código CB', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Nota Líder', 'Enlace Directo WhatsApp', 'Mensaje Personalizado']],
+                            df_campana_tab_out[['Consultora', 'Código CB', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Nota Líder', 'Enlace Directo WhatsApp', 'Mensaje Personalizado']],
                             column_config={
                                 "Enlace Directo WhatsApp": st.column_config.LinkColumn(
                                     "📲 Enviar WhatsApp",
@@ -3602,14 +3989,14 @@ with tab_tableau:
                         # Acciones inferiores: Despacho individual y Descargas
                         col_t_d1, col_t_d2 = st.columns([1.5, 1.5])
                         with col_t_d1:
-                            st.markdown("###### 📲 Despachar Asesora Individual:")
-                            nom_sel_rap_t = st.selectbox("Elige la asesora para enviar de inmediato:", options=df_campana_tab_out['Asesora'].tolist(), key="sel_rapido_tab_wa")
-                            row_sel_rap_t = df_campana_tab_out[df_campana_tab_out['Asesora'] == nom_sel_rap_t].iloc[0]
+                            st.markdown("###### 📲 Despachar Consultora Individual:")
+                            nom_sel_rap_t = st.selectbox("Elige la consultora para enviar de inmediato:", options=df_campana_tab_out['Consultora'].tolist(), key="sel_rapido_tab_wa")
+                            row_sel_rap_t = df_campana_tab_out[df_campana_tab_out['Consultora'] == nom_sel_rap_t].iloc[0]
                             link_wa_t_env = row_sel_rap_t.get('Enlace Directo WhatsApp')
                             if link_wa_t_env:
                                 st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rap_t).split()[0].title()}", url=link_wa_t_env, use_container_width=True)
                             else:
-                                st.warning("⚠️ Esta asesora no tiene celular válido registrado.")
+                                st.warning("⚠️ Esta consultora no tiene celular válido registrado.")
 
                         with col_t_d2:
                             st.markdown("###### 📥 Descargar Base de Campaña:")
@@ -3628,16 +4015,23 @@ with tab_tableau:
 
                         # Envío automático por Evolution API
                         with st.expander("🔌 Envío Masivo Automático por Evolution API (Opcional)", expanded=False):
-                            st.markdown("##### 🚀 Envío Automático a Asesoras Seleccionadas:")
+                            st.markdown("##### 🚀 Envío Automático a Consultoras Seleccionadas:")
                             evo_url_tab = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
-                            inst_def_tab = f"lider_{user_grupo}" if user_rol == 'lider' and user_grupo else f"gerente_{str(current_user).lower().split('@')[0].replace('.', '_')}"
+                            inst_def_tab = obtener_instancia_evolution(current_user, user_rol, user_grupo)
+                            if 'in_evo_instance' in st.session_state:
+                                val_inst_prev = str(st.session_state['in_evo_instance'])
+                                if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
+                                    st.session_state['in_evo_instance'] = inst_def_tab
                             evo_inst_tab = st.session_state.get('in_evo_instance', inst_def_tab)
+                            if '{' in str(evo_inst_tab) or 'password_hash' in str(evo_inst_tab):
+                                evo_inst_tab = inst_def_tab
+                                st.session_state['in_evo_instance'] = inst_def_tab
                             evo_tok_tab = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
 
                             st.caption(f"📡 Conectando a instancia: **`{evo_inst_tab}`** en `{evo_url_tab}`")
                             delay_tab_wa = st.slider("⏱️ Pausa entre mensajes (Segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_tab_wa")
 
-                            btn_disparar_tab_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_tab_out)} Asesoras", type="primary", use_container_width=True, key="btn_disparar_api_tab")
+                            btn_disparar_tab_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_tab_out)} Consultoras", type="primary", use_container_width=True, key="btn_disparar_api_tab")
 
                             if btn_disparar_tab_api:
                                 prog_bar_tab = st.progress(0.0)
@@ -3650,24 +4044,24 @@ with tab_tableau:
                                     c_num = str(r_ct['Celular']).strip()
                                     if c_num and len(c_num) >= 10:
                                         try:
-                                            c_clean_t = f"57{c_num}" if not c_num.startswith('57') else c_num
-                                            e_url_t = f"{evo_url_tab.strip().rstrip('/')}/message/sendText/{evo_inst_tab.strip()}"
-                                            e_payload_t = {
-                                                "number": c_clean_t,
-                                                "text": r_ct['Mensaje Personalizado'],
-                                                "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
-                                            }
-                                            e_headers_t = {"apikey": evo_tok_tab.strip(), "Content-Type": "application/json"}
-                                            res_t = requests.post(e_url_t, json=e_payload_t, headers=e_headers_t, timeout=12)
-                                            if res_t.status_code in [200, 201]:
-                                                ok_cnt_tab += 1
-                                            else:
-                                                err_cnt_tab += 1
+                                             c_clean_t = f"57{c_num}" if not c_num.startswith('57') else c_num
+                                             e_url_t = f"{evo_url_tab.strip().rstrip('/')}/message/sendText/{evo_inst_tab.strip()}"
+                                             e_payload_t = {
+                                                 "number": c_clean_t,
+                                                 "text": r_ct['Mensaje Personalizado'],
+                                                 "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                             }
+                                             e_headers_t = {"apikey": evo_tok_tab.strip(), "Content-Type": "application/json"}
+                                             res_t = requests.post(e_url_t, json=e_payload_t, headers=e_headers_t, timeout=12)
+                                             if res_t.status_code in [200, 201]:
+                                                 ok_cnt_tab += 1
+                                             else:
+                                                 err_cnt_tab += 1
                                         except Exception:
                                             err_cnt_tab += 1
 
                                     prog_bar_tab.progress((i_t + 1) / len(df_campana_tab_out))
-                                    stat_txt_tab.caption(f"Despachando {i_t+1} de {len(df_campana_tab_out)}: {r_ct['Asesora']}...")
+                                    stat_txt_tab.caption(f"Despachando {i_t+1} de {len(df_campana_tab_out)}: {r_ct['Consultora']}...")
                                     if i_t < len(df_campana_tab_out) - 1:
                                         time.sleep(delay_tab_wa)
 
@@ -3751,12 +4145,12 @@ with tab_tableau:
         # --- SUBPESTAÑA 2: CARTERA PENDIENTE & FACTURAS GERA ---
         with tab_tab_pago:
             st.markdown("##### 💳 Cartera Pendiente & Auditoría de Facturas")
-            st.caption("Selecciona cualquier asesora en la tabla para ver su resumen financiero y las fechas de vencimiento de sus facturas en deuda.")
+            st.caption("Selecciona cualquier consultora en la tabla para ver su resumen financiero y las fechas de vencimiento de sus facturas en deuda.")
 
             df_pago = df_tab_filt[(df_tab_filt['Ped. Pendientes'] > 0) | (df_tab_filt['Ped. Mora'] > 0) | (df_tab_filt['Deuda Mora'] > 0)].copy()
 
             if df_pago.empty:
-                st.info("🎉 ¡Excelente! No hay asesoras con cartera pendiente ni pedidos retenidos en la selección actual.")
+                st.info("🎉 ¡Excelente! No hay consultoras con cartera pendiente ni pedidos retenidos en la selección actual.")
             else:
                 cols_pago_show = [c for c in ['Codigo CB', 'Nombre', 'Color', 'Sit. Comercial', 'Deuda Total', 'Deuda Mora', 'Credito Disponible', 'Ped. Pendientes', 'Ped. Mora', 'Comentarios_Lider'] if c in df_pago.columns]
                 df_pago_formatted = df_pago[cols_pago_show].copy()
@@ -3789,9 +4183,9 @@ with tab_tableau:
                         if nombre_sel_t in nombres_pago:
                             idx_default_b = nombres_pago.index(nombre_sel_t) + 1
 
-                    asesora_busq = st.selectbox(
-                        "🔍 Búsqueda rápida de asesora (o marca la fila abajo):",
-                        options=["-- Selecciona una asesora o marca una fila abajo --"] + nombres_pago,
+                    consultora_busq = st.selectbox(
+                        "🔍 Búsqueda rápida de consultora (o marca la fila abajo):",
+                        options=["-- Selecciona una consultora o marca una fila abajo --"] + nombres_pago,
                         index=idx_default_b,
                         key="sel_asesora_cartera_modesto"
                     )
@@ -3803,8 +4197,8 @@ with tab_tableau:
 
                 # Determinar qué fila está activa
                 row_activa = None
-                if asesora_busq and asesora_busq != "-- Selecciona una asesora o marca una fila abajo --":
-                    m_row = df_pago[df_pago['Nombre'].astype(str) == asesora_busq]
+                if consultora_busq and consultora_busq != "-- Selecciona una consultora o marca una fila abajo --":
+                    m_row = df_pago[df_pago['Nombre'].astype(str) == consultora_busq]
                     if not m_row.empty:
                         row_activa = m_row.iloc[0]
                 elif sel_row_idx is not None:
@@ -4016,8 +4410,8 @@ with tab_tableau:
                         Total_Deuda_Mora=('Deuda Mora', 'sum') if 'Deuda Mora' in df_calc_valid_s.columns else ('Cantidad', lambda x: 0.0)
                     ).reset_index()
 
-                    tot_asesoras_s = len(df_calc_valid_s)
-                    df_sit_group['% Red'] = (df_sit_group['Cantidad'] / tot_asesoras_s * 100).round(1) if tot_asesoras_s > 0 else 0.0
+                    tot_consultoras_s = len(df_calc_valid_s)
+                    df_sit_group['% Red'] = (df_sit_group['Cantidad'] / tot_consultoras_s * 100).round(1) if tot_consultoras_s > 0 else 0.0
 
                     df_sit_group['__orden__'] = df_sit_group['Sit. Comercial'].apply(
                         lambda s: orden_sit.index(s) if s in orden_sit else 99
@@ -4334,6 +4728,36 @@ with tab_tableau:
                         "Queremos desearte muchos éxitos en este ciclo. ¡Cuenta con nosotras para tus pedidos y metas comerciales! ✨"
                     )
 
+                # --- FILTROS DE SEGMENTACIÓN: SITUACIÓN COMERCIAL & NIVEL/COLOR ---
+                c_sit_key = 'Sit. Comercial' if 'Sit. Comercial' in df_wa_target.columns else None
+                c_col_key = 'Color' if 'Color' in df_wa_target.columns else ('Nivel / Color' if 'Nivel / Color' in df_wa_target.columns else None)
+
+                sits_disp_sub = sorted([str(s).strip() for s in df_wa_target[c_sit_key].dropna().unique() if str(s).strip()]) if c_sit_key else []
+                colores_disp_sub = sorted([str(c).strip() for c in df_wa_target[c_col_key].dropna().unique() if str(c).strip()]) if c_col_key else []
+
+                col_f_sit, col_f_col = st.columns(2)
+                with col_f_sit:
+                    filt_sit_sub = st.multiselect(
+                        "🚦 Filtrar por Situación:",
+                        options=sits_disp_sub,
+                        default=[],
+                        placeholder="Todas las situaciones...",
+                        key="wa_subtab_filt_sit_com"
+                    )
+                with col_f_col:
+                    filt_col_sub = st.multiselect(
+                        "💎 Filtrar por Nivel / Color:",
+                        options=colores_disp_sub,
+                        default=[],
+                        placeholder="Todos los colores...",
+                        key="wa_subtab_filt_color"
+                    )
+
+                if filt_sit_sub and c_sit_key:
+                    df_wa_target = df_wa_target[df_wa_target[c_sit_key].astype(str).str.strip().isin(filt_sit_sub)]
+                if filt_col_sub and c_col_key:
+                    df_wa_target = df_wa_target[df_wa_target[c_col_key].astype(str).str.strip().isin(filt_col_sub)]
+
                 st.metric("👥 Consultoras en este Segmento", f"{len(df_wa_target):,} personas".replace(",", "."))
 
                 st.markdown("<br>", unsafe_allow_html=True)
@@ -4448,7 +4872,7 @@ with tab_tableau:
                     with st.expander("👁️ Vista Previa: ¿Cómo verá el mensaje la consultora en WhatsApp?", expanded=False):
                         if not df_wa_target.empty:
                             r_sample = df_wa_target.iloc[0]
-                            sample_nom = str(r_sample.get('Nombre', r_sample.get('Asesora / Consultora', 'María'))).strip()
+                            sample_nom = str(r_sample.get('Nombre', r_sample.get('Consultora', r_sample.get('Asesora / Consultora', 'María')))).strip()
                             sample_p_nom = sample_nom.split()[0].title() if sample_nom else "Consultora"
                             sample_dm = formato_cop(r_sample.get('Deuda Mora', 0))
                             sample_dt = formato_cop(r_sample.get('Deuda Total', 0))
@@ -4505,122 +4929,305 @@ with tab_tableau:
             st.markdown("---")
 
             if df_wa_target.empty:
-                st.info("ℹ️ No hay consultoras que cumplan con el criterio del segmento seleccionado.")
+                st.info("ℹ️ No hay consultoras que cumplan con el criterio del segmento y filtros seleccionados.")
             else:
-                st.markdown(f"###### 📋 Listado de Contacto para Campaña ({len(df_wa_target)} Asesoras)")
-                if uploaded_flyer is not None:
-                    st.caption(f"Haz clic en el enlace verde **📲 Enviar WA** para abrir el chat con el mensaje listo. Luego presiona **Ctrl + V** para adjuntar el flyer *({uploaded_flyer.name})*:")
-                else:
-                    st.caption("Haz clic en el enlace verde de WhatsApp de cada fila para abrir el chat instantáneo con el mensaje ya escrito:")
+                # --- CONTROL DE SELECCIÓN: TODAS O SOLO UNAS POCAS ---
+                c_col_cb = 'Código CB' if 'Código CB' in df_wa_target.columns else ('Codigo CB' if 'Codigo CB' in df_wa_target.columns else None)
+                c_col_nom = 'Consultora' if 'Consultora' in df_wa_target.columns else ('Nombre' if 'Nombre' in df_wa_target.columns else ('Asesora / Consultora' if 'Asesora / Consultora' in df_wa_target.columns else None))
+                c_col_cel = 'Celular' if 'Celular' in df_wa_target.columns else ('celular' if 'celular' in df_wa_target.columns else None)
 
-                # Construir tabla con enlaces directos de WhatsApp
-                filas_wa = []
-                for idx, r in df_wa_target.iterrows():
-                    nom_full = str(r.get('Nombre', r.get('Asesora / Consultora', ''))).strip()
-                    primer_n = nom_full.split()[0].title() if nom_full else "Consultora"
-                    cel_raw = str(r.get('Celular', r.get('celular', ''))).strip().replace(' ', '').replace('-', '').replace('+', '')
-                    cel = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
+                mapa_cbs_camp = {}
+                for _, r_w in df_wa_target.iterrows():
+                    k_cb = str(r_w.get(c_col_cb, '')).strip()
+                    n_nom = str(r_w.get(c_col_nom, '')).strip()
+                    n_col = str(r_w.get(c_col_key, '')) if c_col_key else ''
+                    n_sit = str(r_w.get(c_sit_key, '')) if c_sit_key else ''
+                    n_cel = str(r_w.get(c_col_cel, '')).strip() if c_col_cel else ''
+                    etiqueta = f"[{n_col}] [{n_sit}] {n_nom} (CB: {k_cb})"
+                    if n_cel and n_cel.lower() not in ['nan', 'none', '']:
+                        etiqueta += f" 📱 {n_cel.split('.')[0]}"
+                    mapa_cbs_camp[k_cb] = etiqueta
 
-                    nota_val = str(r.get('Notas / Comentarios Líder', r.get('Comentarios_Lider', r.get('nota', '')))).strip()
-                    if not nota_val or nota_val.lower() in ['nan', 'none']:
-                        nota_val = ""
+                # Control dinámico de selección para permitir elegir "solo unas pocas"
+                hash_seg_camp = f"{tipo_camp}_{filt_sit_sub}_{filt_col_sub}_{len(df_wa_target)}"
+                if st.session_state.get('wa_camp_hash_prev') != hash_seg_camp:
+                    st.session_state['wa_camp_hash_prev'] = hash_seg_camp
+                    st.session_state['cbs_sel_wa_camp'] = list(mapa_cbs_camp.keys())
 
-                    deuda_m = formato_cop(r.get('Deuda Mora', 0))
-                    deuda_t = formato_cop(r.get('Deuda Total', 0))
-                    cred_d = formato_cop(r.get('Credito Disponible', 0))
-                    ped_val = int(limpiar_numero(r.get('Ped. Pendientes', 0)))
-                    pts_val = int(limpiar_numero(r.get('Pts Acum', 0)))
-                    col_nivel = str(r.get('Color', r.get('Nivel / Color', 'Consultora')))
-                    remitente_wa = user_nombre if user_nombre else "Tu Líder"
-
-                    # Reemplazar variables en plantilla
-                    msg_personalizado = (
-                        plantilla_txt
-                        .replace("{primer_nombre}", primer_n)
-                        .replace("{nombre}", nom_full.title())
-                        .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
-                        .replace("{remitente}", remitente_wa)
-                        .replace("{deuda_mora}", deuda_m)
-                        .replace("{deuda_total}", deuda_t)
-                        .replace("{credito_disp}", cred_d)
-                        .replace("{pedidos}", str(ped_val))
-                        .replace("{pts_acum}", str(pts_val))
-                        .replace("{nivel}", col_nivel)
-                    )
-
-                    link_wa = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_personalizado)}" if cel and len(cel) >= 10 else ""
-
-                    filas_wa.append({
-                        'Código CB': str(r.get('Codigo CB', r.get('Código CB', ''))),
-                        'Asesora': nom_full,
-                        'Grupo': str(r.get('Grupo', '')),
-                        'Celular': cel if cel else "Sin registrar",
-                        'Sit. Comercial': str(r.get('Sit. Comercial', '')),
-                        'Nota Líder': nota_val if nota_val else "-",
-                        'Deuda Mora': deuda_m,
-                        'Deuda Total': deuda_t,
-                        'Ped. Pendientes': ped_val,
-                        'Adjunto': '🖼️ Flyer Listo' if uploaded_flyer else 'Solo Texto',
-                        'Flyer Archivo': uploaded_flyer.name if uploaded_flyer else '',
-                        'Mensaje Generado': msg_personalizado,
-                        'Enlace WhatsApp': link_wa
-                    })
-
-                df_wa_table = pd.DataFrame(filas_wa)
-
-                # Columnas a mostrar según si hay imagen
-                cols_mostrar_wa = ['Código CB', 'Asesora', 'Grupo', 'Celular', 'Sit. Comercial', 'Nota Líder', 'Deuda Mora']
-                if "1. Cobro" in tipo_camp:
-                    cols_mostrar_wa.append('Deuda Total')
-                cols_mostrar_wa.append('Ped. Pendientes')
-                if uploaded_flyer is not None:
-                    cols_mostrar_wa.append('Adjunto')
-                cols_mostrar_wa.append('Enlace WhatsApp')
-
-                cfg_columnas_wa = {
-                    "Enlace WhatsApp": st.column_config.LinkColumn(
-                        "📲 Chat WhatsApp",
-                        help="Haz clic para abrir WhatsApp Web o App con el mensaje listo",
-                        display_text="📲 Enviar WA"
-                    )
-                }
-                if uploaded_flyer is not None:
-                    cfg_columnas_wa["Adjunto"] = st.column_config.TextColumn(
-                        "📎 Flyer",
-                        help="Flyer cargado listo para pegar con Ctrl + V",
-                        width="small"
-                    )
-
-                # Mostrar con column_config LinkColumn
-                st.dataframe(
-                    df_wa_table[cols_mostrar_wa],
-                    column_config=cfg_columnas_wa,
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-                # Botón de Descarga Masiva para plataformas (UltraMsg / Evolution API / Python)
-                col_exp1, col_exp2 = st.columns([1.5, 2.5])
-                with col_exp1:
-                    csv_wa_bytes = df_wa_table.to_csv(index=False).encode('utf-8-sig')
-                    label_csv_exp = "📥 Exportar Base con Flyer (CSV)" if uploaded_flyer else "📥 Exportar Base para Envíos Masivos (CSV)"
-                    st.download_button(
-                        label=label_csv_exp,
-                        data=csv_wa_bytes,
-                        file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.csv",
-                        mime="text/csv",
-                        use_container_width=True
-                    )
-                with col_exp2:
-                    if uploaded_flyer is not None:
-                        st.caption(f"💡 **Campaña Multimedia**: El archivo CSV incluye la referencia del flyer adjunto (*{uploaded_flyer.name}*) para plataformas de envío masivo como UltraMsg, Evolution API o Meta Cloud API.")
+                st.markdown("###### 👥 Selección de Consultoras Destinatarias (Enviar a Todas o Solo unas Pocas):")
+                col_sel1, col_sel2, col_sel_status = st.columns([1.2, 1.6, 2.5])
+                with col_sel1:
+                    if st.button(f"👥 Todas ({len(mapa_cbs_camp)})", key="btn_sel_todas_wa_camp", use_container_width=True):
+                        st.session_state['cbs_sel_wa_camp'] = list(mapa_cbs_camp.keys())
+                        st.rerun()
+                with col_sel2:
+                    if st.button("🧹 Deseleccionar (Elegir Pocas)", key="btn_desel_wa_camp", use_container_width=True):
+                        st.session_state['cbs_sel_wa_camp'] = []
+                        st.rerun()
+                with col_sel_status:
+                    cant_sel_ahora = len([c for c in st.session_state.get('cbs_sel_wa_camp', []) if c in mapa_cbs_camp])
+                    if cant_sel_ahora == len(mapa_cbs_camp):
+                        st.markdown(f"<div style='padding-top: 6px; font-weight: 700; color: #10B981;'>✅ Todas las {cant_sel_ahora:,} consultoras seleccionadas</div>".replace(",", "."), unsafe_allow_html=True)
+                    elif cant_sel_ahora > 0:
+                        st.markdown(f"<div style='padding-top: 6px; font-weight: 700; color: #38BDF8;'>🎯 {cant_sel_ahora:,} consultora(s) seleccionada(s) de {len(mapa_cbs_camp):,}</div>".replace(",", "."), unsafe_allow_html=True)
                     else:
-                        st.caption("💡 **Tip de Productividad**: Puedes usar este archivo CSV con herramientas como UltraMsg, Evolution API o Meta Cloud API para despachar cientos de mensajes en segundos sin riesgo de baneo.")
+                        st.markdown("<div style='padding-top: 6px; font-weight: 700; color: #F59E0B;'>⚠️ Ninguna seleccionada. Busca abajo para elegir solo a las que quieras.</div>", unsafe_allow_html=True)
+
+                sel_cbs_elegidos = st.multiselect(
+                    "Busca por nombre o código CB para enviar solo a las consultoras elegidas:",
+                    options=list(mapa_cbs_camp.keys()),
+                    default=[c for c in st.session_state.get('cbs_sel_wa_camp', list(mapa_cbs_camp.keys())) if c in mapa_cbs_camp],
+                    format_func=lambda c: mapa_cbs_camp.get(c, c),
+                    placeholder="Escribe el nombre o código para elegir consultoras específicas...",
+                    key="multiselect_cbs_wa_camp_widget"
+                )
+                st.session_state['cbs_sel_wa_camp'] = sel_cbs_elegidos
+
+                # Filtrar el DataFrame final a las destinatarias activas
+                df_wa_destinatarias = df_wa_target[df_wa_target[c_col_cb].astype(str).str.strip().isin(sel_cbs_elegidos)].copy()
+
+                if df_wa_destinatarias.empty:
+                    st.warning("⚠️ No has seleccionado ninguna consultora para el envío. Pulsa **'👥 Todas'** o busca por nombre arriba para elegir.")
+                else:
+                    st.markdown(f"###### 📋 Listado de Contacto ({len(df_wa_destinatarias)} Consultoras Listas)")
+                    if uploaded_flyer is not None:
+                        st.caption(f"Haz clic en el enlace verde **📲 Enviar WA** para abrir el chat con el mensaje listo. Luego presiona **Ctrl + V** para adjuntar el flyer *({uploaded_flyer.name})*, o usa el **Envío Automático** abajo:")
+                    else:
+                        st.caption("Haz clic en **📲 Enviar WA** para abrir el chat instantáneo 1 a 1, o usa el **Envío Masivo Automático** más abajo:")
+
+                    # Construir tabla con enlaces directos de WhatsApp
+                    filas_wa = []
+                    for idx, r in df_wa_destinatarias.iterrows():
+                        nom_full = str(r.get('Nombre', r.get('Consultora', r.get('Asesora / Consultora', '')))).strip()
+                        primer_n = nom_full.split()[0].title() if nom_full else "Consultora"
+                        cel_raw = str(r.get('Celular', r.get('celular', ''))).strip().replace(' ', '').replace('-', '').replace('+', '')
+                        cel = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
+
+                        nota_val = str(r.get('Notas / Comentarios Líder', r.get('Comentarios_Lider', r.get('nota', '')))).strip()
+                        if not nota_val or nota_val.lower() in ['nan', 'none']:
+                            nota_val = ""
+
+                        deuda_m = formato_cop(r.get('Deuda Mora', 0))
+                        deuda_t = formato_cop(r.get('Deuda Total', 0))
+                        cred_d = formato_cop(r.get('Credito Disponible', 0))
+                        ped_val = int(limpiar_numero(r.get('Ped. Pendientes', 0)))
+                        pts_val = int(limpiar_numero(r.get('Pts Acum', 0)))
+                        col_nivel = str(r.get('Color', r.get('Nivel / Color', 'Consultora')))
+                        remitente_wa = user_nombre if user_nombre else "Tu Líder"
+
+                        # Reemplazar variables en plantilla
+                        msg_personalizado = (
+                            plantilla_txt
+                            .replace("{primer_nombre}", primer_n)
+                            .replace("{nombre}", nom_full.title())
+                            .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                            .replace("{remitente}", remitente_wa)
+                            .replace("{deuda_mora}", deuda_m)
+                            .replace("{deuda_total}", deuda_t)
+                            .replace("{credito_disp}", cred_d)
+                            .replace("{pedidos}", str(ped_val))
+                            .replace("{pts_acum}", str(pts_val))
+                            .replace("{nivel}", col_nivel)
+                        )
+
+                        link_wa = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_personalizado)}" if cel and len(cel) >= 10 else ""
+
+                        filas_wa.append({
+                            'Código CB': str(r.get('Codigo CB', r.get('Código CB', ''))),
+                            'Consultora': nom_full,
+                            'Grupo': str(r.get('Grupo', '')),
+                            'Celular': cel if cel else "Sin registrar",
+                            'Sit. Comercial': str(r.get('Sit. Comercial', '')),
+                            'Nivel / Color': col_nivel,
+                            'Nota Líder': nota_val if nota_val else "-",
+                            'Deuda Mora': deuda_m,
+                            'Deuda Total': deuda_t,
+                            'Ped. Pendientes': ped_val,
+                            'Adjunto': '🖼️ Flyer Listo' if uploaded_flyer else 'Solo Texto',
+                            'Flyer Archivo': uploaded_flyer.name if uploaded_flyer else '',
+                            'Mensaje Generado': msg_personalizado,
+                            'Enlace WhatsApp': link_wa
+                        })
+
+                    df_wa_table = pd.DataFrame(filas_wa)
+
+                    # Columnas a mostrar según si hay imagen
+                    cols_mostrar_wa = ['Código CB', 'Consultora', 'Grupo', 'Celular', 'Sit. Comercial', 'Nivel / Color', 'Nota Líder', 'Deuda Mora']
+                    if "1. Cobro" in tipo_camp:
+                        cols_mostrar_wa.append('Deuda Total')
+                    cols_mostrar_wa.append('Ped. Pendientes')
+                    if uploaded_flyer is not None:
+                        cols_mostrar_wa.append('Adjunto')
+                    cols_mostrar_wa.append('Enlace WhatsApp')
+
+                    cfg_columnas_wa = {
+                        "Enlace WhatsApp": st.column_config.LinkColumn(
+                            "📲 Chat WhatsApp",
+                            help="Haz clic para abrir WhatsApp Web o App con el mensaje listo",
+                            display_text="📲 Enviar WA"
+                        )
+                    }
+                    if uploaded_flyer is not None:
+                        cfg_columnas_wa["Adjunto"] = st.column_config.TextColumn(
+                            "📎 Flyer",
+                            help="Flyer cargado listo para pegar con Ctrl + V",
+                            width="small"
+                        )
+
+                    # Mostrar con column_config LinkColumn
+                    st.dataframe(
+                        df_wa_table[cols_mostrar_wa],
+                        column_config=cfg_columnas_wa,
+                        use_container_width=True,
+                        hide_index=True
+                    )
+
+                    # Botones de Descarga Masiva (CSV y Excel)
+                    col_exp1, col_exp2, col_exp3 = st.columns([1.5, 1.5, 2])
+                    with col_exp1:
+                        csv_wa_bytes = df_wa_table.to_csv(index=False).encode('utf-8-sig')
+                        label_csv_exp = "📥 Exportar Base (CSV)"
+                        st.download_button(
+                            label=label_csv_exp,
+                            data=csv_wa_bytes,
+                            file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.csv",
+                            mime="text/csv",
+                            use_container_width=True,
+                            key="btn_descarga_csv_wa_camp"
+                        )
+                    with col_exp2:
+                        towrite_camp_xlsx = io.BytesIO()
+                        with pd.ExcelWriter(towrite_camp_xlsx, engine='openpyxl') as writer:
+                            df_wa_table.to_excel(writer, sheet_name="Campana_WhatsApp", index=False)
+                        towrite_camp_xlsx.seek(0)
+                        st.download_button(
+                            label=f"📥 Descargar en Excel ({len(df_wa_table)})",
+                            data=towrite_camp_xlsx,
+                            file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="btn_descarga_xlsx_wa_camp"
+                        )
+                    with col_exp3:
+                        if uploaded_flyer is not None:
+                            st.caption(f"💡 **Campaña Multimedia**: Incluye flyer (*{uploaded_flyer.name}*) y {len(df_wa_table)} consultoras seleccionadas.")
+                        else:
+                            st.caption(f"💡 **Campaña de Texto**: Lista para enviar 1 a 1 o con el Robot Automático de abajo.")
+
+                    # --- DESPACHADOR AUTOMÁTICO EVOLUTION API ---
+                    st.markdown("---")
+                    with st.expander(f"🔌 Envío Masivo Automático por Evolution API ({len(df_wa_destinatarias)} Consultoras Seleccionadas)", expanded=(len(df_wa_destinatarias) <= 50)):
+                        st.markdown("##### 🚀 Envío Automático por WhatsApp (Robot de Despacho):")
+                        st.caption("Envía de forma automatizada los mensajes a las consultoras seleccionadas sin tocar tu teléfono una a una, usando la sesión de WhatsApp ya vinculada.")
+
+                        import requests
+                        evo_url_camp = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+                        inst_def_camp = obtener_instancia_evolution(current_user, user_rol, user_grupo)
+                        if 'in_evo_instance' in st.session_state:
+                            val_inst_prev = str(st.session_state['in_evo_instance'])
+                            if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
+                                st.session_state['in_evo_instance'] = inst_def_camp
+                        evo_inst_camp = st.session_state.get('in_evo_instance', inst_def_camp)
+                        if '{' in str(evo_inst_camp) or 'password_hash' in str(evo_inst_camp):
+                            evo_inst_camp = inst_def_camp
+                            st.session_state['in_evo_instance'] = inst_def_camp
+                        evo_tok_camp = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+
+                        col_cfg_evo1, col_cfg_evo2 = st.columns([1.8, 1.2])
+                        with col_cfg_evo1:
+                            st.markdown(f"""
+                            <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
+                                📡 Instancia WhatsApp Conectada: <strong style="color: #25D366;">{evo_inst_camp}</strong><br>
+                                🌐 Servidor API: <code>{evo_url_camp}</code>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        with col_cfg_evo2:
+                            delay_camp_wa = st.slider("⏱️ Pausa entre mensajes (segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_camp_subtab_wa")
+
+                        tiene_flyer_camp = uploaded_flyer is not None
+                        adjuntar_flyer_api = st.checkbox(
+                            f"🖼️ Adjuntar imagen del Flyer ({uploaded_flyer.name if tiene_flyer_camp else 'Ninguno subido'}) junto con el mensaje",
+                            value=tiene_flyer_camp,
+                            disabled=not tiene_flyer_camp,
+                            key="chk_adjuntar_flyer_evo_subtab"
+                        )
+
+                        btn_disparar_camp_api = st.button(
+                            f"🚀 Iniciar Envío Automático a las {len(df_wa_destinatarias)} Consultoras Seleccionadas",
+                            type="primary",
+                            disabled=(len(df_wa_destinatarias) == 0),
+                            use_container_width=True,
+                            key="btn_disparar_api_subtab_camp"
+                        )
+
+                        if btn_disparar_camp_api and len(df_wa_destinatarias) > 0:
+                            prog_bar_camp = st.progress(0.0)
+                            stat_txt_camp = st.empty()
+                            ok_cnt_camp = 0
+                            err_cnt_camp = 0
+                            tot_camp_env = len(df_wa_table)
+
+                            for i_c, (_, r_dest) in enumerate(df_wa_table.iterrows()):
+                                c_num = str(r_dest['Celular']).strip()
+                                c_nom = str(r_dest['Consultora']).strip()
+                                msg_body = r_dest['Mensaje Generado']
+
+                                if c_num and len(c_num) >= 10 and c_num != "Sin registrar":
+                                    try:
+                                        c_clean = f"57{c_num}" if not c_num.startswith('57') else c_num
+                                        e_headers = {"apikey": evo_tok_camp.strip(), "Content-Type": "application/json"}
+                                        enviado_ok = False
+
+                                        # Intento de envío multimedia si hay flyer
+                                        if adjuntar_flyer_api and tiene_flyer_camp and 'b64_flyer' in locals():
+                                            try:
+                                                url_media = f"{evo_url_camp.strip().rstrip('/')}/message/sendMedia/{evo_inst_camp.strip()}"
+                                                payload_media = {
+                                                    "number": c_clean,
+                                                    "mediatype": "image",
+                                                    "mimetype": mime_flyer,
+                                                    "caption": msg_body,
+                                                    "media": b64_flyer,
+                                                    "fileName": uploaded_flyer.name
+                                                }
+                                                res_m = requests.post(url_media, json=payload_media, headers=e_headers, timeout=18)
+                                                if res_m.status_code in [200, 201]:
+                                                    enviado_ok = True
+                                            except Exception:
+                                                enviado_ok = False
+
+                                        # Si no hay imagen o si sendMedia falló, envío de texto estándar
+                                        if not enviado_ok:
+                                            url_text = f"{evo_url_camp.strip().rstrip('/')}/message/sendText/{evo_inst_camp.strip()}"
+                                            payload_text = {
+                                                "number": c_clean,
+                                                "text": msg_body,
+                                                "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                            }
+                                            res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
+                                            if res_t.status_code in [200, 201]:
+                                                enviado_ok = True
+
+                                        if enviado_ok:
+                                            ok_cnt_camp += 1
+                                        else:
+                                            err_cnt_camp += 1
+                                    except Exception:
+                                        err_cnt_camp += 1
+                                else:
+                                    err_cnt_camp += 1
+
+                                prog_bar_camp.progress((i_c + 1) / tot_camp_env)
+                                stat_txt_camp.caption(f"Despachando {i_c + 1} de {tot_camp_env}: **{c_nom}** ({c_num})...")
+                                if i_c < tot_camp_env - 1:
+                                    time.sleep(delay_camp_wa)
+
+                            st.success(f"✅ ¡Campaña finalizada con éxito! Mensajes enviados: **{ok_cnt_camp}** | Fallidos o sin celular: **{err_cnt_camp}**")
 
         # --- SUBPESTAÑA 5: CUMPLEAÑOS Y RECONOCIMIENTO ---
         with tab_tab_cumple:
             st.subheader("🎂 Calendario & Reconocimiento de Cumpleaños")
-            st.markdown("Seguimiento de fechas especiales para fortalecer el vínculo comercial y humano con las asesoras de tu red.")
+            st.markdown("Seguimiento de fechas especiales para fortalecer el vínculo comercial y humano con las consultoras de tu red.")
             if user_rol == 'superadmin' and ('lider_sel_t' in locals() and lider_sel_t == "Todas las Líderes (Consolidado Zona)"):
                 st.info("💡 **Vista Corporativa Consolidada**: Para consultar y gestionar los cumpleaños con botones de WhatsApp, selecciona un **Grupo o Líder** en el filtro superior.")
             else:
@@ -4754,7 +5361,7 @@ with tab_geral:
                     key="filtro_color_geral"
                 )
             with col_fg4:
-                st.text_input("🔍 Buscar Asesora (Nombre o Código CB):", "", key="filtro_busq_geral")
+                st.text_input("🔍 Buscar Consultora (Nombre o Código CB):", "", key="filtro_busq_geral")
         else:
             col_fg1, col_fg2, col_fg3 = st.columns([1.5, 1.5, 2])
             with col_fg1:
@@ -4774,7 +5381,7 @@ with tab_geral:
                     key="filtro_color_geral"
                 )
             with col_fg3:
-                st.text_input("🔍 Buscar Asesora (Nombre o Código CB):", "", key="filtro_busq_geral")
+                st.text_input("🔍 Buscar Consultora (Nombre o Código CB):", "", key="filtro_busq_geral")
 
         st.markdown("<div style='margin-bottom: 6px;'></div>", unsafe_allow_html=True)
         st.caption(r"Ordenado de mayor a menor deuda con semáforo armónico: 🔴 **Deuda Alta / Mora** (>= \$300.000 COP) | 🟠 **Deuda Media** (\$150.000 - \$300.000 COP) | 🟢 **Deuda Controlada** (< \$150.000 COP)")
@@ -4958,7 +5565,7 @@ with tab_geral:
 
         with tab_v_mora:
             st.markdown("###### 🚨 Cartera Vencida (En Mora)")
-            st.caption("Asesoras con días de retraso vencidos. Incluye cobro de recargos financieros acumulados.")
+            st.caption("Consultoras con días de retraso vencidos. Incluye cobro de recargos financieros acumulados.")
             df_mo_disp = _formatear_tabla_geral(df_mora)
             if df_mo_disp is not None:
                 st.dataframe(df_mo_disp, use_container_width=True, hide_index=True)
@@ -5025,7 +5632,7 @@ with tab_geral:
             for _, row in df_pendientes.iterrows()
         }
         
-        # Multiselect de asesoras con buscador integrado
+        # Multiselect de consultoras con buscador integrado
         st.caption("💡 **Tip para enviar a una sola consultora:** Haz clic en **'🧹 Deseleccionar Todas'** y luego búscala por su nombre o código en el cuadro de abajo, o pulsa la **'✖️'** sobre las que desees quitar.")
         sel_titulos_activos = st.multiselect(
             "👥 Consultoras Seleccionadas para la Campaña (Busca por Nombre, Color o Situación):",
@@ -5077,11 +5684,11 @@ with tab_geral:
                 cel = str(r.get('telefono_movil', '')).strip()
                 cel2 = str(r.get('telefono_movil_2', '')).strip()
                 
-                link_w1 = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_ind)}" if cel and len(cel) >= 10 else ""
-                link_w2 = f"https://api.whatsapp.com/send?phone=57{cel2}&text={urllib.parse.quote(msg_ind)}" if cel2 and len(cel2) >= 10 else ""
+                link_w1 = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(str(msg_ind or ''))}" if cel and len(cel) >= 10 else ""
+                link_w2 = f"https://api.whatsapp.com/send?phone=57{cel2}&text={urllib.parse.quote(str(msg_ind or ''))}" if cel2 and len(cel2) >= 10 else ""
                 
                 filas_campana.append({
-                    'Asesora': r.get('nombre'),
+                    'Consultora': r.get('nombre'),
                     'Código CB': r.get('codigo_cb'),
                     'Grupo': r.get('grupo'),
                     'Sit. Comercial': r.get('sit_comercial', 'Sin Definir'),
@@ -5099,7 +5706,7 @@ with tab_geral:
             
             # Vista previa del lote con LinkColumn directo para abrir WhatsApp
             st.dataframe(
-                df_campana_out[['Asesora', 'Grupo', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 'Saldo Total', 'Enlace Directo WhatsApp', 'Mensaje Personalizado']],
+                df_campana_out[['Consultora', 'Grupo', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 'Saldo Total', 'Enlace Directo WhatsApp', 'Mensaje Personalizado']],
                 column_config={
                     "Enlace Directo WhatsApp": st.column_config.LinkColumn(
                         "📲 Enviar WhatsApp",
@@ -5113,14 +5720,14 @@ with tab_geral:
             col_d1, col_d2 = st.columns([1.5, 1.5])
             with col_d1:
                 # Selector individual rápido dentro del lote
-                st.markdown("###### 📲 Despachar Asesora Individual:")
-                nom_sel_rapido = st.selectbox("Elige la asesora para enviar de inmediato:", options=df_campana_out['Asesora'].tolist(), key="sel_rapido_camp")
-                row_sel_rap = df_campana_out[df_campana_out['Asesora'] == nom_sel_rapido].iloc[0]
+                st.markdown("###### 📲 Despachar Consultora Individual:")
+                nom_sel_rapido = st.selectbox("Elige la consultora para enviar de inmediato:", options=df_campana_out['Consultora'].tolist(), key="sel_rapido_camp")
+                row_sel_rap = df_campana_out[df_campana_out['Consultora'] == nom_sel_rapido].iloc[0]
                 link_wa_enviar = row_sel_rap.get('Enlace Directo WhatsApp')
                 if link_wa_enviar:
                     st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rapido).split()[0].title()}", url=link_wa_enviar, use_container_width=True)
                 else:
-                    st.warning("⚠️ Esta asesora no tiene un número celular válido de 10 dígitos registrado.")
+                    st.warning("⚠️ Esta consultora no tiene un número celular válido de 10 dígitos registrado.")
                     
             with col_d2:
                 st.markdown("###### 📥 Descargar Base de Campaña:")
@@ -5143,7 +5750,7 @@ with tab_geral:
         with st.expander("🔌 Integración & Conexión con Pasarelas de WhatsApp (Envío Automático)", expanded=False):
                 st.markdown("##### 🚀 Pasarela de Envíos Masivos Automáticos")
                 st.markdown("""
-                Para enviar mensajes masivos a cientos de asesoras sin tocar tu teléfono 1 a 1, te recomendamos conectar una **API de WhatsApp**:
+                Para enviar mensajes masivos a cientos de consultoras sin tocar tu teléfono 1 a 1, te recomendamos conectar una **API de WhatsApp**:
                 
                 * 👑 **Evolution API (Recomendada - 100% Gratuita & Open Source)**:
                   * Puedes montarla en Railway o Docker en 2 minutos.
@@ -5173,7 +5780,11 @@ with tab_geral:
                     with col_evo1:
                         evo_base_url = st.text_input("URL Base de Evolution API:", value="https://evolution-api-production-7a2f.up.railway.app", placeholder="https://mi-evolution.up.railway.app", key="in_evo_url")
                     with col_evo2:
-                        instancia_default = f"lider_{user_grupo}" if user_rol == 'lider' and user_grupo else f"gerente_{str(current_user).lower().split('@')[0].replace('.', '_')}"
+                        instancia_default = obtener_instancia_evolution(current_user, user_rol, user_grupo)
+                        if 'in_evo_instance' in st.session_state:
+                            val_inst_prev2 = str(st.session_state['in_evo_instance'])
+                            if '{' in val_inst_prev2 or 'password_hash' in val_inst_prev2:
+                                st.session_state['in_evo_instance'] = instancia_default
                         evo_instance = st.text_input("Instancia (Única por Usuario):", value=instancia_default, placeholder="ej. lider_177", key="in_evo_instance")
                     with col_evo3:
                         evo_token = st.text_input("API Key (Global Token):", value="6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad", type="password", key="in_evo_token")
@@ -5343,7 +5954,7 @@ with tab_geral:
                             "¡Hola! Este es un mensaje de prueba en vivo desde tu pasarela de WhatsApp Evolution API.\n"
                             f"📡 *Proveedor:* {prov_opc}\n"
                             f"📅 *Fecha:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                            "Si estás leyendo esto, tu integración está 100% activa y lista para enviar a tus asesoras. 🚀"
+                            "Si estás leyendo esto, tu integración está 100% activa y lista para enviar a tus consultoras. 🚀"
                         )
                         try:
                             t_url, t_payload, t_headers, t_mode = resolver_datos_envio(test_phone, msg_test_body)
@@ -5364,11 +5975,11 @@ with tab_geral:
                 st.markdown("---")
 
                 # --- DESPACHO MASIVO DE CAMPAÑA ---
-                st.markdown("##### 🚀 Envío Masivo a Asesoras Seleccionadas:")
+                st.markdown("##### 🚀 Envío Masivo a Consultoras Seleccionadas:")
                 if not df_campana_out.empty:
                     delay_anti_ban = st.slider("⏱️ Pausa entre mensajes (Segundos - Protección Anti-Ban):", min_value=1, max_value=10, value=3, help="Meta/WhatsApp recomienda dejar al menos 3 a 5 segundos entre cada mensaje para evitar bloqueos por spam.")
                     
-                    btn_disparar_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_out)} Asesoras", type="primary", use_container_width=True, key="btn_disparar_api_geral")
+                    btn_disparar_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_out)} Consultoras", type="primary", use_container_width=True, key="btn_disparar_api_geral")
                     
                     if btn_disparar_api:
                         progress_bar = st.progress(0.0)
@@ -5395,7 +6006,7 @@ with tab_geral:
                                     errores_cnt += 1
                                     
                             progress_bar.progress((i + 1) / len(df_campana_out))
-                            status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Asesora']}...")
+                            status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Consultora']}...")
                             if i < len(df_campana_out) - 1:
                                 time.sleep(delay_anti_ban)
                             
@@ -7101,7 +7712,7 @@ with tab_usuarios:
                     nu_username = st.text_input("Usuario (Login)", placeholder="ej. dolly.parra@natura.net o lider9334")
                     nu_nombre = st.text_input("Nombre Completo", placeholder="ej. Dolly Parra")
                     nu_pass = st.text_input("Contraseña", type="password", placeholder="Dejar vacío para mantener contraseña actual")
-                    nu_rol = st.selectbox("Rol de Acceso", options=["gerente", "lider", "superadmin", "asesor"])
+                    nu_rol = st.selectbox("Rol de Acceso", options=["gerente", "lider", "superadmin", "asesor"], format_func=lambda r: "consultora" if r == "asesor" else r)
                     nu_grupo = st.text_input("Código de Grupo (Para Líderes)", placeholder="ej. 9334")
                     nu_sector = st.text_input("Código de Sector (Para Gerentes)", placeholder="ej. 700000466")
                     nu_nom_sec = st.text_input("Nombre del Sector (Para Gerentes/Líderes)", placeholder="ej. EMOCIONES DOLLY")
@@ -7245,7 +7856,7 @@ with tab_usuarios:
         with col_f_a1:
             f_aud_cat = st.selectbox("Categoría:", options=["Todas", "🔑 Acceso", "📁 Carga de Datos", "🔄 Rotación Ciclo", "💬 Gestión Comercial", "💳 Suscripción", "🔑 Seguridad", "🎉 Registro", "👥 Usuarios", "🎛️ Configuración", "🗑️ Administración"], key="aud_sel_cat")
         with col_f_a2:
-            f_aud_rol = st.selectbox("Rol:", options=["Todos", "gerente", "lider", "superadmin", "asesor"], key="aud_sel_rol")
+            f_aud_rol = st.selectbox("Rol:", options=["Todos", "gerente", "lider", "superadmin", "asesor"], format_func=lambda r: "consultora" if r == "asesor" else r, key="aud_sel_rol")
         with col_f_a3:
             f_aud_usr = st.text_input("Buscar Usuario / Nombre:", placeholder="ej. dolly, clery, lider...", key="aud_in_usr")
         with col_f_a4:
@@ -7305,7 +7916,7 @@ with tab_usuarios:
             if estado_permiso:
                 st.warning("⚠️ **Permisos Abiertos**: Las Líderes tienen acceso a subir archivos.")
             else:
-                st.info("🔒 **Modo Protegido (Predeterminado)**: Las Líderes y Asesoras tienen bloqueadas las opciones de subida de archivos.")
+                st.info("🔒 **Modo Protegido (Predeterminado)**: Las Líderes y Consultoras tienen bloqueadas las opciones de subida de archivos.")
 
         st.markdown("---")
         st.markdown("#### 🧹 Mantenimiento & Limpieza de Base de Datos")
@@ -7316,7 +7927,7 @@ with tab_usuarios:
 
             with col_b1:
                 st.markdown("##### 👤 1. Borrar Datos de un Grupo / Líder Específico")
-                st.caption("Elimina de SQLite las asesoras, facturación y comentarios de una líder determinada.")
+                st.caption("Elimina de SQLite las consultoras, facturación y comentarios de una líder determinada.")
                 
                 df_grupos_b = cached_consultar_tableau_sql()
                 lista_grupos_borrar = sorted([str(g).strip() for g in df_grupos_b['Grupo'].dropna().unique()]) if (df_grupos_b is not None and not df_grupos_b.empty and 'Grupo' in df_grupos_b.columns) else []
@@ -7365,7 +7976,7 @@ with tab_usuarios:
 
         st.markdown("---")
         st.markdown("#### 🎛️ Control de Visibilidad y Accesos por Pestaña / Módulo")
-        st.markdown("Configura de manera independiente qué pestañas y módulos son visibles para cada rol (**Gerentes**, **Líderes de Negocio** y **Asesoras**).")
+        st.markdown("Configura de manera independiente qué pestañas y módulos son visibles para cada rol (**Gerentes**, **Líderes de Negocio** y **Consultoras**).")
 
         permisos_dict = config_actual.get("permisos_pestanas", DEFAULT_PERMISOS_PESTANAS)
         cambio_permisos = False
@@ -7378,7 +7989,7 @@ with tab_usuarios:
         with c_th_lid:
             st.markdown("##### 👩‍💼 Líderes")
         with c_th_ase:
-            st.markdown("##### 👤 Asesoras")
+            st.markdown("##### 👤 Consultoras")
 
         st.markdown("<hr style='margin: 5px 0 15px 0;'>", unsafe_allow_html=True)
 
@@ -7396,7 +8007,7 @@ with tab_usuarios:
             with c3:
                 new_lid = st.toggle("Líder", value=val_lid, key=f"t_{t_key}_lid", label_visibility="collapsed")
             with c4:
-                new_ase = st.toggle("Asesora", value=val_ase, key=f"t_{t_key}_ase", label_visibility="collapsed")
+                new_ase = st.toggle("Consultora", value=val_ase, key=f"t_{t_key}_ase", label_visibility="collapsed")
                 
             if new_ger != val_ger or new_lid != val_lid or new_ase != val_ase:
                 permisos_dict[t_key]["gerente"] = new_ger

@@ -618,7 +618,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
     # ==============================================================================
     with tab_tab:
         st.markdown("##### 📋 Mi Listado - Base Maestra Gestionable")
-        st.caption("Escribe las notas de gestión por cada asesora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
+        st.caption("Escribe las notas de gestión por cada consultora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
 
         # Filtros Rápidos
         f_c1, f_c2, f_c3 = st.columns(3)
@@ -636,7 +636,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             filtro_ped = st.selectbox("⌛ Pedidos Pendientes", options=["Todos", "Con Pedidos Pendientes (> 0)", "Sin Pedidos Pendientes (0)"], key="mob_f_ped")
 
         # Búsqueda rápida por nombre, documento o código
-        busq_nom = st.text_input("🔍 Buscar asesora, documento o código CB...", placeholder="Escribe nombre, cédula o código...", key="mob_b_nom").strip()
+        busq_nom = st.text_input("🔍 Buscar consultora, documento o código CB...", placeholder="Escribe nombre, cédula o código...", key="mob_b_nom").strip()
 
         # Aplicar filtros
         df_tab_filtrado = df_tab.copy() if not df_tab.empty else pd.DataFrame()
@@ -660,8 +660,9 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
             if busq_nom:
                 mask_busq = pd.Series(False, index=df_tab_filtrado.index)
-                if 'Asesora / Consultora' in df_tab_filtrado.columns:
-                    mask_busq = mask_busq | df_tab_filtrado['Asesora / Consultora'].astype(str).str.contains(busq_nom, case=False, na=False)
+                col_nom_filtro = 'Consultora' if 'Consultora' in df_tab_filtrado.columns else ('Asesora / Consultora' if 'Asesora / Consultora' in df_tab_filtrado.columns else None)
+                if col_nom_filtro:
+                    mask_busq = mask_busq | df_tab_filtrado[col_nom_filtro].astype(str).str.contains(busq_nom, case=False, na=False)
                 if 'DocumentoGPP' in df_tab_filtrado.columns:
                     mask_busq = mask_busq | df_tab_filtrado['DocumentoGPP'].astype(str).str.contains(busq_nom, case=False, na=False)
                 if 'Código CB' in df_tab_filtrado.columns:
@@ -943,13 +944,13 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
             # --- SECCIÓN DE MENSAJERÍA WHATSAPP DIRECTA DEL LISTADO FILTRADO (MÓVIL) ---
             st.markdown("---")
-            with st.expander(f"📲 Contacto & WhatsApp del Listado Filtrado ({len(df_edit_view)} Asesoras)", expanded=False):
+            with st.expander(f"📲 Contacto & WhatsApp del Listado Filtrado ({len(df_edit_view)} Consultoras)", expanded=False):
                 st.markdown("##### 📲 Envíos y Campaña de WhatsApp sobre el Listado Filtrado")
                 st.caption("Contacta a las consultoras que acabas de filtrar en tu tabla. Puedes enviarles tus notas personalizadas, recordatorios o promociones en 1 clic.")
 
                 # Identificar columnas canónicas
                 c_col_cb = 'Código CB' if 'Código CB' in df_edit_view.columns else ('Codigo CB' if 'Codigo CB' in df_edit_view.columns else None)
-                c_col_nom = 'Asesora / Consultora' if 'Asesora / Consultora' in df_edit_view.columns else ('Nombre' if 'Nombre' in df_edit_view.columns else None)
+                c_col_nom = 'Consultora' if 'Consultora' in df_edit_view.columns else ('Asesora / Consultora' if 'Asesora / Consultora' in df_edit_view.columns else ('Nombre' if 'Nombre' in df_edit_view.columns else None))
                 c_col_cel = 'Celular' if 'Celular' in df_edit_view.columns else ('celular' if 'celular' in df_edit_view.columns else None)
                 c_col_sit = 'Sit. Comercial' if 'Sit. Comercial' in df_edit_view.columns else None
                 c_col_col = 'Nivel / Color' if 'Nivel / Color' in df_edit_view.columns else None
@@ -959,16 +960,16 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 c_col_pts = 'Pts Acum' if 'Pts Acum' in df_edit_view.columns else None
 
                 if c_col_cb and c_col_nom:
-                    # Mapeo de asesoras disponibles
+                    # Mapeo de consultoras disponibles
                     mapa_wa_mob = {}
                     for _, r_w in df_edit_view.iterrows():
                         k_cb = str(r_w.get(c_col_cb, '')).strip()
-                        n_asesora = str(r_w.get(c_col_nom, '')).strip()
+                        n_consultora = str(r_w.get(c_col_nom, '')).strip()
                         n_color = str(r_w.get(c_col_col, 'Nivel')) if c_col_col else ''
                         n_sit = str(r_w.get(c_col_sit, 'Estado')) if c_col_sit else ''
                         n_nota = str(r_w.get(c_col_nota, '')).strip() if c_col_nota else ''
                         
-                        etiqueta = f"[{n_color}] [{n_sit}] {n_asesora} (CB: {k_cb})"
+                        etiqueta = f"[{n_color}] [{n_sit}] {n_consultora} (CB: {k_cb})"
                         if n_nota and n_nota.lower() not in ['nan', 'none']:
                             etiqueta += f' — 💬 "{n_nota[:24]}..."'
                         mapa_wa_mob[k_cb] = etiqueta
@@ -1110,7 +1111,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                             link_m = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_m)}" if cel_val and len(cel_val) >= 10 else ""
 
                             filas_wa_mob.append({
-                                'Asesora': n_full,
+                                'Consultora': n_full,
                                 'Código CB': str(r_t.get(c_col_cb, '')),
                                 'Sit. Comercial': str(r_t.get(c_col_sit, '')),
                                 'Celular': cel_val if cel_val else "Sin celular",
@@ -1123,17 +1124,17 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
                         # Despacho 1 a 1 para celular
                         st.markdown("###### 📲 Abrir WhatsApp Directo:")
-                        nom_sel_mob = st.selectbox("Elige la asesora para enviar de inmediato:", options=df_campana_mob_out['Asesora'].tolist(), key="sel_rapido_mob_wa")
-                        row_sel_mob = df_campana_mob_out[df_campana_mob_out['Asesora'] == nom_sel_mob].iloc[0]
+                        nom_sel_mob = st.selectbox("Elige la consultora para enviar de inmediato:", options=df_campana_mob_out['Consultora'].tolist(), key="sel_rapido_mob_wa")
+                        row_sel_mob = df_campana_mob_out[df_campana_mob_out['Consultora'] == nom_sel_mob].iloc[0]
                         link_wa_mob_env = row_sel_mob.get('Enlace WhatsApp')
                         if link_wa_mob_env:
                             st.link_button(f"📲 Abrir WhatsApp a {str(nom_sel_mob).split()[0].title()}", url=link_wa_mob_env, type="primary", use_container_width=True)
                         else:
-                            st.warning("⚠️ Esta asesora no tiene celular válido.")
+                            st.warning("⚠️ Esta consultora no tiene celular válido.")
 
                         # Tabla en vivo con enlaces interactivos
                         st.dataframe(
-                            df_campana_mob_out[['Asesora', 'Sit. Comercial', 'Celular', 'Nota Líder', 'Enlace WhatsApp']],
+                            df_campana_mob_out[['Consultora', 'Sit. Comercial', 'Celular', 'Nota Líder', 'Enlace WhatsApp']],
                             column_config={
                                 "Enlace WhatsApp": st.column_config.LinkColumn(
                                     "📲 Enviar WhatsApp",
@@ -1243,8 +1244,8 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 st.markdown(f"###### 📋 {len(df_g_filt)} Facturas Seleccionadas:")
                 # Selector de cobro individual
                 nombres_cartera = [str(r.get('nombre', '')).strip() for _, r in df_g_filt.iterrows()]
-                sel_asesora_cobro = st.selectbox("Elige la asesora para enviar recordatorio de pago:", options=nombres_cartera, key="sel_asesora_cobro_mob")
-                row_cobro = df_g_filt[df_g_filt['nombre'] == sel_asesora_cobro].iloc[0]
+                sel_consultora_cobro = st.selectbox("Elige la consultora para enviar recordatorio de pago:", options=nombres_cartera, key="sel_asesora_cobro_mob")
+                row_cobro = df_g_filt[df_g_filt['nombre'] == sel_consultora_cobro].iloc[0]
 
                 # Armar mensaje de cobro
                 nom_c_p = str(row_cobro.get('nombre', '')).split()[0].title()
@@ -1275,7 +1276,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 if link_cobro_wa:
                     st.link_button(f"📲 Cobrar por WhatsApp a {nom_c_p} ({val_deuda_str})", url=link_cobro_wa, type="primary", use_container_width=True)
                 else:
-                    st.warning("⚠️ Esta asesora no tiene teléfono móvil registrado.")
+                    st.warning("⚠️ Esta consultora no tiene teléfono móvil registrado.")
 
                 # Tabla resumen de cartera
                 cols_g_disp = ['nombre', 'codigo_cb', 'sit_comercial', 'numero_factura', 'fecha_vencimiento', 'dias_num', 'saldo_num']

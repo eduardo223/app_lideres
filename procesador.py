@@ -2646,14 +2646,28 @@ def leer_excel_tolerante(origen, sheet_idx=0):
 
     return None
 
-def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls', ruta_base='Base de Datos.xlsx'):
+def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls', ruta_base='Base de Datos.xlsx', sector=None):
     """
-    Lee la tabla 'mi_grupo.xls' (o .xlsx), extrae la columna 'ESTADO' / 'Sit. Comercial'
-    (reconociendo combinaciones de MAYÚSCULAS y minúsculas), la normaliza y actualiza
-    la columna 'Sit. Comercial' en 'Base de Datos.xlsx' vinculando por Código CB.
+    Lee la tabla 'mi_grupo.xls' (o .xlsx), extrae la columna 'ESTADO' / 'Sit. Comercial',
+    la normaliza y actualiza la situación comercial directamente en SQLite (consultoras_tableau)
+    y en 'Base de Datos.xlsx' vinculando por Código CB.
+
+    Protección contra duplicados y acumulación:
+    - Si se sube el mismo archivo o la misma data, detecta 'es_duplicado' y no sobreescribe ni degrada datos.
+    - Si se sube una 2da o 3ra actualización con consultoras nuevas, se activan de forma acumulativa.
+    - Aislamiento multi-inquilino estricto: si se especifica sector, solo actualiza las consultoras de dicho sector.
+    - NUNCA llama a sincronizar_excel_tableau_a_sqlite, evitando borrados destructivos.
     """
-    if not os.path.exists(ruta_base):
-        return {'exito': False, 'error': f"No se encontró el archivo base '{ruta_base}'."}
+    # Guardar copia persistente en disco si es un archivo subido en memoria
+    if hasattr(origen_mi_grupo, 'read'):
+        try:
+            origen_mi_grupo.seek(0)
+            contenido_mg = origen_mi_grupo.read()
+            with open('mi_grupo.xls', 'wb') as f_out:
+                f_out.write(contenido_mg)
+            origen_mi_grupo.seek(0)
+        except Exception as e_save_mg:
+            safe_print(f"Nota guardando copia local de mi_grupo.xls: {e_save_mg}")
 
     df_grupo = leer_excel_tolerante(origen_mi_grupo)
 
@@ -2664,21 +2678,26 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
     col_code_grupo = None
     for c in df_grupo.columns:
         c_up = str(c).strip().upper()
-        if ('DIGO' in c_up or 'CODIGO' in c_up or 'CB' in c_up) and 'NOMBRE' not in c_up:
+        if ('DIGO' in c_up or 'CODIGO' in c_up or 'CB' in c_up) and 'NOMBRE' not in c_up and 'GERENCIA' not in c_up and 'SECTOR' not in c_up and 'GRUPO' not in c_up:
             col_code_grupo = c
             break
+    if not col_code_grupo:
+        for c in df_grupo.columns:
+            c_up = str(c).strip().upper()
+            if any(k in c_up for k in ['DOC', 'CEDULA', 'IDENT', 'CONSULTORA', 'ASESORA']):
+                if 'NOMBRE' not in c_up and 'GERENCIA' not in c_up and 'SECTOR' not in c_up and 'GRUPO' not in c_up:
+                    col_code_grupo = c
+                    break
 
     if not col_code_grupo:
         return {'exito': False, 'error': "No se encontró la columna de Código en el archivo 'mi_grupo'."}
 
-    # 2. Identificar columna de Estado / Situación en mi_grupo (resistente a mayúsculas/minúsculas/combinadas)
+    # 2. Identificar columna de Estado / Situación en mi_grupo
     col_estado_grupo = None
-    # Coincidencia exacta con 'ESTADO' primero
     for c in df_grupo.columns:
         if str(c).strip().upper() == 'ESTADO':
             col_estado_grupo = c
             break
-    # Coincidencia parcial si no hay exacta
     if not col_estado_grupo:
         for c in df_grupo.columns:
             c_up = str(c).strip().upper()
@@ -2692,120 +2711,141 @@ def actualizar_situacion_comercial_desde_mi_grupo(origen_mi_grupo='mi_grupo.xls'
     # Crear mapeo {codigo_cb_clean: estado_normalizado}
     df_grupo['cb_clean'] = df_grupo[col_code_grupo].apply(limpiar_codigo_cb_estandar)
     df_grupo['estado_clean'] = df_grupo[col_estado_grupo].apply(normalizar_estado_mi_grupo)
+    df_grupo = df_grupo[df_grupo['cb_clean'] != '']
 
     mapa_estados = dict(zip(df_grupo['cb_clean'], df_grupo['estado_clean']))
 
-    # Cargar la base principal
-    df_base = pd.read_excel(ruta_base, sheet_name=0)
-    # Detectar y promover cabecera real si viene con 'Unnamed' (formato estándar Tableau)
-    if any('unnamed' in str(c).lower() for c in df_base.columns[:5]):
-        for r_idx in range(min(10, len(df_base))):
-            row_vals = [str(x).lower() for x in df_base.iloc[r_idx].values if pd.notna(x)]
-            if any('codigo' in x or 'código' in x or 'cb' in x or 'asesora' in x or 'consultora' in x for x in row_vals):
-                df_base.columns = [str(col_name).strip() for col_name in df_base.iloc[r_idx]]
-                df_base = df_base.iloc[r_idx + 1:].reset_index(drop=True)
-                break
-
-    df_base.columns = [str(c).replace('\ufffd', 'ó').strip() for c in df_base.columns]
-
-    col_code_base = None
-    for c in df_base.columns:
-        c_str = str(c).strip().lower()
-        if any(k in c_str for k in ['codigo cb', 'código cb', 'código de consultora', 'codigo de consultora', 'cd consultora']):
-            col_code_base = c
-            break
-    if not col_code_base:
-        col_code_base = df_base.columns[0]
-
-    col_sit_comercial = next((c for c in df_base.columns if 'sit. comercial' in str(c).lower() or 'sit comercial' in str(c).lower()), None)
-    col_situacion_macro = next((c for c in df_base.columns if str(c).strip().lower() in ['situación', 'situacion']), None)
-
-    if not col_sit_comercial:
-        col_sit_comercial = 'Sit. Comercial'
-        df_base[col_sit_comercial] = ''
-    if not col_situacion_macro:
-        col_situacion_macro = 'Situación'
-        df_base[col_situacion_macro] = ''
-
-    df_base['cb_clean'] = df_base[col_code_base].apply(limpiar_codigo_cb_estandar)
-
-    for c in [col_sit_comercial, col_situacion_macro]:
-        if c and c in df_base.columns:
-            df_base[c] = df_base[c].astype(object)
-
-    coincidencias = 0
-    cambios = 0
+    # 3. Consultar la base relacional SQLite consultoras_tableau (con filtro de sector si aplica)
+    conn = obtener_conexion_db()
+    cbs_a_activar = []
     detalles_cambios = []
+    coincidencias = 0
+    ya_estaba_activa = 0
 
-    for idx in df_base.index:
-        cb = df_base.at[idx, 'cb_clean']
-        if cb in mapa_estados:
-            coincidencias += 1
-            nuevo_estado = mapa_estados[cb]
-            estado_actual = str(df_base.at[idx, col_sit_comercial]).strip() if pd.notna(df_base.at[idx, col_sit_comercial]) else ''
-            
-            # REGLA DE PARCHE INTELIGENTE Y NO DESTRUCTIVO:
-            # 1. Ignorar estados no canónicos del portal (Cesada, Registrada, Intención, etc.)
-            if nuevo_estado in ['Cesada', 'Registrada', 'Intención'] or not nuevo_estado:
-                continue
-
-            # 2. Si en mi_grupo viene como ACTIVA y en la base figuraba inactiva -> PARCHE DE ACTIVACIÓN
-            debe_parchar = False
-            if nuevo_estado.lower() == 'activa' and estado_actual.lower() != 'activa':
-                debe_parchar = True
-                estado_final = 'Activa'
-            
-            # 3. Si ya es ACTIVA en la base de datos maestra (con ventas/puntos o estado previo), NUNCA se degrada
-            elif estado_actual.lower() == 'activa':
-                continue
-            
-            if debe_parchar:
-                nombre = str(df_base.at[idx, 'Nombre'] if 'Nombre' in df_base.columns else (df_base.at[idx, 'Asesora / Consultora'] if 'Asesora / Consultora' in df_base.columns else cb))
-                detalles_cambios.append({
-                    'Código CB': cb,
-                    'Asesora / Consultora': nombre,
-                    'Estado Anterior': estado_actual,
-                    'Nuevo Estado (mi_grupo)': estado_final
-                })
-                df_base.at[idx, col_sit_comercial] = estado_final
-                if col_situacion_macro:
-                    df_base.at[idx, col_situacion_macro] = 'Activa'
-                cambios += 1
-
-    # Sincronizar cambios directamente en SQLite
-    if cambios > 0:
-        try:
-            conn_patch = obtener_conexion_db()
-            c_patch = conn_patch.cursor()
-            for d in detalles_cambios:
-                c_patch.execute(
-                    "UPDATE consultoras_tableau SET sit_comercial = 'Activa', situacion = 'Activa' WHERE codigo_cb = ?",
-                    (str(d['Código CB']).strip(),)
-                )
-            conn_patch.commit()
-            conn_patch.close()
-        except Exception as e_db:
-            safe_print(f"Nota actualizando SQLite directo: {e_db}")
-
-    # Guardar en Base de Datos.xlsx
-    excel_guardado = True
-    msg_alerta_excel = ""
     try:
-        df_base.to_excel(ruta_base, index=False)
+        cursor = conn.cursor()
+        where_sql = ""
+        params_sql = []
+        sec_str = ""
+        if sector and str(sector).strip():
+            sec_str = str(sector).strip()
+            where_sql = " WHERE (cod_sector = ? OR cod_sector LIKE ? OR sector LIKE ?)"
+            params_sql = [sec_str, f"%{sec_str}%", f"%{sec_str}%"]
+
+        cursor.execute(
+            f"SELECT codigo_cb, nombre, sit_comercial, situacion, cod_sector, sector FROM consultoras_tableau{where_sql}",
+            params_sql
+        )
+        rows_db = cursor.fetchall()
+
+        for row in rows_db:
+            cb_db_raw = str(row[0] or '').strip()
+            cb_clean = limpiar_codigo_cb_estandar(cb_db_raw)
+            nombre = str(row[1] or cb_clean).strip()
+            sit_actual = str(row[2] or '').strip()
+
+            if cb_clean in mapa_estados:
+                coincidencias += 1
+                nuevo_estado = mapa_estados[cb_clean]
+
+                # Reglas de protección no destructiva:
+                if nuevo_estado in ['Cesada', 'Registrada', 'Intención'] or not nuevo_estado:
+                    continue
+
+                if nuevo_estado.lower() == 'activa':
+                    if sit_actual.lower() == 'activa':
+                        ya_estaba_activa += 1
+                    else:
+                        cbs_a_activar.append({
+                            'cb_raw': cb_db_raw,
+                            'cb_clean': cb_clean,
+                            'nombre': nombre,
+                            'estado_anterior': sit_actual or 'Inactiva'
+                        })
+
+        # 4. Actualizar directamente en SQLite únicamente las consultoras que cambian
+        if cbs_a_activar:
+            for item in cbs_a_activar:
+                cb_raw = item['cb_raw']
+                cb_clean = item['cb_clean']
+                nom = item['nombre']
+                est_ant = item['estado_anterior']
+
+                if sec_str:
+                    cursor.execute(
+                        """UPDATE consultoras_tableau 
+                           SET sit_comercial = 'Activa', situacion = 'Activa' 
+                           WHERE (codigo_cb = ? OR codigo_cb = ? OR CAST(codigo_cb AS TEXT) = ?) 
+                             AND (cod_sector = ? OR cod_sector LIKE ? OR sector LIKE ?)""",
+                        (cb_raw, cb_clean, cb_clean, sec_str, f"%{sec_str}%", f"%{sec_str}%")
+                    )
+                else:
+                    cursor.execute(
+                        """UPDATE consultoras_tableau 
+                           SET sit_comercial = 'Activa', situacion = 'Activa' 
+                           WHERE (codigo_cb = ? OR codigo_cb = ? OR CAST(codigo_cb AS TEXT) = ?)""",
+                        (cb_raw, cb_clean, cb_clean)
+                    )
+
+                detalles_cambios.append({
+                    'Código CB': cb_clean,
+                    'Asesora / Consultora': nom,
+                    'Estado Anterior': est_ant,
+                    'Nuevo Estado (mi_grupo)': 'Activa'
+                })
+            conn.commit()
+    except Exception as e_sql_mg:
+        safe_print(f"Error actualizando SQLite desde mi_grupo: {e_sql_mg}")
+    finally:
+        conn.close()
+
+    # 5. Actualizar 'Base de Datos.xlsx' como respaldo en disco sin borrar ni re-sincronizar destructivamente SQLite
+    msg_alerta_excel = ""
+    if os.path.exists(ruta_base) and cbs_a_activar:
         try:
-            sincronizar_excel_tableau_a_sqlite(ruta_base)
-        except Exception:
-            pass
-    except PermissionError:
-        excel_guardado = False
-        msg_alerta_excel = f" (Nota: '{ruta_base}' está abierto en Excel; los cambios se guardaron en la plataforma, pero para actualizar el archivo físico ciérralo en Excel)."
-    except Exception as e:
-        safe_print(f"Error al escribir Excel: {e}")
+            df_base = pd.read_excel(ruta_base, sheet_name=0)
+            if any('unnamed' in str(c).lower() for c in df_base.columns[:5]):
+                for r_idx in range(min(10, len(df_base))):
+                    row_vals = [str(x).lower() for x in df_base.iloc[r_idx].values if pd.notna(x)]
+                    if any('codigo' in x or 'código' in x or 'cb' in x for x in row_vals):
+                        df_base.columns = [str(col_name).strip() for col_name in df_base.iloc[r_idx]]
+                        df_base = df_base.iloc[r_idx + 1:].reset_index(drop=True)
+                        break
+
+            df_base.columns = [str(c).replace('\ufffd', 'ó').strip() for c in df_base.columns]
+            col_code_base = next((c for c in df_base.columns if any(k in str(c).lower() for k in ['codigo cb', 'código cb', 'código de consultora', 'codigo de consultora', 'cd consultora'])), df_base.columns[0])
+            col_sit_com = next((c for c in df_base.columns if 'sit. comercial' in str(c).lower() or 'sit comercial' in str(c).lower()), 'Sit. Comercial')
+            col_sit_mac = next((c for c in df_base.columns if str(c).strip().lower() in ['situación', 'situacion']), 'Situación')
+
+            if col_sit_com not in df_base.columns:
+                df_base[col_sit_com] = ''
+            if col_sit_mac not in df_base.columns:
+                df_base[col_sit_mac] = ''
+
+            for c in [col_sit_com, col_sit_mac]:
+                df_base[c] = df_base[c].astype(object)
+
+            df_base['cb_clean_tmp'] = df_base[col_code_base].apply(limpiar_codigo_cb_estandar)
+            cbs_modificar_set = {item['cb_clean'] for item in cbs_a_activar}
+            mask = df_base['cb_clean_tmp'].isin(cbs_modificar_set)
+            if mask.any():
+                df_base.loc[mask, col_sit_com] = 'Activa'
+                df_base.loc[mask, col_sit_mac] = 'Activa'
+                df_base = df_base.drop(columns=['cb_clean_tmp'], errors='ignore')
+                df_base.to_excel(ruta_base, index=False)
+        except PermissionError:
+            msg_alerta_excel = f" (Nota: '{ruta_base}' está abierto en Excel; los cambios se guardaron en el sistema, pero para actualizar el archivo físico ciérralo en Excel)."
+        except Exception as e_xl:
+            safe_print(f"Nota actualizando Base de Datos.xlsx: {e_xl}")
+
+    es_duplicado = (len(cbs_a_activar) == 0 and ya_estaba_activa > 0)
 
     return {
         'exito': True,
         'coincidencias': coincidencias,
-        'cambios': cambios,
+        'cambios': len(cbs_a_activar),
+        'ya_activas': ya_estaba_activa,
+        'es_duplicado': es_duplicado,
         'detalles': detalles_cambios,
         'aviso_excel': msg_alerta_excel
     }
@@ -2867,17 +2907,30 @@ def filtrar_consultoras_portal_especial(df_base, opcion_portal, ruta_mi_grupo='m
 
     return df_filtrado
 
-def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'):
+def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx', sector=None):
     """
     Cruce del archivo de 'activas' (.xlsx, .xls, .csv) con la base de datos de Tableau:
     - Identifica los Códigos CB del archivo de activas.
-    - Actualiza únicamente el campo 'Indicador' con el valor 'Activas'.
-    - Sincroniza 'Sit. Comercial' y 'Situación' a 'Activa'.
+    - Actualiza 'indicador' a 'Activas', 'sit_comercial' a 'Activa' y 'situacion' a 'Activa' directamente en SQLite.
     - No modifica otros campos (Facturación, Puntos, Pedidos se preservan intactos).
-    - Guarda en 'Base de Datos.xlsx' y sincroniza la tabla SQLite consultoras_tableau.
+    - Detecta si la data ya fue procesada ('es_duplicado') para no sobreescribir ni reportar inconsistencias.
+    - Aislamiento multi-inquilino: solo modifica consultoras del sector indicado.
+    - NUNCA llama a sincronizar_excel_tableau_a_sqlite, evitando borrados destructivos.
     """
-    if not os.path.exists(ruta_base):
-        return {'exito': False, 'error': f"No se encontró el archivo base '{ruta_base}'."}
+    # Guardar copia en disco si es un buffer subido en memoria
+    if hasattr(origen_activas, 'read'):
+        try:
+            origen_activas.seek(0)
+            contenido_act = origen_activas.read()
+            nombre_guardar = getattr(origen_activas, 'name', 'activas.xlsx')
+            ext = os.path.splitext(nombre_guardar)[1].lower()
+            if ext not in ['.xlsx', '.xls', '.csv']:
+                ext = '.xlsx'
+            with open(f'activas{ext}', 'wb') as f_out:
+                f_out.write(contenido_act)
+            origen_activas.seek(0)
+        except Exception as e_save_act:
+            safe_print(f"Nota guardando copia local de activas: {e_save_act}")
 
     df_act = leer_excel_tolerante(origen_activas)
 
@@ -2915,101 +2968,143 @@ def actualizar_base_desde_activas(origen_activas, ruta_base='Base de Datos.xlsx'
     df_act['cb_clean'] = df_act[col_code_act].apply(limpiar_codigo_cb_estandar)
     cbs_activas = set(df_act['cb_clean'].dropna().loc[lambda s: s != ''])
 
-    # 3. Cargar Base de Datos.xlsx principal
-    df_base = pd.read_excel(ruta_base, sheet_name=0)
-    # Detectar y promover cabecera real si viene con 'Unnamed' (formato estándar Tableau)
-    if any('unnamed' in str(c).lower() for c in df_base.columns[:5]):
-        for r_idx in range(min(10, len(df_base))):
-            row_vals = [str(x).lower() for x in df_base.iloc[r_idx].values if pd.notna(x)]
-            if any('codigo' in x or 'código' in x or 'cb' in x or 'asesora' in x or 'consultora' in x for x in row_vals):
-                df_base.columns = [str(col_name).strip() for col_name in df_base.iloc[r_idx]]
-                df_base = df_base.iloc[r_idx + 1:].reset_index(drop=True)
-                break
+    if not cbs_activas:
+        return {'exito': False, 'error': "No se encontraron códigos CB válidos en el archivo de activas."}
 
-    df_base.columns = [str(c).replace('\ufffd', 'ó').strip() for c in df_base.columns]
-
-    col_code_base = None
-    for c in df_base.columns:
-        c_str = str(c).strip().lower()
-        if any(k in c_str for k in ['codigo cb', 'código cb', 'código de consultora', 'codigo de consultora', 'cd consultora']):
-            col_code_base = c
-            break
-    if not col_code_base:
-        col_code_base = df_base.columns[0]
-
-    # Identificar o crear columna 'Indicador'
-    col_indicador = next((c for c in df_base.columns if str(c).strip().lower() in ['indicador', 'indicadores']), None)
-    if not col_indicador:
-        col_indicador = 'Indicador'
-        df_base[col_indicador] = ''
-
-    col_sit_comercial = next((c for c in df_base.columns if 'sit. comercial' in str(c).lower() or 'sit comercial' in str(c).lower()), None)
-    col_situacion_macro = next((c for c in df_base.columns if str(c).strip().lower() in ['situación', 'situacion']), None)
-
-    if not col_sit_comercial:
-        col_sit_comercial = 'Sit. Comercial'
-        df_base[col_sit_comercial] = ''
-    if not col_situacion_macro:
-        col_situacion_macro = 'Situación'
-        df_base[col_situacion_macro] = ''
-
-    df_base['cb_clean'] = df_base[col_code_base].apply(limpiar_codigo_cb_estandar)
-
-    # Asegurar compatibilidad de tipos (PyArrow / Pandas 2+ / Python 3.14)
-    for c in [col_indicador, col_sit_comercial, col_situacion_macro]:
-        if c and c in df_base.columns:
-            df_base[c] = df_base[c].astype(object)
-
-    coincidencias = 0
-    cambios_totales = 0
+    # 3. Consultar la base relacional SQLite consultoras_tableau (con filtro de sector si aplica)
+    conn = obtener_conexion_db()
+    cbs_a_activar = []
     detalles_cambios = []
-    cbs_base_set = set(df_base['cb_clean'].dropna())
+    coincidencias = 0
+    ya_estaba_activa = 0
+    cbs_db_set = set()
 
-    for idx in df_base.index:
-        cb = df_base.at[idx, 'cb_clean']
-        if cb in cbs_activas:
-            coincidencias += 1
-            ind_actual = str(df_base.at[idx, col_indicador]).strip() if pd.notna(df_base.at[idx, col_indicador]) else ''
-            
-            # Actualizar Indicador a 'Activas'
-            df_base.at[idx, col_indicador] = 'Activas'
-            df_base.at[idx, col_sit_comercial] = 'Activa'
-            if col_situacion_macro:
-                df_base.at[idx, col_situacion_macro] = 'Activa'
+    try:
+        cursor = conn.cursor()
+        where_sql = ""
+        params_sql = []
+        sec_str = ""
+        if sector and str(sector).strip():
+            sec_str = str(sector).strip()
+            where_sql = " WHERE (cod_sector = ? OR cod_sector LIKE ? OR sector LIKE ?)"
+            params_sql = [sec_str, f"%{sec_str}%", f"%{sec_str}%"]
 
-            if ind_actual != 'Activas':
-                cambios_totales += 1
-                nombre = str(df_base.at[idx, 'Nombre'] if 'Nombre' in df_base.columns else (df_base.at[idx, 'Asesora / Consultora'] if 'Asesora / Consultora' in df_base.columns else cb))
+        cursor.execute(
+            f"SELECT codigo_cb, nombre, indicador, sit_comercial, situacion, cod_sector, sector FROM consultoras_tableau{where_sql}",
+            params_sql
+        )
+        rows_db = cursor.fetchall()
+
+        for row in rows_db:
+            cb_db_raw = str(row[0] or '').strip()
+            cb_clean = limpiar_codigo_cb_estandar(cb_db_raw)
+            cbs_db_set.add(cb_clean)
+            nombre = str(row[1] or cb_clean).strip()
+            ind_actual = str(row[2] or '').strip()
+            sit_actual = str(row[3] or '').strip()
+
+            if cb_clean in cbs_activas:
+                coincidencias += 1
+                if ind_actual.lower() == 'activas' and sit_actual.lower() == 'activa':
+                    ya_estaba_activa += 1
+                else:
+                    cbs_a_activar.append({
+                        'cb_raw': cb_db_raw,
+                        'cb_clean': cb_clean,
+                        'nombre': nombre,
+                        'ind_anterior': ind_actual or 'N/D',
+                        'sit_anterior': sit_actual or 'Inactiva'
+                    })
+
+        # 4. Actualizar directamente en SQLite únicamente las consultoras que cambian
+        if cbs_a_activar:
+            for item in cbs_a_activar:
+                cb_raw = item['cb_raw']
+                cb_clean = item['cb_clean']
+                nom = item['nombre']
+                ind_ant = item['ind_anterior']
+
+                if sec_str:
+                    cursor.execute(
+                        """UPDATE consultoras_tableau 
+                           SET indicador = 'Activas', sit_comercial = 'Activa', situacion = 'Activa' 
+                           WHERE (codigo_cb = ? OR codigo_cb = ? OR CAST(codigo_cb AS TEXT) = ?) 
+                             AND (cod_sector = ? OR cod_sector LIKE ? OR sector LIKE ?)""",
+                        (cb_raw, cb_clean, cb_clean, sec_str, f"%{sec_str}%", f"%{sec_str}%")
+                    )
+                else:
+                    cursor.execute(
+                        """UPDATE consultoras_tableau 
+                           SET indicador = 'Activas', sit_comercial = 'Activa', situacion = 'Activa' 
+                           WHERE (codigo_cb = ? OR codigo_cb = ? OR CAST(codigo_cb AS TEXT) = ?)""",
+                        (cb_raw, cb_clean, cb_clean)
+                    )
+
                 detalles_cambios.append({
-                    'Código CB': cb,
-                    'Asesora / Consultora': nombre,
-                    'Indicador Anterior': ind_actual or 'N/D',
+                    'Código CB': cb_clean,
+                    'Asesora / Consultora': nom,
+                    'Indicador Anterior': ind_ant,
                     'Nuevo Indicador': 'Activas',
                     'Sit. Comercial': 'Activa'
                 })
+            conn.commit()
+    except Exception as e_sql_act:
+        safe_print(f"Error actualizando SQLite desde activas: {e_sql_act}")
+    finally:
+        conn.close()
 
-    df_base = df_base.drop(columns=['cb_clean'], errors='ignore')
-
-    # Guardar en Base de Datos.xlsx y refrescar SQLite
-    try:
-        df_base.to_excel(ruta_base, index=False)
+    # 5. Actualizar 'Base de Datos.xlsx' como respaldo en disco sin borrar ni re-sincronizar destructivamente SQLite
+    msg_alerta_excel = ""
+    if os.path.exists(ruta_base) and cbs_a_activar:
         try:
-            sincronizar_excel_tableau_a_sqlite(ruta_base)
-        except Exception as e_sql:
-            safe_print(f"Advertencia al sincronizar SQLite tras cruce de activas: {e_sql}")
+            df_base = pd.read_excel(ruta_base, sheet_name=0)
+            if any('unnamed' in str(c).lower() for c in df_base.columns[:5]):
+                for r_idx in range(min(10, len(df_base))):
+                    row_vals = [str(x).lower() for x in df_base.iloc[r_idx].values if pd.notna(x)]
+                    if any('codigo' in x or 'código' in x or 'cb' in x for x in row_vals):
+                        df_base.columns = [str(col_name).strip() for col_name in df_base.iloc[r_idx]]
+                        df_base = df_base.iloc[r_idx + 1:].reset_index(drop=True)
+                        break
 
-        no_encontradas = [cb for cb in cbs_activas if cb not in cbs_base_set]
+            df_base.columns = [str(c).replace('\ufffd', 'ó').strip() for c in df_base.columns]
+            col_code_base = next((c for c in df_base.columns if any(k in str(c).lower() for k in ['codigo cb', 'código cb', 'código de consultora', 'codigo de consultora', 'cd consultora'])), df_base.columns[0])
+            col_ind = next((c for c in df_base.columns if str(c).strip().lower() in ['indicador', 'indicadores']), 'Indicador')
+            col_sit_com = next((c for c in df_base.columns if 'sit. comercial' in str(c).lower() or 'sit comercial' in str(c).lower()), 'Sit. Comercial')
+            col_sit_mac = next((c for c in df_base.columns if str(c).strip().lower() in ['situación', 'situacion']), 'Situación')
 
-        return {
-            'exito': True,
-            'total_activas_archivo': len(cbs_activas),
-            'coincidencias': coincidencias,
-            'cambios_totales': cambios_totales,
-            'detalles': detalles_cambios,
-            'no_encontradas_count': len(no_encontradas)
-        }
-    except Exception as e_save:
-        return {'exito': False, 'error': f"Error al guardar '{ruta_base}': {e_save}"}
+            for col_target in [col_ind, col_sit_com, col_sit_mac]:
+                if col_target not in df_base.columns:
+                    df_base[col_target] = ''
+                df_base[col_target] = df_base[col_target].astype(object)
+
+            df_base['cb_clean_tmp'] = df_base[col_code_base].apply(limpiar_codigo_cb_estandar)
+            cbs_modificar_set = {item['cb_clean'] for item in cbs_a_activar}
+            mask = df_base['cb_clean_tmp'].isin(cbs_modificar_set)
+            if mask.any():
+                df_base.loc[mask, col_ind] = 'Activas'
+                df_base.loc[mask, col_sit_com] = 'Activa'
+                df_base.loc[mask, col_sit_mac] = 'Activa'
+                df_base = df_base.drop(columns=['cb_clean_tmp'], errors='ignore')
+                df_base.to_excel(ruta_base, index=False)
+        except PermissionError:
+            msg_alerta_excel = f" (Nota: '{ruta_base}' está abierto en Excel; los cambios se guardaron en el sistema, pero para actualizar el archivo físico ciérralo en Excel)."
+        except Exception as e_xl:
+            safe_print(f"Nota actualizando Base de Datos.xlsx: {e_xl}")
+
+    es_duplicado = (len(cbs_a_activar) == 0 and ya_estaba_activa > 0)
+    no_encontradas = len(cbs_activas - cbs_db_set)
+
+    return {
+        'exito': True,
+        'total_activas_archivo': len(cbs_activas),
+        'coincidencias': coincidencias,
+        'cambios_totales': len(cbs_a_activar),
+        'ya_activas': ya_estaba_activa,
+        'es_duplicado': es_duplicado,
+        'detalles': detalles_cambios,
+        'no_encontradas_count': no_encontradas,
+        'aviso_excel': msg_alerta_excel
+    }
 
 # --- MÓDULO DE AUTENTICACIÓN Y GESTIÓN DE USUARIOS POR ROL ---
 RUTA_USUARIOS = ruta_persistente('usuarios.json')
@@ -6713,6 +6808,402 @@ def generar_mensaje_whatsapp_cobranza(row, tipo='manana', nombre_remitente='Tu L
             f"¡Muchos éxitos en tu negocio! ✨ — {nombre_remitente}"
         )
     return msg
+
+# --- MÓDULO DE BORRADO SEGURO Y AISLADO POR SECTOR (CARTERA, METAS, TABLEAU) ---
+
+def obtener_variantes_sector(sector):
+    """
+    Retorna un conjunto con las variantes de código y alias de un sector
+    (ej. '32', '70000032', código entero y nombres catalogados).
+    """
+    if not sector:
+        return set()
+    s = str(sector).strip().split('.')[0]
+    variantes = {s}
+    if len(s) > 3 and s.startswith("700000"):
+        corto = s[6:]
+        variantes.add(corto)
+        if corto.isdigit():
+            variantes.add(str(int(corto)))
+    else:
+        variantes.add(f"700000{s}")
+        if s.isdigit():
+            variantes.add(str(int(s)))
+            variantes.add(f"700000{int(s)}")
+
+    try:
+        sectores_cat = cargar_catalogo_sectores()
+        for v in list(variantes):
+            if v in sectores_cat:
+                nom = sectores_cat[v].get("nombre_sector")
+                if nom:
+                    variantes.add(str(nom).strip())
+    except Exception:
+        pass
+
+    return variantes
+
+def contar_registros_sector_geral(sector=None):
+    """
+    Cuenta cuántos registros hay en cartera_geral para el sector especificado (o total si es None).
+    """
+    conn = None
+    try:
+        conn = obtener_conexion_db(timeout=10.0)
+        cursor = conn.cursor()
+        if not sector:
+            cursor.execute("SELECT COUNT(*) FROM cartera_geral")
+            return cursor.fetchone()[0]
+
+        vars_sec = list(obtener_variantes_sector(sector))
+        condiciones = []
+        params = []
+        for v in vars_sec:
+            condiciones.append("cod_sector = ?")
+            params.append(v)
+            condiciones.append("sector LIKE ?")
+            params.append(f"%{v}%")
+
+        where_clause = " OR ".join(condiciones)
+        cursor.execute(f"SELECT COUNT(*) FROM cartera_geral WHERE {where_clause}", params)
+        res = cursor.fetchone()
+        return res[0] if res else 0
+    except Exception as e:
+        safe_print(f"Error al contar registros de cartera: {e}")
+        return 0
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+def eliminar_cartera_geral_sector(sector=None, usuario=None, user_rol='gerente'):
+    """
+    Elimina registros en cartera_geral de manera segura y atómica.
+    Si user_rol == 'gerente', restringe estrictamente la eliminación al sector de la gerente.
+    Si user_rol == 'superadmin' y sector is None, vacía toda la tabla y elimina el archivo Geral.xlsx.
+    Retorna (exito: bool, num_eliminados: int, mensaje: str).
+    """
+    if user_rol not in ['gerente', 'superadmin']:
+        return False, 0, "No tienes permisos suficientes para eliminar registros de cartera."
+
+    if user_rol == 'gerente' and not sector:
+        return False, 0, "No se especificó un sector válido para ejecutar la eliminación."
+
+    conn = None
+    try:
+        conn = obtener_conexion_db(timeout=30.0)
+        cursor = conn.cursor()
+
+        if sector:
+            vars_sec = list(obtener_variantes_sector(sector))
+            condiciones = []
+            params = []
+            for v in vars_sec:
+                condiciones.append("cod_sector = ?")
+                params.append(v)
+                condiciones.append("sector LIKE ?")
+                params.append(f"%{v}%")
+
+            where_clause = " OR ".join(condiciones)
+            cursor.execute(f"SELECT COUNT(*) FROM cartera_geral WHERE {where_clause}", params)
+            num_prev = cursor.fetchone()[0]
+
+            cursor.execute(f"DELETE FROM cartera_geral WHERE {where_clause}", params)
+            conn.commit()
+            return True, num_prev, f"Se eliminaron {num_prev} títulos de cartera correspondientes a tu sector."
+        else:
+            cursor.execute("SELECT COUNT(*) FROM cartera_geral")
+            num_prev = cursor.fetchone()[0]
+            cursor.execute("DELETE FROM cartera_geral")
+            conn.commit()
+            for p in ["Geral.xlsx", ruta_persistente("Geral.xlsx")]:
+                if p and os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
+            return True, num_prev, f"Se vació la cartera general por completo ({num_prev} títulos)."
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        return False, 0, f"Error al eliminar registros de cartera: {e}"
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+def contar_metas_sector_arte(sector=None):
+    """
+    Cuenta cuántos líderes tienen metas asignadas en Objetivos Arte para el sector especificado.
+    """
+    try:
+        arte = cargar_objetivos_arte()
+        if not arte or not isinstance(arte, dict):
+            return 0
+        por_grupo = arte.get('por_grupo', {})
+        if not sector:
+            return len(por_grupo)
+
+        vars_sec = obtener_variantes_sector(sector)
+        grupos_sector = set()
+        try:
+            usuarios = cargar_usuarios()
+            for u_info in usuarios.values():
+                u_sec = str(u_info.get('codigo_sector', '')).strip()
+                if u_sec in vars_sec and u_info.get('codigo_grupo'):
+                    grupos_sector.add(str(u_info.get('codigo_grupo')).strip())
+        except Exception:
+            pass
+
+        count = 0
+        for g_k, g_v in por_grupo.items():
+            g_sec = str(g_v.get('sector', '')).strip()
+            if g_sec in vars_sec or g_k in grupos_sector or any(v in g_sec for v in vars_sec if v):
+                count += 1
+        return count
+    except Exception:
+        return 0
+
+def eliminar_objetivos_arte_sector(sector=None, usuario=None, user_rol='gerente'):
+    """
+    Elimina metas de Objetivos Arte de manera segura y atómica.
+    Si user_rol == 'gerente', depura del archivo objetivos_arte.json únicamente los líderes de su sector.
+    Si user_rol == 'superadmin' y sector is None, vacía todas las metas y borra Objetivos Arte.xlsx.
+    Retorna (exito: bool, num_eliminados: int, mensaje: str).
+    """
+    if user_rol not in ['gerente', 'superadmin']:
+        return False, 0, "No tienes permisos suficientes para eliminar Objetivos Arte."
+
+    if user_rol == 'gerente' and not sector:
+        return False, 0, "No se especificó un sector válido."
+
+    try:
+        arte = cargar_objetivos_arte()
+        if not arte or not isinstance(arte, dict):
+            return True, 0, "No hay metas de Objetivos Arte registradas actualmente."
+
+        por_grupo = dict(arte.get('por_grupo', {}))
+        por_nombre = dict(arte.get('por_nombre', {}))
+
+        if sector:
+            vars_sec = obtener_variantes_sector(sector)
+            grupos_sector = set()
+            try:
+                usuarios = cargar_usuarios()
+                for u_info in usuarios.values():
+                    u_sec = str(u_info.get('codigo_sector', '')).strip()
+                    if u_sec in vars_sec and u_info.get('codigo_grupo'):
+                        grupos_sector.add(str(u_info.get('codigo_grupo')).strip())
+            except Exception:
+                pass
+
+            grupos_a_borrar = []
+            for g_key, g_info in por_grupo.items():
+                g_sec = str(g_info.get('sector', '')).strip()
+                if g_sec in vars_sec or g_key in grupos_sector:
+                    grupos_a_borrar.append(g_key)
+                else:
+                    for v in vars_sec:
+                        if v and (v in g_sec or g_sec in v):
+                            grupos_a_borrar.append(g_key)
+                            break
+
+            grupos_a_borrar = list(set(grupos_a_borrar))
+            num_borrados = len(grupos_a_borrar)
+
+            for gk in grupos_a_borrar:
+                item = por_grupo.pop(gk, None)
+                if item and isinstance(item, dict):
+                    nom = str(item.get('nombre_lider', '')).strip().lower()
+                    if nom in por_nombre:
+                        del por_nombre[nom]
+
+            dict_final = {
+                'por_grupo': por_grupo,
+                'por_nombre': por_nombre
+            }
+            guardar_objetivos_arte(dict_final)
+
+            if not por_grupo:
+                for p in ['Objetivos Arte.xlsx', ruta_persistente('Objetivos Arte.xlsx')]:
+                    if p and os.path.exists(p):
+                        try:
+                            os.remove(p)
+                        except Exception:
+                            pass
+
+            return True, num_borrados, f"Se eliminaron las metas de {num_borrados} líderes de tu sector."
+        else:
+            num_total = len(por_grupo)
+            guardar_objetivos_arte({'por_grupo': {}, 'por_nombre': {}})
+            for p in ['Objetivos Arte.xlsx', ruta_persistente('Objetivos Arte.xlsx')]:
+                if p and os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
+            return True, num_total, f"Se vaciaron todas las metas de Objetivos Arte ({num_total} líderes)."
+    except Exception as e:
+        return False, 0, f"Error al eliminar metas de Objetivos Arte: {e}"
+
+def contar_ajustes_sector_desafios(sector=None):
+    """
+    Cuenta cuántas campañas con ajustes de desafíos existen para el sector.
+    """
+    try:
+        raw_ajustes = cargar_ajustes_desafios()
+        if not raw_ajustes or not isinstance(raw_ajustes, dict):
+            return 0
+        historico = raw_ajustes.get('historico', {})
+        if not sector:
+            return sum(len(camps) for camps in historico.values() if isinstance(camps, dict))
+        vars_sec = obtener_variantes_sector(sector)
+        count = 0
+        for v in vars_sec:
+            if v in historico and isinstance(historico[v], dict):
+                count += len(historico[v])
+        return count
+    except Exception:
+        return 0
+
+def eliminar_ajustes_desafios_sector(sector=None, usuario=None, user_rol='gerente'):
+    """
+    Elimina los ajustes y calibraciones de desafíos para el sector especificado.
+    """
+    if user_rol not in ['gerente', 'superadmin']:
+        return False, 0, "No tienes permisos suficientes para eliminar Ajustes Desafíos."
+
+    if user_rol == 'gerente' and not sector:
+        return False, 0, "No se especificó un sector válido."
+
+    try:
+        raw_ajustes = cargar_ajustes_desafios()
+        if not raw_ajustes or not isinstance(raw_ajustes, dict):
+            return True, 0, "No hay ajustes de desafíos registrados actualmente."
+
+        historico = raw_ajustes.get('historico', {})
+        campana_activa = raw_ajustes.get('campana_activa_por_sector', {})
+
+        if sector:
+            vars_sec = obtener_variantes_sector(sector)
+            borrados = 0
+            for v in list(vars_sec):
+                if v in historico:
+                    del historico[v]
+                    borrados += 1
+                if v in campana_activa:
+                    del campana_activa[v]
+
+            raw_ajustes['historico'] = historico
+            raw_ajustes['campana_activa_por_sector'] = campana_activa
+            guardar_ajustes_desafios(raw_ajustes)
+            return True, borrados, f"Se eliminaron las calibraciones y ajustes del sector {sector}."
+        else:
+            raw_ajustes['historico'] = {}
+            raw_ajustes['campana_activa_por_sector'] = {}
+            guardar_ajustes_desafios(raw_ajustes)
+            return True, 1, "Se vaciaron todos los ajustes de desafíos de todos los sectores."
+    except Exception as e:
+        return False, 0, f"Error al eliminar Ajustes Desafíos: {e}"
+
+def contar_registros_sector_tableau(sector=None):
+    """
+    Cuenta cuántas consultoras hay registradas en consultoras_tableau para el sector.
+    """
+    conn = None
+    try:
+        conn = obtener_conexion_db(timeout=10.0)
+        cursor = conn.cursor()
+        if not sector:
+            cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
+            return cursor.fetchone()[0]
+
+        vars_sec = list(obtener_variantes_sector(sector))
+        condiciones = []
+        params = []
+        for v in vars_sec:
+            condiciones.append("cod_sector = ?")
+            params.append(v)
+            condiciones.append("sector LIKE ?")
+            params.append(f"%{v}%")
+
+        where_clause = " OR ".join(condiciones)
+        cursor.execute(f"SELECT COUNT(*) FROM consultoras_tableau WHERE {where_clause}", params)
+        res = cursor.fetchone()
+        return res[0] if res else 0
+    except Exception:
+        return 0
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+def eliminar_tableau_sector(sector=None, usuario=None, user_rol='gerente'):
+    """
+    Elimina consultoras de Tableau de manera segura y atómica para el sector.
+    """
+    if user_rol not in ['gerente', 'superadmin']:
+        return False, 0, "No tienes permisos suficientes para eliminar consultoras de Tableau."
+
+    if user_rol == 'gerente' and not sector:
+        return False, 0, "No se especificó un sector válido."
+
+    conn = None
+    try:
+        conn = obtener_conexion_db(timeout=30.0)
+        cursor = conn.cursor()
+
+        if sector:
+            vars_sec = list(obtener_variantes_sector(sector))
+            condiciones = []
+            params = []
+            for v in vars_sec:
+                condiciones.append("cod_sector = ?")
+                params.append(v)
+                condiciones.append("sector LIKE ?")
+                params.append(f"%{v}%")
+
+            where_clause = " OR ".join(condiciones)
+            cursor.execute(f"SELECT COUNT(*) FROM consultoras_tableau WHERE {where_clause}", params)
+            num_prev = cursor.fetchone()[0]
+
+            cursor.execute(f"DELETE FROM consultoras_tableau WHERE {where_clause}", params)
+            conn.commit()
+            return True, num_prev, f"Se eliminaron {num_prev} consultoras de Tableau para tu sector."
+        else:
+            cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
+            num_prev = cursor.fetchone()[0]
+            cursor.execute("DELETE FROM consultoras_tableau")
+            conn.commit()
+            for p in ["Base de Datos.xlsx", ruta_persistente("Base de Datos.xlsx"), "mi_grupo.xls", "activas.xlsx"]:
+                if p and os.path.exists(p):
+                    try:
+                        os.remove(p)
+                    except Exception:
+                        pass
+            return True, num_prev, f"Se vació la base Tableau por completo ({num_prev} consultoras)."
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        return False, 0, f"Error al eliminar consultoras: {e}"
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def eliminar_datos_por_grupo_o_usuario(codigo_grupo, eliminar_cuenta=False):
     """
