@@ -7917,7 +7917,7 @@ if tab_diagnostico is not None:
             st.markdown("#### 🚀 4. Cuadro Resumen de Inicios + Reinicios (Meta vs. Ingresos del Ciclo)")
             st.caption("Fórmulas del modelo: `Hoy = Inicios + Reinicios`, `Avance = (Hoy / Meta) * 100`, `para activar! = Meta - Hoy`.")
 
-            if col_lider and col_lider in df_diag.columns:
+            if col_lider and col_lider in df_diag.columns and not df_diag.empty:
                 df_ing_prep = df_diag.copy()
                 col_inicios = 'Inicios' if 'Inicios' in df_ing_prep.columns else None
                 col_reinicios = 'Reinicios' if 'Reinicios' in df_ing_prep.columns else None
@@ -8002,7 +8002,7 @@ if tab_diagnostico is not None:
             st.markdown("#### 🎯 5. Cuadro Resumen de Recuperos (Meta vs. Recuperos del Ciclo)")
             st.caption("Fórmulas del modelo: `Hoy = Recuperos Reales`, `Avance = (Hoy / Meta) * 100`, `para activar! = Meta - Hoy`.")
 
-            if col_lider and col_lider in df_diag.columns:
+            if col_lider and col_lider in df_diag.columns and not df_diag.empty:
                 df_rec_prep = df_diag.copy()
                 col_recuperos = 'Recuperos' if 'Recuperos' in df_rec_prep.columns else None
                 col_meta_rec = next((c for c in df_rec_prep.columns if any(k in str(c).lower() for k in ['meta recuperos', 'meta_recuperos', 'recuperos_meta'])), None)

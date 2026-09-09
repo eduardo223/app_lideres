@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+import numpy as np
 pd.set_option("styler.render.max_elements", 3_000_000)
 import urllib.parse
 import os
@@ -1326,7 +1327,10 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     return '👑 LN' if limpiar_numero(row.get(col_obj_f, 0.0), 0.0) >= 25000000.0 else '🌱 CE+'
                 return '👑 LN'
 
-            df_diag['Tipo_Red'] = df_diag.apply(_resolver_tipo_red_mob, axis=1)
+            if not df_diag.empty:
+                df_diag['Tipo_Red'] = df_diag.apply(_resolver_tipo_red_mob, axis=1)
+            else:
+                df_diag['Tipo_Red'] = pd.Series(dtype=str)
 
             count_tot = len(df_diag)
             count_lideres = int((df_diag['Tipo_Red'] == '👑 LN').sum())
@@ -1349,6 +1353,9 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 df_diag = df_diag[df_diag['Tipo_Red'] == '👑 LN'].copy()
             elif "🌱 CE+" in filtro_segmento or "🌱 Emprendedoras" in filtro_segmento:
                 df_diag = df_diag[df_diag['Tipo_Red'] == '🌱 CE+'].copy()
+
+            if df_diag.empty:
+                st.info("ℹ️ No se encontraron registros de líderes o consultoras emprendedoras para el segmento seleccionado.")
 
             # --- 1. TABLA DE FACTURACIÓN Y CUMPLIMIENTO ---
             st.markdown("---")
@@ -1586,7 +1593,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             dia_corte = st.number_input("📅 Día de Avance (Editable):", min_value=1, max_value=21, value=14, step=1, key="mob_dia_corte_14_key")
             nombre_col_dia = f"Dia {dia_corte}"
 
-            if col_lider and col_lider in df_diag.columns:
+            if col_lider and col_lider in df_diag.columns and not df_diag.empty:
                 df_disp_prep = df_diag.copy()
                 col_grp_diag = next((c for c in df_disp_prep.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'cód. grupo', 'cod grupo', 'grupo'])), None)
 
@@ -1595,7 +1602,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
                 col_disp_actual = 'Disponibles' if 'Disponibles' in df_disp_prep.columns else ('Real Activas' if 'Real Activas' in df_disp_prep.columns else None)
 
-                if col_disp_actual:
+                if col_disp_actual and not df_disp_prep.empty:
                     df_disp_calc = pd.DataFrame()
                     df_disp_calc['LÍDER DE NEGOCIOS'] = df_disp_prep[col_lider].astype(str)
 
@@ -1614,14 +1621,12 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     df_disp_calc['Disponibles Proyectadas'] = df_disp_prep.apply(_obtener_desafio_disp_row, axis=1)
                     df_disp_calc[nombre_col_dia] = df_disp_prep[col_disp_actual].apply(lambda v: int(limpiar_numero(v, 0)))
 
-                    df_disp_calc['% Cump LN'] = df_disp_calc.apply(
-                        lambda r: (r[nombre_col_dia] / r['Disponibles Proyectadas'] * 100.0) if r['Disponibles Proyectadas'] > 0 else 0.0,
-                        axis=1
+                    df_disp_calc['% Cump LN'] = np.where(
+                        df_disp_calc['Disponibles Proyectadas'] > 0,
+                        (df_disp_calc[nombre_col_dia] / df_disp_calc['Disponibles Proyectadas'] * 100.0),
+                        0.0
                     )
-                    df_disp_calc['falta'] = df_disp_calc.apply(
-                        lambda r: max(0, r['Disponibles Proyectadas'] - r[nombre_col_dia]),
-                        axis=1
-                    )
+                    df_disp_calc['falta'] = (df_disp_calc['Disponibles Proyectadas'] - df_disp_calc[nombre_col_dia]).clip(lower=0).astype(int)
 
                     df_disp_calc = df_disp_calc.sort_values(by='% Cump LN', ascending=False).reset_index(drop=True)
 
@@ -1688,7 +1693,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             st.markdown("---")
             st.markdown("###### 🚀 4. Cuadro Resumen de Inicios + Reinicios")
 
-            if col_lider and col_lider in df_diag.columns:
+            if col_lider and col_lider in df_diag.columns and not df_diag.empty:
                 df_ing_prep = df_diag.copy()
                 col_inicios = 'Inicios' if 'Inicios' in df_ing_prep.columns else None
                 col_reinicios = 'Reinicios' if 'Reinicios' in df_ing_prep.columns else None
@@ -1697,24 +1702,23 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 df_ing_calc = pd.DataFrame()
                 df_ing_calc['LÍDER DE NEGOCIOS'] = df_ing_prep[col_lider].astype(str)
 
-                val_inicios = df_ing_prep[col_inicios].apply(lambda v: limpiar_numero(v, 0)) if col_inicios else 0
-                val_reinicios = df_ing_prep[col_reinicios].apply(lambda v: limpiar_numero(v, 0)) if col_reinicios else 0
+                val_inicios = df_ing_prep[col_inicios].apply(lambda v: limpiar_numero(v, 0)) if col_inicios else pd.Series(0, index=df_ing_prep.index)
+                val_reinicios = df_ing_prep[col_reinicios].apply(lambda v: limpiar_numero(v, 0)) if col_reinicios else pd.Series(0, index=df_ing_prep.index)
                 df_ing_calc['Hoy'] = (val_inicios + val_reinicios).astype(int)
 
                 if col_meta_ing:
                     df_ing_calc['Meta'] = df_ing_prep[col_meta_ing].apply(lambda v: int(limpiar_numero(v, 0)))
-                    df_ing_calc['Meta'] = df_ing_calc.apply(lambda r: r['Meta'] if r['Meta'] > 0 else max(5, int(r['Hoy'] + 3)), axis=1)
+                    meta_fallback = (df_ing_calc['Hoy'] + 3).clip(lower=5)
+                    df_ing_calc['Meta'] = np.where(df_ing_calc['Meta'] > 0, df_ing_calc['Meta'], meta_fallback).astype(int)
                 else:
-                    df_ing_calc['Meta'] = df_ing_calc['Hoy'].apply(lambda h: max(5, int(h + 3)))
+                    df_ing_calc['Meta'] = (df_ing_calc['Hoy'] + 3).clip(lower=5).astype(int)
 
-                df_ing_calc['Avance'] = df_ing_calc.apply(
-                    lambda r: (r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0,
-                    axis=1
+                df_ing_calc['Avance'] = np.where(
+                    df_ing_calc['Meta'] > 0,
+                    (df_ing_calc['Hoy'] / df_ing_calc['Meta'] * 100.0),
+                    0.0
                 )
-                df_ing_calc['para activar!'] = df_ing_calc.apply(
-                    lambda r: max(0, r['Meta'] - r['Hoy']),
-                    axis=1
-                )
+                df_ing_calc['para activar!'] = (df_ing_calc['Meta'] - df_ing_calc['Hoy']).clip(lower=0).astype(int)
 
                 df_ing_calc = df_ing_calc.sort_values(by='Avance', ascending=False).reset_index(drop=True)
 
@@ -1772,7 +1776,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             st.markdown("---")
             st.markdown("###### 🎯 5. Cuadro Resumen de Recuperos")
 
-            if col_lider and col_lider in df_diag.columns:
+            if col_lider and col_lider in df_diag.columns and not df_diag.empty:
                 df_rec_prep = df_diag.copy()
                 col_recuperos = 'Recuperos' if 'Recuperos' in df_rec_prep.columns else None
                 col_meta_rec = next((c for c in df_rec_prep.columns if any(k in str(c).lower() for k in ['meta recuperos', 'meta_recuperos', 'recuperos_meta'])), None)
@@ -1780,23 +1784,22 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 df_rec_calc = pd.DataFrame()
                 df_rec_calc['LÍDER DE NEGOCIOS'] = df_rec_prep[col_lider].astype(str)
 
-                val_rec = df_rec_prep[col_recuperos].apply(lambda v: limpiar_numero(v, 0)) if col_recuperos else 0
+                val_rec = df_rec_prep[col_recuperos].apply(lambda v: limpiar_numero(v, 0)) if col_recuperos else pd.Series(0, index=df_rec_prep.index)
                 df_rec_calc['Hoy'] = val_rec.astype(int)
 
                 if col_meta_rec:
                     df_rec_calc['Meta'] = df_rec_prep[col_meta_rec].apply(lambda v: int(limpiar_numero(v, 0)))
-                    df_rec_calc['Meta'] = df_rec_calc.apply(lambda r: r['Meta'] if r['Meta'] > 0 else max(4, int(r['Hoy'] + 2)), axis=1)
+                    meta_rec_fallback = (df_rec_calc['Hoy'] + 2).clip(lower=4)
+                    df_rec_calc['Meta'] = np.where(df_rec_calc['Meta'] > 0, df_rec_calc['Meta'], meta_rec_fallback).astype(int)
                 else:
-                    df_rec_calc['Meta'] = df_rec_calc['Hoy'].apply(lambda h: max(4, int(h + 2)))
+                    df_rec_calc['Meta'] = (df_rec_calc['Hoy'] + 2).clip(lower=4).astype(int)
 
-                df_rec_calc['Avance'] = df_rec_calc.apply(
-                    lambda r: (r['Hoy'] / r['Meta'] * 100.0) if r['Meta'] > 0 else 0.0,
-                    axis=1
+                df_rec_calc['Avance'] = np.where(
+                    df_rec_calc['Meta'] > 0,
+                    (df_rec_calc['Hoy'] / df_rec_calc['Meta'] * 100.0),
+                    0.0
                 )
-                df_rec_calc['para activar!'] = df_rec_calc.apply(
-                    lambda r: max(0, r['Meta'] - r['Hoy']),
-                    axis=1
-                )
+                df_rec_calc['para activar!'] = (df_rec_calc['Meta'] - df_rec_calc['Hoy']).clip(lower=0).astype(int)
 
                 df_rec_calc = df_rec_calc.sort_values(by='Avance', ascending=False).reset_index(drop=True)
 
@@ -1839,13 +1842,13 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             st.markdown("---")
             st.markdown("###### 🔄 6. Cuadro Resumen de Retención I2 (Meta 8% Máx. Fuga I2)")
 
-            if col_lider and col_lider in df_diag.columns:
+            if col_lider and col_lider in df_diag.columns and not df_diag.empty:
                 df_i2_prep = df_diag.copy()
                 col_disp_i2 = 'Disponibles' if 'Disponibles' in df_i2_prep.columns else None
                 col_i2 = next((c for c in df_i2_prep.columns if str(c).lower().strip() in ['inactiva 2', 'inactiva_2', 'inactivas 2', 'inactivas_2', 'i2']), None)
                 col_i2_ant = next((c for c in df_i2_prep.columns if 'inactiva 2_anterior' in str(c).lower() or 'inactivas 2_anterior' in str(c).lower()), None)
 
-                if col_disp_i2 and col_i2:
+                if col_disp_i2 and col_i2 and not df_i2_prep.empty:
                     df_i2_calc = pd.DataFrame()
                     df_i2_calc['LÍDER DE NEGOCIOS'] = df_i2_prep[col_lider].astype(str)
 
@@ -1854,7 +1857,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
                     df_i2_calc['MAX PANEL'] = (val_disp2 * 0.08).round().astype(int)
                     df_i2_calc['FALTA I2 ACTIVARSE'] = (val_i2 - df_i2_calc['MAX PANEL']).round().astype(int)
-                    df_i2_calc['% RETENCIÓN META 8%'] = (val_i2 / val_disp2.replace(0, pd.NA) * 100.0).fillna(0.0)
+                    df_i2_calc['% RETENCIÓN META 8%'] = np.where(val_disp2 > 0, (val_i2 / val_disp2 * 100.0), 0.0)
 
                     if col_i2_ant:
                         val_i2_ant = df_i2_prep[col_i2_ant].apply(lambda v: limpiar_numero(v, 0.0))
