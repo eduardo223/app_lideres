@@ -7793,34 +7793,83 @@ if tab_diagnostico is not None:
         if lider_sel and col_lider and col_lider in df_filtrado.columns and not df_filtrado.empty:
             row_l = df_filtrado[df_filtrado[col_lider].astype(str) == lider_sel].iloc[0]
 
-            r_fact = formato_cop(row_l.get('Real Facturación', 0))
-            o_fact = formato_cop(row_l.get('Objetivo Facturación', 0))
-            c_fact = row_l.get('Cumplimiento Facturación', 0)
-            c_fact_str = f"{limpiar_numero(c_fact):.2f}%" if pd.notna(c_fact) and limpiar_numero(c_fact) > 0 else "0.00%"
-            fal_100 = formato_cop_signo(row_l.get('Falta para el 100%', 0))
-            fal_110 = formato_cop_signo(row_l.get('Falta para el 110%', 0))
-            act_r = row_l.get('Real Activas', 0)
-            sal_l = row_l.get('Saldo', 0)
+            # 1. Cálculos de Facturación
+            r_fact_num = float(limpiar_numero(row_l.get('Real Facturación', 0), 0.0))
+            o_fact_num = float(limpiar_numero(row_l.get('Objetivo Facturación', 0), 0.0))
+            c_fact_val = float(limpiar_numero(row_l.get('Cumplimiento Facturación', 0), 0.0))
+            if c_fact_val == 0.0 and o_fact_num > 0:
+                c_fact_val = (r_fact_num / o_fact_num * 100.0)
+            elif 0.0 < c_fact_val <= 2.5:
+                c_fact_val = c_fact_val * 100.0
+            c_fact_str = f"{c_fact_val:.2f}%"
+
+            meta_95_fact = o_fact_num * 0.95
+            falta_95_fact = max(0.0, meta_95_fact - r_fact_num)
+            falta_95_fact_str = "¡Logrado! 🎉" if falta_95_fact == 0.0 and o_fact_num > 0 and r_fact_num >= meta_95_fact else formato_cop(falta_95_fact)
+
+            falta_100_fact = max(0.0, o_fact_num - r_fact_num)
+            falta_100_fact_str = "¡Logrado! 🎉" if falta_100_fact == 0.0 and o_fact_num > 0 and r_fact_num >= o_fact_num else formato_cop(falta_100_fact)
+
+            meta_110_fact = o_fact_num * 1.10
+            falta_110_fact = max(0.0, meta_110_fact - r_fact_num)
+            falta_110_fact_str = "¡Logrado! 🎉" if falta_110_fact == 0.0 and o_fact_num > 0 and r_fact_num >= meta_110_fact else formato_cop(falta_110_fact)
+
+            # 2. Cálculos de Activas
+            r_act_num = float(limpiar_numero(row_l.get('Real Activas', 0), 0.0))
+            o_act_num = float(limpiar_numero(row_l.get('Objetivo Activas', 0), 0.0))
+            if o_act_num == 0 and row_l.get('Desafío Activas Arte'):
+                o_act_num = float(limpiar_numero(row_l.get('Desafío Activas Arte', 0), 0.0))
+
+            c_act_val = float(limpiar_numero(row_l.get('Cumplimiento Activas', 0), 0.0))
+            if c_act_val == 0.0 and o_act_num > 0:
+                c_act_val = (r_act_num / o_act_num * 100.0)
+            elif 0.0 < c_act_val <= 2.5:
+                c_act_val = c_act_val * 100.0
+            c_act_str = f"{c_act_val:.2f}%"
+
+            meta_95_act = int(round(o_act_num * 0.95))
+            falta_95_act = max(0, meta_95_act - int(r_act_num))
+            falta_95_act_str = "¡Logrado! 🎉" if falta_95_act == 0 and o_act_num > 0 and r_act_num >= meta_95_act else f"{falta_95_act} activas"
+
+            falta_100_act = max(0, int(o_act_num) - int(r_act_num))
+            falta_100_act_str = "¡Logrado! 🎉" if falta_100_act == 0 and o_act_num > 0 and r_act_num >= int(o_act_num) else f"{falta_100_act} activas"
+
+            meta_110_act = int(round(o_act_num * 1.10))
+            falta_110_act = max(0, meta_110_act - int(r_act_num))
+            falta_110_act_str = "¡Logrado! 🎉" if falta_110_act == 0 and o_act_num > 0 and r_act_num >= meta_110_act else f"{falta_110_act} activas"
+
+            # 3. Saldo y Ganancia
+            sal_num = int(round(limpiar_numero(row_l.get('Saldo', 0), 0)))
+            sal_str = f"{sal_num:+d}" if sal_num != 0 else "0"
             gan_l = formato_cop(row_l.get('Ganancia estimada', 0))
-            sector_l = row_l.get('Nombre Setor', 'General')
+            sector_l = str(row_l.get('Nombre Setor', 'General')).strip()
 
             msg_wa = (
                 f"📊 *REPORTE CÓMO VAMOS*\n"
                 f"👤 *Líder:* {lider_sel}\n"
                 f"📍 *Sector:* {sector_l}\n\n"
-                f"💰 *Facturación Real:* {r_fact}\n"
-                f"🎯 *Objetivo Facturación:* {o_fact}\n"
+                f"💰 *--- FACTURACIÓN ---*\n"
+                f"💵 *Facturación Real:* {formato_cop(r_fact_num)}\n"
+                f"🎯 *Objetivo Facturación:* {formato_cop(o_fact_num)}\n"
                 f"📈 *Cumplimiento Facturación:* {c_fact_str}\n"
-                f"💵 *Falta para 100%:* {fal_100}\n"
-                f"🚀 *Falta para 110%:* {fal_110}\n"
-                f"👥 *Activas Reales:* {act_r}\n"
-                f"⚠️ *Saldo Pendiente:* {sal_l}\n"
+                f"⚡ *Falta para 95% (Mínimo):* {falta_95_fact_str}\n"
+                f"💵 *Falta para 100%:* {falta_100_fact_str}\n"
+                f"🚀 *Falta para 110%:* {falta_110_fact_str}\n\n"
+                f"👥 *--- ACTIVAS & RED ---*\n"
+                f"👥 *Activas Reales:* {int(r_act_num)}\n"
+                f"🎯 *Objetivo Activas:* {int(o_act_num)}\n"
+                f"📈 *Cumplimiento Activas:* {c_act_str}\n"
+                f"⚡ *Falta para 95% (Mínimo):* {falta_95_act_str}\n"
+                f"🌱 *Falta para 100%:* {falta_100_act_str}\n"
+                f"🚀 *Falta para 110%:* {falta_110_act_str}\n\n"
+                f"⚖️ *--- SALDO & GANANCIA ---*\n"
+                f"⚠️ *Saldo Comercial:* {sal_str}\n"
                 f"💵 *Ganancia Estimada:* {gan_l}\n"
             )
 
             col_w1, col_w2 = st.columns([2, 1])
             with col_w1:
-                st.text_area("📋 Mensaje listo para copiar:", msg_wa, height=220)
+                st.text_area("📋 Mensaje listo para copiar:", msg_wa, height=320)
             with col_w2:
                 import urllib.parse
                 url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_wa)}"
