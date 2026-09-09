@@ -1449,25 +1449,32 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
 
 # --- COMPONENTES GRÁFICOS INTERACTIVOS (LA JOYA DEL PASTEL) ---
 def crear_tacometro_360(titulo, valor_pct, meta_val, real_val):
+    val_clean = min(float(limpiar_numero(valor_pct, 0.0)), 150.0)
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
-        value=min(float(valor_pct), 150.0),
-        number={'suffix': '%', 'font': {'color': '#F8FAFC', 'size': 32}},
-        title={'text': f"<b>{titulo}</b><br><span style='font-size:0.8em;color:#94A3B8'>Real: {real_val} | Obj: {meta_val}</span>", 'font': {'color': '#F8FAFC', 'size': 14}},
+        value=val_clean,
+        number={
+            'suffix': '%',
+            'font': {'color': '#F8FAFC', 'size': 34, 'family': 'Outfit, Inter, sans-serif'}
+        },
+        title={
+            'text': f"<b style='font-size:15px; color:#F8FAFC;'>{titulo}</b><br><span style='font-size:12px; color:#94A3B8; font-weight:500;'>Real: {real_val} | Obj: {meta_val}</span>",
+            'font': {'color': '#F8FAFC', 'family': 'Outfit, Inter, sans-serif'}
+        },
         gauge={
-            'axis': {'range': [0, 150], 'tickwidth': 1, 'tickcolor': "#475569"},
-            'bar': {'color': "#3B82F6", 'thickness': 0.25},
-            'bgcolor': "rgba(15, 23, 42, 0.5)",
-            'borderwidth': 1,
-            'bordercolor': "rgba(255, 255, 255, 0.1)",
+            'axis': {'range': [0, 150], 'tickwidth': 1.5, 'tickcolor': "#475569", 'tickfont': {'color': '#94A3B8', 'size': 10}},
+            'bar': {'color': "#38BDF8", 'thickness': 0.28},
+            'bgcolor': "rgba(15, 23, 42, 0.6)",
+            'borderwidth': 1.5,
+            'bordercolor': "rgba(255, 255, 255, 0.12)",
             'steps': [
-                {'range': [0, 85], 'color': 'rgba(239, 68, 68, 0.3)'},
-                {'range': [85, 99.9], 'color': 'rgba(245, 158, 11, 0.3)'},
-                {'range': [99.9, 150], 'color': 'rgba(16, 185, 129, 0.3)'}
+                {'range': [0, 85], 'color': 'rgba(239, 68, 68, 0.35)'},
+                {'range': [85, 99.9], 'color': 'rgba(245, 158, 11, 0.35)'},
+                {'range': [99.9, 150], 'color': 'rgba(16, 185, 129, 0.35)'}
             ],
             'threshold': {
                 'line': {'color': "#10B981", 'width': 4},
-                'thickness': 0.75,
+                'thickness': 0.80,
                 'value': 100
             }
         }
@@ -1475,24 +1482,29 @@ def crear_tacometro_360(titulo, valor_pct, meta_val, real_val):
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        height=230,
-        margin=dict(l=20, r=20, t=50, b=20)
+        font=dict(color='#F8FAFC', family='Outfit, Inter, sans-serif'),
+        height=240,
+        margin=dict(l=20, r=20, t=55, b=20)
     )
     return fig
 
 def crear_ranking_lideres_fig(df_metas):
+    """Función de compatibilidad que delega a crear_ranking_kpi_fig para Facturación."""
+    return crear_ranking_kpi_fig(df_metas, metrica_key='facturacion')
+
+def crear_ranking_kpi_fig(df_metas, metrica_key='facturacion', df_tableau=None):
+    """
+    Genera un ranking interactivo horizontal de alto impacto visual para cualquiera de las 13 métricas oficiales:
+    - 10 Métricas de Mayor a Menor (Crecimiento & Volumen)
+    - 3 Métricas de Menor a Mayor (IN3, IN2, IN1 con semáforo inteligente según umbral de seguridad)
+    """
     if df_metas is None or df_metas.empty:
         return None
-    col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else 'Nombre Consultora'
-    col_cump = 'Cumplimiento Facturación' if 'Cumplimiento Facturación' in df_metas.columns else 'cump_facturacion'
     
-    df_rank = df_metas.copy()
-    if col_cump not in df_rank.columns or col_nom not in df_rank.columns:
-        return None
+    col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_metas.columns else ('Nombre Consultora' if 'Nombre Consultora' in df_metas.columns else df_metas.columns[0])
+    col_grp = next((c for c in df_metas.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'grupo'])), None)
     
-    df_rank['Cumplimiento_Pct'] = df_rank[col_cump].apply(lambda v: limpiar_numero(v, 0.0))
-    
-    def _limpiar_nombre_lider_solo(val):
+    def _limpiar_nombre_lider_etiqueta(val):
         s = str(val).strip()
         if ' - ' in s:
             s = s.split(' - ', 1)[1].strip()
@@ -1500,36 +1512,388 @@ def crear_ranking_lideres_fig(df_metas):
             partes = s.split(' ', 2)
             if len(partes) > 2:
                 s = partes[2].strip()
-        return s[:30]
+        return s[:28]
 
-    df_rank['Etiqueta_Lider'] = df_rank[col_nom].apply(_limpiar_nombre_lider_solo)
-    df_rank = df_rank[~df_rank['Etiqueta_Lider'].str.lower().isin(['nan', 'none', '-', ''])]
-    df_rank = df_rank.sort_values(by='Cumplimiento_Pct', ascending=True).tail(12)
+    df_rk = df_metas.copy()
+    df_rk['Lider_Etiqueta'] = df_rk[col_nom].apply(_limpiar_nombre_lider_etiqueta)
+    df_rk = df_rk[~df_rk['Lider_Etiqueta'].str.lower().isin(['nan', 'none', '-', '', 'total general', 'total', '0'])]
+
+    # Si se pasa df_tableau, mapear inactivas por grupo como respaldo resiliente
+    map_tableau_inact = {}
+    if df_tableau is not None and not df_tableau.empty and 'Grupo' in df_tableau.columns:
+        col_sit_tab = 'Sit. Comercial' if 'Sit. Comercial' in df_tableau.columns else ('Situación' if 'Situación' in df_tableau.columns else None)
+        if col_sit_tab:
+            for g_val, sub_g in df_tableau.groupby('Grupo'):
+                g_str = str(g_val).split('.')[0].strip()
+                sits = sub_g[col_sit_tab].astype(str)
+                map_tableau_inact[g_str] = {
+                    'inactiva_1': int((sits.str.contains('Inactiva 1', case=False, na=False)).sum()),
+                    'inactiva_2': int((sits.str.contains('Inactiva 2', case=False, na=False)).sum()),
+                    'inactiva_3': int((sits.str.contains('Inactiva 3', case=False, na=False)).sum()),
+                    'activas': int((sits.str.lower() == 'activa').sum()),
+                    'total': len(sub_g)
+                }
+
+    titulo = "Ranking de Desempeño"
+    unidad = ""
+    formato_str = "{:,.0f}"
+    es_menor_a_mayor = False
+    tope_pct_ref = None
+
+    if metrica_key == 'disponibles':
+        titulo = "Disponibles Totales en Red"
+        unidad = "consultoras"
+        col_src = 'Disponibles' if 'Disponibles' in df_rk.columns else 'Real Activas'
+        df_rk['Valor_M'] = df_rk[col_src].apply(lambda v: float(limpiar_numero(v, 0.0)))
     
-    fig = px.bar(
-        df_rank,
-        x='Cumplimiento_Pct',
-        y='Etiqueta_Lider',
+    elif metrica_key == 'saldo':
+        titulo = "Saldo Neto de Red (Pedidos/Cartera)"
+        unidad = "pedidos netos"
+        col_src = 'Saldo' if 'Saldo' in df_rk.columns else None
+        df_rk['Valor_M'] = df_rk[col_src].apply(lambda v: float(limpiar_numero(v, 0.0))) if col_src else 0.0
+    
+    elif metrica_key == 'inicios_reinicios':
+        titulo = "Inicios + Reinicios (Captación Total)"
+        unidad = "ingresos"
+        c_ini = df_rk['Inicios'].apply(lambda v: float(limpiar_numero(v, 0.0))) if 'Inicios' in df_rk.columns else 0.0
+        c_rei = df_rk['Reinicios'].apply(lambda v: float(limpiar_numero(v, 0.0))) if 'Reinicios' in df_rk.columns else 0.0
+        df_rk['Valor_M'] = c_ini + c_rei
+
+    elif metrica_key == 'activas':
+        titulo = "Consultoras Activas Reales"
+        unidad = "activas"
+        col_src = 'Real Activas' if 'Real Activas' in df_rk.columns else 'Objetivo Activas'
+        df_rk['Valor_M'] = df_rk[col_src].apply(lambda v: float(limpiar_numero(v, 0.0)))
+
+    elif metrica_key == 'facturacion':
+        titulo = "Facturación Real ($ COP)"
+        unidad = "COP"
+        formato_str = "${:,.0f}"
+        col_src = 'Real Facturación' if 'Real Facturación' in df_rk.columns else 'Facturación Total'
+        df_rk['Valor_M'] = df_rk[col_src].apply(lambda v: float(limpiar_numero(v, 0.0)))
+
+    elif metrica_key == 'productividad':
+        titulo = "Productividad Promedio ($/Activa)"
+        unidad = "COP/activa"
+        formato_str = "${:,.0f}"
+        if 'Productividad' in df_rk.columns:
+            df_rk['Valor_M'] = df_rk['Productividad'].apply(lambda v: float(limpiar_numero(v, 0.0)))
+        else:
+            rf = df_rk['Real Facturación'].apply(lambda v: float(limpiar_numero(v, 0.0))) if 'Real Facturación' in df_rk.columns else 0.0
+            ra = df_rk['Real Activas'].apply(lambda v: float(limpiar_numero(v, 1.0))) if 'Real Activas' in df_rk.columns else 1.0
+            df_rk['Valor_M'] = (rf / ra.replace(0, 1.0)).fillna(0.0)
+
+    elif metrica_key == 'recuperos':
+        titulo = "Consultoras Recuperadas"
+        unidad = "recuperos"
+        col_src = 'Recuperos' if 'Recuperos' in df_rk.columns else None
+        df_rk['Valor_M'] = df_rk[col_src].apply(lambda v: float(limpiar_numero(v, 0.0))) if col_src else 0.0
+
+    elif metrica_key == 'pct_actividad':
+        titulo = "% Actividad (Activas / Disponibles)"
+        unidad = "%"
+        formato_str = "{:.1f}%"
+        ra = df_rk['Real Activas'].apply(lambda v: float(limpiar_numero(v, 0.0))) if 'Real Activas' in df_rk.columns else 0.0
+        disp = df_rk['Disponibles'].apply(lambda v: float(limpiar_numero(v, 0.0))) if 'Disponibles' in df_rk.columns else 1.0
+        df_rk['Valor_M'] = (ra / disp.replace(0, pd.NA) * 100.0).fillna(0.0)
+
+    elif metrica_key == 'pct_actividad_frecuente':
+        titulo = "% Actividad Frecuente"
+        unidad = "%"
+        formato_str = "{:.1f}%"
+        if '%Actividad Frecuente' in df_rk.columns:
+            df_rk['Valor_M'] = df_rk['%Actividad Frecuente'].apply(lambda v: float(limpiar_numero(v, 0.0)))
+        else:
+            af = df_rk['Activas Frecuentes'].apply(lambda v: float(limpiar_numero(v, 0.0))) if 'Activas Frecuentes' in df_rk.columns else 0.0
+            disp = df_rk['Disponibles'].apply(lambda v: float(limpiar_numero(v, 0.0))) if 'Disponibles' in df_rk.columns else 1.0
+            df_rk['Valor_M'] = (af / disp.replace(0, pd.NA) * 100.0).fillna(0.0)
+
+    elif metrica_key == 'activas_frecuentes':
+        titulo = "# Activas Frecuentes"
+        unidad = "consultoras"
+        col_src = 'Activas Frecuentes' if 'Activas Frecuentes' in df_rk.columns else None
+        df_rk['Valor_M'] = df_rk[col_src].apply(lambda v: float(limpiar_numero(v, 0.0))) if col_src else 0.0
+
+    elif metrica_key in ['in3', 'in2', 'in1']:
+        es_menor_a_mayor = True
+        num_in = metrica_key.replace('in', '')
+        tope_pct_ref = 6.0 if num_in == '3' else (8.0 if num_in == '2' else 12.0)
+        titulo = f"IN{num_in} — Inactivas {num_in} Ciclos (Tope Máx: {tope_pct_ref}% s/Disponibles)"
+        unidad = "en panel"
+        
+        def _obtener_inact_y_disp(r):
+            g = str(r.get(col_grp, '')).split('.')[0].strip() if col_grp else ''
+            disp = float(limpiar_numero(r.get('Disponibles', 0.0), 0.0))
+            col_target = f'Inactiva {num_in}'
+            inact = float(limpiar_numero(r.get(col_target, 0.0), 0.0))
+            if inact == 0.0 and g in map_tableau_inact:
+                inact = float(map_tableau_inact[g].get(f'inactiva_{num_in}', 0.0))
+            if disp == 0.0 and g in map_tableau_inact:
+                disp = float(map_tableau_inact[g].get('total', 1.0))
+            return pd.Series([inact, disp])
+
+        res_inact = df_rk.apply(_obtener_inact_y_disp, axis=1)
+        df_rk['Inact_Cant'] = res_inact[0]
+        df_rk['Disp_Cant'] = res_inact[1]
+        df_rk['Valor_M'] = df_rk['Inact_Cant']
+        df_rk['Pct_Sobre_Disp'] = (df_rk['Inact_Cant'] / df_rk['Disp_Cant'].replace(0, pd.NA) * 100.0).fillna(0.0)
+        df_rk['Tope_Cant'] = (df_rk['Disp_Cant'] * (tope_pct_ref / 100.0)).round()
+        df_rk['Faltan_Activar'] = (df_rk['Inact_Cant'] - df_rk['Tope_Cant']).clip(lower=0)
+
+    # Ordenamiento
+    if es_menor_a_mayor:
+        df_rk = df_rk.sort_values(by='Valor_M', ascending=True)
+        df_plot = df_rk.head(15).iloc[::-1]
+    else:
+        df_rk = df_rk.sort_values(by='Valor_M', ascending=False)
+        df_plot = df_rk.head(15).iloc[::-1]
+
+    medallas = ["🥇", "🥈", "🥉"] if not es_menor_a_mayor else ["🟢 1°", "🟢 2°", "🟢 3°"]
+    etiquetas_y = []
+    colores_barras = []
+
+    # Construir etiquetas con medallas (revisadas en orden de mérito)
+    df_plot_ordenado = df_plot.iloc[::-1]
+    for idx_pos, (_, row_item) in enumerate(df_plot_ordenado.iterrows()):
+        badge = medallas[idx_pos] if idx_pos < len(medallas) else f"{idx_pos+1}°"
+        l_name = row_item['Lider_Etiqueta']
+        etiquetas_y.append(f"{badge} {l_name}")
+
+        if es_menor_a_mayor and tope_pct_ref is not None:
+            pct_d = row_item.get('Pct_Sobre_Disp', 0.0)
+            if pct_d <= tope_pct_ref:
+                colores_barras.append('#10B981') # Verde en meta segura
+            elif pct_d <= tope_pct_ref + 1.5:
+                colores_barras.append('#F59E0B') # Amarillo riesgo
+            else:
+                colores_barras.append('#EF4444') # Rojo crítico
+        else:
+            if idx_pos == 0:
+                colores_barras.append('#EAB308') # Oro
+            elif idx_pos == 1:
+                colores_barras.append('#94A3B8') # Plata
+            elif idx_pos == 2:
+                colores_barras.append('#CD7F32') # Bronce
+            else:
+                colores_barras.append('#38BDF8')
+
+    etiquetas_y = etiquetas_y[::-1]
+    colores_barras = colores_barras[::-1]
+
+    fig = go.Figure(go.Bar(
+        x=df_plot['Valor_M'],
+        y=etiquetas_y,
         orientation='h',
-        title="<b>🏆 Ranking de Cumplimiento de Facturación por Líder</b>",
-        labels={'Cumplimiento_Pct': '% Cumplimiento', 'Etiqueta_Lider': 'Líder de Negocio'},
-        color='Cumplimiento_Pct',
-        color_continuous_scale=[
-            [0.0, '#EF4444'],
-            [0.70, '#F59E0B'],
-            [1.0, '#10B981']
-        ]
-    )
+        marker=dict(color=colores_barras, line=dict(color='rgba(255,255,255,0.2)', width=1)),
+        text=[formato_str.format(v).replace(",", ".") for v in df_plot['Valor_M']],
+        textposition='outside',
+        textfont=dict(size=12, family="Outfit, Inter, sans-serif", color="#F8FAFC"),
+        hovertemplate=(
+            "<b>%{y}</b><br>"
+            f"Valor: <b>%{{x:,.0f}} {unidad}</b><extra></extra>"
+        ) if not es_menor_a_mayor else (
+            "<b>%{y}</b><br>"
+            "Consultoras en Panel: <b>%{x:.0f}</b><br>"
+            "Tope Permitido: <b>%{customdata[0]:.0f}</b><br>"
+            "% s/Disponibles: <b>%{customdata[1]:.2f}%</b> (Tope: " + f"{tope_pct_ref}%" + ")<br>"
+            "Faltan Activar: <b>%{customdata[2]:.0f}</b><extra></extra>"
+        ),
+        customdata=list(zip(df_plot['Tope_Cant'], df_plot['Pct_Sobre_Disp'], df_plot['Faltan_Activar'])) if es_menor_a_mayor else None
+    ))
+
+    sub_title = f"Ordenado de Menor a Mayor (Menos Inactivas = Mayor Retención • Meta: ≤ {tope_pct_ref}%)" if es_menor_a_mayor else "Ordenado de Mayor a Menor (Top Líderes de Negocio)"
     fig.update_layout(
+        title=dict(
+            text=f"<b>🏆 {titulo}</b><br><span style='font-size:0.75em; color:#94A3B8;'>{sub_title}</span>",
+            font=dict(color='#F8FAFC', family='Outfit, Inter, sans-serif', size=15)
+        ),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#F8FAFC', family='Outfit'),
-        height=360,
-        margin=dict(l=10, r=20, t=40, b=30),
-        coloraxis_showscale=False
+        font=dict(color='#F8FAFC', family='Outfit, Inter, sans-serif'),
+        height=max(380, len(df_plot) * 26 + 110),
+        margin=dict(l=10, r=40, t=65, b=30),
+        xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.06)', zeroline=False),
+        yaxis=dict(showgrid=False)
     )
-    fig.update_traces(hovertemplate="<b>%{y}</b><br>Cumplimiento: %{x:.1f}%<extra></extra>")
     return fig
+
+def renderizar_modulo_rankings_360(df_filtrado, df_tableau=None, key_suffix="main"):
+    """
+    Renderiza el Panel Ejecutivo de Rankings 360° con selector interactivo ultrarrápido:
+    - 10 Rankings de Crecimiento (Mayor a Menor)
+    - 3 Rankings de Fuga e Inactividad (Menor a Mayor) + Monitor de Retención estilo Gerencia
+    """
+    if df_filtrado is None or df_filtrado.empty:
+        st.info("ℹ️ No hay datos de líderes disponibles para calcular los rankings.")
+        return
+
+    st.markdown("##### 🏆 Ranking 360° de Red (Seguimiento Integral de Desempeño)")
+    st.caption("Selecciona cualquier indicador para visualizar el ordenamiento comparativo de todas las Líderes de Negocio al instante.")
+
+    cat_ranking = st.radio(
+        "Modalidad de Evaluación:",
+        options=["🚀 Rendimiento y Crecimiento (Mayor a Menor)", "🛡️ Retención y Control de Fuga (Menor a Mayor)"],
+        horizontal=True,
+        key=f"rad_cat_rank_{key_suffix}"
+    )
+
+    if "Rendimiento" in cat_ranking:
+        kpi_map = {
+            "💰 Facturación ($ COP)": "facturacion",
+            "⚡ Activas Reales": "activas",
+            "👥 Disponibles Totales": "disponibles",
+            "⚖️ Saldo Neto de Red": "saldo",
+            "🚀 Inicios + Reinicios": "inicios_reinicios",
+            "📈 Productividad": "productividad",
+            "🎯 Recuperos": "recuperos",
+            "📊 % Actividad": "pct_actividad",
+            "🔁 % Actividad Frecuente": "pct_actividad_frecuente",
+            "👑 # Activas Frecuentes": "activas_frecuentes"
+        }
+        sel_label = st.selectbox("Selecciona la Métrica a Evaluar:", list(kpi_map.keys()), index=0, key=f"sel_kpi_rank_desc_{key_suffix}")
+        kpi_id = kpi_map[sel_label]
+        
+        fig_r = crear_ranking_kpi_fig(df_filtrado, metrica_key=kpi_id, df_tableau=df_tableau)
+        if fig_r:
+            st.plotly_chart(fig_r, use_container_width=True)
+            
+    else:
+        kpi_in_map = {
+            "🚨 IN3 — Inactivas 3 Ciclos (Meta Máx: 6% s/Disponibles)": "in3",
+            "⚠️ IN2 — Inactivas 2 Ciclos (Meta Máx: 8% s/Disponibles)": "in2",
+            "🟡 IN1 — Inactivas 1 Ciclo (Meta Máx: 12% s/Disponibles)": "in1"
+        }
+        sel_in_label = st.selectbox("Selecciona el Segmento de Inactividad:", list(kpi_in_map.keys()), index=0, key=f"sel_kpi_rank_asc_{key_suffix}")
+        kpi_in_id = kpi_in_map[sel_in_label]
+        num_in_ciclo = kpi_in_id.replace('in', '')
+        tope_pct_actual = 6.0 if num_in_ciclo == '3' else (8.0 if num_in_ciclo == '2' else 12.0)
+
+        # 1. Gráfica de Barras con Semáforo
+        fig_in = crear_ranking_kpi_fig(df_filtrado, metrica_key=kpi_in_id, df_tableau=df_tableau)
+        if fig_in:
+            st.plotly_chart(fig_in, use_container_width=True)
+
+        # 2. Monitor Ejecutivo de Retención (Formato Oficial Gerencia Dolly Natura)
+        with st.expander(f"📋 Ver Monitor Detallado de Seguimiento IN{num_in_ciclo} (% Máximo sobre Disponibles = {tope_pct_actual}%)", expanded=True):
+            col_nom_in = 'Nombre de consultora' if 'Nombre de consultora' in df_filtrado.columns else ('Nombre Consultora' if 'Nombre Consultora' in df_filtrado.columns else df_filtrado.columns[0])
+            col_grp_in = next((c for c in df_filtrado.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'grupo'])), None)
+            
+            # Enriquecimiento desde Tableau si es necesario
+            map_tab_counts = {}
+            if df_tableau is not None and not df_tableau.empty and 'Grupo' in df_tableau.columns:
+                col_sit_t = 'Sit. Comercial' if 'Sit. Comercial' in df_tableau.columns else ('Situación' if 'Situación' in df_tableau.columns else None)
+                if col_sit_t:
+                    for g_val, sub_g in df_tableau.groupby('Grupo'):
+                        g_k = str(g_val).split('.')[0].strip()
+                        sits = sub_g[col_sit_t].astype(str)
+                        map_tab_counts[g_k] = {
+                            f'in_{num_in_ciclo}': int((sits.str.contains(f'Inactiva {num_in_ciclo}', case=False, na=False)).sum()),
+                            'total': len(sub_g)
+                        }
+
+            filas_mon = []
+            for _, r in df_filtrado.iterrows():
+                l_nombre = str(r.get(col_nom_in, '')).strip()
+                if not l_nombre or l_nombre.lower() in ['none', 'nan', '-', '', 'total general', 'total']:
+                    continue
+                if ' - ' in l_nombre:
+                    l_nombre = l_nombre.split(' - ', 1)[1].strip()
+                if l_nombre.lower().startswith('grupo '):
+                    parts = l_nombre.split(' ', 2)
+                    if len(parts) > 2:
+                        l_nombre = parts[2].strip()
+
+                g_raw = str(r.get(col_grp_in, '')).split('.')[0].strip() if col_grp_in else ''
+                disp = float(limpiar_numero(r.get('Disponibles', 0.0), 0.0))
+                col_i_src = f'Inactiva {num_in_ciclo}'
+                in_panel = float(limpiar_numero(r.get(col_i_src, 0.0), 0.0))
+                
+                # Respaldo desde Tableau si en Cómo Vamos viene en 0
+                if in_panel == 0.0 and g_raw in map_tab_counts:
+                    in_panel = float(map_tab_counts[g_raw].get(f'in_{num_in_ciclo}', 0.0))
+                if disp == 0.0 and g_raw in map_tab_counts:
+                    disp = float(map_tab_counts[g_raw].get('total', 1.0))
+
+                dejar_panel = round(disp * (tope_pct_actual / 100.0))
+                te_faltan = int(in_panel - dejar_panel)
+                pct_sobre_disp = (in_panel / disp * 100.0) if disp > 0 else 0.0
+                
+                # Búsqueda de corte anterior si existe
+                col_ant = f'Inactiva {num_in_ciclo}_anterior'
+                ant_val = float(limpiar_numero(r.get(col_ant, in_panel), in_panel))
+                avance_diff = int(ant_val - in_panel)
+
+                filas_mon.append({
+                    'LÍDER': l_nombre[:25],
+                    'GRUPO': g_raw,
+                    'DISPONIBLES': int(disp),
+                    f'IN{num_in_ciclo} PANEL': int(in_panel),
+                    f'DEJAR EN PANEL ({int(tope_pct_actual)}%)': int(dejar_panel),
+                    'TE FALTAN ACTIVAR': te_faltan,
+                    '% SOBRE DISPON': pct_sobre_disp,
+                    'ANTERIOR INFORME': int(ant_val),
+                    'AVANCE ÚLTIMO INFORME': avance_diff
+                })
+
+            if filas_mon:
+                df_mon = pd.DataFrame(filas_mon).sort_values(by='% SOBRE DISPON', ascending=True).reset_index(drop=True)
+                
+                # Fila de Totales
+                tot_disp = int(df_mon['DISPONIBLES'].sum())
+                tot_panel = int(df_mon[f'IN{num_in_ciclo} PANEL'].sum())
+                tot_dejar = int(df_mon[f'DEJAR EN PANEL ({int(tope_pct_actual)}%)'].sum())
+                tot_faltan = tot_panel - tot_dejar
+                tot_pct = (tot_panel / tot_disp * 100.0) if tot_disp > 0 else 0.0
+                tot_ant = int(df_mon['ANTERIOR INFORME'].sum())
+                tot_av = tot_ant - tot_panel
+
+                row_tot = pd.DataFrame([{
+                    'LÍDER': '⚡ TOTAL GENERAL',
+                    'GRUPO': '—',
+                    'DISPONIBLES': tot_disp,
+                    f'IN{num_in_ciclo} PANEL': tot_panel,
+                    f'DEJAR EN PANEL ({int(tope_pct_actual)}%)': tot_dejar,
+                    'TE FALTAN ACTIVAR': tot_faltan,
+                    '% SOBRE DISPON': tot_pct,
+                    'ANTERIOR INFORME': tot_ant,
+                    'AVANCE ÚLTIMO INFORME': tot_av
+                }])
+                df_mon_full = pd.concat([df_mon, row_tot], ignore_index=True)
+
+                # Formato visual
+                df_mon_disp = df_mon_full.copy()
+                df_mon_disp['% SOBRE DISPON'] = df_mon_disp['% SOBRE DISPON'].apply(lambda v: f"{v:.2f}%")
+                df_mon_disp['TE FALTAN ACTIVAR'] = df_mon_disp['TE FALTAN ACTIVAR'].apply(
+                    lambda v: f"✅ {abs(v)} en meta" if v <= 0 else f"⚠️ +{v} por activar"
+                )
+                df_mon_disp['AVANCE ÚLTIMO INFORME'] = df_mon_disp['AVANCE ÚLTIMO INFORME'].apply(
+                    lambda v: f"🟢 ↓ {v} rescatadas" if v > 0 else (f"🔴 ↑ +{abs(v)} fugadas" if v < 0 else "⚪ 0 sin cambio")
+                )
+
+                def _estilo_pct_in(val_str):
+                    try:
+                        p = float(str(val_str).replace('%', '').strip())
+                        if p <= tope_pct_actual:
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        elif p <= tope_pct_actual + 1.5:
+                            return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                        else:
+                            return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                    except Exception:
+                        return ''
+
+                def _estilo_faltan(val_str):
+                    if '✅' in str(val_str):
+                        return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+
+                styler_mon = df_mon_disp.style
+                if hasattr(styler_mon, 'map'):
+                    styler_mon = styler_mon.map(_estilo_pct_in, subset=['% SOBRE DISPON']).map(_estilo_faltan, subset=['TE FALTAN ACTIVAR'])
+                elif hasattr(styler_mon, 'applymap'):
+                    styler_mon = styler_mon.applymap(_estilo_pct_in, subset=['% SOBRE DISPON']).applymap(_estilo_faltan, subset=['TE FALTAN ACTIVAR'])
+
+                st.dataframe(styler_mon, use_container_width=True, hide_index=True)
 
 def crear_dona_cartera_fig(df_tableau):
     if df_tableau is None or df_tableau.empty or 'Deuda Mora' not in df_tableau.columns:
@@ -1565,11 +1929,17 @@ def crear_dona_cartera_fig(df_tableau):
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#F8FAFC', family='Outfit'),
-        height=360,
-        margin=dict(l=20, r=20, t=40, b=20)
+        font=dict(color='#F8FAFC', family='Outfit, Inter, sans-serif', size=13),
+        height=380,
+        margin=dict(l=20, r=20, t=50, b=20),
+        legend=dict(font=dict(size=12, color='#F8FAFC'))
     )
-    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_traces(
+        textposition='inside',
+        textinfo='percent+label',
+        textfont=dict(size=13, family='Outfit, Inter, sans-serif', color='#FFFFFF'),
+        hovertemplate="<b>%{label}</b><br>Consultoras: <b>%{value:,}</b> (%{percent})<extra></extra>"
+    )
     return fig
 
 def crear_embudo_red_fig(disponibles, inicios, reinicios, activas):
@@ -1577,47 +1947,158 @@ def crear_embudo_red_fig(disponibles, inicios, reinicios, activas):
         y=['Disponibles Totales', 'Inicios Nuevos', 'Reinicios', 'Consultoras Activas'],
         x=[disponibles, inicios, reinicios, activas],
         textinfo="value+percent initial",
+        textfont=dict(size=13, family="Outfit, Inter, sans-serif", color="#FFFFFF"),
         marker={"color": ["#3B82F6", "#8B5CF6", "#EC4899", "#10B981"]}
     ))
     fig.update_layout(
-        title="<b>🚀 Embudo de Conversión & Retención de Red</b>",
+        title=dict(
+            text="<b>🚀 Embudo de Conversión & Retención de Red</b>",
+            font=dict(color='#F8FAFC', family='Outfit, Inter, sans-serif', size=16)
+        ),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#F8FAFC', family='Outfit'),
-        height=360,
-        margin=dict(l=20, r=20, t=40, b=20)
+        font=dict(color='#F8FAFC', family='Outfit, Inter, sans-serif'),
+        height=380,
+        margin=dict(l=20, r=20, t=50, b=20)
+    )
+    fig.update_traces(
+        hovertemplate="<b>%{y}</b><br>Cantidad: <b>%{x:,.0f} consultoras</b><br>Tasa de Retención: <b>%{percentInitial:.1%}</b><extra></extra>"
     )
     return fig
 
-def crear_treemap_red_fig(df_tableau):
-    if df_tableau is None or df_tableau.empty or 'Color' not in df_tableau.columns:
+def crear_treemap_red_fig(df_tableau, dimension='ventas'):
+    """
+    Mapa Térmico de Red Enriquecido que muestra simultáneamente Ventas ($ COP) y Puntos Acumulados.
+    Permite dimensionar por Ventas o por Puntos, con hover cards de alta resolución y tipografía legible.
+    """
+    if df_tableau is None or df_tableau.empty:
         return None
     
     df_tree = df_tableau.copy()
-    col_color = 'Color' if 'Color' in df_tree.columns else 'Nivel / Color'
-    col_sit = 'Sit. Comercial' if 'Sit. Comercial' in df_tree.columns else 'Situación'
+    col_color = 'Color' if 'Color' in df_tree.columns else ('Nivel / Color' if 'Nivel / Color' in df_tree.columns else None)
+    col_sit = 'Sit. Comercial' if 'Sit. Comercial' in df_tree.columns else ('Situación' if 'Situación' in df_tree.columns else None)
+    col_cb = 'Codigo CB' if 'Codigo CB' in df_tree.columns else ('Código CB' if 'Código CB' in df_tree.columns else df_tree.columns[0])
     
-    fig = px.treemap(
-        df_tree,
-        path=[col_color, col_sit],
-        values='Pts Acum' if 'Pts Acum' in df_tree.columns else None,
-        title="<b>💎 Mapa Térmico de Red por Nivel de Crecimiento & Estado</b>",
-        color=col_color,
-        color_discrete_map={
-            'Bronce': '#D97706',
-            'Plata': '#94A3B8',
-            'Oro': '#EAB308',
-            'Platino': '#38BDF8',
-            'Zafiro': '#3B82F6',
-            'Diamante': '#A855F7'
-        }
-    )
+    if not col_color or not col_sit:
+        return None
+
+    col_fact = 'Fact. Total' if 'Fact. Total' in df_tree.columns else ('facturacion_total' if 'facturacion_total' in df_tree.columns else None)
+    col_pts = 'Pts Acum' if 'Pts Acum' in df_tree.columns else ('pts_acum' if 'pts_acum' in df_tree.columns else None)
+    
+    df_tree['Fact_Total_Num'] = pd.to_numeric(df_tree[col_fact], errors='coerce').fillna(0.0) if col_fact else 0.0
+    df_tree['Pts_Acum_Num'] = pd.to_numeric(df_tree[col_pts], errors='coerce').fillna(0.0) if col_pts else 0.0
+
+    # Agregación explícita para evitar pérdida de datos en niveles padres
+    g1 = df_tree.groupby(col_color).agg(
+        ventas=('Fact_Total_Num', 'sum'),
+        puntos=('Pts_Acum_Num', 'sum'),
+        consultoras=(col_cb, 'count')
+    ).reset_index()
+
+    g2 = df_tree.groupby([col_color, col_sit]).agg(
+        ventas=('Fact_Total_Num', 'sum'),
+        puntos=('Pts_Acum_Num', 'sum'),
+        consultoras=(col_cb, 'count')
+    ).reset_index()
+
+    tot_ventas = float(df_tree['Fact_Total_Num'].sum())
+    tot_puntos = float(df_tree['Pts_Acum_Num'].sum())
+
+    palette_map = {
+        'Bronce': '#D97706',
+        'Plata': '#94A3B8',
+        'Oro': '#EAB308',
+        'Platino': '#38BDF8',
+        'Zafiro': '#3B82F6',
+        'Diamante': '#A855F7'
+    }
+
+    labels = []
+    parents = []
+    values = []
+    customdata = []
+    colors = []
+
+    # Nivel 1: Por Nivel / Color
+    for _, r in g1.iterrows():
+        n_nombre = str(r[col_color]).strip()
+        v = float(r['ventas'])
+        p = float(r['puntos'])
+        c = int(r['consultoras'])
+        val_size = v if dimension == 'ventas' else p
+        val_size = max(val_size, 1.0)
+        pct = (v / tot_ventas * 100.0) if (dimension == 'ventas' and tot_ventas > 0) else ((p / tot_puntos * 100.0) if tot_puntos > 0 else 0.0)
+
+        labels.append(n_nombre)
+        parents.append("")
+        values.append(val_size)
+        customdata.append([
+            f"${v:,.0f}".replace(",", "."),
+            f"{p:,.0f}".replace(",", "."),
+            f"{c:,}".replace(",", "."),
+            pct,
+            "Total Nivel"
+        ])
+        colors.append(palette_map.get(n_nombre, '#64748B'))
+
+    # Nivel 2: Por Nivel y Situación Comercial
+    for _, r in g2.iterrows():
+        n_nombre = str(r[col_color]).strip()
+        s_nombre = str(r[col_sit]).strip()
+        nodo_id = f"{n_nombre} — {s_nombre}"
+        v = float(r['ventas'])
+        p = float(r['puntos'])
+        c = int(r['consultoras'])
+        val_size = v if dimension == 'ventas' else p
+        val_size = max(val_size, 1.0)
+        pct = (v / tot_ventas * 100.0) if (dimension == 'ventas' and tot_ventas > 0) else ((p / tot_puntos * 100.0) if tot_puntos > 0 else 0.0)
+
+        labels.append(nodo_id)
+        parents.append(n_nombre)
+        values.append(val_size)
+        customdata.append([
+            f"${v:,.0f}".replace(",", "."),
+            f"{p:,.0f}".replace(",", "."),
+            f"{c:,}".replace(",", "."),
+            pct,
+            n_nombre
+        ])
+        colors.append(palette_map.get(n_nombre, '#64748B'))
+
+    fig = go.Figure(go.Treemap(
+        labels=labels,
+        parents=parents,
+        values=values,
+        customdata=customdata,
+        marker=dict(colors=colors),
+        texttemplate="<b>%{label}</b><br>💰 %{customdata[0]} COP<br>⭐ %{customdata[1]} pts<br>👥 %{customdata[2]} cons.",
+        textfont=dict(size=13, family="Outfit, Inter, sans-serif", color="#FFFFFF"),
+        hovertemplate=(
+            "<b>%{label}</b><br>"
+            "Segmento: %{customdata[4]}<br><br>"
+            "💰 <b>Ventas Totales:</b> %{customdata[0]} COP<br>"
+            "⭐ <b>Puntos Acumulados:</b> %{customdata[1]} pts<br>"
+            "👥 <b>Total Consultoras:</b> %{customdata[2]} cons.<br>"
+            "📊 <b>Participación:</b> %{customdata[3]:.1f}%"
+            "<extra></extra>"
+        )
+    ))
+
+    dim_label = "Ventas ($ COP)" if dimension == 'ventas' else "Puntos Acumulados"
     fig.update_layout(
+        title=dict(
+            text=f"<b>💎 Mapa Térmico de Red por Nivel & Estado</b> <span style='font-size:0.8em; color:#94A3B8;'>(Dimensión: {dim_label})</span>",
+            font=dict(color='#F8FAFC', family='Outfit, Inter, sans-serif', size=16)
+        ),
+        hoverlabel=dict(
+            bgcolor="#0F172A",
+            bordercolor="#334155",
+            font=dict(family="Outfit, Inter, sans-serif", size=13, color="#F8FAFC")
+        ),
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#F8FAFC', family='Outfit'),
-        height=380,
-        margin=dict(l=10, r=10, t=40, b=10)
+        height=420,
+        margin=dict(l=10, r=10, t=50, b=10)
     )
     return fig
 
@@ -1626,22 +2107,40 @@ def crear_scatter_atencion_fig(df_tableau):
         return None
     
     df_scat = df_tableau.copy()
+    col_x = 'Pts Acum' if 'Pts Acum' in df_scat.columns else 'Pts Natura'
+    col_fact = 'Fact. Total' if 'Fact. Total' in df_scat.columns else None
+    
+    df_scat['Fact_Num'] = pd.to_numeric(df_scat[col_fact], errors='coerce').fillna(0.0) if col_fact else 0.0
+    df_scat['Pts_Num'] = pd.to_numeric(df_scat[col_x], errors='coerce').fillna(0.0)
+    df_scat['Mora_Num'] = pd.to_numeric(df_scat['Deuda Mora'], errors='coerce').fillna(0.0)
+
     fig = px.scatter(
         df_scat,
-        x='Pts Acum' if 'Pts Acum' in df_scat.columns else 'Pts Natura',
+        x=col_x,
         y='Deuda Mora',
         color='Sit. Comercial' if 'Sit. Comercial' in df_scat.columns else None,
         hover_name='Nombre' if 'Nombre' in df_scat.columns else 'Código CB',
         size='Deuda Total' if 'Deuda Total' in df_scat.columns else None,
+        custom_data=['Fact_Num', 'Pts_Num', 'Mora_Num'],
         title="<b>📲 Matriz de Atención Prioritaria (Puntos vs Deuda Mora)</b>",
-        labels={'Pts Acum': 'Puntos Acumulados', 'Deuda Mora': 'Deuda Mora ($)'}
+        labels={col_x: 'Puntos Acumulados (Pts)', 'Deuda Mora': 'Deuda Mora ($ COP)'}
     )
     fig.update_layout(
         paper_bgcolor='rgba(0,0,0,0)',
         plot_bgcolor='rgba(0,0,0,0)',
-        font=dict(color='#F8FAFC', family='Outfit'),
-        height=380,
-        margin=dict(l=10, r=10, t=40, b=10)
+        font=dict(color='#F8FAFC', family='Outfit, Inter, sans-serif', size=13),
+        height=400,
+        margin=dict(l=10, r=10, t=45, b=10),
+        xaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.06)'),
+        yaxis=dict(showgrid=True, gridcolor='rgba(255,255,255,0.06)')
+    )
+    fig.update_traces(
+        hovertemplate=(
+            "<b>%{hovertext}</b><br>"
+            "⭐ <b>Puntos:</b> %{customdata[1]:,.0f} pts<br>"
+            "⚠️ <b>Deuda Mora:</b> $%{customdata[2]:,.0f} COP<br>"
+            "💰 <b>Ventas:</b> $%{customdata[0]:,.0f} COP<extra></extra>"
+        )
     )
     return fig
 
@@ -6530,39 +7029,74 @@ if tab_resumen is not None:
 
         st.markdown("---")
 
-        # 2. Fila de Gráficos Principales (Diferenciados por Perfil)
+        # 2. Respaldo resiliente de df_tableau si no fue inicializado previamente
+        if 'df_tableau' not in locals() or df_tableau is None or df_tableau.empty:
+            try:
+                df_tableau = cached_consultar_tableau_sql(
+                    grupo=(user_grupo if user_rol == 'lider' else None),
+                    sector=(user_sector if (user_rol == 'gerente' and user_sector) else None)
+                )
+            except Exception:
+                pass
+
+        # 3. Módulo Ejecutivo de Rankings 360° (Evaluación de 13 KPIs para Gerencia y SuperAdmin)
         if user_rol in ['superadmin', 'gerente']:
+            renderizar_modulo_rankings_360(df_filtrado, df_tableau=df_tableau, key_suffix="resumen_tab")
+            st.markdown("---")
+
+            # Fila de Gráficos Complementarios: Dona de Cartera & Embudo de Red
             col_g1, col_g2 = st.columns(2)
             with col_g1:
-                fig_rank = crear_ranking_lideres_fig(df_filtrado)
-                if fig_rank:
-                    st.plotly_chart(fig_rank, use_container_width=True)
-                else:
-                    st.info("No hay suficiente información para generar el ranking.")
-
-            with col_g2:
                 fig_dona = crear_dona_cartera_fig(df_tableau)
                 if fig_dona:
                     st.plotly_chart(fig_dona, use_container_width=True)
                 else:
                     st.info("No hay datos de cartera disponibles.")
 
-            st.markdown("---")
-            col_fun1, col_fun2 = st.columns(2)
-            with col_fun1:
+            with col_g2:
                 disp_tot = int(df_filtrado['Disponibles'].sum()) if 'Disponibles' in df_filtrado.columns else 0
                 fig_fun = crear_embudo_red_fig(disp_tot, inicios_totales, reinicios_totales, real_activas)
                 st.plotly_chart(fig_fun, use_container_width=True)
 
-            with col_fun2:
-                fig_tree = crear_treemap_red_fig(df_tableau)
-                if fig_tree:
-                    st.plotly_chart(fig_tree, use_container_width=True)
+            st.markdown("---")
+
+            # Mapa Térmico de Red Enriquecido (Doble Métrica: Ventas $ COP + Puntos Acumulados)
+            col_head_tm, col_opt_tm = st.columns([2.5, 1.5])
+            with col_head_tm:
+                st.markdown("##### 💎 Mapa Térmico de Red (Niveles de Crecimiento & Estados Comerciales)")
+                st.caption("Visualiza la concentración de consultoras, facturación y puntos en cada segmento de la red.")
+            with col_opt_tm:
+                dim_treemap_sel = st.radio(
+                    "Dimensión del Mapa Térmico:",
+                    ["💰 Ventas ($ COP)", "⭐ Puntos Acumulados"],
+                    index=0,
+                    horizontal=True,
+                    key="radio_dim_treemap_resumen"
+                )
+            
+            dim_clave = "ventas" if "Ventas" in dim_treemap_sel else "puntos"
+            fig_tree = crear_treemap_red_fig(df_tableau, dimension=dim_clave)
+            if fig_tree:
+                st.plotly_chart(fig_tree, use_container_width=True)
+            else:
+                st.info("No hay datos de consultoras suficientes para renderizar el mapa térmico.")
 
         else: # Vista para Líderes de Negocio
-            col_l1, col_l2 = st.columns(2)
+            col_l1, col_l2 = st.columns([1.6, 1.4])
             with col_l1:
-                fig_tree = crear_treemap_red_fig(df_tableau)
+                col_h_l, col_o_l = st.columns([2, 1])
+                with col_h_l:
+                    st.markdown("##### 💎 Mapa Térmico de tu Equipo")
+                with col_o_l:
+                    dim_l_sel = st.radio(
+                        "Medir por:",
+                        ["💰 Ventas", "⭐ Puntos"],
+                        index=0,
+                        horizontal=True,
+                        key="radio_dim_treemap_lider"
+                    )
+                dim_l_clave = "ventas" if "Ventas" in dim_l_sel else "puntos"
+                fig_tree = crear_treemap_red_fig(df_tableau, dimension=dim_l_clave)
                 if fig_tree:
                     st.plotly_chart(fig_tree, use_container_width=True)
                 else:
@@ -7392,8 +7926,8 @@ if tab_diagnostico is not None:
                 df_ing_calc = pd.DataFrame()
                 df_ing_calc['LÍDER DE NEGOCIOS'] = df_ing_prep[col_lider].astype(str)
 
-                val_inicios = df_ing_prep[col_inicios].apply(lambda v: limpiar_numero(v, 0)) if col_inicios else 0
-                val_reinicios = df_ing_prep[col_reinicios].apply(lambda v: limpiar_numero(v, 0)) if col_reinicios else 0
+                val_inicios = df_ing_prep[col_inicios].apply(lambda v: limpiar_numero(v, 0)) if col_inicios else pd.Series(0, index=df_ing_prep.index)
+                val_reinicios = df_ing_prep[col_reinicios].apply(lambda v: limpiar_numero(v, 0)) if col_reinicios else pd.Series(0, index=df_ing_prep.index)
                 df_ing_calc['Hoy'] = (val_inicios + val_reinicios).astype(int)
 
                 if col_meta_ing:
@@ -7476,7 +8010,7 @@ if tab_diagnostico is not None:
                 df_rec_calc = pd.DataFrame()
                 df_rec_calc['LÍDER DE NEGOCIOS'] = df_rec_prep[col_lider].astype(str)
 
-                val_rec = df_rec_prep[col_recuperos].apply(lambda v: limpiar_numero(v, 0)) if col_recuperos else 0
+                val_rec = df_rec_prep[col_recuperos].apply(lambda v: limpiar_numero(v, 0)) if col_recuperos else pd.Series(0, index=df_rec_prep.index)
                 df_rec_calc['Hoy'] = val_rec.astype(int)
 
                 if col_meta_rec:
@@ -7530,175 +8064,324 @@ if tab_diagnostico is not None:
                     }
                 )
 
+            # Mapa de apoyo desde Tableau para garantizar disponibilidad de datos de inactivas
+            map_tab_diag = {}
+            if 'df_tableau' in locals() and df_tableau is not None and not df_tableau.empty and 'Grupo' in df_tableau.columns:
+                col_sit_t = 'Sit. Comercial' if 'Sit. Comercial' in df_tableau.columns else ('Situación' if 'Situación' in df_tableau.columns else None)
+                if col_sit_t:
+                    for g_val, sub_g in df_tableau.groupby('Grupo'):
+                        g_k = str(g_val).split('.')[0].strip()
+                        sits = sub_g[col_sit_t].astype(str)
+                        map_tab_diag[g_k] = {
+                            'in_1': int((sits.str.contains('Inactiva 1', case=False, na=False)).sum()),
+                            'in_2': int((sits.str.contains('Inactiva 2', case=False, na=False)).sum()),
+                            'in_3': int((sits.str.contains('Inactiva 3', case=False, na=False)).sum()),
+                            'total': len(sub_g)
+                        }
+
             # --- 6. CUADRO RESUMEN DE RETENCIÓN I2 (Meta 8% Fuga / Retención I2) ---
             st.markdown("---")
-            st.markdown("#### 🔄 6. Cuadro Resumen de Retención I2 (Meta 8% Máx. Fuga I2)")
-            st.caption("Fórmulas del modelo: `Meta Retención I2 = Disponibles * 8%`, `Falta I2 Activarse = Inactiva 2 - Meta I2`, `% Retención I2 = (Inactiva 2 / Disponibles) * 100`, `Avance = Inactiva 2 Anterior - Inactiva 2 Actual`.")
+            st.markdown("#### 🔄 6. Seguimiento IN2 — % Máximo sobre Disponibles = 8%")
+            st.caption("Fórmulas del modelo oficial: `IN2 Dejar en Panel = Disponibles * 8%`, `Te Faltan Activar = Llevas Panel - Dejar en Panel`, `% Sobre Dispon = (Llevas Panel / Disponibles) * 100`.")
 
             if col_lider and col_lider in df_diag.columns:
-                df_i2_prep = df_diag.copy()
-                col_disp_i2 = 'Disponibles' if 'Disponibles' in df_i2_prep.columns else None
-                col_i2 = next((c for c in df_i2_prep.columns if str(c).lower().strip() in ['inactiva 2', 'inactiva_2', 'inactivas 2', 'inactivas_2', 'i2']), None)
-                col_i2_ant = next((c for c in df_i2_prep.columns if 'inactiva 2_anterior' in str(c).lower() or 'inactivas 2_anterior' in str(c).lower()), None)
+                col_disp_diag = 'Disponibles' if 'Disponibles' in df_diag.columns else None
+                col_grp_diag = next((c for c in df_diag.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'grupo'])), None)
+                col_i2_raw = next((c for c in df_diag.columns if str(c).lower().strip() in ['inactiva 2', 'inactiva_2', 'inactivas 2', 'inactivas_2', 'i2']), None)
+                col_i2_ant = next((c for c in df_diag.columns if 'inactiva 2_anterior' in str(c).lower() or 'inactivas 2_anterior' in str(c).lower()), None)
 
-                if col_disp_i2 and col_i2:
-                    df_i2_calc = pd.DataFrame()
-                    df_i2_calc['LÍDER DE NEGOCIOS'] = df_i2_prep[col_lider].astype(str)
+                filas_i2 = []
+                for _, r in df_diag.iterrows():
+                    l_nom = str(r.get(col_lider, '')).strip()
+                    if not l_nom or l_nom.lower() in ['none', 'nan', '-', '', 'total general', 'total']:
+                        continue
+                    if ' - ' in l_nom:
+                        l_nom = l_nom.split(' - ', 1)[1].strip()
+                    if l_nom.lower().startswith('grupo '):
+                        p = l_nom.split(' ', 2)
+                        if len(p) > 2:
+                            l_nom = p[2].strip()
 
-                    val_disp2 = df_i2_prep[col_disp_i2].apply(lambda v: limpiar_numero(v, 0.0))
-                    val_i2 = df_i2_prep[col_i2].apply(lambda v: limpiar_numero(v, 0.0))
+                    g_val = str(r.get(col_grp_diag, '')).split('.')[0].strip() if col_grp_diag else ''
+                    disp_val = float(limpiar_numero(r.get(col_disp_diag, 0.0), 0.0)) if col_disp_diag else 0.0
+                    i2_val = float(limpiar_numero(r.get(col_i2_raw, 0.0), 0.0)) if col_i2_raw else 0.0
 
-                    df_i2_calc['MAX PANEL'] = (val_disp2 * 0.08).round().astype(int)
-                    df_i2_calc['FALTA I2 ACTIVARSE'] = (val_i2 - df_i2_calc['MAX PANEL']).round().astype(int)
-                    df_i2_calc['% RETENCIÓN META 8%'] = (val_i2 / val_disp2.replace(0, pd.NA) * 100.0).fillna(0.0)
+                    if i2_val == 0.0 and g_val in map_tab_diag:
+                        i2_val = float(map_tab_diag[g_val].get('in_2', 0.0))
+                    if disp_val == 0.0 and g_val in map_tab_diag:
+                        disp_val = float(map_tab_diag[g_val].get('total', 1.0))
 
-                    if col_i2_ant:
-                        val_i2_ant = df_i2_prep[col_i2_ant].apply(lambda v: limpiar_numero(v, 0.0))
-                        df_i2_calc['AVANCE RETENCION I2'] = (val_i2_ant - val_i2).fillna(0).astype(int)
-                    else:
-                        df_i2_calc['AVANCE RETENCION I2'] = 0
+                    dejar_panel = round(disp_val * 0.08)
+                    faltan = int(i2_val - dejar_panel)
+                    pct_disp = (i2_val / disp_val * 100.0) if disp_val > 0 else 0.0
+                    ant_v = float(limpiar_numero(r.get(col_i2_ant, i2_val), i2_val)) if col_i2_ant else i2_val
+                    avance_v = int(ant_v - i2_val)
 
-                    df_i2_calc = df_i2_calc.sort_values(by='% RETENCIÓN META 8%', ascending=True).reset_index(drop=True)
+                    filas_i2.append({
+                        'LÍDER': l_nom[:25],
+                        'GRUPO': g_val,
+                        'DISPONIBLES': int(disp_val),
+                        'IN2 LLEVAS PANEL': int(i2_val),
+                        'IN2 DEJAR EN PANEL (8%)': int(dejar_panel),
+                        'TE FALTAN ACTIVAR': faltan,
+                        '% SOBRE DISPON': pct_disp,
+                        'ANTERIOR INFORME': int(ant_v),
+                        'AVANCE DESDE ÚLTIMO INFORME': avance_v
+                    })
 
-                    tot_disp_i2 = float(val_disp2.sum())
-                    tot_i2 = float(val_i2.sum())
-                    tot_meta_i2 = int(df_i2_calc['MAX PANEL'].sum())
-                    tot_falta_i2 = int(df_i2_calc['FALTA I2 ACTIVARSE'].sum())
-                    tot_pct_i2 = (tot_i2 / tot_disp_i2 * 100.0) if tot_disp_i2 > 0 else 0.0
-                    tot_av_i2 = int(df_i2_calc['AVANCE RETENCION I2'].sum())
+                if filas_i2:
+                    df_i2_m = pd.DataFrame(filas_i2).sort_values(by='% SOBRE DISPON', ascending=True).reset_index(drop=True)
+                    tot_disp2 = int(df_i2_m['DISPONIBLES'].sum())
+                    tot_i2_p = int(df_i2_m['IN2 LLEVAS PANEL'].sum())
+                    tot_dejar2 = int(df_i2_m['IN2 DEJAR EN PANEL (8%)'].sum())
+                    tot_fal2 = tot_i2_p - tot_dejar2
+                    tot_pct2 = (tot_i2_p / tot_disp2 * 100.0) if tot_disp2 > 0 else 0.0
+                    tot_ant2 = int(df_i2_m['ANTERIOR INFORME'].sum())
+                    tot_av2 = tot_ant2 - tot_i2_p
 
                     row_tot_i2 = pd.DataFrame([{
-                        'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
-                        'MAX PANEL': tot_meta_i2,
-                        'FALTA I2 ACTIVARSE': tot_falta_i2,
-                        '% RETENCIÓN META 8%': tot_pct_i2,
-                        'AVANCE RETENCION I2': tot_av_i2
+                        'LÍDER': '⚡ TOTAL GENERAL',
+                        'GRUPO': '—',
+                        'DISPONIBLES': tot_disp2,
+                        'IN2 LLEVAS PANEL': tot_i2_p,
+                        'IN2 DEJAR EN PANEL (8%)': tot_dejar2,
+                        'TE FALTAN ACTIVAR': tot_fal2,
+                        '% SOBRE DISPON': tot_pct2,
+                        'ANTERIOR INFORME': tot_ant2,
+                        'AVANCE DESDE ÚLTIMO INFORME': tot_av2
                     }])
-                    df_i2_final = pd.concat([df_i2_calc, row_tot_i2], ignore_index=True)
-
-                    df_i2_formatted = df_i2_final[['LÍDER DE NEGOCIOS', 'MAX PANEL', 'FALTA I2 ACTIVARSE', '% RETENCIÓN META 8%', 'AVANCE RETENCION I2']].copy()
-                    df_i2_formatted['MAX PANEL'] = df_i2_formatted['MAX PANEL'].apply(lambda v: f"{int(v):,}".replace(",", "."))
-                    df_i2_formatted['FALTA I2 ACTIVARSE'] = df_i2_formatted['FALTA I2 ACTIVARSE'].apply(lambda v: f"{int(v):,}".replace(",", "."))
-                    df_i2_formatted['% RETENCIÓN META 8%'] = df_i2_formatted['% RETENCIÓN META 8%'].apply(lambda v: f"{v:.1f}%")
-                    df_i2_formatted['AVANCE RETENCION I2'] = df_i2_formatted['AVANCE RETENCION I2'].apply(lambda v: f"{int(v):,}".replace(",", "."))
-
-                    def _estilo_falta_retencion(val_str):
-                        try:
-                            num = int(str(val_str).replace('.', '').strip())
-                            if num <= 0:
-                                return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
-                            elif num <= 5:
-                                return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
-                            else:
-                                return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
-                        except Exception:
-                            return ''
-
-                    def _estilo_pct_retencion_8(val_str):
-                        try:
-                            num = float(str(val_str).replace('%', '').strip())
-                            if num <= 8.0:
-                                return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
-                            elif num <= 10.0:
-                                return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
-                            else:
-                                return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
-                        except Exception:
-                            return ''
-
-                    styler_i2 = df_i2_formatted.style
-                    if hasattr(styler_i2, 'map'):
-                        styler_i2 = styler_i2.map(_estilo_falta_retencion, subset=['FALTA I2 ACTIVARSE']).map(_estilo_pct_retencion_8, subset=['% RETENCIÓN META 8%'])
-                    elif hasattr(styler_i2, 'applymap'):
-                        styler_i2 = styler_i2.applymap(_estilo_falta_retencion, subset=['FALTA I2 ACTIVARSE']).applymap(_estilo_pct_retencion_8, subset=['% RETENCIÓN META 8%'])
-
-                    st.dataframe(
-                        styler_i2,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "LÍDER DE NEGOCIOS": st.column_config.Column("LÍDER DE NEGOCIOS", pinned=True)
-                        }
+                    df_i2_full = pd.concat([df_i2_m, row_tot_i2], ignore_index=True)
+                    df_i2_disp = df_i2_full.copy()
+                    df_i2_disp['% SOBRE DISPON'] = df_i2_disp['% SOBRE DISPON'].apply(lambda v: f"{v:.2f}%")
+                    df_i2_disp['TE FALTAN ACTIVAR'] = df_i2_disp['TE FALTAN ACTIVAR'].apply(
+                        lambda v: f"✅ {abs(v)} en meta" if v <= 0 else f"⚠️ +{v} por activar"
                     )
+                    df_i2_disp['AVANCE DESDE ÚLTIMO INFORME'] = df_i2_disp['AVANCE DESDE ÚLTIMO INFORME'].apply(
+                        lambda v: f"🟢 ↓ {v}" if v > 0 else (f"🔴 ↑ +{abs(v)}" if v < 0 else "⚪ 0")
+                    )
+
+                    def _estilo_pct_8(val_str):
+                        try:
+                            p = float(str(val_str).replace('%', '').strip())
+                            if p <= 8.0:
+                                return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                            elif p <= 9.5:
+                                return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                            else:
+                                return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                        except Exception:
+                            return ''
+
+                    def _estilo_falta_gen(val_str):
+                        if '✅' in str(val_str):
+                            return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                        return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+
+                    styler_i2_m = df_i2_disp.style
+                    if hasattr(styler_i2_m, 'map'):
+                        styler_i2_m = styler_i2_m.map(_estilo_pct_8, subset=['% SOBRE DISPON']).map(_estilo_falta_gen, subset=['TE FALTAN ACTIVAR'])
+                    elif hasattr(styler_i2_m, 'applymap'):
+                        styler_i2_m = styler_i2_m.applymap(_estilo_pct_8, subset=['% SOBRE DISPON']).applymap(_estilo_falta_gen, subset=['TE FALTAN ACTIVAR'])
+
+                    st.dataframe(styler_i2_m, use_container_width=True, hide_index=True)
 
             # --- 7. CUADRO RESUMEN DE RETENCIÓN I3 (Meta 6% Fuga / Retención I3) ---
             st.markdown("---")
-            st.markdown("#### 🔄 7. Cuadro Resumen de Retención I3 (Meta 6% Máx. Fuga I3)")
-            st.caption("Fórmulas del modelo: `Meta Retención I3 = Disponibles * 6%`, `Falta I3 Activarse = Inactiva 3 - Meta I3`, `% Retención I3 = (Inactiva 3 / Disponibles) * 100`, `Avance = Inactiva 3 Anterior - Inactiva 3 Actual`.")
+            st.markdown("#### 🚨 7. Seguimiento IN3 — % Máximo sobre Disponibles = 6%")
+            st.caption("Fórmulas del modelo oficial: `IN3 Dejar en Panel = Disponibles * 6%`, `Te Faltan Activar = Llevas Panel - Dejar en Panel`, `% Sobre Dispon = (Llevas Panel / Disponibles) * 100`.")
 
             if col_lider and col_lider in df_diag.columns:
-                df_i3_prep = df_diag.copy()
-                col_disp_i3 = 'Disponibles' if 'Disponibles' in df_i3_prep.columns else None
-                col_i3 = next((c for c in df_i3_prep.columns if str(c).lower().strip() in ['inactiva 3', 'inactiva_3', 'inactivas 3', 'inactivas_3', 'i3']), None)
-                col_i3_ant = next((c for c in df_i3_prep.columns if 'inactiva 3_anterior' in str(c).lower() or 'inactivas 3_anterior' in str(c).lower()), None)
+                col_i3_raw = next((c for c in df_diag.columns if str(c).lower().strip() in ['inactiva 3', 'inactiva_3', 'inactivas 3', 'inactivas_3', 'i3']), None)
+                col_i3_ant = next((c for c in df_diag.columns if 'inactiva 3_anterior' in str(c).lower() or 'inactivas 3_anterior' in str(c).lower()), None)
 
-                if col_disp_i3 and col_i3:
-                    df_i3_calc = pd.DataFrame()
-                    df_i3_calc['LÍDER DE NEGOCIOS'] = df_i3_prep[col_lider].astype(str)
+                filas_i3 = []
+                for _, r in df_diag.iterrows():
+                    l_nom = str(r.get(col_lider, '')).strip()
+                    if not l_nom or l_nom.lower() in ['none', 'nan', '-', '', 'total general', 'total']:
+                        continue
+                    if ' - ' in l_nom:
+                        l_nom = l_nom.split(' - ', 1)[1].strip()
+                    if l_nom.lower().startswith('grupo '):
+                        p = l_nom.split(' ', 2)
+                        if len(p) > 2:
+                            l_nom = p[2].strip()
 
-                    val_disp3 = df_i3_prep[col_disp_i3].apply(lambda v: limpiar_numero(v, 0.0))
-                    val_i3 = df_i3_prep[col_i3].apply(lambda v: limpiar_numero(v, 0.0))
+                    g_val = str(r.get(col_grp_diag, '')).split('.')[0].strip() if col_grp_diag else ''
+                    disp_val = float(limpiar_numero(r.get(col_disp_diag, 0.0), 0.0)) if col_disp_diag else 0.0
+                    i3_val = float(limpiar_numero(r.get(col_i3_raw, 0.0), 0.0)) if col_i3_raw else 0.0
 
-                    df_i3_calc['META RETENCIÓN I3'] = (val_disp3 * 0.06).round().astype(int)
-                    df_i3_calc['FALTA I3 ACTIVARSE'] = (val_i3 - df_i3_calc['META RETENCIÓN I3']).round().astype(int)
-                    df_i3_calc['% RETENCIÓN META 6%'] = (val_i3 / val_disp3.replace(0, pd.NA) * 100.0).fillna(0.0)
+                    if i3_val == 0.0 and g_val in map_tab_diag:
+                        i3_val = float(map_tab_diag[g_val].get('in_3', 0.0))
+                    if disp_val == 0.0 and g_val in map_tab_diag:
+                        disp_val = float(map_tab_diag[g_val].get('total', 1.0))
 
-                    if col_i3_ant:
-                        val_i3_ant = df_i3_prep[col_i3_ant].apply(lambda v: limpiar_numero(v, 0.0))
-                        df_i3_calc['AVANCE RETENCION I3'] = (val_i3_ant - val_i3).fillna(0).astype(int)
-                    else:
-                        df_i3_calc['AVANCE RETENCION I3'] = 0
+                    dejar_panel = round(disp_val * 0.06)
+                    faltan = int(i3_val - dejar_panel)
+                    pct_disp = (i3_val / disp_val * 100.0) if disp_val > 0 else 0.0
+                    ant_v = float(limpiar_numero(r.get(col_i3_ant, i3_val), i3_val)) if col_i3_ant else i3_val
+                    avance_v = int(ant_v - i3_val)
 
-                    df_i3_calc = df_i3_calc.sort_values(by='% RETENCIÓN META 6%', ascending=True).reset_index(drop=True)
+                    filas_i3.append({
+                        'LÍDER': l_nom[:25],
+                        'GRUPO': g_val,
+                        'DISPONIBLES': int(disp_val),
+                        'IN3 LLEVAS PANEL': int(i3_val),
+                        'IN3 DEJAR EN PANEL (6%)': int(dejar_panel),
+                        'TE FALTAN ACTIVAR': faltan,
+                        '% SOBRE DISPON': pct_disp,
+                        'ANTERIOR INFORME': int(ant_v),
+                        'AVANCE DESDE ÚLTIMO INFORME': avance_v
+                    })
 
-                    tot_disp_i3 = float(val_disp3.sum())
-                    tot_i3 = float(val_i3.sum())
-                    tot_meta_i3 = int(df_i3_calc['META RETENCIÓN I3'].sum())
-                    tot_falta_i3 = int(df_i3_calc['FALTA I3 ACTIVARSE'].sum())
-                    tot_pct_i3 = (tot_i3 / tot_disp_i3 * 100.0) if tot_disp_i3 > 0 else 0.0
-                    tot_av_i3 = int(df_i3_calc['AVANCE RETENCION I3'].sum())
+                if filas_i3:
+                    df_i3_m = pd.DataFrame(filas_i3).sort_values(by='% SOBRE DISPON', ascending=True).reset_index(drop=True)
+                    tot_disp3 = int(df_i3_m['DISPONIBLES'].sum())
+                    tot_i3_p = int(df_i3_m['IN3 LLEVAS PANEL'].sum())
+                    tot_dejar3 = int(df_i3_m['IN3 DEJAR EN PANEL (6%)'].sum())
+                    tot_fal3 = tot_i3_p - tot_dejar3
+                    tot_pct3 = (tot_i3_p / tot_disp3 * 100.0) if tot_disp3 > 0 else 0.0
+                    tot_ant3 = int(df_i3_m['ANTERIOR INFORME'].sum())
+                    tot_av3 = tot_ant3 - tot_i3_p
 
                     row_tot_i3 = pd.DataFrame([{
-                        'LÍDER DE NEGOCIOS': 'TOTAL GENERAL',
-                        'META RETENCIÓN I3': tot_meta_i3,
-                        'FALTA I3 ACTIVARSE': tot_falta_i3,
-                        '% RETENCIÓN META 6%': tot_pct_i3,
-                        'AVANCE RETENCION I3': tot_av_i3
+                        'LÍDER': '⚡ TOTAL GENERAL',
+                        'GRUPO': '—',
+                        'DISPONIBLES': tot_disp3,
+                        'IN3 LLEVAS PANEL': tot_i3_p,
+                        'IN3 DEJAR EN PANEL (6%)': tot_dejar3,
+                        'TE FALTAN ACTIVAR': tot_fal3,
+                        '% SOBRE DISPON': tot_pct3,
+                        'ANTERIOR INFORME': tot_ant3,
+                        'AVANCE DESDE ÚLTIMO INFORME': tot_av3
                     }])
-                    df_i3_final = pd.concat([df_i3_calc, row_tot_i3], ignore_index=True)
+                    df_i3_full = pd.concat([df_i3_m, row_tot_i3], ignore_index=True)
+                    df_i3_disp = df_i3_full.copy()
+                    df_i3_disp['% SOBRE DISPON'] = df_i3_disp['% SOBRE DISPON'].apply(lambda v: f"{v:.2f}%")
+                    df_i3_disp['TE FALTAN ACTIVAR'] = df_i3_disp['TE FALTAN ACTIVAR'].apply(
+                        lambda v: f"✅ {abs(v)} en meta" if v <= 0 else f"⚠️ +{v} por activar"
+                    )
+                    df_i3_disp['AVANCE DESDE ÚLTIMO INFORME'] = df_i3_disp['AVANCE DESDE ÚLTIMO INFORME'].apply(
+                        lambda v: f"🟢 ↓ {v}" if v > 0 else (f"🔴 ↑ +{abs(v)}" if v < 0 else "⚪ 0")
+                    )
 
-                    df_i3_formatted = df_i3_final[['LÍDER DE NEGOCIOS', 'META RETENCIÓN I3', 'FALTA I3 ACTIVARSE', '% RETENCIÓN META 6%', 'AVANCE RETENCION I3']].copy()
-                    df_i3_formatted['META RETENCIÓN I3'] = df_i3_formatted['META RETENCIÓN I3'].apply(lambda v: f"{int(v):,}".replace(",", "."))
-                    df_i3_formatted['FALTA I3 ACTIVARSE'] = df_i3_formatted['FALTA I3 ACTIVARSE'].apply(lambda v: f"{int(v):,}".replace(",", "."))
-                    df_i3_formatted['% RETENCIÓN META 6%'] = df_i3_formatted['% RETENCIÓN META 6%'].apply(lambda v: f"{v:.1f}%")
-                    df_i3_formatted['AVANCE RETENCION I3'] = df_i3_formatted['AVANCE RETENCION I3'].apply(lambda v: f"{int(v):,}".replace(",", "."))
-
-                    def _estilo_pct_retencion_6(val_str):
+                    def _estilo_pct_6(val_str):
                         try:
-                            num = float(str(val_str).replace('%', '').strip())
-                            if num <= 6.0:
+                            p = float(str(val_str).replace('%', '').strip())
+                            if p <= 6.0:
                                 return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
-                            elif num <= 8.0:
+                            elif p <= 7.5:
                                 return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
                             else:
                                 return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
                         except Exception:
                             return ''
 
-                    styler_i3 = df_i3_formatted.style
-                    if hasattr(styler_i3, 'map'):
-                        styler_i3 = styler_i3.map(_estilo_falta_retencion, subset=['FALTA I3 ACTIVARSE']).map(_estilo_pct_retencion_6, subset=['% RETENCIÓN META 6%'])
-                    elif hasattr(styler_i3, 'applymap'):
-                        styler_i3 = styler_i3.applymap(_estilo_falta_retencion, subset=['FALTA I3 ACTIVARSE']).applymap(_estilo_pct_retencion_6, subset=['% RETENCIÓN META 6%'])
+                    styler_i3_m = df_i3_disp.style
+                    if hasattr(styler_i3_m, 'map'):
+                        styler_i3_m = styler_i3_m.map(_estilo_pct_6, subset=['% SOBRE DISPON']).map(_estilo_falta_gen, subset=['TE FALTAN ACTIVAR'])
+                    elif hasattr(styler_i3_m, 'applymap'):
+                        styler_i3_m = styler_i3_m.applymap(_estilo_pct_6, subset=['% SOBRE DISPON']).applymap(_estilo_falta_gen, subset=['TE FALTAN ACTIVAR'])
 
-                    st.dataframe(
-                        styler_i3,
-                        use_container_width=True,
-                        hide_index=True,
-                        column_config={
-                            "LÍDER DE NEGOCIOS": st.column_config.Column("LÍDER DE NEGOCIOS", pinned=True)
-                        }
+                    st.dataframe(styler_i3_m, use_container_width=True, hide_index=True)
+
+            # --- 7.1 CUADRO RESUMEN DE RETENCIÓN I1 (Meta 12% Fuga / Retención I1) ---
+            st.markdown("---")
+            st.markdown("#### 🟡 7.1 Seguimiento IN1 — % Máximo sobre Disponibles = 12%")
+            st.caption("Fórmulas del modelo oficial: `IN1 Dejar en Panel = Disponibles * 12%`, `Te Faltan Activar = Llevas Panel - Dejar en Panel`, `% Sobre Dispon = (Llevas Panel / Disponibles) * 100`.")
+
+            if col_lider and col_lider in df_diag.columns:
+                col_i1_raw = next((c for c in df_diag.columns if str(c).lower().strip() in ['inactiva 1', 'inactiva_1', 'inactivas 1', 'inactivas_1', 'i1']), None)
+                col_i1_ant = next((c for c in df_diag.columns if 'inactiva 1_anterior' in str(c).lower() or 'inactivas 1_anterior' in str(c).lower()), None)
+
+                filas_i1 = []
+                for _, r in df_diag.iterrows():
+                    l_nom = str(r.get(col_lider, '')).strip()
+                    if not l_nom or l_nom.lower() in ['none', 'nan', '-', '', 'total general', 'total']:
+                        continue
+                    if ' - ' in l_nom:
+                        l_nom = l_nom.split(' - ', 1)[1].strip()
+                    if l_nom.lower().startswith('grupo '):
+                        p = l_nom.split(' ', 2)
+                        if len(p) > 2:
+                            l_nom = p[2].strip()
+
+                    g_val = str(r.get(col_grp_diag, '')).split('.')[0].strip() if col_grp_diag else ''
+                    disp_val = float(limpiar_numero(r.get(col_disp_diag, 0.0), 0.0)) if col_disp_diag else 0.0
+                    i1_val = float(limpiar_numero(r.get(col_i1_raw, 0.0), 0.0)) if col_i1_raw else 0.0
+
+                    if i1_val == 0.0 and g_val in map_tab_diag:
+                        i1_val = float(map_tab_diag[g_val].get('in_1', 0.0))
+                    if disp_val == 0.0 and g_val in map_tab_diag:
+                        disp_val = float(map_tab_diag[g_val].get('total', 1.0))
+
+                    dejar_panel = round(disp_val * 0.12)
+                    faltan = int(i1_val - dejar_panel)
+                    pct_disp = (i1_val / disp_val * 100.0) if disp_val > 0 else 0.0
+                    ant_v = float(limpiar_numero(r.get(col_i1_ant, i1_val), i1_val)) if col_i1_ant else i1_val
+                    avance_v = int(ant_v - i1_val)
+
+                    filas_i1.append({
+                        'LÍDER': l_nom[:25],
+                        'GRUPO': g_val,
+                        'DISPONIBLES': int(disp_val),
+                        'IN1 LLEVAS PANEL': int(i1_val),
+                        'IN1 DEJAR EN PANEL (12%)': int(dejar_panel),
+                        'TE FALTAN ACTIVAR': faltan,
+                        '% SOBRE DISPON': pct_disp,
+                        'ANTERIOR INFORME': int(ant_v),
+                        'AVANCE DESDE ÚLTIMO INFORME': avance_v
+                    })
+
+                if filas_i1:
+                    df_i1_m = pd.DataFrame(filas_i1).sort_values(by='% SOBRE DISPON', ascending=True).reset_index(drop=True)
+                    tot_disp1 = int(df_i1_m['DISPONIBLES'].sum())
+                    tot_i1_p = int(df_i1_m['IN1 LLEVAS PANEL'].sum())
+                    tot_dejar1 = int(df_i1_m['IN1 DEJAR EN PANEL (12%)'].sum())
+                    tot_fal1 = tot_i1_p - tot_dejar1
+                    tot_pct1 = (tot_i1_p / tot_disp1 * 100.0) if tot_disp1 > 0 else 0.0
+                    tot_ant1 = int(df_i1_m['ANTERIOR INFORME'].sum())
+                    tot_av1 = tot_ant1 - tot_i1_p
+
+                    row_tot_i1 = pd.DataFrame([{
+                        'LÍDER': '⚡ TOTAL GENERAL',
+                        'GRUPO': '—',
+                        'DISPONIBLES': tot_disp1,
+                        'IN1 LLEVAS PANEL': tot_i1_p,
+                        'IN1 DEJAR EN PANEL (12%)': tot_dejar1,
+                        'TE FALTAN ACTIVAR': tot_fal1,
+                        '% SOBRE DISPON': tot_pct1,
+                        'ANTERIOR INFORME': tot_ant1,
+                        'AVANCE DESDE ÚLTIMO INFORME': tot_av1
+                    }])
+                    df_i1_full = pd.concat([df_i1_m, row_tot_i1], ignore_index=True)
+                    df_i1_disp = df_i1_full.copy()
+                    df_i1_disp['% SOBRE DISPON'] = df_i1_disp['% SOBRE DISPON'].apply(lambda v: f"{v:.2f}%")
+                    df_i1_disp['TE FALTAN ACTIVAR'] = df_i1_disp['TE FALTAN ACTIVAR'].apply(
+                        lambda v: f"✅ {abs(v)} en meta" if v <= 0 else f"⚠️ +{v} por activar"
                     )
+                    df_i1_disp['AVANCE DESDE ÚLTIMO INFORME'] = df_i1_disp['AVANCE DESDE ÚLTIMO INFORME'].apply(
+                        lambda v: f"🟢 ↓ {v}" if v > 0 else (f"🔴 ↑ +{abs(v)}" if v < 0 else "⚪ 0")
+                    )
+
+                    def _estilo_pct_12(val_str):
+                        try:
+                            p = float(str(val_str).replace('%', '').strip())
+                            if p <= 12.0:
+                                return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                            elif p <= 14.0:
+                                return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                            else:
+                                return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                        except Exception:
+                            return ''
+
+                    styler_i1_m = df_i1_disp.style
+                    if hasattr(styler_i1_m, 'map'):
+                        styler_i1_m = styler_i1_m.map(_estilo_pct_12, subset=['% SOBRE DISPON']).map(_estilo_falta_gen, subset=['TE FALTAN ACTIVAR'])
+                    elif hasattr(styler_i1_m, 'applymap'):
+                        styler_i1_m = styler_i1_m.applymap(_estilo_pct_12, subset=['% SOBRE DISPON']).applymap(_estilo_falta_gen, subset=['TE FALTAN ACTIVAR'])
+
+                    st.dataframe(styler_i1_m, use_container_width=True, hide_index=True)
 
             # --- 8. CUADRO DE ACTIVAS Y ACTIVIDAD FRECUENTE ---
             st.markdown("---")
