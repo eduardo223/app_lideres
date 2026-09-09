@@ -884,6 +884,368 @@ def procesar_archivo_ajustes_desafios(origen_archivo, current_user=None, campana
     except Exception as e:
         return {'exito': False, 'error': f"Error al procesar Ajustes Desafíos: {e}"}
 
+# ---------------------------------------------------------
+# MÓDULO DE INFORME GANANCIA ARTE & MÉTRICAS CE+ (CONSULTOR EMPRENDE+)
+# ---------------------------------------------------------
+RUTA_GANANCIA_ARTE_EXCEL = ruta_persistente('informe_ganancia_arte.xlsx')
+RUTA_GANANCIA_ARTE_JSON = ruta_persistente('informe_ganancia_arte.json')
+
+def cargar_datos_ganancia_arte():
+    """
+    Carga los datos estructurados de Ganancia Arte desde JSON persistente o los
+    genera automáticamente si existe el archivo Excel local.
+    """
+    if os.path.exists(RUTA_GANANCIA_ARTE_JSON):
+        try:
+            with open(RUTA_GANANCIA_ARTE_JSON, 'r', encoding='utf-8') as f:
+                d = json.load(f)
+                if isinstance(d, dict) and 'ce_plus' in d:
+                    return d
+        except Exception as e:
+            safe_print(f"Nota al cargar {RUTA_GANANCIA_ARTE_JSON}: {e}")
+
+    # Fallback automático: buscar archivo Excel existente
+    for pos_path in [RUTA_GANANCIA_ARTE_EXCEL, 'informe_ganancia_arte.xlsx', 'Informe Ganancia Arte (1).xlsx', 'Informe Ganancia Arte.xlsx']:
+        if os.path.exists(pos_path):
+            res = procesar_archivo_ganancia_arte(pos_path)
+            if res.get('exito'):
+                return res.get('data', {})
+    return {'ce_plus': [], 'bonos_ln': {}, 'sectores': []}
+
+def guardar_datos_ganancia_arte(data_dict):
+    """
+    Guarda los datos de Ganancia Arte en formato JSON estructurado.
+    """
+    try:
+        p_dir = os.path.dirname(RUTA_GANANCIA_ARTE_JSON)
+        if p_dir:
+            os.makedirs(p_dir, exist_ok=True)
+        with open(RUTA_GANANCIA_ARTE_JSON, 'w', encoding='utf-8') as f:
+            json.dump(data_dict, f, ensure_ascii=False, indent=2)
+        return True
+    except Exception as e:
+        safe_print(f"Error al guardar {RUTA_GANANCIA_ARTE_JSON}: {e}")
+        return False
+
+def procesar_archivo_ganancia_arte(origen, ruta_guardar_excel=RUTA_GANANCIA_ARTE_EXCEL, current_user=None):
+    """
+    Lee y procesa el archivo Informe Ganancia Arte (.xlsx), extrayendo:
+    1. Hoja 'Consultor Emprende+': CE+, código, nombre, grupo LN que la refirió, activas, crecimiento y ganancia.
+    2. Hoja 'Ganancia Ciclo LNN': Bonos por referidas 20 o 40 activas para la líder LN mentora.
+    """
+    try:
+        if hasattr(origen, 'read'):
+            try:
+                origen.seek(0)
+            except Exception:
+                pass
+            p_dir = os.path.dirname(ruta_guardar_excel)
+            if p_dir:
+                os.makedirs(p_dir, exist_ok=True)
+            with open(ruta_guardar_excel, 'wb') as f_out:
+                f_out.write(origen.read())
+            try:
+                origen.seek(0)
+            except Exception:
+                pass
+            ruta_leer = ruta_guardar_excel
+        elif isinstance(origen, str):
+            ruta_leer = origen
+        else:
+            return {'exito': False, 'error': "Formato de archivo no soportado."}
+
+        xl = pd.ExcelFile(ruta_leer)
+
+        # 1. Procesar Bonos de Líderes Mentoras en 'Ganancia Ciclo LNN'
+        bonos_ln = {}
+        hoja_ln = next((s for s in xl.sheet_names if 'ganancia' in s.lower() and 'ln' in s.lower()), None)
+        if hoja_ln:
+            try:
+                df_ln_raw = xl.parse(hoja_ln)
+                for r_idx in range(min(7, len(df_ln_raw))):
+                    vals = [str(x).lower() for x in df_ln_raw.iloc[r_idx].values if pd.notna(x)]
+                    if any('grupo' in v for v in vals) and any('lider' in v or 'líder' in v for v in vals):
+                        df_ln_raw.columns = [str(c).strip() for c in df_ln_raw.iloc[r_idx].values]
+                        df_ln_raw = df_ln_raw.iloc[r_idx + 1:].reset_index(drop=True)
+                        break
+
+                col_g_ln = next((c for c in df_ln_raw.columns if str(c).strip().lower() in ['grupo', 'cód. grupo', 'cod grupo']), None)
+                col_b_ln = next((c for c in df_ln_raw.columns if 'bono consultor' in str(c).lower()), None)
+                if col_g_ln and col_b_ln:
+                    for _, r_ln in df_ln_raw.iterrows():
+                        g_ln = str(r_ln[col_g_ln]).strip().split('.')[0]
+                        if g_ln and g_ln not in ['-', 'nan', '']:
+                            b_val = str(r_ln[col_b_ln]).strip()
+                            bonos_ln[g_ln] = b_val
+            except Exception as e_ln:
+                safe_print(f"Nota procesando Ganancia Ciclo LNN: {e_ln}")
+
+        # 2. Procesar CE+ en 'Consultor Emprende+'
+        hoja_ce = next((s for s in xl.sheet_names if 'consultor' in s.lower() and 'emprende' in s.lower()), None)
+        if not hoja_ce:
+            hoja_ce = next((s for s in xl.sheet_names if 'emprende' in s.lower()), None)
+        if not hoja_ce:
+            return {'exito': False, 'error': "No se encontró la hoja 'Consultor Emprende+' en el archivo."}
+
+        df_ce_raw = xl.parse(hoja_ce)
+        for r_idx in range(min(7, len(df_ce_raw))):
+            vals = [str(x).lower() for x in df_ce_raw.iloc[r_idx].values if pd.notna(x)]
+            if any('sector' in v for v in vals) and any('grupo' in v for v in vals) and any('lider' in v or 'líder' in v for v in vals):
+                df_ce_raw.columns = [str(c).strip() for c in df_ce_raw.iloc[r_idx].values]
+                df_ce_raw = df_ce_raw.iloc[r_idx + 1:].reset_index(drop=True)
+                break
+
+        col_sec_id = next((c for c in df_ce_raw.columns if 'cód. sector' in str(c).lower() or 'cod. sector' in str(c).lower() or 'cod sector' in str(c).lower()), None)
+        col_sec_nom = next((c for c in df_ce_raw.columns if str(c).strip().lower() in ['sector', 'nombre sector']), None)
+        col_grp_ce = next((c for c in df_ce_raw.columns if str(c).strip().lower() in ['grupo', 'cód. grupo ce', 'grupo ce']), None)
+        col_cod_ce = next((c for c in df_ce_raw.columns if 'cód. líder' in str(c).lower() or 'cod. lider' in str(c).lower() or 'codigo lider' in str(c).lower()), None)
+        col_nom_ce = next((c for c in df_ce_raw.columns if 'nombre líder' in str(c).lower() or 'nombre lider' in str(c).lower()), None)
+        col_grp_ln_ref = next((c for c in df_ce_raw.columns if 'grupo ln que la' in str(c).lower() or ('grupo' in str(c).lower() and 'refiri' in str(c).lower())), None)
+        col_nom_ln_ref = next((c for c in df_ce_raw.columns if 'nombre ln que la' in str(c).lower() or ('nombre' in str(c).lower() and 'refiri' in str(c).lower())), None)
+        col_act_hoy = next((c for c in df_ce_raw.columns if 'activas consultor' in str(c).lower() and 'anterior' not in str(c).lower()), None)
+        col_act_ant = next((c for c in df_ce_raw.columns if 'activas ciclo anterior' in str(c).lower() or ('activas' in str(c).lower() and 'anterior' in str(c).lower())), None)
+        col_crec_act = next((c for c in df_ce_raw.columns if 'crecimiento activas' in str(c).lower()), None)
+        col_gan_ce = next((c for c in df_ce_raw.columns if 'ganancia consultor' in str(c).lower()), None)
+        col_bono_ce_ref = next((c for c in df_ce_raw.columns if 'ganancia total lnn por ce' in str(c).lower() or 'bono referida' in str(c).lower()), None)
+
+        registros_ce = []
+        sectores_set = set()
+
+        for _, r in df_ce_raw.iterrows():
+            g_ce = str(r.get(col_grp_ce, '')).strip().split('.')[0] if col_grp_ce else ''
+            if not g_ce or g_ce.lower() in ['nan', '-', 'none', '']:
+                continue
+
+            sec_id = str(r.get(col_sec_id, '')).strip().split('.')[0] if col_sec_id else ''
+            sec_nom = str(r.get(col_sec_nom, '')).strip() if col_sec_nom else ''
+            if sec_nom and sec_nom.lower() != 'nan':
+                sectores_set.add(sec_nom)
+            if sec_id and sec_id.lower() != 'nan':
+                sectores_set.add(sec_id)
+
+            cod_ce = str(r.get(col_cod_ce, '')).strip().split('.')[0] if col_cod_ce else ''
+            nom_ce = str(r.get(col_nom_ce, '')).strip() if col_nom_ce else ''
+
+            g_ln_ref = str(r.get(col_grp_ln_ref, '')).strip().split('.')[0] if col_grp_ln_ref else ''
+            if g_ln_ref.lower() in ['nan', 'none']:
+                g_ln_ref = '-'
+
+            nom_ln_ref = str(r.get(col_nom_ln_ref, '')).strip() if col_nom_ln_ref else ''
+            if nom_ln_ref.lower() in ['nan', 'none']:
+                nom_ln_ref = '-'
+
+            act_h = int(round(limpiar_numero(r.get(col_act_hoy, 0), 0))) if col_act_hoy else 0
+            act_a_raw = r.get(col_act_ant, 0)
+            if str(act_a_raw).strip().lower() in ['no aplica', 'nan', '']:
+                act_a_str = "No aplica"
+            else:
+                act_a_str = str(int(round(limpiar_numero(act_a_raw, 0))))
+
+            crec_raw = r.get(col_crec_act, 0)
+            if str(crec_raw).strip().lower() in ['no aplica', 'nan', '']:
+                crec_val = 0
+            else:
+                crec_val = int(round(limpiar_numero(crec_raw, 0)))
+
+            gan_ce_raw = r.get(col_gan_ce, 0)
+            if str(gan_ce_raw).strip().lower() in ['no aplica', 'nan', '']:
+                gan_ce_str = "No aplica"
+            else:
+                num_g = float(limpiar_numero(gan_ce_raw, 0.0))
+                gan_ce_str = f"${num_g:,.0f}".replace(",", ".")
+
+            # Bono Mentora LN
+            bono_mentora_str = "Sin referido"
+            if g_ln_ref in bonos_ln:
+                bono_mentora_str = bonos_ln[g_ln_ref]
+            elif col_bono_ce_ref and pd.notna(r.get(col_bono_ce_ref)):
+                bono_mentora_str = str(r.get(col_bono_ce_ref)).strip()
+
+            if bono_mentora_str.replace('.', '').isdigit():
+                bono_mentora_str = f"${float(bono_mentora_str):,.0f}".replace(",", ".")
+
+            item_ce = {
+                'cod_sector': sec_id,
+                'sector': sec_nom,
+                'grupo_ln_mentora': g_ln_ref,
+                'nombre_ln_mentora': nom_ln_ref,
+                'grupo_ce': g_ce,
+                'cod_ce': cod_ce,
+                'nombre_ce': nom_ce,
+                'activas_hoy': act_h,
+                'activas_ant': act_a_str,
+                'crecimiento_activas': crec_val,
+                'meta_1plus': act_h + 1,
+                'meta_3plus': act_h + 3,
+                'meta_5plus': act_h + 5,
+                'meta_7plus': act_h + 7,
+                'meta_9plus': act_h + 9,
+                'ganancia_ce': gan_ce_str,
+                'bono_mentora_ln': bono_mentora_str
+            }
+            registros_ce.append(item_ce)
+
+        data_guardar = {
+            'fecha_carga': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'total_ce': len(registros_ce),
+            'sectores': sorted(list(sectores_set)),
+            'ce_plus': registros_ce,
+            'bonos_ln': bonos_ln
+        }
+
+        guardar_datos_ganancia_arte(data_guardar)
+
+        if current_user:
+            try:
+                registrar_evento_auditoria(
+                    current_user,
+                    categoria="🎯 Metas",
+                    accion="Carga Informe Ganancia Arte",
+                    detalle=f"Se procesaron {len(registros_ce)} Consultoras Emprende+ (CE+) y {len(bonos_ln)} bonos LN.",
+                    dispositivo="🖥️ PC / Escritorio"
+                )
+            except Exception:
+                pass
+
+        return {
+            'exito': True,
+            'total': len(registros_ce),
+            'sectores': sorted(list(sectores_set)),
+            'data': data_guardar
+        }
+    except Exception as e:
+        return {'exito': False, 'error': f"Error procesando Informe Ganancia Arte: {e}"}
+
+def consultar_ce_plus_df(sector=None, grupo_ln_mentora=None, df_como_vamos=None):
+    """
+    Retorna un DataFrame enriquecido de Consultoras Emprende+ (CE+) filtrado por sector
+    y/o grupo LN mentora, sin la columna de sector y con las metas de crecimiento calculadas.
+    Incluye fallback inteligente con el DataFrame de Cómo Vamos si hay CE+ nuevas de zona.
+    """
+    data = cargar_datos_ganancia_arte()
+    registros = data.get('ce_plus', [])
+    bonos_ln = data.get('bonos_ln', {})
+
+    df_ce = pd.DataFrame(registros) if registros else pd.DataFrame()
+
+    if not df_ce.empty:
+        if sector:
+            sec_clean = str(sector).strip().lower().replace('ó', 'o')
+            mask_sec = df_ce['sector'].astype(str).str.lower().str.replace('ó', 'o').str.contains(sec_clean, na=False) | \
+                       (df_ce['cod_sector'].astype(str).str.strip() == str(sector).strip())
+            df_ce = df_ce[mask_sec].copy()
+
+    # Complementar con CE+ de Cómo Vamos si no estuvieran en el informe (ej. recién creadas en zona)
+    if df_como_vamos is not None and not df_como_vamos.empty:
+        col_grp_cv = next((c for c in df_como_vamos.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'cód. grupo', 'grupo'])), None)
+        col_nom_cv = next((c for c in df_como_vamos.columns if 'nombre' in str(c).lower() and 'consultora' in str(c).lower()), None)
+        col_act_cv = next((c for c in df_como_vamos.columns if str(c).strip().lower() in ['real activas', 'activas']), None)
+        col_tipo_cv = 'Tipo_Red' if 'Tipo_Red' in df_como_vamos.columns else None
+
+        if col_grp_cv and col_tipo_cv:
+            ce_cv = df_como_vamos[df_como_vamos[col_tipo_cv] == '🌱 CE+']
+            grps_existentes = set(df_ce['grupo_ce'].astype(str).str.strip()) if not df_ce.empty else set()
+
+            nuevas_filas = []
+            for _, r_cv in ce_cv.iterrows():
+                g_cv = str(r_cv.get(col_grp_cv, '')).strip().split('.')[0]
+                if g_cv and g_cv not in grps_existentes:
+                    nom_c = str(r_cv.get(col_nom_cv, 'Consultora CE+')).strip()
+                    act_c = int(round(limpiar_numero(r_cv.get(col_act_cv, 0), 0))) if col_act_cv else 0
+                    nuevas_filas.append({
+                        'cod_sector': str(sector or ''),
+                        'sector': str(sector or ''),
+                        'grupo_ln_mentora': '-',
+                        'nombre_ln_mentora': '-',
+                        'grupo_ce': g_cv,
+                        'cod_ce': g_cv,
+                        'nombre_ce': nom_c,
+                        'activas_hoy': act_c,
+                        'activas_ant': 'No aplica',
+                        'crecimiento_activas': 0,
+                        'meta_1plus': act_c + 1,
+                        'meta_3plus': act_c + 3,
+                        'meta_5plus': act_c + 5,
+                        'meta_7plus': act_c + 7,
+                        'meta_9plus': act_c + 9,
+                        'ganancia_ce': 'En curso',
+                        'bono_mentora_ln': 'Sin referido'
+                    })
+            if nuevas_filas:
+                df_nuevas = pd.DataFrame(nuevas_filas)
+                df_ce = pd.concat([df_ce, df_nuevas], ignore_index=True) if not df_ce.empty else df_nuevas
+
+    if df_ce.empty:
+        return pd.DataFrame(columns=[
+            'Cód. Grupo LN', 'Grupo CE+', 'Cód. CE+', 'Consultora Emprende+',
+            'Activas Hoy', 'Activas Ant.', 'Crecimiento Activas',
+            'Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)',
+            'Ganancia CE+', 'Bono Mentora LN'
+        ])
+
+    if grupo_ln_mentora:
+        g_clean = str(grupo_ln_mentora).strip().split('.')[0]
+        df_ce = df_ce[df_ce['grupo_ln_mentora'] == g_clean]
+
+    # Ordenar por Activas Hoy descendente
+    if 'activas_hoy' in df_ce.columns:
+        df_ce = df_ce.sort_values(by='activas_hoy', ascending=False)
+
+    cols_finales = {
+        'grupo_ln_mentora': 'Cód. Grupo LN',
+        'grupo_ce': 'Grupo CE+',
+        'cod_ce': 'Cód. CE+',
+        'nombre_ce': 'Consultora Emprende+',
+        'activas_hoy': 'Activas Hoy',
+        'activas_ant': 'Activas Ant.',
+        'crecimiento_activas': 'Crecimiento Activas',
+        'meta_1plus': 'Meta 1+ (+150k)',
+        'meta_3plus': 'Meta 3+ (+200k)',
+        'meta_5plus': 'Meta 5+ (+300k)',
+        'meta_7plus': 'Meta 7+ (+500k)',
+        'meta_9plus': 'Meta 9+ (+750k)',
+        'ganancia_ce': 'Ganancia CE+',
+        'bono_mentora_ln': 'Bono Mentora LN'
+    }
+
+    cols_disponibles = [c for c in cols_finales.keys() if c in df_ce.columns]
+    df_resultado = df_ce[cols_disponibles].rename(columns=cols_finales).reset_index(drop=True)
+    return df_resultado
+
+def contar_ce_plus_sector(sector=None):
+    """
+    Cuenta el número de registros CE+ almacenados para un sector específico o global.
+    """
+    try:
+        df_ce = consultar_ce_plus_df(sector=sector)
+        return len(df_ce)
+    except Exception:
+        return 0
+
+def eliminar_ce_plus_sector(sector=None):
+    """
+    Elimina los registros CE+ correspondientes a un sector o todos si es None.
+    """
+    try:
+        data = cargar_datos_ganancia_arte()
+        if not data or 'ce_plus' not in data:
+            return True
+        if not sector:
+            data['ce_plus'] = []
+            guardar_datos_ganancia_arte(data)
+            return True
+        sec_clean = str(sector).strip().lower().replace('ó', 'o')
+        data['ce_plus'] = [
+            item for item in data.get('ce_plus', [])
+            if sec_clean not in str(item.get('sector', '')).lower().replace('ó', 'o') and
+               str(item.get('cod_sector', '')).strip() != str(sector).strip()
+        ]
+        guardar_datos_ganancia_arte(data)
+        return True
+    except Exception as e:
+        safe_print(f"Error al eliminar CE+ de sector: {e}")
+        return False
+
 def obtener_metas_efectivas(grupo=None, sector=None, campana=None):
     """
     Retorna las metas efectivas consolidadas combinando:
@@ -5174,7 +5536,7 @@ DEFAULT_PERMISOS_PESTANAS = {
     "tab_resumen": {"nombre": "📊 Resumen & KPIs", "gerente": True, "lider": True, "asesor": False},
     "tab_ganancia": {"nombre": "🧮 Simuladores", "gerente": True, "lider": True, "asesor": False},
     "tab_diagnostico": {"nombre": "👑 Mis Líderes", "gerente": True, "lider": True, "asesor": True},
-    "tab_metas": {"nombre": "🎯 Metas de Crecimiento (Procesador)", "gerente": True, "lider": True, "asesor": False},
+    "tab_metas": {"nombre": "🎯 Metas de Crecimiento (CE+)", "gerente": True, "lider": True, "asesor": False},
     "tab_detalle": {"nombre": "📑 Generador de Informes", "gerente": True, "lider": True, "asesor": False}
 }
 
@@ -5996,6 +6358,14 @@ def obtener_estado_componentes_archivos(sector=None):
             "estado": "🟢 Calibración Activa" if reg_aj > 0 else "⚪ Sin calibración registrada",
             "ultima_op": ult_aj_op,
             "detalle": ult_aj_det
+        },
+        "ganancia_arte": {
+            "nombre": "📈 Informe Ganancia Arte (CE+)",
+            "tipo_dato": "Consultoras Emprende+ (CE+)",
+            "cantidad": contar_ce_plus_sector(sector),
+            "estado": "🟢 Activo" if contar_ce_plus_sector(sector) > 0 else "⚪ Sin datos cargados",
+            "ultima_op": _ultima_accion("Ganancia Arte")[0],
+            "detalle": _ultima_accion("Ganancia Arte")[1]
         }
     }
 

@@ -115,7 +115,12 @@ from procesador import (
     registrar_log_whatsapp,
     consultar_logs_whatsapp_df,
     diagnosticar_error_whatsapp,
-    limpiar_logs_whatsapp
+    limpiar_logs_whatsapp,
+    procesar_archivo_ganancia_arte,
+    cargar_datos_ganancia_arte,
+    consultar_ce_plus_df,
+    contar_ce_plus_sector,
+    eliminar_ce_plus_sector
 )
 
 # 1. Configuración de la página
@@ -2906,7 +2911,56 @@ if puede_subir_archivos:
             else:
                 st.caption("⚪ **Sin ajustes de zona** para este sector.")
 
-        # 6. BITÁCORA RÁPIDA DE ARCHIVOS (LOGS DE AGREGO, ACTUALIZACIÓN Y BORRADO)
+        # 6. INFORME GANANCIA ARTE (MÉTRICAS CE+)
+        with st.sidebar.expander("📈 6. Informe Ganancia Arte (CE+)", expanded=False):
+            st.caption("Sube el archivo `Informe Ganancia Arte.xlsx` para alimentar la pestaña de **Metas de Crecimiento (CE+)**:")
+            file_ganancia_arte_sb = st.file_uploader("Cargar 'Informe Ganancia Arte.xlsx':", type=["xlsx", "xls"], key="sb_uploader_ganancia_arte")
+            if file_ganancia_arte_sb is not None:
+                if st.button("🚀 Procesar Ganancia Arte & CE+", type="primary", use_container_width=True, key="btn_sb_ganancia_arte_proc"):
+                    try:
+                        with st.spinner("Extrayendo métricas de Consultor Emprende+ y bonos LN..."):
+                            res_ga = procesar_archivo_ganancia_arte(file_ganancia_arte_sb, current_user=current_user)
+                            if res_ga.get('exito'):
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="📁 Carga de Datos",
+                                    accion="Carga Informe Ganancia Arte",
+                                    detalle=f"{res_ga.get('total', 0)} CE+ procesadas para {len(res_ga.get('sectores', []))} sectores.",
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                st.cache_data.clear()
+                                st.success(f"✅ ¡Informe Ganancia Arte procesado! ({res_ga.get('total', 0)} CE+)")
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {res_ga.get('error')}")
+                    except Exception as ex_ga:
+                        st.error(f"❌ Error: {ex_ga}")
+
+            ce_actuales = contar_ce_plus_sector(user_sector if user_rol == 'gerente' else None)
+            if ce_actuales > 0:
+                st.caption(f"🟢 **{ce_actuales} CE+ activas** registradas en el sistema.")
+                with st.expander("🗑️ Eliminar datos de Ganancia Arte", expanded=False):
+                    st.warning("Esta acción vaciará las métricas de CE+ para tu sector.")
+                    confirm_borrar_ce = st.text_input("Escribe **BORRAR** para confirmar:", key="conf_borrar_ce_sb")
+                    if st.button("🚨 Confirmar Eliminación CE+", key="btn_conf_borrar_ce_sb", use_container_width=True):
+                        if confirm_borrar_ce.strip().upper() == "BORRAR":
+                            eliminar_ce_plus_sector(user_sector if user_rol == 'gerente' else None)
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="📁 Borrado de Datos",
+                                accion="Eliminación Ganancia Arte CE+",
+                                detalle="Se eliminaron las métricas de CE+ para el sector.",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
+                            st.cache_data.clear()
+                            st.success("✅ Datos de Ganancia Arte eliminados correctamente.")
+                            st.rerun()
+                        else:
+                            st.error("⚠️ Código incorrecto. Debes escribir exactamente la palabra **BORRAR**.")
+            else:
+                st.caption("⚪ **Sin datos de Ganancia Arte** para este sector.")
+
+        # 7. BITÁCORA RÁPIDA DE ARCHIVOS (LOGS DE AGREGO, ACTUALIZACIÓN Y BORRADO)
         with st.sidebar.expander("📜 Bitácora de Archivos (Recientes)", expanded=False):
             st.caption("Últimos movimientos de carga, actualización y borrado en tu sector:")
             sec_log_sb = user_sector if user_rol == 'gerente' else None
@@ -3465,7 +3519,7 @@ if user_rol == 'lider':
         ("tab_resumen", "📊 RESUMEN & KPIS"),
         ("tab_ganancia", "🧮 SIMULADORES"),
         ("tab_diagnostico", "👑 MIS LÍDERES"),
-        ("tab_metas", "🎯 METAS DE CRECIMIENTO (PROCESADOR)"),
+        ("tab_metas", "🎯 METAS DE CRECIMIENTO (CE+)"),
         ("tab_detalle", "📑 GENERADOR DE INFORMES"),
     ]
 else:
@@ -3475,7 +3529,7 @@ else:
         ("tab_resumen", "📊 RESUMEN & KPIS"),
         ("tab_ganancia", "🧮 SIMULADORES"),
         ("tab_diagnostico", "👑 MIS LÍDERES"),
-        ("tab_metas", "🎯 METAS DE CRECIMIENTO (PROCESADOR)"),
+        ("tab_metas", "🎯 METAS DE CRECIMIENTO (CE+)"),
         ("tab_detalle", "📑 GENERADOR DE INFORMES"),
     ]
 
@@ -7767,110 +7821,176 @@ if tab_diagnostico is not None:
                 st.markdown(f"<br><a href='{url_wa}' target='_blank' style='text-decoration:none;'><button style='background-color:#25D366; color:white; border:none; padding:14px 20px; font-size:16px; font-weight:bold; border-radius:8px; cursor:pointer; width:100%;'>📲 Enviar por WhatsApp</button></a>", unsafe_allow_html=True)
 
 
-# --- TAB 3: METAS DE CRECIMIENTO ---
+# --- TAB 3: METAS DE CRECIMIENTO (CE+) ---
 if tab_metas is not None:
     with tab_metas:
-        st.subheader("🎯 Metas de Crecimiento Integradas (Procesador)")
-        st.info("💡 **Reglas de Cálculo**: Las metas representan las activas necesarias para alcanzar cada tramo de incentivo (+1, +3, +5, +7, +9 sobre tus Activas Reales actuales).")
+        st.subheader("🎯 Metas de Crecimiento (CE+) & Acompañamiento LN")
+        st.caption("Visualiza las metas escalonadas (+1, +3, +5, +7, +9), desempeño de activas y bonos de acompañamiento para Consultoras Emprende+ (CE+) vinculadas a sus Líderes Mentoras.")
 
-        cols_metas = [
-            'Nombre de consultora', 'Nombre Setor', 'Real Activas', 'Avance % Facturación', 'Falta para el 100%',
-            'Meta_Crecer_1plus_150k', 'Meta_Crecer_3plus_200k', 'Meta_Crecer_5plus_300k',
-            'Meta_Crecer_7plus_500k', 'Meta_Crecer_9plus_750k'
-        ]
+        # Obtener sector según rol
+        sec_target = user_sector if user_rol in ['gerente', 'lider'] else None
 
-        cols_existentes_metas = [c for c in cols_metas if c in df_filtrado.columns]
+        # Consultar DataFrame de CE+ con datos de Informe Ganancia Arte y Cómo Vamos
+        df_ce_total = consultar_ce_plus_df(sector=sec_target, df_como_vamos=df if 'df' in locals() else None)
 
-        # Ordenar de mayor a menor por Real Activas para mantener consistencia
-        if 'Real Activas' in df_filtrado.columns:
-            df_metas_sorted = df_filtrado.sort_values(by='Real Activas', ascending=False)
+        if df_ce_total.empty:
+            st.info("ℹ️ No hay registros de Consultoras Emprende+ (CE+) para este sector. Puedes cargar el archivo **'Informe Ganancia Arte.xlsx'** en el menú lateral izquierdo para visualizar las metas y ganancias de las CE+.")
         else:
-            df_metas_sorted = df_filtrado
+            # Filtros interactivos
+            if user_rol == 'lider':
+                grp_usr = str(user_grupo).strip().split('.')[0] if user_grupo else ''
+                ce_mias = df_ce_total[df_ce_total['Cód. Grupo LN'] == grp_usr] if 'Cód. Grupo LN' in df_ce_total.columns else pd.DataFrame()
+                tiene_ce = not ce_mias.empty
 
-        df_metas_view = df_metas_sorted[cols_existentes_metas].copy()
+                f_col1, f_col2 = st.columns([2, 2])
+                with f_col1:
+                    if tiene_ce:
+                        ver_solo_mias = st.checkbox("🔍 Ver únicamente mis CE+ acompañadas", value=True, key="chk_ce_solo_mias")
+                    else:
+                        ver_solo_mias = False
+                        st.caption(f"ℹ️ Tu grupo **{grp_usr}** actualmente no tiene CE+ referidas asignadas. Mostrando todas las CE+ de tu sector:")
+                with f_col2:
+                    txt_buscar_ce = st.text_input("🔎 Buscar CE+ (código o nombre):", key="txt_buscar_ce_lider")
 
-        # Formatear números enteros (Real Activas y Tramos de Meta) sin decimales (.000000)
-        cols_enteras = ['Real Activas', 'Meta_Crecer_1plus_150k', 'Meta_Crecer_3plus_200k', 'Meta_Crecer_5plus_300k', 'Meta_Crecer_7plus_500k', 'Meta_Crecer_9plus_750k']
-        for col_e in cols_enteras:
-            if col_e in df_metas_view.columns:
-                df_metas_view[col_e] = df_metas_view[col_e].apply(lambda v: f"{int(limpiar_numero(v, 0))}")
+                df_ce_view = ce_mias.copy() if ver_solo_mias else df_ce_total.copy()
 
-        # Formatear avance % limpiamente
-        def _formato_avance_clean(v):
-            if pd.isna(v):
-                return "N/A"
+                if txt_buscar_ce.strip():
+                    tb = txt_buscar_ce.strip().lower()
+                    m_filtro = False
+                    if 'Consultora Emprende+' in df_ce_view.columns:
+                        m_filtro = m_filtro | df_ce_view['Consultora Emprende+'].astype(str).str.lower().str.contains(tb, na=False)
+                    if 'Cód. CE+' in df_ce_view.columns:
+                        m_filtro = m_filtro | df_ce_view['Cód. CE+'].astype(str).str.lower().str.contains(tb, na=False)
+                    if 'Grupo CE+' in df_ce_view.columns:
+                        m_filtro = m_filtro | df_ce_view['Grupo CE+'].astype(str).str.lower().str.contains(tb, na=False)
+                    df_ce_view = df_ce_view[m_filtro]
+
+            else:
+                # Gerente y Superadmin
+                f_col1, f_col2 = st.columns([2, 2])
+                with f_col1:
+                    mentoras_disponibles = sorted(list(set(
+                        str(x).strip() for x in df_ce_total['Cód. Grupo LN'].unique() 
+                        if str(x).strip() and str(x).strip() not in ['-', 'nan', 'None', '']
+                    )))
+                    opc_mentoras = ["Todas las Líderes Mentoras"] + mentoras_disponibles
+                    sel_mentora = st.selectbox("Filtrar por Cód. Grupo LN (Mentora):", opc_mentoras, key="sel_mentora_ce_adm")
+                with f_col2:
+                    txt_buscar_ce = st.text_input("🔎 Buscar CE+ (código o nombre):", key="txt_buscar_ce_adm")
+
+                df_ce_view = df_ce_total.copy()
+                if sel_mentora != "Todas las Líderes Mentoras":
+                    df_ce_view = df_ce_view[df_ce_view['Cód. Grupo LN'] == sel_mentora]
+
+                if txt_buscar_ce.strip():
+                    tb = txt_buscar_ce.strip().lower()
+                    m_filtro = False
+                    if 'Consultora Emprende+' in df_ce_view.columns:
+                        m_filtro = m_filtro | df_ce_view['Consultora Emprende+'].astype(str).str.lower().str.contains(tb, na=False)
+                    if 'Cód. CE+' in df_ce_view.columns:
+                        m_filtro = m_filtro | df_ce_view['Cód. CE+'].astype(str).str.lower().str.contains(tb, na=False)
+                    if 'Grupo CE+' in df_ce_view.columns:
+                        m_filtro = m_filtro | df_ce_view['Grupo CE+'].astype(str).str.lower().str.contains(tb, na=False)
+                    df_ce_view = df_ce_view[m_filtro]
+
+            # Tarjetas KPIs
+            tot_ce = len(df_ce_view)
+            tot_act = sum(int(limpiar_numero(x, 0)) for x in df_ce_view['Activas Hoy']) if 'Activas Hoy' in df_ce_view.columns else 0
+            tot_crec = sum(int(limpiar_numero(x, 0)) for x in df_ce_view['Crecimiento Activas']) if 'Crecimiento Activas' in df_ce_view.columns else 0
+            tot_gan_ce = sum(float(limpiar_numero(x, 0.0)) for x in df_ce_view['Ganancia CE+']) if 'Ganancia CE+' in df_ce_view.columns else 0.0
+            tot_bono_ln = sum(float(limpiar_numero(x, 0.0)) for x in df_ce_view['Bono Mentora LN']) if 'Bono Mentora LN' in df_ce_view.columns else 0.0
+
+            kc1, kc2, kc3, kc4, kc5 = st.columns(5)
+            with kc1:
+                st.metric("🌱 TOTAL CE+", f"{tot_ce}")
+            with kc2:
+                st.metric("⚡ ACTIVAS HOY CE+", f"{tot_act}")
+            with kc3:
+                st.metric(
+                    "📈 CRECIMIENTO NETO", 
+                    f"{'+' if tot_crec > 0 else ''}{tot_crec}",
+                    delta=f"{tot_crec} activas" if tot_crec != 0 else None,
+                    delta_color="normal"
+                )
+            with kc4:
+                st.metric("💵 GANANCIAS CE+", formato_cop(tot_gan_ce))
+            with kc5:
+                st.metric("🎁 BONOS MENTORAS LN", formato_cop(tot_bono_ln))
+
+            st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
+
+            # Preparar tabla final con las columnas requeridas (sin nombre de líder ni sector)
+            cols_deseadas = [
+                'Cód. Grupo LN', 'Grupo CE+', 'Cód. CE+', 'Consultora Emprende+',
+                'Activas Hoy', 'Activas Ant.', 'Crecimiento Activas',
+                'Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)',
+                'Ganancia CE+', 'Bono Mentora LN'
+            ]
+            cols_presentes = [c for c in cols_deseadas if c in df_ce_view.columns]
+            df_render = df_ce_view[cols_presentes].copy()
+
+            # Formatear números enteros limpios
+            cols_int_ce = ['Activas Hoy', 'Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)']
+            for c_int in cols_int_ce:
+                if c_int in df_render.columns:
+                    df_render[c_int] = df_render[c_int].apply(lambda v: f"{int(limpiar_numero(v, 0))}")
+
+            # Formatear Crecimiento Activas con signo (+/-)
+            if 'Crecimiento Activas' in df_render.columns:
+                def _formato_crec_signo(v):
+                    n = int(limpiar_numero(v, 0))
+                    return f"{'+' if n > 0 else ''}{n}"
+                df_render['Crecimiento Activas'] = df_render['Crecimiento Activas'].apply(_formato_crec_signo)
+
+            # Estilo condicional
+            def _estilo_crec_ce(val_str):
+                try:
+                    num = int(str(val_str).replace('+', '').strip())
+                    if num > 0:
+                        return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
+                    elif num == 0:
+                        return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
+                    else:
+                        return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
+                except Exception:
+                    return ''
+
+            def _estilo_tramos_ce(val):
+                return 'background-color: #e0f2fe; color: #0369a1; font-weight: bold;'
+
+            styler_ce = df_render.style
+            if 'Crecimiento Activas' in df_render.columns:
+                if hasattr(styler_ce, 'map'):
+                    styler_ce = styler_ce.map(_estilo_crec_ce, subset=['Crecimiento Activas'])
+                elif hasattr(styler_ce, 'applymap'):
+                    styler_ce = styler_ce.applymap(_estilo_crec_ce, subset=['Crecimiento Activas'])
+
+            tramos_ce_presentes = [c for c in ['Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)'] if c in df_render.columns]
+            if tramos_ce_presentes:
+                if hasattr(styler_ce, 'map'):
+                    styler_ce = styler_ce.map(_estilo_tramos_ce, subset=tramos_ce_presentes)
+                elif hasattr(styler_ce, 'applymap'):
+                    styler_ce = styler_ce.applymap(_estilo_tramos_ce, subset=tramos_ce_presentes)
+
+            st.dataframe(styler_ce, use_container_width=True, hide_index=True)
+
+            # Botón de Descarga en Excel
             try:
-                num = float(v)
-                if abs(num) > 1.5:
-                    return f"{num:+.2f}%"
-                else:
-                    return f"{num * 100.0:+.2f}%"
-            except Exception:
-                return str(v)
+                output_ce = io.BytesIO()
+                with pd.ExcelWriter(output_ce, engine='openpyxl') as writer:
+                    df_ce_view.to_excel(writer, index=False, sheet_name='Metas_CE_Plus')
+                excel_data_ce = output_ce.getvalue()
 
-        if 'Avance % Facturación' in df_metas_view.columns:
-            df_metas_view['Avance % Facturación'] = df_metas_view['Avance % Facturación'].apply(_formato_avance_clean)
-
-        if 'Falta para el 100%' in df_metas_view.columns:
-            df_metas_view['Falta para el 100%'] = df_metas_view['Falta para el 100%'].apply(formato_cop_signo)
-
-        df_metas_renamed = df_metas_view.rename(columns={
-            'Meta_Crecer_1plus_150k': 'Meta 1+ (+150k)',
-            'Meta_Crecer_3plus_200k': 'Meta 3+ (+200k)',
-            'Meta_Crecer_5plus_300k': 'Meta 5+ (+300k)',
-            'Meta_Crecer_7plus_500k': 'Meta 7+ (+500k)',
-            'Meta_Crecer_9plus_750k': 'Meta 9+ (+750k)',
-            'Avance % Facturación': 'Avance % vs Ant.'
-        })
-
-        # Funciones de estilo condicional para Metas de Crecimiento
-        def _estilo_avance_vs_ant(val_str):
-            try:
-                val_clean = str(val_str).replace('%', '').replace('+', '').strip()
-                num = float(val_clean)
-                if num > 0:
-                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
-                elif num == 0:
-                    return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
-                else:
-                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
-            except Exception:
-                return ''
-
-        def _estilo_falta_100_metas(val_str):
-            try:
-                s = str(val_str)
-                if '-' in s or '$0' in s:
-                    return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
-                else:
-                    return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
-            except Exception:
-                return ''
-
-        def _estilo_tramos_meta(val):
-            return 'background-color: #e0f2fe; color: #0369a1; font-weight: bold;'
-
-        styler_metas = df_metas_renamed.style
-        if 'Avance % vs Ant.' in df_metas_renamed.columns:
-            if hasattr(styler_metas, 'map'):
-                styler_metas = styler_metas.map(_estilo_avance_vs_ant, subset=['Avance % vs Ant.'])
-            elif hasattr(styler_metas, 'applymap'):
-                styler_metas = styler_metas.applymap(_estilo_avance_vs_ant, subset=['Avance % vs Ant.'])
-
-        if 'Falta para el 100%' in df_metas_renamed.columns:
-            if hasattr(styler_metas, 'map'):
-                styler_metas = styler_metas.map(_estilo_falta_100_metas, subset=['Falta para el 100%'])
-            elif hasattr(styler_metas, 'applymap'):
-                styler_metas = styler_metas.applymap(_estilo_falta_100_metas, subset=['Falta para el 100%'])
-
-        tramos_presentes = [c for c in ['Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)'] if c in df_metas_renamed.columns]
-        if tramos_presentes:
-            if hasattr(styler_metas, 'map'):
-                styler_metas = styler_metas.map(_estilo_tramos_meta, subset=tramos_presentes)
-            elif hasattr(styler_metas, 'applymap'):
-                styler_metas = styler_metas.applymap(_estilo_tramos_meta, subset=tramos_presentes)
-
-        st.dataframe(styler_metas, use_container_width=True, hide_index=True)
+                st.download_button(
+                    label="📥 Descargar Metas CE+ en Excel (.xlsx)",
+                    data=excel_data_ce,
+                    file_name=f"Metas_Crecimiento_CE_Plus_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True,
+                    key="btn_descarga_metas_ce"
+                )
+            except Exception as e_desc:
+                safe_print(f"Nota descarga excel CE+: {e_desc}")
 
 # --- TAB 4: GENERADOR DE INFORMES PERSONALIZADOS ---
 if tab_detalle is not None:
