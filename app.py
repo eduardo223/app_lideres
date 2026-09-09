@@ -6906,15 +6906,27 @@ if tab_diagnostico is not None:
         if df_diag.empty:
             st.info("ℹ️ No hay datos de 'Cómo Vamos' cargados para mostrar las tablas dinámicas de diagnóstico. Sube un archivo desde 'Rotación de Ciclo' para comenzar.")
         else:
-            # Clasificación: Emprendedoras (Desafío <= 0) vs Líderes (Desafío > 0)
-            if 'Tipo_Red' not in df_diag.columns:
-                col_obj_fact_chk = 'Objetivo Facturación' if 'Objetivo Facturación' in df_diag.columns else None
-                if col_obj_fact_chk:
-                    df_diag['Tipo_Red'] = df_diag[col_obj_fact_chk].apply(
-                        lambda v: '👑 LN' if limpiar_numero(v, 0.0) > 0 else '🌱 CE+'
-                    )
-                else:
-                    df_diag['Tipo_Red'] = '👑 LN'
+            # Clasificación Oficial Estratégica:
+            # Los grupos registrados en Objetivos Arte Corporativo (Papá) son 👑 LN
+            # Los grupos que NO están en Objetivos Arte (células, semilleros, zona) son 🌱 CE+
+            try:
+                arte_papa_dict = cargar_objetivos_arte()
+                grps_oficiales_arte = set(str(k).strip() for k in arte_papa_dict.get('por_grupo', {}).keys())
+            except Exception:
+                grps_oficiales_arte = set()
+
+            col_grp_diag_tipo = next((c for c in df_diag.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'cód. grupo', 'cod grupo', 'grupo'])), None)
+
+            def _resolver_tipo_red_app(row):
+                g = str(row.get(col_grp_diag_tipo, '')).strip().split('.')[0] if col_grp_diag_tipo else ''
+                if grps_oficiales_arte:
+                    return '👑 LN' if g in grps_oficiales_arte else '🌱 CE+'
+                col_obj_f = 'Objetivo Facturación' if 'Objetivo Facturación' in row else None
+                if col_obj_f:
+                    return '👑 LN' if limpiar_numero(row.get(col_obj_f, 0.0), 0.0) >= 25000000.0 else '🌱 CE+'
+                return '👑 LN'
+
+            df_diag['Tipo_Red'] = df_diag.apply(_resolver_tipo_red_app, axis=1)
 
             count_tot = len(df_diag)
             count_lideres = int((df_diag['Tipo_Red'] == '👑 LN').sum())
@@ -6934,7 +6946,7 @@ if tab_diagnostico is not None:
                     key="filtro_segmento_red_diagnostico"
                 )
             with col_f2:
-                st.caption("💡 **Criterio de Clasificación:**\n* **👑 LN:** Desafío/Meta Facturación > $0 (filtro activo por defecto)\n* **🌱 CE+:** Desafío/Meta Facturación = $0 o menor")
+                st.caption("💡 **Criterio de Clasificación:**\n* **👑 LN:** Líder de Negocio Oficial (Registrada en Objetivos Arte Corporativo)\n* **🌱 CE+:** Consultora Emprendedora / Célula (Calibrada en Desafíos de Zona)")
 
             if "👑 Solo Mis LN" in filtro_segmento or "👑 LN" in filtro_segmento or "👑 Solo Mis Líderes" in filtro_segmento:
                 df_diag = df_diag[df_diag['Tipo_Red'] == '👑 LN'].copy()

@@ -258,14 +258,22 @@ def calcular_metas_ciclo(origen=None):
         col_cv_obj_act = next((c for c in df.columns if 'objetivo' in str(c).lower() and 'activa' in str(c).lower()), None)
         col_cv_real_act = next((c for c in df.columns if 'real' in str(c).lower() and 'activa' in str(c).lower()), None)
 
-        # 1. Blindar clasificación de Tipo_Red antes de tocar metas de desafíos
-        if 'Tipo_Red' not in df.columns:
+        # 1. Clasificación Oficial Estratégica:
+        # Los grupos registrados en Objetivos Arte Corporativo (Papá) son 👑 LN
+        # Los grupos que NO están en Objetivos Arte (células, semilleros, zona) son 🌱 CE+
+        arte_papa_base = cargar_objetivos_arte()
+        grps_oficiales_arte = set(str(k).strip() for k in arte_papa_base.get('por_grupo', {}).keys())
+
+        def _determinar_tipo_red_procesador(row):
+            g = str(row.get(col_cv_grp, '')).strip().split('.')[0] if col_cv_grp else ''
+            if grps_oficiales_arte:
+                return '👑 LN' if g in grps_oficiales_arte else '🌱 CE+'
+            # Fallback seguro si Objetivos Arte aún no se ha cargado
             if col_cv_obj_fact:
-                df['Tipo_Red'] = df[col_cv_obj_fact].apply(
-                    lambda v: '👑 LN' if limpiar_numero(v, 0.0) > 0 else '🌱 CE+'
-                )
-            else:
-                df['Tipo_Red'] = '👑 LN'
+                return '👑 LN' if limpiar_numero(row.get(col_cv_obj_fact, 0.0), 0.0) >= 25000000.0 else '🌱 CE+'
+            return '👑 LN'
+
+        df['Tipo_Red'] = df.apply(_determinar_tipo_red_procesador, axis=1)
 
         def _obtener_meta_ini(row):
             g = str(row.get(col_cv_grp, '')).strip().split('.')[0] if col_cv_grp else ''
