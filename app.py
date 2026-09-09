@@ -111,7 +111,11 @@ from procesador import (
     contar_registros_sector_tableau,
     eliminar_tableau_sector,
     consultar_logs_archivos_df,
-    obtener_estado_componentes_archivos
+    obtener_estado_componentes_archivos,
+    registrar_log_whatsapp,
+    consultar_logs_whatsapp_df,
+    diagnosticar_error_whatsapp,
+    limpiar_logs_whatsapp
 )
 
 # 1. Configuración de la página
@@ -235,6 +239,28 @@ def cached_consultar_geral_sql(grupo=None, sector=None):
 def cached_consultar_tableau_sql(grupo=None, sector=None):
     return consultar_tableau_sql(grupo=grupo, sector=sector)
 
+@st.cache_data(ttl=20, show_spinner=False)
+def verificar_conexion_evolution(evo_url, evo_token, evo_instance):
+    """
+    Verifica de forma rápida y con caché si la instancia de WhatsApp
+    de la Líder o Gerente está conectada ('open') en Evolution API.
+    """
+    if not evo_url or not evo_token or not evo_instance:
+        return False
+    try:
+        import requests
+        clean_base = str(evo_url).strip().rstrip('/')
+        clean_inst = str(evo_instance).strip()
+        headers_evo = {"apikey": str(evo_token).strip()}
+        res = requests.get(f"{clean_base}/instance/connectionState/{clean_inst}", headers=headers_evo, timeout=2.5)
+        if res.status_code == 200:
+            data = res.json()
+            curr_state = data.get('instance', {}).get('state', '') or data.get('state', '')
+            return str(curr_state).strip().lower() == 'open'
+    except Exception:
+        pass
+    return False
+
 def obtener_instancia_evolution(current_user, user_rol, user_grupo):
     """
     Genera un identificador de instancia limpio y válido para Evolution API:
@@ -271,6 +297,110 @@ def obtener_instancia_evolution(current_user, user_rol, user_grupo):
         u_str = str(current_user or 'gerente').strip().lower().split('@')[0].replace('.', '_')
         u_clean = "".join(c for c in u_str if c.isalnum() or c == '_')
         return f"gerente_{u_clean}" if u_clean else "gerente"
+
+def renderizar_visor_logs_whatsapp(user_rol, user_sector, user_grupo=None, modulo_default="Todos", key_suffix="gen"):
+    """
+    Componente visual avanzado para rastrear, auditar y diagnosticar envíos de WhatsApp masivos.
+    Muestra KPIs, diagnóstico en tiempo real de fallos (ej. 404 instancia inexistente, sesión cerrada),
+    filtros dinámicos y tabla interactiva con descarga a Excel.
+    """
+    st.markdown("##### 📜 Bitácora & Diagnóstico de Envíos WhatsApp en Vivo")
+    st.caption("Rastrea en tiempo real el estado de cada mensaje enviado a través de WhatsApp, detectando causas de no entrega y novedades del servidor.")
+
+    col_f1, col_f2, col_f3, col_f4 = st.columns([1.5, 1.3, 1.2, 1.0])
+    with col_f1:
+        opciones_mod = ["Todos", "Cartera Gera", "Cartera Gera (Prueba)", "Tableau Campaña", "Tableau Flyer", "Cumpleaños"]
+        idx_mod = opciones_mod.index(modulo_default) if modulo_default in opciones_mod else 0
+        f_modulo = st.selectbox("Módulo:", opciones_mod, index=idx_mod, key=f"sel_mod_log_wa_{key_suffix}")
+    with col_f2:
+        f_estado = st.selectbox("Estado:", ["Todos", "EXITOSO", "FALLIDO"], key=f"sel_est_log_wa_{key_suffix}")
+    with col_f3:
+        f_limite = st.selectbox("Cantidad:", [50, 100, 200, 500], index=1, key=f"sel_lim_log_wa_{key_suffix}")
+    with col_f4:
+        st.write("")
+        st.write("")
+        btn_refresh = st.button("🔄 Refrescar", key=f"btn_ref_log_wa_{key_suffix}", use_container_width=True)
+
+    # Filtrar por grupo si es líder; si es gerente/superadmin ve el sector completo
+    filtro_grp = str(user_grupo) if (user_rol == 'lider' and user_grupo) else None
+    filtro_sec = user_sector if user_rol in ['lider', 'gerente'] else None
+
+    df_logs = consultar_logs_whatsapp_df(
+        filtro_modulo=None if f_modulo == "Todos" else f_modulo,
+        filtro_estado=None if f_estado == "Todos" else f_estado,
+        filtro_sector=filtro_sec,
+        filtro_grupo=filtro_grp,
+        limite=f_limite
+    )
+
+    if not df_logs.empty:
+        # Métricas principales
+        tot_env = len(df_logs)
+        exitos = len(df_logs[df_logs['estado'] == 'EXITOSO'])
+        fallidos = len(df_logs[df_logs['estado'] == 'FALLIDO'])
+        tasa_exito = (exitos / tot_env * 100) if tot_env > 0 else 0
+
+        k1, k2, k3 = st.columns(3)
+        k1.metric("Total Intentos", f"{tot_env:,}".replace(",", "."))
+        k2.metric("Entregados con Éxito", f"{exitos:,}".replace(",", "."), f"{tasa_exito:.1f}% Éxito")
+        k3.metric("Fallidos / Con Novedad", f"{fallidos:,}".replace(",", "."), delta=f"-{fallidos}" if fallidos > 0 else "0", delta_color="inverse")
+
+        # Alerta Diagnóstica destacada si hay mensajes fallidos
+        if fallidos > 0:
+            df_fallidos = df_logs[df_logs['estado'] == 'FALLIDO']
+            if 'diagnostico' in df_fallidos.columns:
+                diag_frecuentes = df_fallidos['diagnostico'].value_counts()
+                principal_diag = diag_frecuentes.index[0] if not diag_frecuentes.empty else "Novedades en servidor"
+                cant_diag = diag_frecuentes.iloc[0] if not diag_frecuentes.empty else fallidos
+            else:
+                principal_diag = "Novedad en servidor"
+                cant_diag = fallidos
+
+            st.warning(f"⚠️ **Atención: Hay {fallidos} mensaje(s) no entregado(s) recientemente.**\n\n"
+                       f"🔍 **Causa Principal Detectada ({cant_diag} veces):** {principal_diag}\n\n"
+                       f"💡 **Recomendación:** Revisa la columna *Diagnóstico / Solución* en la tabla para la acción correctiva.")
+
+        # Formatear DataFrame para presentación limpia
+        df_display = df_logs.copy()
+        df_display['estado_visual'] = df_display['estado'].apply(lambda e: "🟢 Exitoso" if str(e).upper() == "EXITOSO" else "🔴 Fallido")
+
+        cols_mostrar = ['fecha_hora', 'modulo', 'destinatario_nombre', 'telefono', 'estado_visual', 'diagnostico', 'http_codigo', 'remitente', 'instancia_evo']
+        nombres_cols = {
+            'fecha_hora': 'Fecha/Hora',
+            'modulo': 'Módulo',
+            'destinatario_nombre': 'Destinataria',
+            'telefono': 'Celular',
+            'estado_visual': 'Estado',
+            'diagnostico': 'Diagnóstico / Solución',
+            'http_codigo': 'HTTP',
+            'remitente': 'Enviado Por',
+            'instancia_evo': 'Instancia'
+        }
+
+        cols_exist = [c for c in cols_mostrar if c in df_display.columns]
+        df_show = df_display[cols_exist].rename(columns=nombres_cols)
+
+        st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+        # Botón de descarga
+        col_d1, col_d2 = st.columns([2, 1])
+        with col_d1:
+            csv_data = df_logs.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Descargar Reporte de Auditoría WhatsApp (CSV / Excel)",
+                data=csv_data,
+                file_name=f"Auditoria_WhatsApp_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                key=f"btn_descarga_log_wa_{key_suffix}",
+                use_container_width=True
+            )
+        with col_d2:
+            if user_rol in ['gerente', 'superadmin']:
+                if st.button("🧹 Purgar Logs Antiguos (>30d)", key=f"btn_clean_wa_{key_suffix}", use_container_width=True):
+                    limpiar_logs_whatsapp(dias_antiguedad=30)
+                    st.success("Bitácora optimizada correctamente.")
+    else:
+        st.info("ℹ️ No hay registros de envíos de WhatsApp que coincidan con los filtros seleccionados. Realiza una prueba o envío masivo para comenzar a rastrear novedades.")
 
 
 # Estilos CSS personalizados para mejorar el diseño estético
@@ -1008,6 +1138,30 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
     """, unsafe_allow_html=True)
 
     with st.expander(titulo_expander, expanded=False):
+        # 1. Chequeo de conexión y vinculación automática de WhatsApp (Evolution API)
+        evo_url_c = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+        evo_tok_c = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+        cur_u = st.session_state.get('user') or {}
+        inst_def_c = obtener_instancia_evolution(cur_u, user_rol, user_grupo)
+        if 'in_evo_instance' in st.session_state:
+            val_inst_prev = str(st.session_state['in_evo_instance'])
+            if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
+                st.session_state['in_evo_instance'] = inst_def_c
+        instancia_evo = st.session_state.get('in_evo_instance', inst_def_c)
+        if '{' in str(instancia_evo) or 'password_hash' in str(instancia_evo):
+            instancia_evo = inst_def_c
+            st.session_state['in_evo_instance'] = inst_def_c
+
+        # Detección en tiempo real en Evolution API (estado 'open')
+        conexion_api_activa = verificar_conexion_evolution(evo_url_c, evo_tok_c, instancia_evo)
+
+        # Soporte para alternar y probar en entorno local mediante sesión
+        modo_vinculado_manual = st.session_state.get(f"manual_vinculado_evo_{key_suffix}_{instancia_evo}", None)
+        if modo_vinculado_manual is not None:
+            esta_vinculado_evo = bool(modo_vinculado_manual)
+        else:
+            esta_vinculado_evo = bool(conexion_api_activa)
+
         tab_c_hoy, tab_c_sem, tab_c_mes, tab_c_edit = st.tabs([
             f"🎈 Hoy ({len(hoy_list)})",
             f"📅 Próximos 7 Días ({len(semana_list)})",
@@ -1045,15 +1199,17 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
 </div>
 """, unsafe_allow_html=True)
                     
-                    # Botón nativo de WhatsApp 1-clic directo
-                    if item.get('link_wa'):
-                        st.link_button(
-                            f"📲 Felicitar a {item['primer_nombre']} por WhatsApp",
-                            url=item['link_wa'],
-                            use_container_width=True
-                        )
-                    else:
-                        st.caption("📵 *Sin número de celular registrado*")
+                    # Botón nativo de WhatsApp 1-clic directo:
+                    # Se QUITA si la líder o gerente ya tiene vinculado el masivo / automático
+                    if not esta_vinculado_evo:
+                        if item.get('link_wa'):
+                            st.link_button(
+                                f"📲 Felicitar a {item['primer_nombre']} por WhatsApp",
+                                url=item['link_wa'],
+                                use_container_width=True
+                            )
+                        else:
+                            st.caption("📵 *Sin número de celular registrado*")
                     st.write("")
             
             if total_items > 25:
@@ -1064,33 +1220,39 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                 return
 
             import requests
-            evo_url_c = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
-            evo_tok_c = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
-            cur_u = st.session_state.get('user') or {}
-            inst_def_c = obtener_instancia_evolution(cur_u, user_rol, user_grupo)
-            if 'in_evo_instance' in st.session_state:
-                val_inst_prev = str(st.session_state['in_evo_instance'])
-                if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
-                    st.session_state['in_evo_instance'] = inst_def_c
-            instancia_evo = st.session_state.get('in_evo_instance', inst_def_c)
-            if '{' in str(instancia_evo) or 'password_hash' in str(instancia_evo):
-                instancia_evo = inst_def_c
-                st.session_state['in_evo_instance'] = inst_def_c
 
-            with st.expander(f"🔌 Envío Automático por Evolution API ({len(lista_cumple)} Cumpleañeras de {label_periodo})", expanded=True if label_periodo == "Hoy" else False):
+            with st.expander(f"🔌 Envío Automático por Evolution API ({len(lista_cumple)} Cumpleañeras de {label_periodo})", expanded=True if (label_periodo == "Hoy" and esta_vinculado_evo) else (True if label_periodo == "Hoy" else False)):
                 st.markdown(f"##### 🚀 Felicitar Automáticamente por WhatsApp ({label_periodo}):")
                 st.caption("Envía el saludo de cumpleaños personalizado a todas las consultoras con un solo clic usando tu WhatsApp vinculado.")
 
-                col_c_info1, col_c_info2 = st.columns([1.8, 1.2])
+                col_c_info1, col_c_info2 = st.columns([1.7, 1.3])
                 with col_c_info1:
-                    st.markdown(f"""
-                    <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
-                        📡 WhatsApp Conectado: <strong style="color: #25D366;">{instancia_evo}</strong> (Rol: <em>{user_rol.title()}</em>)<br>
-                        🌐 Servidor API: <code>{evo_url_c}</code>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    if esta_vinculado_evo:
+                        st.markdown(f"""
+                        <div style="background: rgba(37, 211, 102, 0.12); border: 1px solid rgba(37, 211, 102, 0.45); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
+                            🟢 <strong>WhatsApp Conectado & Vinculado</strong>: <strong style="color: #25D366;">{instancia_evo}</strong> (Rol: <em>{user_rol.title()}</em>)<br>
+                            <span style="color: #A7F3D0; font-size: 0.80rem;">✨ Envío automático activo: los botones individuales en las tarjetas se encuentran ocultos.</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style="background: rgba(245, 158, 11, 0.10); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
+                            🟡 <strong>WhatsApp No Vinculado</strong>: Instancia <code>{instancia_evo}</code><br>
+                            <span style="color: #FCD34D; font-size: 0.80rem;">📲 Se muestran los botones individuales de WhatsApp en cada tarjeta para envío manual.</span>
+                        </div>
+                        """, unsafe_allow_html=True)
                 with col_c_info2:
                     delay_c_wa = st.slider("⏱️ Pausa anti-ban (seg):", min_value=1, max_value=8, value=3, key=f"slider_delay_{key_pfx}_{key_suffix}")
+                    # Casilla para pruebas locales y previsualización
+                    sim_val = st.checkbox(
+                        "🧪 Simular WhatsApp Vinculado (Prueba Local)",
+                        value=esta_vinculado_evo,
+                        key=f"chk_sim_vinculado_{key_pfx}_{key_suffix}",
+                        help="Marca o desmarca esta casilla para probar localmente cómo se oculta o muestra el botón de felicitación en las tarjetas."
+                    )
+                    if sim_val != esta_vinculado_evo:
+                        st.session_state[f"manual_vinculado_evo_{key_suffix}_{instancia_evo}"] = sim_val
+                        st.rerun()
 
                 # Selección de destinatarias (todas por defecto)
                 mapa_dest_c = {str(it['codigo_cb']): f"🌸 {it['nombre']} ({it['nivel']}) — Cel: {it['celular'] if it['celular'] else 'Sin cel'}" for it in lista_cumple}
@@ -1137,6 +1299,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                     for i_c, it_c in enumerate(items_a_enviar):
                         c_num = str(it_c.get('celular', '')).strip()
                         c_nom = str(it_c.get('nombre', '')).strip()
+                        c_cb = str(it_c.get('codigo_cb', '')).strip()
                         msg_body = it_c.get('msg_wa', '')
 
                         if c_num and len(c_num) >= 10 and c_num.lower() not in ['sin celular', 'nan', 'none']:
@@ -1152,12 +1315,36 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                                 res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
                                 if res_t.status_code in [200, 201]:
                                     ok_c += 1
+                                    registrar_log_whatsapp(
+                                        modulo="Cumpleaños", destinatario_nombre=c_nom, telefono=c_clean, estado="EXITOSO",
+                                        http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=cur_u,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=instancia_evo,
+                                        destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                    )
                                 else:
                                     err_c += 1
-                            except Exception:
+                                    registrar_log_whatsapp(
+                                        modulo="Cumpleaños", destinatario_nombre=c_nom, telefono=c_clean, estado="FALLIDO",
+                                        http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=cur_u,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=instancia_evo,
+                                        destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                    )
+                            except Exception as ex_c:
                                 err_c += 1
+                                registrar_log_whatsapp(
+                                    modulo="Cumpleaños", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                    http_codigo=0, respuesta_servidor=str(ex_c), remitente=cur_u,
+                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=instancia_evo,
+                                    destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                )
                         else:
                             err_c += 1
+                            registrar_log_whatsapp(
+                                modulo="Cumpleaños", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                http_codigo=400, respuesta_servidor="Número celular no válido o menor a 10 dígitos", remitente=cur_u,
+                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=instancia_evo,
+                                destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                            )
 
                         prog_bar_c.progress((i_c + 1) / tot_c)
                         stat_txt_c.caption(f"Enviando felicitación {i_c + 1} de {tot_c}: **{c_nom}** ({c_num})...")
@@ -1168,7 +1355,10 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
 
         with tab_c_hoy:
             if hoy_list:
-                st.success(f"🎂 **¡Hoy tenemos {len(hoy_list)} cumpleañera{'s' if len(hoy_list) > 1 else ''} en tu equipo!** Puedes felicitarlas automáticamente por la API o con el botón individual de cada tarjeta:")
+                if esta_vinculado_evo:
+                    st.success(f"🎂 **¡Hoy tenemos {len(hoy_list)} cumpleañera{'s' if len(hoy_list) > 1 else ''} en tu equipo!** Tu WhatsApp automático está conectado: felicítalas en 1 clic desde el despachador:")
+                else:
+                    st.success(f"🎂 **¡Hoy tenemos {len(hoy_list)} cumpleañera{'s' if len(hoy_list) > 1 else ''} en tu equipo!** Puedes felicitarlas con el botón individual de cada tarjeta o con el despachador automático:")
                 _render_despachador_cumple_evolution(hoy_list, label_periodo="Hoy", key_pfx="hoy")
                 st.markdown("<br>", unsafe_allow_html=True)
                 _render_cards_cumple(hoy_list, es_hoy=True)
@@ -1204,15 +1394,18 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                     }
                     for it in mes_list
                 ])
+                cols_mostrar_mes = ['Día', 'Consultora', 'Nivel', 'Grupo', 'Código CB', 'Celular', 'Situación']
+                if not esta_vinculado_evo:
+                    cols_mostrar_mes.append('Enlace WhatsApp')
                 st.dataframe(
-                    df_mes_vista,
+                    df_mes_vista[cols_mostrar_mes],
                     column_config={
                         "Enlace WhatsApp": st.column_config.LinkColumn(
                             "📲 Chat WhatsApp",
                             help="Clic para abrir WhatsApp con el mensaje de cumpleaños",
                             display_text="📲 Enviar WA"
                         )
-                    },
+                    } if not esta_vinculado_evo else {},
                     use_container_width=True,
                     hide_index=True
                 )
@@ -4135,23 +4328,53 @@ if tab_tableau is not None:
                                     for i_t, r_ct in enumerate(df_campana_tab_out.iterrows()):
                                         r_ct = r_ct[1]
                                         c_num = str(r_ct['Celular']).strip()
+                                        c_nom = str(r_ct.get('Consultora', '')).strip()
+                                        c_cb = str(r_ct.get('Código CB', '') or r_ct.get('Codigo CB', '')).strip()
+                                        msg_txt = str(r_ct.get('Mensaje Personalizado', ''))
+
                                         if c_num and len(c_num) >= 10:
                                             try:
                                                  c_clean_t = f"57{c_num}" if not c_num.startswith('57') else c_num
                                                  e_url_t = f"{evo_url_tab.strip().rstrip('/')}/message/sendText/{evo_inst_tab.strip()}"
                                                  e_payload_t = {
                                                      "number": c_clean_t,
-                                                     "text": r_ct['Mensaje Personalizado'],
+                                                     "text": msg_txt,
                                                      "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
                                                  }
                                                  e_headers_t = {"apikey": evo_tok_tab.strip(), "Content-Type": "application/json"}
                                                  res_t = requests.post(e_url_t, json=e_payload_t, headers=e_headers_t, timeout=12)
                                                  if res_t.status_code in [200, 201]:
                                                      ok_cnt_tab += 1
+                                                     registrar_log_whatsapp(
+                                                         modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="EXITOSO",
+                                                         http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
+                                                         rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                                         destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                                     )
                                                  else:
                                                      err_cnt_tab += 1
-                                            except Exception:
+                                                     registrar_log_whatsapp(
+                                                         modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="FALLIDO",
+                                                         http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
+                                                         rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                                         destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                                     )
+                                            except Exception as ex_tab:
                                                 err_cnt_tab += 1
+                                                registrar_log_whatsapp(
+                                                    modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                                    http_codigo=0, respuesta_servidor=str(ex_tab), remitente=current_user,
+                                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                                    destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                                )
+                                        else:
+                                            err_cnt_tab += 1
+                                            registrar_log_whatsapp(
+                                                modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                                http_codigo=400, respuesta_servidor="Número celular no válido o menor a 10 dígitos", remitente=current_user,
+                                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                                destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                            )
 
                                         prog_bar_tab.progress((i_t + 1) / len(df_campana_tab_out))
                                         stat_txt_tab.caption(f"Despachando {i_t+1} de {len(df_campana_tab_out)}: {r_ct['Consultora']}...")
@@ -4159,6 +4382,8 @@ if tab_tableau is not None:
                                             time.sleep(delay_tab_wa)
 
                                     st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {ok_cnt_tab} | Fallidos: {err_cnt_tab}")
+                                    with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Tableau Campaña)", expanded=False):
+                                        renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Tableau Campaña", key_suffix="tab_camp")
                         else:
                             st.info("👆 Selecciona al menos una consultora arriba o pulsa un botón de selección rápida para preparar los mensajes.")
                     else:
@@ -5263,6 +5488,7 @@ if tab_tableau is not None:
                                 for i_c, (_, r_dest) in enumerate(df_wa_table.iterrows()):
                                     c_num = str(r_dest['Celular']).strip()
                                     c_nom = str(r_dest['Consultora']).strip()
+                                    c_cb = str(r_dest.get('Código CB', '') or r_dest.get('Codigo CB', '')).strip()
                                     msg_body = r_dest['Mensaje Generado']
 
                                     if c_num and len(c_num) >= 10 and c_num != "Sin registrar":
@@ -5270,6 +5496,8 @@ if tab_tableau is not None:
                                             c_clean = f"57{c_num}" if not c_num.startswith('57') else c_num
                                             e_headers = {"apikey": evo_tok_camp.strip(), "Content-Type": "application/json"}
                                             enviado_ok = False
+                                            last_code = 0
+                                            last_resp = ""
 
                                             # Intento de envío multimedia si hay flyer
                                             if adjuntar_flyer_api and tiene_flyer_camp and 'b64_flyer' in locals():
@@ -5284,9 +5512,12 @@ if tab_tableau is not None:
                                                         "fileName": uploaded_flyer.name
                                                     }
                                                     res_m = requests.post(url_media, json=payload_media, headers=e_headers, timeout=18)
+                                                    last_code = res_m.status_code
+                                                    last_resp = res_m.text
                                                     if res_m.status_code in [200, 201]:
                                                         enviado_ok = True
-                                                except Exception:
+                                                except Exception as ex_m:
+                                                    last_resp = f"Error sendMedia: {ex_m}"
                                                     enviado_ok = False
 
                                             # Si no hay imagen o si sendMedia falló, envío de texto estándar
@@ -5298,17 +5529,43 @@ if tab_tableau is not None:
                                                     "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
                                                 }
                                                 res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
+                                                last_code = res_t.status_code
+                                                last_resp = res_t.text
                                                 if res_t.status_code in [200, 201]:
                                                     enviado_ok = True
 
                                             if enviado_ok:
                                                 ok_cnt_camp += 1
+                                                registrar_log_whatsapp(
+                                                    modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_clean, estado="EXITOSO",
+                                                    http_codigo=last_code, respuesta_servidor=last_resp, remitente=current_user,
+                                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
+                                                    destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                                )
                                             else:
                                                 err_cnt_camp += 1
-                                        except Exception:
+                                                registrar_log_whatsapp(
+                                                    modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_clean, estado="FALLIDO",
+                                                    http_codigo=last_code, respuesta_servidor=last_resp, remitente=current_user,
+                                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
+                                                    destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                                )
+                                        except Exception as ex_fl:
                                             err_cnt_camp += 1
+                                            registrar_log_whatsapp(
+                                                modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                                http_codigo=0, respuesta_servidor=str(ex_fl), remitente=current_user,
+                                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
+                                                destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                            )
                                     else:
                                         err_cnt_camp += 1
+                                        registrar_log_whatsapp(
+                                            modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                            http_codigo=400, respuesta_servidor="Número celular no válido o no registrado", remitente=current_user,
+                                            rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
+                                            destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                        )
 
                                     prog_bar_camp.progress((i_c + 1) / tot_camp_env)
                                     stat_txt_camp.caption(f"Despachando {i_c + 1} de {tot_camp_env}: **{c_nom}** ({c_num})...")
@@ -5316,6 +5573,8 @@ if tab_tableau is not None:
                                         time.sleep(delay_camp_wa)
 
                                 st.success(f"✅ ¡Campaña finalizada con éxito! Mensajes enviados: **{ok_cnt_camp}** | Fallidos o sin celular: **{err_cnt_camp}**")
+                                with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Tableau Flyer)", expanded=False):
+                                    renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Tableau Flyer", key_suffix="tab_flyer")
 
             # --- SUBPESTAÑA 5: CUMPLEAÑOS Y RECONOCIMIENTO ---
             with tab_tab_cumple:
@@ -6057,14 +6316,39 @@ if tab_geral is not None:
                                 else:
                                     t_res = requests.post(t_url, json=t_payload, headers=t_headers, timeout=15)
 
+                                inst_g = st.session_state.get('in_evo_instance', '')
                                 if t_res.status_code in [200, 201]:
                                     st.success(f"✅ ¡Mensaje de prueba enviado con éxito a {test_phone}! Revisa tu WhatsApp en tu celular.")
+                                    registrar_log_whatsapp(
+                                        modulo="Cartera Gera (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="EXITOSO",
+                                        http_codigo=t_res.status_code, respuesta_servidor=t_res.text, remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                                        destinatario_cb="", mensaje_snippet=msg_test_body[:100]
+                                    )
                                 elif "Connection Closed" in t_res.text or "not connected" in t_res.text.lower():
                                     st.warning("⚠️ Tu WhatsApp aún no está vinculado a la instancia. Haz clic arriba en '🔄 Verificar Conexión / QR' y escanea el código QR con tu celular.")
+                                    registrar_log_whatsapp(
+                                        modulo="Cartera Gera (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="FALLIDO",
+                                        http_codigo=t_res.status_code, respuesta_servidor=t_res.text, remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                                        destinatario_cb="", mensaje_snippet=msg_test_body[:100]
+                                    )
                                 else:
                                     st.error(f"❌ Error al enviar prueba (Código {t_res.status_code}): {t_res.text}")
+                                    registrar_log_whatsapp(
+                                        modulo="Cartera Gera (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="FALLIDO",
+                                        http_codigo=t_res.status_code, respuesta_servidor=t_res.text, remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                                        destinatario_cb="", mensaje_snippet=msg_test_body[:100]
+                                    )
                             except Exception as ex_t:
                                 st.error(f"❌ Fallo de conexión: {ex_t}")
+                                registrar_log_whatsapp(
+                                    modulo="Cartera Gera (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="FALLIDO",
+                                    http_codigo=0, respuesta_servidor=str(ex_t), remitente=current_user,
+                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=st.session_state.get('in_evo_instance', ''),
+                                    destinatario_cb="", mensaje_snippet=msg_test_body[:100]
+                                )
 
                     st.markdown("---")
 
@@ -6084,9 +6368,14 @@ if tab_geral is not None:
                             for i, r_c in enumerate(df_campana_out.iterrows()):
                                 r_c = r_c[1]
                                 cel_num = str(r_c['Celular']).strip()
+                                c_nom = str(r_c.get('Consultora', '')).strip()
+                                c_cb = str(r_c.get('Código CB', '') or r_c.get('Codigo CB', '')).strip()
+                                msg_custom = str(r_c.get('Mensaje Personalizado', ''))
+                                inst_g = st.session_state.get('in_evo_instance', '')
+
                                 if cel_num and len(cel_num) >= 10:
                                     try:
-                                        d_url, d_payload, d_headers, d_mode = resolver_datos_envio(cel_num, r_c['Mensaje Personalizado'])
+                                        d_url, d_payload, d_headers, d_mode = resolver_datos_envio(cel_num, msg_custom)
                                         if d_mode == "data":
                                             res = requests.post(d_url, data=d_payload, headers=d_headers, timeout=12)
                                         else:
@@ -6094,10 +6383,36 @@ if tab_geral is not None:
 
                                         if res.status_code in [200, 201]:
                                             enviados_ok += 1
+                                            registrar_log_whatsapp(
+                                                modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="EXITOSO",
+                                                http_codigo=res.status_code, respuesta_servidor=res.text, remitente=current_user,
+                                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                                                destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
+                                            )
                                         else:
                                             errores_cnt += 1
-                                    except Exception:
+                                            registrar_log_whatsapp(
+                                                modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="FALLIDO",
+                                                http_codigo=res.status_code, respuesta_servidor=res.text, remitente=current_user,
+                                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                                                destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
+                                            )
+                                    except Exception as ex_g:
                                         errores_cnt += 1
+                                        registrar_log_whatsapp(
+                                            modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="FALLIDO",
+                                            http_codigo=0, respuesta_servidor=str(ex_g), remitente=current_user,
+                                            rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                                            destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
+                                        )
+                                else:
+                                    errores_cnt += 1
+                                    registrar_log_whatsapp(
+                                        modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="FALLIDO",
+                                        http_codigo=400, respuesta_servidor="Número celular no válido o menor a 10 dígitos", remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                                        destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
+                                    )
 
                                 progress_bar.progress((i + 1) / len(df_campana_out))
                                 status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Consultora']}...")
@@ -6107,6 +6422,9 @@ if tab_geral is not None:
                             st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {enviados_ok} | Fallidos: {errores_cnt}")
                     else:
                         st.info("👆 Selecciona al menos una consultora arriba o pulsa un botón de carga rápida (por ejemplo: **🚨 En Mora**) para habilitar el envío masivo automático por API.")
+
+                    with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Cartera Gera)", expanded=False):
+                        renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Cartera Gera", key_suffix="geral")
 
             st.markdown("---")
 
@@ -7984,6 +8302,10 @@ if tab_usuarios is not None and user_rol == 'superadmin':
             else:
                 st.info("No se encontraron registros de auditoría que coincidan con los filtros seleccionados.")
 
+            st.markdown("---")
+            with st.expander("📱 Auditoría & Rastreo Global de Envíos WhatsApp (Todos los Sectores)", expanded=False):
+                renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=None, user_grupo=None, modulo_default="Todos", key_suffix="superadmin_wa")
+
         with sub_tab_perm:
             st.markdown("#### 🎛️ Control Global de Permisos de Carga de Archivos")
             st.markdown("Configura si las Líderes de Negocio pueden subir o actualizar archivos Excel en la plataforma, o si esta función permanece restringida a la Gerencia General.")
@@ -8134,9 +8456,10 @@ if tab_lideres_gerente is not None and user_rol == 'gerente':
         st.subheader(f"👥 Panel de Gestión & Control de Archivos del Sector")
         st.markdown(f"Administración centralizada para el Sector **{user_sector if user_sector else 'General'}** (*{user_nombre}*): gestión de cuentas de líderes, auditoría y bitácora de archivos integrados.")
 
-        sub_tab_dir_lideres, sub_tab_bitacora_archivos = st.tabs([
+        sub_tab_dir_lideres, sub_tab_bitacora_archivos, sub_tab_bitacora_wa = st.tabs([
             "👥 Directorio & Accesos de Líderes",
-            "📜 Bitácora de Archivos (Agrego, Actualización y Borrado)"
+            "📜 Bitácora de Archivos (Agrego, Actualización y Borrado)",
+            "📱 Auditoría & Rastreo de Envíos WhatsApp"
         ])
 
         with sub_tab_dir_lideres:
@@ -8307,6 +8630,11 @@ if tab_lideres_gerente is not None and user_rol == 'gerente':
                 )
             else:
                 st.info("No se encontraron registros de movimientos de archivos que coincidan con los filtros seleccionados.")
+
+        with sub_tab_bitacora_wa:
+            st.markdown("#### 📱 Bitácora & Diagnóstico Consolidado de Envíos WhatsApp")
+            st.caption(f"Supervisión y auditoría en tiempo real de mensajes masivos despachados en el sector **{user_sector_nombre}**.")
+            renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=None, modulo_default="Todos", key_suffix="ger_consolidado")
 
     # Footer
     st.markdown("---")

@@ -5437,6 +5437,34 @@ def inicializar_db_sqlite(conn=None, forzar=False):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_sector ON auditoria_eventos (codigo_sector)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_auditoria_categoria ON auditoria_eventos (categoria)")
 
+    # 7. Tabla de Rastreo & Auditoría de Envíos WhatsApp Masivos
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS log_mensajes_whatsapp (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        fecha_hora TEXT,
+        fecha TEXT,
+        hora TEXT,
+        modulo TEXT,
+        remitente TEXT,
+        rol TEXT,
+        sector TEXT,
+        grupo TEXT,
+        instancia_evo TEXT,
+        destinatario_nombre TEXT,
+        destinatario_cb TEXT,
+        telefono TEXT,
+        estado TEXT,
+        http_codigo INTEGER,
+        respuesta_servidor TEXT,
+        mensaje_snippet TEXT
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_wa_fecha ON log_mensajes_whatsapp (fecha)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_wa_modulo ON log_mensajes_whatsapp (modulo)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_wa_estado ON log_mensajes_whatsapp (estado)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_wa_grupo ON log_mensajes_whatsapp (grupo)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_log_wa_sector ON log_mensajes_whatsapp (sector)")
+
     conn.commit()
 
     # Sincronización inicial solo si usuarios está vacío o si se fuerza explícitamente
@@ -5962,6 +5990,255 @@ def obtener_estado_componentes_archivos(sector=None):
             "detalle": ult_aj_det
         }
     }
+
+def registrar_log_whatsapp(modulo, destinatario_nombre, telefono, estado, http_codigo=None, respuesta_servidor="", remitente="", rol="", sector="", grupo="", instancia_evo="", destinatario_cb="", mensaje_snippet=""):
+    """
+    Registra de forma persistente en SQLite y JSON redundante cada intento de envío
+    de mensaje por WhatsApp (Evolution API / UltraMsg / otros).
+    Permite auditar y diagnosticar novedades de entrega de mensajes masivos en tiempo real.
+    """
+    from datetime import datetime
+    try:
+        now = datetime.now()
+        fecha_hora = now.strftime("%Y-%m-%d %H:%M:%S")
+        fecha = now.strftime("%Y-%m-%d")
+        hora = now.strftime("%H:%M:%S")
+
+        modulo_c = str(modulo or "Desconocido").strip()
+        nom_dest = str(destinatario_nombre or "Consultora").strip()
+        tel_c = str(telefono or "").strip()
+        estado_c = "EXITOSO" if str(estado).upper() in ["EXITOSO", "OK", "SUCCESS", "200", "201"] else "FALLIDO"
+        codigo_http = int(http_codigo) if http_codigo is not None and str(http_codigo).isdigit() else (200 if estado_c == "EXITOSO" else 0)
+        resp_c = str(respuesta_servidor or "")[:500].strip()
+        remit_c = str(remitente or "").strip()
+        rol_c = str(rol or "").strip()
+        sec_c = str(sector or "").strip()
+        grp_c = str(grupo or "").strip()
+        inst_c = str(instancia_evo or "").strip()
+        cb_c = str(destinatario_cb or "").strip()
+        msg_snip = str(mensaje_snippet or "")[:120].strip()
+
+        # 1. Guardar en SQLite
+        try:
+            conn = obtener_conexion_db(timeout=10.0)
+            cursor = conn.cursor()
+            cursor.execute("""
+            CREATE TABLE IF NOT EXISTS log_mensajes_whatsapp (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                fecha_hora TEXT,
+                fecha TEXT,
+                hora TEXT,
+                modulo TEXT,
+                remitente TEXT,
+                rol TEXT,
+                sector TEXT,
+                grupo TEXT,
+                instancia_evo TEXT,
+                destinatario_nombre TEXT,
+                destinatario_cb TEXT,
+                telefono TEXT,
+                estado TEXT,
+                http_codigo INTEGER,
+                respuesta_servidor TEXT,
+                mensaje_snippet TEXT
+            )
+            """)
+            cursor.execute("""
+            INSERT INTO log_mensajes_whatsapp (
+                fecha_hora, fecha, hora, modulo, remitente, rol, sector, grupo,
+                instancia_evo, destinatario_nombre, destinatario_cb, telefono,
+                estado, http_codigo, respuesta_servidor, mensaje_snippet
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                fecha_hora, fecha, hora, modulo_c, remit_c, rol_c, sec_c, grp_c,
+                inst_c, nom_dest, cb_c, tel_c,
+                estado_c, codigo_http, resp_c, msg_snip
+            ))
+            conn.commit()
+            conn.close()
+        except Exception as e_sql:
+            safe_print(f"Nota SQLite log_mensajes_whatsapp: {e_sql}")
+
+        # 2. Guardar en JSON redundante persistente
+        try:
+            ruta_json = ruta_persistente("log_whatsapp.json")
+            logs = []
+            if os.path.exists(ruta_json):
+                try:
+                    with open(ruta_json, "r", encoding="utf-8") as f:
+                        loaded = json.load(f)
+                        if isinstance(loaded, list):
+                            logs = loaded
+                except Exception:
+                    pass
+            logs.append({
+                "fecha_hora": fecha_hora,
+                "fecha": fecha,
+                "hora": hora,
+                "modulo": modulo_c,
+                "remitente": remit_c,
+                "rol": rol_c,
+                "sector": sec_c,
+                "grupo": grp_c,
+                "instancia_evo": inst_c,
+                "destinatario_nombre": nom_dest,
+                "destinatario_cb": cb_c,
+                "telefono": tel_c,
+                "estado": estado_c,
+                "http_codigo": codigo_http,
+                "respuesta_servidor": resp_c,
+                "mensaje_snippet": msg_snip
+            })
+            if len(logs) > 3000:
+                logs = logs[-3000:]
+            p_dir = os.path.dirname(ruta_json)
+            if p_dir:
+                os.makedirs(p_dir, exist_ok=True)
+            with open(ruta_json, "w", encoding="utf-8") as f:
+                json.dump(logs, f, ensure_ascii=False, indent=2)
+        except Exception as e_json:
+            safe_print(f"Nota JSON log_whatsapp: {e_json}")
+
+        return True
+    except Exception as e:
+        safe_print(f"Error en registrar_log_whatsapp: {e}")
+        return False
+
+def consultar_logs_whatsapp_df(filtro_modulo=None, filtro_estado=None, filtro_sector=None, filtro_grupo=None, limite=300):
+    """
+    Retorna un DataFrame enriquecido con los registros de envíos de WhatsApp para auditoría y diagnóstico de novedades.
+    """
+    conn = None
+    df = pd.DataFrame()
+    try:
+        conn = obtener_conexion_db(timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS log_mensajes_whatsapp (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fecha_hora TEXT,
+            fecha TEXT,
+            hora TEXT,
+            modulo TEXT,
+            remitente TEXT,
+            rol TEXT,
+            sector TEXT,
+            grupo TEXT,
+            instancia_evo TEXT,
+            destinatario_nombre TEXT,
+            destinatario_cb TEXT,
+            telefono TEXT,
+            estado TEXT,
+            http_codigo INTEGER,
+            respuesta_servidor TEXT,
+            mensaje_snippet TEXT
+        )
+        """)
+        conn.commit()
+
+        query = """
+        SELECT id, fecha_hora, modulo, remitente, rol, sector, grupo, instancia_evo,
+               destinatario_nombre, destinatario_cb, telefono, estado, http_codigo,
+               respuesta_servidor, mensaje_snippet
+        FROM log_mensajes_whatsapp WHERE 1=1
+        """
+        params = []
+        if filtro_modulo and str(filtro_modulo).lower() not in ["todos", "todas", ""]:
+            query += " AND modulo = ?"
+            params.append(str(filtro_modulo).strip())
+        if filtro_estado and str(filtro_estado).lower() not in ["todos", "todas", ""]:
+            query += " AND estado = ?"
+            params.append(str(filtro_estado).strip().upper())
+        if filtro_sector and str(filtro_sector).lower() not in ["todos", ""]:
+            query += " AND (sector = ? OR sector LIKE ?)"
+            params.extend([str(filtro_sector).strip(), f"%{str(filtro_sector).strip()}%"])
+        if filtro_grupo and str(filtro_grupo).lower() not in ["todos", "todas", ""]:
+            query += " AND grupo = ?"
+            params.append(str(filtro_grupo).strip())
+
+        query += " ORDER BY id DESC LIMIT ?"
+        params.append(int(limite))
+
+        df = pd.read_sql_query(query, conn, params=params)
+    except Exception as e_sql:
+        safe_print(f"Nota en consultar_logs_whatsapp_df SQLite: {e_sql}")
+        try:
+            ruta_json = ruta_persistente("log_whatsapp.json")
+            if os.path.exists(ruta_json):
+                with open(ruta_json, "r", encoding="utf-8") as f:
+                    loaded = json.load(f)
+                    if isinstance(loaded, list) and loaded:
+                        df = pd.DataFrame(loaded)
+                        if not df.empty:
+                            if filtro_modulo and str(filtro_modulo).lower() not in ["todos", "todas", ""]:
+                                df = df[df['modulo'] == filtro_modulo]
+                            if filtro_estado and str(filtro_estado).lower() not in ["todos", "todas", ""]:
+                                df = df[df['estado'] == filtro_estado.upper()]
+                            if filtro_grupo and str(filtro_grupo).lower() not in ["todos", "todas", ""]:
+                                df = df[df['grupo'] == str(filtro_grupo)]
+                            df = df.tail(limite).iloc[::-1]
+        except Exception:
+            pass
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    if df.empty:
+        return pd.DataFrame(columns=[
+            'id', 'fecha_hora', 'modulo', 'remitente', 'rol', 'sector', 'grupo',
+            'instancia_evo', 'destinatario_nombre', 'destinatario_cb', 'telefono',
+            'estado', 'http_codigo', 'respuesta_servidor', 'mensaje_snippet', 'diagnostico'
+        ])
+    else:
+        df['diagnostico'] = df.apply(lambda r: diagnosticar_error_whatsapp(r.get('http_codigo'), r.get('respuesta_servidor')), axis=1)
+    return df
+
+def diagnosticar_error_whatsapp(http_codigo, respuesta):
+    """
+    Analiza la respuesta de Evolution API / WhatsApp y entrega una explicación clara
+    y la acción correctiva recomendada para la Líder o Gerente.
+    """
+    r_low = str(respuesta or "").lower()
+    code = int(http_codigo) if http_codigo and str(http_codigo).isdigit() else 0
+
+    if code in [200, 201]:
+        return "✅ Entregado a la cola de WhatsApp con éxito."
+    elif code == 404 or "not exist" in r_low or "does not exist" in r_low:
+        return "❌ La instancia no existe en el servidor. Debe crearse y escanearse el código QR."
+    elif "connection closed" in r_low or "not connected" in r_low or "close" in r_low:
+        return "⚠️ WhatsApp desvinculado en el celular. Vuelve a escanear el QR en Crédito & Cobranza."
+    elif code == 401 or "unauthorized" in r_low or "api key" in r_low:
+        return "❌ API Key no autorizada o token incorrecto en la configuración."
+    elif "not registered on whatsapp" in r_low or "exists: false" in r_low or "invalid number" in r_low:
+        return "⚠️ El número de celular no tiene cuenta de WhatsApp activa."
+    elif code == 429 or "rate limit" in r_low:
+        return "⏳ Límite de envíos alcanzado. Aumenta la pausa anti-ban entre mensajes."
+    elif code == 0 or "timeout" in r_low:
+        return "⏱️ Tiempo de espera agotado. El servidor de WhatsApp tardó más de 12s en responder."
+    elif "connecting" in r_low:
+        return "🟡 La instancia está en proceso de reconexión. Espera unos segundos y reintenta."
+    else:
+        return f"⚠️ Novedad del servidor (HTTP {code}): {respuesta[:120] if respuesta else 'Error de red'}"
+
+def limpiar_logs_whatsapp(dias_antiguedad=30):
+    """
+    Elimina registros antiguos de logs de WhatsApp para optimizar espacio en disco.
+    """
+    try:
+        from datetime import datetime, timedelta
+        fecha_limite = (datetime.now() - timedelta(days=dias_antiguedad)).strftime("%Y-%m-%d")
+        conn = obtener_conexion_db(timeout=10.0)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM log_mensajes_whatsapp WHERE fecha < ?", (fecha_limite,))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        safe_print(f"Error al limpiar logs de WhatsApp: {e}")
+        return False
 
 def obtener_metricas_usabilidad(dias_atras=30):
     """

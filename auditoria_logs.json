@@ -718,5 +718,35 @@
     "accion": "Borrado Base Tableau",
     "detalle": "Se eliminaron 1580 consultoras de Tableau para tu sector. (EMOCIONES DOLLY)",
     "dispositivo": "🖥️ PC / Escritorio"
+  },
+  {
+    "fecha_hora": "2026-09-08T18:50:59.902837",
+    "fecha": "2026-09-08",
+    "hora": "18:50:59",
+    "username": "lider177",
+    "nombre": "DIANA LUZ AVELLA PINTO",
+    "rol": "lider",
+    "codigo_sector": "700000466",
+    "nombre_sector": "EMOCIONES DOLLY",
+    "codigo_grupo": "177",
+    "categoria": "🔑 Acceso",
+    "accion": "Inicio de Sesión",
+    "detalle": "Ingreso exitoso al portal web (lider)",
+    "dispositivo": "🖥️ PC / Escritorio"
+  },
+  {
+    "fecha_hora": "2026-09-08T18:55:45.255929",
+    "fecha": "2026-09-08",
+    "hora": "18:55:45",
+    "username": "gerente",
+    "nombre": "Clery Cuellar",
+    "rol": "gerente",
+    "codigo_sector": "700000459",
+    "nombre_sector": "MATICES CLERY",
+    "codigo_grupo": "",
+    "categoria": "🔑 Acceso",
+    "accion": "Inicio de Sesión",
+    "detalle": "Ingreso exitoso al portal web (gerente)",
+    "dispositivo": "🖥️ PC / Escritorio"
   }
 ]
