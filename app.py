@@ -236,11 +236,11 @@ def cached_export_excel_tableau(df):
 def cached_export_csv(df):
     return df.to_csv(index=False).encode('utf-8-sig')
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_consultar_geral_sql(grupo=None, sector=None):
     return consultar_geral_sql(grupo=grupo, sector=sector)
 
-@st.cache_data(ttl=60, show_spinner=False)
+@st.cache_data(ttl=600, show_spinner=False)
 def cached_consultar_tableau_sql(grupo=None, sector=None):
     return consultar_tableau_sql(grupo=grupo, sector=sector)
 
@@ -1646,7 +1646,7 @@ def crear_scatter_atencion_fig(df_tableau):
     return fig
 
 # 2. Función para cargar y procesar los datos con cache de Streamlit
-@st.cache_data
+@st.cache_data(ttl=600, show_spinner=False)
 def load_and_process_data(ruta_o_buffer=None):
     if ruta_o_buffer is None or ruta_o_buffer == 'Base para el como vamos.xlsx':
         p_pers = ruta_persistente('Base para el como vamos.xlsx')
@@ -4040,10 +4040,16 @@ if tab_tableau is not None:
                 if "Notas / Comentarios Líder" in df_edit_view.columns:
                     col_config["Notas / Comentarios Líder"] = st.column_config.TextColumn("Notas / Comentarios Líder", disabled=False)
 
+                es_consolidado = (user_rol in ['gerente', 'superadmin'] and ('lider_seleccionada_sb' not in locals() or lider_seleccionada_sb == "Todas las Líderes"))
+                limite_render = 100 if es_consolidado else 350
+
                 total_filas_edit = len(df_edit_view)
-                if total_filas_edit > 500:
-                    df_data_render = df_edit_view.iloc[:500]
-                    st.caption(f"⚡ *Mostrando las primeras 500 de {total_filas_edit:,} consultoras para máxima velocidad y fluidez. Para ver o editar un grupo completo, selecciona una Líder en el filtro superior.*")
+                if total_filas_edit > limite_render:
+                    df_data_render = df_edit_view.iloc[:limite_render]
+                    if es_consolidado:
+                        st.info(f"⚡ **Vista Consolidada Optimizada:** Mostrando las primeras {limite_render} de {total_filas_edit:,} consultoras para una navegación ultra-rápida. Selecciona una Líder arriba para gestionar su grupo completo. El botón de descarga en Excel exporta el 100% de la base.")
+                    else:
+                        st.caption(f"⚡ *Mostrando las primeras {limite_render} de {total_filas_edit:,} consultoras para máxima fluidez.*")
                 else:
                     df_data_render = df_edit_view
 
