@@ -315,7 +315,7 @@ def renderizar_visor_logs_whatsapp(user_rol, user_sector, user_grupo=None, modul
 
     col_f1, col_f2, col_f3, col_f4 = st.columns([1.5, 1.3, 1.2, 1.0])
     with col_f1:
-        opciones_mod = ["Todos", "Cartera Gera", "Cartera Gera (Prueba)", "Tableau Campaña", "Tableau Flyer", "Cumpleaños"]
+        opciones_mod = ["Todos", "Cartera Gera", "Cartera Gera (Prueba)", "Tableau Campaña", "Tableau Flyer", "Cumpleaños", "Mis Líderes Reporte"]
         idx_mod = opciones_mod.index(modulo_default) if modulo_default in opciones_mod else 0
         f_modulo = st.selectbox("Módulo:", opciones_mod, index=idx_mod, key=f"sel_mod_log_wa_{key_suffix}")
     with col_f2:
@@ -8466,19 +8466,14 @@ if tab_diagnostico is not None:
 
         st.markdown("---")
 
-        # --- 9. MÓDULO DE COMPARTIR POR WHATSAPP ---
+        # --- 9. MÓDULO DE COMPARTIR POR WHATSAPP (INDIVIDUAL & MASIVO AUTOMÁTICO EVOLUTION API) ---
         st.markdown("#### 📲 9. Módulo para Compartir Resumen por WhatsApp")
-        st.caption("Selecciona una Líder para generar su reporte en formato texto listo para copiar o enviar directamente por WhatsApp Web / Móvil.")
+        st.caption("Genera el reporte oficial de 'Cómo Vamos' en formato texto para compartir 1 a 1 o despacharlo automáticamente a todas tus Líderes vía WhatsApp.")
 
-        lider_sel = None
-        if col_lider and col_lider in df_filtrado.columns and not df_filtrado.empty:
-            lista_lideres = sorted(df_filtrado[col_lider].dropna().astype(str).unique())
-            lider_sel = st.sidebar.selectbox("👤 Selecciona la Líder para enviar reporte:", options=lista_lideres) if False else st.selectbox("👤 Selecciona la Líder para enviar reporte:", options=lista_lideres)
+        df_lideres_modulo = df_diag if (df_diag is not None and not df_diag.empty) else df_filtrado
 
-        if lider_sel and col_lider and col_lider in df_filtrado.columns and not df_filtrado.empty:
-            row_l = df_filtrado[df_filtrado[col_lider].astype(str) == lider_sel].iloc[0]
-
-            # 1. Cálculos de Facturación
+        # Función auxiliar para construir el mensaje exacto de Cómo Vamos para una Líder
+        def _generar_msg_reporte_como_vamos(row_l, nom_lider_in):
             r_fact_num = float(limpiar_numero(row_l.get('Real Facturación', 0), 0.0))
             o_fact_num = float(limpiar_numero(row_l.get('Objetivo Facturación', 0), 0.0))
             c_fact_val = float(limpiar_numero(row_l.get('Cumplimiento Facturación', 0), 0.0))
@@ -8499,7 +8494,6 @@ if tab_diagnostico is not None:
             falta_110_fact = max(0.0, meta_110_fact - r_fact_num)
             falta_110_fact_str = "¡Logrado! 🎉" if falta_110_fact == 0.0 and o_fact_num > 0 and r_fact_num >= meta_110_fact else formato_cop(falta_110_fact)
 
-            # 2. Cálculos de Activas
             r_act_num = float(limpiar_numero(row_l.get('Real Activas', 0), 0.0))
             o_act_num = float(limpiar_numero(row_l.get('Objetivo Activas', 0), 0.0))
             if o_act_num == 0 and row_l.get('Desafío Activas Arte'):
@@ -8523,15 +8517,14 @@ if tab_diagnostico is not None:
             falta_110_act = max(0, meta_110_act - int(r_act_num))
             falta_110_act_str = "¡Logrado! 🎉" if falta_110_act == 0 and o_act_num > 0 and r_act_num >= meta_110_act else f"{falta_110_act} activas"
 
-            # 3. Saldo y Ganancia
             sal_num = int(round(limpiar_numero(row_l.get('Saldo', 0), 0)))
             sal_str = f"{sal_num:+d}" if sal_num != 0 else "0"
             gan_l = formato_cop(row_l.get('Ganancia estimada', 0))
             sector_l = str(row_l.get('Nombre Setor', 'General')).strip()
 
-            msg_wa = (
+            return (
                 f"📊 *REPORTE CÓMO VAMOS*\n"
-                f"👤 *Líder:* {lider_sel}\n"
+                f"👤 *Líder:* {nom_lider_in}\n"
                 f"📍 *Sector:* {sector_l}\n\n"
                 f"💰 *--- FACTURACIÓN ---*\n"
                 f"💵 *Facturación Real:* {formato_cop(r_fact_num)}\n"
@@ -8552,13 +8545,266 @@ if tab_diagnostico is not None:
                 f"💵 *Ganancia Estimada:* {gan_l}\n"
             )
 
+        # Mapa inteligente de celulares de líderes desde consultoras_tableau y usuarios
+        mapa_celulares_lideres = {}
+        try:
+            conn_cel = obtener_conexion_db(timeout=5.0)
+            cursor_cel = conn_cel.cursor()
+            cursor_cel.execute("SELECT codigo_cb, nombre, celular, grupo FROM consultoras_tableau WHERE celular IS NOT NULL AND TRIM(celular) != ''")
+            for r_c in cursor_cel.fetchall():
+                cb_c = str(r_c[0]).strip().split('.')[0]
+                nom_c = str(r_c[1]).strip().upper()
+                cel_val = str(r_c[2]).strip()
+                grp_c = str(r_c[3]).strip().split('.')[0] if r_c[3] else ""
+                if cb_c and cb_c != '0':
+                    mapa_celulares_lideres[f"cb_{cb_c}"] = cel_val
+                if nom_c:
+                    mapa_celulares_lideres[f"nom_{nom_c}"] = cel_val
+                if grp_c and grp_c != '0' and f"grp_{grp_c}" not in mapa_celulares_lideres:
+                    mapa_celulares_lideres[f"grp_{grp_c}"] = cel_val
+            conn_cel.close()
+        except Exception:
+            pass
+
+        try:
+            usuarios_cat_cel = cargar_usuarios()
+            for _, u_val in usuarios_cat_cel.items():
+                if isinstance(u_val, dict) and u_val.get('telefono'):
+                    u_nom = str(u_val.get('nombre', '')).strip().upper()
+                    u_grp = str(u_val.get('codigo_grupo', '')).strip().split('.')[0]
+                    t_val = str(u_val.get('telefono')).strip()
+                    if u_nom and t_val:
+                        mapa_celulares_lideres[f"nom_{u_nom}"] = t_val
+                    if u_grp and t_val and f"grp_{u_grp}" not in mapa_celulares_lideres:
+                        mapa_celulares_lideres[f"grp_{u_grp}"] = t_val
+        except Exception:
+            pass
+
+        def _resolver_celular_lider(cb_in, nom_in, grp_in):
+            cb_clean = str(cb_in or '').strip().split('.')[0]
+            nom_clean = str(nom_in or '').strip().upper()
+            grp_clean = str(grp_in or '').strip().split('.')[0]
+            cel = mapa_celulares_lideres.get(f"cb_{cb_clean}") or mapa_celulares_lideres.get(f"nom_{nom_clean}") or mapa_celulares_lideres.get(f"grp_{grp_clean}")
+            if not cel:
+                for k_m, v_m in mapa_celulares_lideres.items():
+                    if k_m.startswith("nom_") and len(nom_clean) >= 6:
+                        sub_n = nom_clean[:12]
+                        if sub_n in k_m[4:] or k_m[4:16] in nom_clean:
+                            cel = v_m
+                            break
+            return str(cel or '').strip()
+
+        # Construir lista consolidada de líderes disponibles
+        lista_lideres_evo = []
+        if col_lider and col_lider in df_lideres_modulo.columns and not df_lideres_modulo.empty:
+            for _, r_lid in df_lideres_modulo.iterrows():
+                nom_lid = str(r_lid.get(col_lider, '')).strip()
+                if not nom_lid or nom_lid.lower() in ['nan', 'none', '', '0', 'null', 'total general']:
+                    continue
+                cb_lid = str(r_lid.get('Código de consultora', '')).strip().split('.')[0]
+                if cb_lid == '0':
+                    cb_lid = ''
+                grp_lid = str(r_lid.get('Código de grupo', '')).strip().split('.')[0] if 'Código de grupo' in r_lid else ''
+                if not grp_lid:
+                    col_g_tmp = next((c for c in r_lid.index if 'grupo' in str(c).lower()), None)
+                    if col_g_tmp:
+                        grp_lid = str(r_lid.get(col_g_tmp, '')).strip().split('.')[0]
+
+                cel_lid = _resolver_celular_lider(cb_lid, nom_lid, grp_lid)
+                msg_lid = _generar_msg_reporte_como_vamos(r_lid, nom_lid)
+
+                lista_lideres_evo.append({
+                    'key': f"{nom_lid}_{grp_lid}",
+                    'nombre': nom_lid,
+                    'grupo': grp_lid,
+                    'codigo_cb': cb_lid,
+                    'celular': cel_lid,
+                    'mensaje': msg_lid,
+                    'row': r_lid
+                })
+
+        # --- SECCIÓN A: DESPACHO INDIVIDUAL (PRESERVADA) ---
+        lider_sel = None
+        if lista_lideres_evo:
+            nombres_lideres_sel = [it['nombre'] for it in lista_lideres_evo]
+            lider_sel = st.selectbox("👤 Selecciona la Líder para enviar reporte:", options=nombres_lideres_sel, key="sel_lider_indiv_modulo9")
+
+        if lider_sel and lista_lideres_evo:
+            item_sel_indiv = next((it for it in lista_lideres_evo if it['nombre'] == lider_sel), lista_lideres_evo[0])
+            msg_wa = item_sel_indiv['mensaje']
+            cel_indiv = item_sel_indiv['celular']
+
             col_w1, col_w2 = st.columns([2, 1])
             with col_w1:
-                st.text_area("📋 Mensaje listo para copiar:", msg_wa, height=320)
+                st.text_area("📋 Mensaje listo para copiar:", msg_wa, height=320, key="txt_area_reporte_lider_sel")
             with col_w2:
                 import urllib.parse
-                url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_wa)}"
+                c_clean_indiv = f"57{cel_indiv}" if cel_indiv and not cel_indiv.startswith('57') else cel_indiv
+                if c_clean_indiv and len(c_clean_indiv) >= 10:
+                    url_wa = f"https://api.whatsapp.com/send?phone={c_clean_indiv}&text={urllib.parse.quote(msg_wa)}"
+                else:
+                    url_wa = f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_wa)}"
                 st.markdown(f"<br><a href='{url_wa}' target='_blank' style='text-decoration:none;'><button style='background-color:#25D366; color:white; border:none; padding:14px 20px; font-size:16px; font-weight:bold; border-radius:8px; cursor:pointer; width:100%;'>📲 Enviar por WhatsApp</button></a>", unsafe_allow_html=True)
+                if cel_indiv:
+                    st.caption(f"📱 Celular asociado: **{cel_indiv}**")
+                else:
+                    st.caption("⚠️ Celular no detectado. Se abrirá WhatsApp para elegir contacto.")
+
+        # --- SECCIÓN B: DESPACHADOR AUTOMÁTICO EVOLUTION API (ESTILO CUMPLEAÑOS) ---
+        if lista_lideres_evo:
+            st.markdown("---")
+            evo_url_diag = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+            inst_def_diag = obtener_instancia_evolution(current_user, user_rol, user_grupo)
+            if 'in_evo_instance' in st.session_state:
+                val_inst_prev = str(st.session_state['in_evo_instance'])
+                if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
+                    st.session_state['in_evo_instance'] = inst_def_diag
+            evo_inst_diag = st.session_state.get('in_evo_instance', inst_def_diag)
+            if '{' in str(evo_inst_diag) or 'password_hash' in str(evo_inst_diag):
+                evo_inst_diag = inst_def_diag
+                st.session_state['in_evo_instance'] = inst_def_diag
+            evo_tok_diag = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+
+            real_conn_diag = verificar_conexion_evolution(evo_url_diag, evo_tok_diag, evo_inst_diag)
+            key_sim_diag = f"manual_vinculado_evo_mis_lideres_{evo_inst_diag}"
+            esta_vinculado_evo_diag = bool(st.session_state.get(key_sim_diag, real_conn_diag))
+
+            with st.expander(f"🔌 Envío Automático por Evolution API ({len(lista_lideres_evo)} Líderes de Negocio)", expanded=True):
+                st.markdown("##### 🚀 Enviar Reporte Automáticamente por WhatsApp a Líderes:")
+                st.caption("Envía el reporte oficial de 'Cómo Vamos' personalizado a cada una de tus Líderes con un solo clic usando tu WhatsApp vinculado.")
+
+                col_d_info1, col_d_info2 = st.columns([1.7, 1.3])
+                with col_d_info1:
+                    if esta_vinculado_evo_diag:
+                        st.markdown(f"""
+                        <div style="background: rgba(37, 211, 102, 0.12); border: 1px solid rgba(37, 211, 102, 0.45); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
+                            🟢 <strong>WhatsApp Conectado & Vinculado</strong>: <strong style="color: #25D366;">{evo_inst_diag}</strong> (Rol: <em>{user_rol.title()}</em>)<br>
+                            <span style="color: #A7F3D0; font-size: 0.80rem;">✨ Envío automático activo: listo para despachar los reportes oficiales por WhatsApp.</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style="background: rgba(245, 158, 11, 0.10); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
+                            🟡 <strong>WhatsApp No Vinculado</strong>: Instancia <code>{evo_inst_diag}</code><br>
+                            <span style="color: #FCD34D; font-size: 0.80rem;">📲 Se muestran los botones individuales de WhatsApp en cada reporte para envío manual.</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                with col_d_info2:
+                    delay_diag_wa = st.slider("⏱️ Pausa anti-ban (seg):", min_value=1, max_value=8, value=3, key="slider_delay_mis_lideres_wa")
+                    sim_val_diag = st.checkbox(
+                        "🧪 Simular WhatsApp Vinculado (Prueba Local)",
+                        value=esta_vinculado_evo_diag,
+                        key="chk_sim_vinculado_mis_lideres",
+                        help="Marca o desmarca esta casilla para probar localmente la interfaz de despacho masivo."
+                    )
+                    if sim_val_diag != esta_vinculado_evo_diag:
+                        st.session_state[key_sim_diag] = sim_val_diag
+                        st.rerun()
+
+                # Mapa de selección de líderes destinatarias
+                mapa_dest_lideres = {
+                    it['key']: f"👑 {it['nombre']} (Grupo {it['grupo'] if it['grupo'] else 'S/G'}) — Cel: {it['celular'] if it['celular'] else 'Sin cel'}"
+                    for it in lista_lideres_evo
+                }
+
+                col_ls1, col_ls2 = st.columns([1.5, 3])
+                with col_ls1:
+                    if st.button(f"👥 Todas ({len(mapa_dest_lideres)})", key="btn_all_mis_lideres", use_container_width=True):
+                        st.session_state['sel_lideres_evo_rep'] = list(mapa_dest_lideres.keys())
+                        st.rerun()
+                with col_ls2:
+                    if st.button("🧹 Deseleccionar (Elegir Pocas)", key="btn_desel_mis_lideres", use_container_width=True):
+                        st.session_state['sel_lideres_evo_rep'] = []
+                        st.rerun()
+
+                if 'sel_lideres_evo_rep' not in st.session_state:
+                    st.session_state['sel_lideres_evo_rep'] = list(mapa_dest_lideres.keys())
+
+                sel_keys_elegidas = st.multiselect(
+                    "Líderes a las que se les enviará el reporte:",
+                    options=list(mapa_dest_lideres.keys()),
+                    default=[k for k in st.session_state['sel_lideres_evo_rep'] if k in mapa_dest_lideres],
+                    format_func=lambda k: mapa_dest_lideres.get(k, k),
+                    key="ms_dest_mis_lideres_evo"
+                )
+                st.session_state['sel_lideres_evo_rep'] = sel_keys_elegidas
+
+                items_a_enviar_lideres = [it for it in lista_lideres_evo if it['key'] in sel_keys_elegidas]
+
+                btn_enviar_lideres_api = st.button(
+                    f"🚀 Iniciar Envío Automático a las {len(items_a_enviar_lideres)} Líderes",
+                    type="primary",
+                    disabled=(len(items_a_enviar_lideres) == 0),
+                    use_container_width=True,
+                    key="btn_disparar_api_mis_lideres"
+                )
+
+                if btn_enviar_lideres_api and items_a_enviar_lideres:
+                    prog_bar_l = st.progress(0.0)
+                    stat_txt_l = st.empty()
+                    ok_l = 0
+                    err_l = 0
+                    tot_l = len(items_a_enviar_lideres)
+
+                    for i_l, it_l in enumerate(items_a_enviar_lideres):
+                        c_num = str(it_l.get('celular', '')).strip()
+                        c_nom = str(it_l.get('nombre', '')).strip()
+                        c_grp = str(it_l.get('grupo', '')).strip()
+                        c_cb = str(it_l.get('codigo_cb', '')).strip()
+                        msg_body = it_l.get('mensaje', '')
+
+                        if c_num and len(c_num) >= 10 and c_num.lower() not in ['sin celular', 'nan', 'none']:
+                            try:
+                                c_clean = f"57{c_num}" if not c_num.startswith('57') else c_num
+                                e_headers = {"apikey": evo_tok_diag.strip(), "Content-Type": "application/json"}
+                                url_text = f"{evo_url_diag.strip().rstrip('/')}/message/sendText/{evo_inst_diag.strip()}"
+                                payload_text = {
+                                    "number": c_clean,
+                                    "text": msg_body,
+                                    "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                }
+                                res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
+                                if res_t.status_code in [200, 201]:
+                                    ok_l += 1
+                                    registrar_log_whatsapp(
+                                        modulo="Mis Líderes Reporte", destinatario_nombre=c_nom, telefono=c_clean, estado="EXITOSO",
+                                        http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=c_grp, instancia_evo=evo_inst_diag,
+                                        destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                    )
+                                else:
+                                    err_l += 1
+                                    registrar_log_whatsapp(
+                                        modulo="Mis Líderes Reporte", destinatario_nombre=c_nom, telefono=c_clean, estado="FALLIDO",
+                                        http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=c_grp, instancia_evo=evo_inst_diag,
+                                        destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                    )
+                            except Exception as ex_l:
+                                err_l += 1
+                                registrar_log_whatsapp(
+                                    modulo="Mis Líderes Reporte", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                    http_codigo=0, respuesta_servidor=str(ex_l), remitente=current_user,
+                                    rol=user_rol, sector=user_sector, grupo=c_grp, instancia_evo=evo_inst_diag,
+                                    destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                )
+                        else:
+                            err_l += 1
+                            registrar_log_whatsapp(
+                                modulo="Mis Líderes Reporte", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                http_codigo=400, respuesta_servidor="Número celular no válido o menor a 10 dígitos", remitente=current_user,
+                                rol=user_rol, sector=user_sector, grupo=c_grp, instancia_evo=evo_inst_diag,
+                                destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                            )
+
+                        prog_bar_l.progress((i_l + 1) / tot_l)
+                        stat_txt_l.caption(f"Enviando reporte {i_l + 1} de {tot_l}: **{c_nom}** ({c_num if c_num else 'Sin celular'})...")
+                        if i_l < tot_l - 1:
+                            time.sleep(delay_diag_wa)
+
+                    st.success(f"✅ ¡Reportes oficiales de Cómo Vamos enviados con éxito! Éxitos: **{ok_l}** | Fallidos o sin celular: **{err_l}**")
+                    with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Mis Líderes)", expanded=False):
+                        renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Mis Líderes Reporte", key_suffix="diag_lideres_envio")
 
 
 # --- TAB 3: METAS DE CRECIMIENTO (CE+) ---
