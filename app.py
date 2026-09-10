@@ -3833,7 +3833,7 @@ elif user_rol == 'superadmin' and ('lider_seleccionada_sb' in locals() and lider
 
 if mostrar_banner_top:
     grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
-    sector_cumple_filtro = user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
+    sector_cumple_filtro = user_sector if (user_rol in ['gerente', 'lider'] and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
     df_tableau_cumple = cached_consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
     renderizar_banner_cumpleanos(df_tableau_cumple, user_rol, user_nombre, user_grupo, user_sector, key_suffix="full_top")
 
@@ -4262,7 +4262,7 @@ if tab_tableau is not None:
         # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada aislada por sector/grupo)
         df_tableau = cached_consultar_tableau_sql(
             grupo=(user_grupo if user_rol == 'lider' else None),
-            sector=(user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
+            sector=(user_sector if (user_rol in ['gerente', 'lider'] and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
         )
 
         if df_tableau is None or df_tableau.empty:
@@ -7034,7 +7034,7 @@ if tab_resumen is not None:
             try:
                 df_tableau = cached_consultar_tableau_sql(
                     grupo=(user_grupo if user_rol == 'lider' else None),
-                    sector=(user_sector if (user_rol == 'gerente' and user_sector) else None)
+                    sector=(user_sector if (user_rol in ['gerente', 'lider'] and user_sector) else None)
                 )
             except Exception:
                 pass

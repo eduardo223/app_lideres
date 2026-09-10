@@ -7021,14 +7021,22 @@ def consultar_tableau_sql(grupo=None, sector=None):
     where_clauses = []
     params = []
     
-    if grupo:
-        where_clauses.append("(grupo LIKE ? OR sector LIKE ?)")
-        params.extend([f"%{grupo}%", f"%{grupo}%"])
+    if grupo and str(grupo).strip():
+        grp_str = str(grupo).strip()
+        grp_variantes = [grp_str]
+        if grp_str.isdigit():
+            grp_variantes.append(str(int(grp_str)))
+        grp_variantes = list(dict.fromkeys(grp_variantes))
+        conds_grp = " OR ".join(["grupo = ?" for _ in grp_variantes] + ["CAST(grupo AS TEXT) = ?" for _ in grp_variantes])
+        where_clauses.append(f"({conds_grp})")
+        params.extend(grp_variantes * 2)
         
     if sector and str(sector).strip():
         sec_str = str(sector).strip()
-        where_clauses.append("(cod_sector = ? OR sector LIKE ?)")
-        params.extend([sec_str, f"%{sec_str}%"])
+        sec_short = sec_str[6:] if (len(sec_str) > 6 and sec_str.startswith("700000")) else sec_str
+        sec_full = f"700000{sec_str}" if not sec_str.startswith("700000") else sec_str
+        where_clauses.append("(cod_sector = ? OR cod_sector = ? OR cod_sector = ? OR sector LIKE ?)")
+        params.extend([sec_str, sec_short, sec_full, f"%{sec_str}%"])
         
     if where_clauses:
         query += " WHERE " + " AND ".join(where_clauses)
@@ -7482,10 +7490,15 @@ def consultar_geral_sql(grupo=None, sector=None, situacion=None):
         where_clauses.append("cg.situacion = ?")
         params.append(str(situacion).strip())
         
-    if grupo:
+    if grupo and str(grupo).strip():
         grp_str = str(grupo).strip()
-        where_clauses.append("(COALESCE(NULLIF(ct.grupo, ''), cg.grupo) = ? OR COALESCE(NULLIF(ct.grupo, ''), cg.grupo) LIKE ?)")
-        params.extend([grp_str, f"%{grp_str}%"])
+        grp_variantes = [grp_str]
+        if grp_str.isdigit():
+            grp_variantes.append(str(int(grp_str)))
+        grp_variantes = list(dict.fromkeys(grp_variantes))
+        conds_grp = " OR ".join(["COALESCE(NULLIF(ct.grupo, ''), cg.grupo) = ?" for _ in grp_variantes] + ["CAST(COALESCE(NULLIF(ct.grupo, ''), cg.grupo) AS TEXT) = ?" for _ in grp_variantes])
+        where_clauses.append(f"({conds_grp})")
+        params.extend(grp_variantes * 2)
         
     if sector and str(sector).strip():
         sec_str = str(sector).strip()
