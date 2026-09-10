@@ -11,6 +11,7 @@ import time
 import urllib.parse
 import importlib
 import contextlib
+import requests
 import procesador
 
 # Recargamos dinámicamente procesador para garantizar que cualquier cambio en procesador.py se aplique sin reiniciar el servidor
@@ -4861,6 +4862,7 @@ if tab_tableau is not None:
                             # Envío automático por Evolution API
                             with st.expander("🔌 Envío Masivo Automático por Evolution API (Opcional)", expanded=False):
                                 st.markdown("##### 🚀 Envío Automático a Consultoras Seleccionadas:")
+                                import requests
                                 evo_url_tab = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
                                 inst_def_tab = obtener_instancia_evolution(current_user, user_rol, user_grupo)
                                 if 'in_evo_instance' in st.session_state:

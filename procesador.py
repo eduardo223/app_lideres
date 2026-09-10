@@ -10,6 +10,7 @@ import hmac
 import hashlib
 import base64
 from datetime import datetime, date
+import requests
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
     try:
