@@ -607,70 +607,157 @@ st.markdown("""
 
     
     /* ========================================================================= */
-    /* SLIM SIDEBAR VERTICAL NAVIGATION (ESTILO SAAS MODERNO / PALETA CORAL)     */
+    /* SLIM SIDEBAR: BOTONES DE NAVEGACIÓN GRANDES, MODERNOS Y ANIMADOS (2026)  */
     /* ========================================================================= */
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] {
-        gap: 7px !important;
-        padding: 4px 0 12px 0 !important;
+    
+    /* Header estilizado de Navegación en la Barra Lateral */
+    .sb-nav-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 14px 14px 14px;
+        background: rgba(255, 255, 255, 0.04);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        margin-bottom: 14px;
+        backdrop-filter: blur(10px);
+    }
+    .sb-nav-header-badge {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, rgba(255, 107, 74, 0.2) 0%, rgba(249, 115, 22, 0.35) 100%);
+        border: 1.5px solid rgba(249, 115, 22, 0.4);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.25);
+        flex-shrink: 0;
+    }
+    .sb-nav-compass {
+        font-size: 1.45rem;
+        display: inline-block;
+        animation: compassFloat 3.5s ease-in-out infinite;
+    }
+    @keyframes compassFloat {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        50% { transform: translateY(-3px) rotate(8deg); }
+    }
+    .sb-nav-title {
+        font-size: 0.90rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: linear-gradient(135deg, #FF8C66 0%, #F97316 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        line-height: 1.2;
+    }
+    .sb-nav-subtitle {
+        font-size: 0.72rem;
+        color: #94A3B8;
+        font-weight: 500;
+        letter-spacing: 0.01em;
+        margin-top: 2px;
     }
 
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label {
-        background: #FFFFFF !important;
-        border: 1.5px solid #E2E8F0 !important;
-        border-radius: 12px !important;
-        padding: 11px 15px !important;
-        margin: 0 !important;
-        cursor: pointer !important;
-        transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
-        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03) !important;
+    /* Espaciado del contenedor de cada botón en la barra lateral */
+    [data-testid="stSidebar"] div.stButton,
+    [data-testid="stSidebar"] [data-testid="element-container"]:has(button) {
+        margin-bottom: 8px !important;
+    }
+
+    /* Botones de navegación en la barra lateral (Generosos, Modernos y Flexibles) */
+    [data-testid="stSidebar"] button[data-testid^="stBaseButton"] {
+        min-height: 54px !important;
+        height: auto !important;
+        border-radius: 14px !important;
+        font-size: 0.98rem !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.01em !important;
         display: flex !important;
         align-items: center !important;
-        width: 100% !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        padding: 12px 16px !important;
+        transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
         box-sizing: border-box !important;
+        position: relative !important;
+        overflow: hidden !important;
+        width: 100% !important;
     }
 
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:hover {
-        background: rgba(249, 115, 22, 0.06) !important;
+    /* Tipografía e iconos dentro del botón */
+    [data-testid="stSidebar"] button[data-testid^="stBaseButton"] p,
+    [data-testid="stSidebar"] button[data-testid^="stBaseButton"] div[data-testid="stMarkdownContainer"] {
+        font-size: 0.98rem !important;
+        font-weight: 700 !important;
+        margin: 0 !important;
+        line-height: 1.3 !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 12px !important;
+        text-align: left !important;
+        width: 100% !important;
+    }
+
+    /* Botón INACTIVO (Secundario): Estilo Glassmorphism Premium */
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"] {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.10) !important;
+        color: #E2E8F0 !important;
+        backdrop-filter: blur(8px) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+    }
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"] p {
+        color: #E2E8F0 !important;
+        font-weight: 600 !important;
+    }
+
+    /* Hover en Botón INACTIVO: Desplazamiento interactivo, brillo coral y fondo dinámico */
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"]:hover {
+        background: rgba(249, 115, 22, 0.14) !important;
         border-color: #F97316 !important;
-        transform: translateX(4px) !important;
-        box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15) !important;
+        color: #FFFFFF !important;
+        transform: translateX(6px) scale(1.01) !important;
+        box-shadow: 0 6px 20px rgba(249, 115, 22, 0.30) !important;
+    }
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"]:hover p {
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
     }
 
-    /* Ocultar el círculo nativo de radio button */
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label div:first-child {
-        display: none !important;
-    }
-
-    /* Pestaña / Opción Activa: Gradiente Coral Vibrante con texto blanco */
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked),
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] {
+    /* Botón ACTIVO (Primario): Gradiente Coral Neón Radiante con sombra resplandeciente */
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {
         background: linear-gradient(135deg, #FF6B4A 0%, #F97316 100%) !important;
-        border-color: #F97316 !important;
-        box-shadow: 0 6px 18px rgba(249, 115, 22, 0.38) !important;
-        transform: translateX(4px) !important;
-    }
-
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) p,
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] p,
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) span,
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] span {
+        border: 1.5px solid rgba(255, 255, 255, 0.45) !important;
         color: #FFFFFF !important;
         font-weight: 800 !important;
-        -webkit-text-fill-color: #FFFFFF !important;
+        transform: translateX(5px) !important;
+        box-shadow: 0 8px 25px rgba(249, 115, 22, 0.48), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+        animation: activeGlowPulse 4s ease-in-out infinite alternate !important;
+    }
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] p {
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) !important;
     }
 
-    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label p {
-        font-size: 0.90rem !important;
-        font-weight: 700 !important;
-        color: #1E293B !important;
-        margin: 0 !important;
-        letter-spacing: 0.01em !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
+    [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hover {
+        transform: translateX(7px) scale(1.02) !important;
+        box-shadow: 0 10px 32px rgba(249, 115, 22, 0.65) !important;
     }
 
-    header[data-testid="stHeader"] {
+    @keyframes activeGlowPulse {
+        0% {
+            box-shadow: 0 8px 25px rgba(249, 115, 22, 0.42), 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+        100% {
+            box-shadow: 0 10px 30px rgba(255, 107, 74, 0.65), 0 3px 12px rgba(0, 0, 0, 0.28);
+        }
+    }
+
+        header[data-testid="stHeader"] {
         background: transparent !important;
     }
 
@@ -3218,8 +3305,6 @@ st.markdown("""
 </script>
 """, unsafe_allow_html=True)
 
-st.sidebar.markdown("---")
-
 # Modo de Operación para SuperAdmin (Aislamiento Total de Datos Comerciales)
 admin_sector_audit = None
 if user_rol == 'superadmin':
@@ -4884,27 +4969,31 @@ else:
     # MENÚ DE NAVEGACIÓN VERTICAL EN LA BARRA LATERAL (SLIM SIDEBAR ESTILO SAAS)
     # =========================================================================
     st.sidebar.markdown("""
-    <div style="padding: 6px 2px 8px 2px; display: flex; align-items: center; gap: 8px;">
-        <span style="font-size: 1.2rem;">🧭</span>
+    <div class="sb-nav-header">
+        <div class="sb-nav-header-badge">
+            <span class="sb-nav-compass">🧭</span>
+        </div>
         <div>
-            <div style="font-size: 0.86rem; font-weight: 800; color: #1E293B; letter-spacing: 0.02em;">MÓDULOS DEL SISTEMA</div>
-            <div style="font-size: 0.70rem; color: #64748B; font-weight: 500;">Navegación Principal</div>
+            <div class="sb-nav-title">MÓDULOS DEL SISTEMA</div>
+            <div class="sb-nav-subtitle">Navegación Principal • 2026</div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    menu_opciones = [label for _, label in tabs_permitidas]
-    label_to_key = {label: key for key, label in tabs_permitidas}
+    # Estado persistente del módulo activo
+    keys_validas = [k for k, _ in tabs_permitidas]
+    if 'modulo_activo' not in st.session_state or st.session_state['modulo_activo'] not in keys_validas:
+        st.session_state['modulo_activo'] = keys_validas[0]
 
-    nav_seleccionada = st.sidebar.radio(
-        "Navegación:",
-        options=menu_opciones,
-        index=0,
-        key="nav_sidebar_vertical",
-        label_visibility="collapsed"
-    )
+    for key_tab, label_tab in tabs_permitidas:
+        es_activo = (st.session_state['modulo_activo'] == key_tab)
+        tipo_boton = "primary" if es_activo else "secondary"
+        if st.sidebar.button(label_tab, key=f"btn_nav_{key_tab}", type=tipo_boton, use_container_width=True):
+            if st.session_state['modulo_activo'] != key_tab:
+                st.session_state['modulo_activo'] = key_tab
+                st.rerun()
 
-    key_activa = label_to_key.get(nav_seleccionada, tabs_permitidas[0][0])
+    key_activa = st.session_state['modulo_activo']
 
     # El contenedor del módulo activo se renderiza con st.container()
     # Todos los demás son None, garantizando máxima velocidad y preservando la lógica intacta
