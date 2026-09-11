@@ -423,6 +423,188 @@ st.markdown("""
         font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
     }
 
+    
+    /* ========================================================================= */
+    /* SISTEMA DE DISEÑO MODERNO CORPORATIVO (PALETA CORAL / OFF-WHITE / TIERS)  */
+    /* ========================================================================= */
+    :root {
+        --brand-coral: #F97316;
+        --brand-coral-hover: #EA580C;
+        --brand-coral-subtle: rgba(249, 115, 22, 0.08);
+        --bg-page: #F8FAFC;
+        --bg-card: #FFFFFF;
+        --text-primary: #1E293B;
+        --text-secondary: #64748B;
+        --border-subtle: #E2E8F0;
+        --shadow-elevation: 0 4px 16px -2px rgba(0, 0, 0, 0.05);
+    }
+
+    /* Top Bar Header */
+    .brand-top-header {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        padding: 4px 0 6px 0;
+    }
+    .brand-greeting {
+        font-size: clamp(1.4rem, 2vw, 1.85rem) !important;
+        font-weight: 800 !important;
+        color: #1E293B !important;
+        letter-spacing: -0.02em !important;
+        line-height: 1.2 !important;
+    }
+    .brand-subgreeting {
+        font-size: clamp(0.82rem, 1vw, 0.95rem) !important;
+        color: #64748B !important;
+        font-weight: 500 !important;
+        margin-top: 3px !important;
+    }
+    .badge-ciclo {
+        background: #FEF3C7 !important;
+        color: #92400E !important;
+        font-weight: 700 !important;
+        padding: 2px 8px !important;
+        border-radius: 12px !important;
+        font-size: 0.74rem !important;
+        display: inline-block !important;
+    }
+
+    /* Botón Primario de Carga (CTA Coral) */
+    button[kind="primary"] {
+        background: linear-gradient(135deg, #FF6B4A 0%, #F97316 100%) !important;
+        border: none !important;
+        color: #FFFFFF !important;
+        font-weight: 700 !important;
+        border-radius: 10px !important;
+        padding: 8px 18px !important;
+        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.32) !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    button[kind="primary"]:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 6px 20px rgba(249, 115, 22, 0.45) !important;
+    }
+
+    /* Grid de Clasificación (Tier Cards: Bronce, Plata, Oro, Zafiro, Diamante) */
+    .tier-cards-container {
+        margin: 6px 0 18px 0;
+    }
+    .tier-card {
+        background: #FFFFFF !important;
+        border-radius: 12px !important;
+        padding: 14px 13px !important;
+        border: 1px solid #E2E8F0 !important;
+        box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.05) !important;
+        transition: all 0.25s ease !important;
+        display: flex !important;
+        flex-direction: column !important;
+        justify-content: space-between !important;
+        height: 100% !important;
+        box-sizing: border-box !important;
+    }
+    .tier-card:hover {
+        transform: translateY(-3px) !important;
+        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.09) !important;
+    }
+    .tier-header {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 6px !important;
+    }
+    .tier-title {
+        font-size: 0.8rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.04em !important;
+        text-transform: uppercase !important;
+    }
+    .tier-pct-badge {
+        font-size: 0.68rem !important;
+        font-weight: 700 !important;
+        color: #64748B !important;
+        background: #F1F5F9 !important;
+        padding: 2px 6px !important;
+        border-radius: 6px !important;
+    }
+    .tier-count {
+        font-size: 1.85rem !important;
+        font-weight: 800 !important;
+        color: #1E293B !important;
+        line-height: 1.1 !important;
+    }
+    .tier-sublabel {
+        font-size: 0.72rem !important;
+        color: #64748B !important;
+        margin-bottom: 8px !important;
+    }
+    .tier-act-chip {
+        display: inline-flex !important;
+        align-items: center !important;
+        gap: 5px !important;
+        background: #F0FDF4 !important;
+        border: 1px solid #BBF7D0 !important;
+        padding: 2px 7px !important;
+        border-radius: 16px !important;
+        margin-bottom: 8px !important;
+        width: fit-content !important;
+    }
+    .tier-dot {
+        width: 6px !important;
+        height: 6px !important;
+        border-radius: 50% !important;
+        display: inline-block !important;
+    }
+    .tier-act-text {
+        font-size: 0.72rem !important;
+        color: #166534 !important;
+        font-weight: 600 !important;
+    }
+    .tier-progress-track {
+        width: 100% !important;
+        height: 5px !important;
+        background: #E2E8F0 !important;
+        border-radius: 3px !important;
+        overflow: hidden !important;
+        margin-bottom: 10px !important;
+    }
+    .tier-progress-fill {
+        height: 100% !important;
+        border-radius: 3px !important;
+        transition: width 0.4s ease !important;
+    }
+    .tier-financials {
+        border-top: 1px solid #F1F5F9 !important;
+        padding-top: 7px !important;
+        display: flex !important;
+        justify-content: space-between !important;
+    }
+    .tier-fact-lbl, .tier-prom-lbl {
+        color: #64748B !important;
+        font-size: 0.68rem !important;
+        display: block !important;
+        line-height: 1.1 !important;
+    }
+    .tier-fact-val, .tier-prom-val {
+        color: #1E293B !important;
+        font-weight: 700 !important;
+        font-size: 0.76rem !important;
+    }
+
+    /* Pestañas (Tabs) Estilizadas con Acento Coral */
+    button[data-baseweb="tab"] {
+        font-size: 0.85rem !important;
+        font-weight: 600 !important;
+        color: #64748B !important;
+        padding: 8px 14px !important;
+        border-radius: 8px 8px 0 0 !important;
+        transition: all 0.2s ease !important;
+    }
+    button[data-baseweb="tab"][aria-selected="true"] {
+        color: #F97316 !important;
+        border-bottom-color: #F97316 !important;
+        font-weight: 800 !important;
+    }
+
     header[data-testid="stHeader"] {
         background: transparent !important;
     }
@@ -3069,15 +3251,86 @@ puede_subir_archivos = (user_rol in ['gerente', 'superadmin']) or app_config.get
 # 3. Gera
 # 4. Objetivos Arte
 # -----------------------------------------------------------------------------
-if puede_subir_archivos:
-    if user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit):
-        st.sidebar.markdown("### 📥 Carga de Archivos")
+# Carga de archivos trasladada al modal Top-Right (Header)
+st.sidebar.markdown("---")
+if st.sidebar.button("🔄 Recargar Datos Actuales"):
+    st.cache_data.clear()
+    st.rerun()
+
+if user_rol == 'superadmin':
+    try:
+        ruta_db_sqlite = ruta_persistente('base_matices.db')
+        if os.path.exists(ruta_db_sqlite):
+            with open(ruta_db_sqlite, "rb") as f_db:
+                st.sidebar.download_button(
+                    label="📥 Descargar Base de Datos (.db)",
+                    data=f_db,
+                    file_name="base_matices_nube.db",
+                    mime="application/x-sqlite3",
+                    help="Descarga una copia exacta de la base SQLite para auditar en DB Browser (Exclusivo Administrador)",
+                    use_container_width=True
+                )
+            st.sidebar.markdown("---")
+    except Exception:
+        pass
+
+# Carga de datos
+if user_rol == 'superadmin' and not admin_sector_audit:
+    df_raw = None
+else:
+    with st.spinner("Cargando y procesando la base de datos..."):
+        df_raw = load_and_process_data('Base para el como vamos.xlsx')
+
+if df_raw is None:
+    df = pd.DataFrame()
+else:
+    df = df_raw.copy()
+    # Omitir filas 'None', 'NaN' o vacías que dañan la presentación visual de las tablas
+    col_lider_check = 'Nombre de consultora' if 'Nombre de consultora' in df.columns else df.columns[0]
+    if col_lider_check in df.columns:
+        mask_valida_df = df[col_lider_check].notna() & \
+                          (~df[col_lider_check].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
+        df = df[mask_valida_df]
+
+    # Aislamiento Multitenant: Filtrar df por el sector asignado tanto para Gerente como para Líder o Admin auditando
+    if user_sector and (user_rol in ['gerente', 'lider'] or (user_rol == 'superadmin' and admin_sector_audit)):
+        col_sec_found = None
+        for c in df.columns:
+            c_low = str(c).lower().replace('ó', 'o')
+            if 'setor' in c_low or 'sector' in c_low:
+                col_sec_found = c
+                break
+                
+        if col_sec_found:
+            s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
+            df = df[s_vals == str(user_sector).strip()]
+        else:
+            grupos_sector = {str(u.get('codigo_grupo')).strip() for u in cargar_usuarios().values() if str(u.get('codigo_sector')).strip() == str(user_sector).strip() and u.get('codigo_grupo')}
+            col_grp_ref = next((c for c in df.columns if 'grupo' in str(c).lower()), None)
+            if col_grp_ref and grupos_sector:
+                g_vals = df[col_grp_ref].astype(str).str.split('.').str[0].str.strip()
+                df = df[g_vals.isin(grupos_sector)]
+    elif user_rol == 'gerente' and not user_sector:
+        # Si la gerente NO tiene sector asignado en usuarios.json, mostrar vista limpia de 0 filas
+        df = df.iloc[0:0]
+
+
+# =========================================================================
+# MODAL TOP-RIGHT: CENTRO DE CARGA Y ACTUALIZACIÓN DE ARCHIVOS DE CICLO
+# =========================================================================
+@st.dialog("☁️ Centro de Carga y Actualización de Bases", width="large")
+def modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user):
+    st.markdown("### ☁️ Centro de Carga y Actualización de Campaña")
+    st.caption(f"Sector: **{user_sector_nombre}** (Cód: `{user_sector}`) • Selecciona el tipo de base:")
+    t_tab, t_cv, t_gera, t_arte, t_desaf, t_gan, t_hist = st.tabs([
+        "📊 1. Tableau", "🔄 2. Cómo Vamos", "💳 3. Gera", "🎯 4. Objetivos Arte", "✨ 5. Desafíos", "📑 6. Ganancia Arte", "📝 7. Historial"
+    ])
 
         # 1. TABLEAU
-        with st.sidebar.expander("📊 1. Tableau", expanded=False):
+    with t_tab:
             st.caption("Carga la Base Maestra (`Base de Datos.xlsx`) o actualiza con `mi_grupo` / `activas`:")
             tab_sb_tab, tab_sb_mg, tab_sb_act = st.tabs(["📁 Tableau", "🔄 mi_grupo", "⚡ Activas"])
-            
+
             with tab_sb_tab:
                 archivo_tableau_sb = st.file_uploader("Cargar `Base de Datos.xlsx`", type=["xlsx"], key="sb_tableau_uploader")
                 if archivo_tableau_sb is not None:
@@ -3299,7 +3552,7 @@ if puede_subir_archivos:
                             st.error(f"Error: {res_act.get('error')}")
 
         # 2. ROTACIÓN DE CICLO "MIS LÍDERES"
-        with st.sidebar.expander("🔄 2. Rotación de Ciclo 'Mis líderes'", expanded=False):
+    with t_cv:
             st.caption("Sube el Excel del nuevo ciclo ('Cómo Vamos') para actualizar las metas y convertir el actual en histórico.")
             nuevo_ciclo_file = st.file_uploader("Cargar Nuevo Ciclo ('Cómo Vamos')", type=["xlsx"], key="uploader_nuevo_ciclo")
             if nuevo_ciclo_file is not None:
@@ -3330,7 +3583,7 @@ if puede_subir_archivos:
                         st.error(f"❌ Error al rotar el ciclo: {ex}")
 
         # 3. GERA (CRÉDITO & COBRANZA)
-        with st.sidebar.expander("💳 3. Gera", expanded=False):
+    with t_gera:
             st.caption("Carga el archivo maestro descargado de Gera para actualizar deudas y vencimientos:")
             with st.popover("💡 ¿Cómo descargarlo en Gera?"):
                 st.markdown(
@@ -3411,7 +3664,7 @@ if puede_subir_archivos:
                 st.caption("⚪ **Sin cartera cargada** para este sector.")
 
         # 4. OBJETIVOS ARTE
-        with st.sidebar.expander("🎯 4. Objetivos Arte", expanded=False):
+    with t_arte:
             st.caption("Sube `Objetivos Arte.xlsx` (Hoja *Desafíos LNN*) para actualizar metas de Inicios, Reinicios y Recuperos:")
             obj_arte_file_sb = st.file_uploader("Cargar 'Objetivos Arte.xlsx':", type=["xlsx", "xls"], key="sb_uploader_obj_arte")
             if obj_arte_file_sb is not None:
@@ -3466,7 +3719,7 @@ if puede_subir_archivos:
                 st.caption("⚪ **Sin metas de Objetivos Arte** para este sector.")
 
         # 5. AJUSTES DESAFÍOS (PROYECCIÓN GERENCIA DE ZONA)
-        with st.sidebar.expander("✨ 5. Ajustes Desafíos", expanded=False):
+    with t_desaf:
             st.caption("Sube el archivo de calibración de zona (ej. `C13 DESAFIOS SECTOR...xlsx`) para ajustar metas y registrar histórico:")
             hist_sec = cargar_ajustes_desafios(sector=user_sector)
             c_act_sug = hist_sec.get('campana', 'C13') if (isinstance(hist_sec, dict) and hist_sec.get('campana')) else 'C13'
@@ -3532,7 +3785,7 @@ if puede_subir_archivos:
                 st.caption("⚪ **Sin ajustes de zona** para este sector.")
 
         # 6. INFORME GANANCIA ARTE (MÉTRICAS CE+)
-        with st.sidebar.expander("📈 6. Informe Ganancia Arte (CE+)", expanded=False):
+    with t_gan:
             st.caption("Sube el archivo `Informe Ganancia Arte.xlsx` para alimentar la pestaña de **Metas de Crecimiento (CE+)**:")
             file_ganancia_arte_sb = st.file_uploader("Cargar 'Informe Ganancia Arte.xlsx':", type=["xlsx", "xls"], key="sb_uploader_ganancia_arte")
             if file_ganancia_arte_sb is not None:
@@ -3581,7 +3834,7 @@ if puede_subir_archivos:
                 st.caption("⚪ **Sin datos de Ganancia Arte** para este sector.")
 
         # 7. BITÁCORA RÁPIDA DE ARCHIVOS (LOGS DE AGREGO, ACTUALIZACIÓN Y BORRADO)
-        with st.sidebar.expander("📜 Bitácora de Archivos (Recientes)", expanded=False):
+    with t_hist:
             st.caption("Últimos movimientos de carga, actualización y borrado en tu sector:")
             sec_log_sb = user_sector if user_rol == 'gerente' else None
             df_logs_sb = consultar_logs_archivos_df(sector=sec_log_sb, limite=5)
@@ -3593,79 +3846,119 @@ if puede_subir_archivos:
             else:
                 st.caption("⚪ Sin movimientos recientes registrados.")
 
-        st.sidebar.markdown("---")
-else:
-    st.sidebar.info("🔒 **Carga restringida**: La opción de subida de archivos está desactivada por la Gerencia General para tu perfil.")
 
-st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Recargar Datos Actuales"):
-    st.cache_data.clear()
-    st.rerun()
 
-if user_rol == 'superadmin':
+
+
+
+def render_tier_cards_grid(user_sector):
+    """
+    Renderiza el Grid horizontal de 5 tarjetas para los niveles de consultoras:
+    Bronce, Plata, Oro, Zafiro, Diamante con acentos sutiles de 3px y fondo blanco.
+    """
     try:
-        ruta_db_sqlite = ruta_persistente('base_matices.db')
-        if os.path.exists(ruta_db_sqlite):
-            with open(ruta_db_sqlite, "rb") as f_db:
-                st.sidebar.download_button(
-                    label="📥 Descargar Base de Datos (.db)",
-                    data=f_db,
-                    file_name="base_matices_nube.db",
-                    mime="application/x-sqlite3",
-                    help="Descarga una copia exacta de la base SQLite para auditar en DB Browser (Exclusivo Administrador)",
-                    use_container_width=True
-                )
-            st.sidebar.markdown("---")
+        df_cb = procesador.consultar_tableau_sql(sector=user_sector) if user_sector else procesador.consultar_tableau_sql()
     except Exception:
-        pass
+        df_cb = pd.DataFrame()
 
-# Carga de datos
-if user_rol == 'superadmin' and not admin_sector_audit:
-    df_raw = None
-else:
-    with st.spinner("Cargando y procesando la base de datos..."):
-        df_raw = load_and_process_data('Base para el como vamos.xlsx')
+    tiers_config = [
+        {"nombre": "BRONCE", "color": "#CD7F32", "icon": "🥉"},
+        {"nombre": "PLATA", "color": "#94A3B8", "icon": "🥈"},
+        {"nombre": "ORO", "color": "#EAB308", "icon": "🥇"},
+        {"nombre": "ZAFIRO", "color": "#2563EB", "icon": "💎"},
+        {"nombre": "DIAMANTE", "color": "#8B5CF6", "icon": "👑"}
+    ]
 
-if df_raw is None:
-    df = pd.DataFrame()
-else:
-    df = df_raw.copy()
-    # Omitir filas 'None', 'NaN' o vacías que dañan la presentación visual de las tablas
-    col_lider_check = 'Nombre de consultora' if 'Nombre de consultora' in df.columns else df.columns[0]
-    if col_lider_check in df.columns:
-        mask_valida_df = df[col_lider_check].notna() & \
-                          (~df[col_lider_check].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
-        df = df[mask_valida_df]
+    tier_stats = {}
+    col_n = 'Nivel / Color' if 'Nivel / Color' in df_cb.columns else ('Color' if 'Color' in df_cb.columns else None)
+    total_gral = len(df_cb) if not df_cb.empty else 0
 
-    # Aislamiento Multitenant: Filtrar df por el sector asignado tanto para Gerente como para Líder o Admin auditando
-    if user_sector and (user_rol in ['gerente', 'lider'] or (user_rol == 'superadmin' and admin_sector_audit)):
-        col_sec_found = None
-        for c in df.columns:
-            c_low = str(c).lower().replace('ó', 'o')
-            if 'setor' in c_low or 'sector' in c_low:
-                col_sec_found = c
-                break
-                
-        if col_sec_found:
-            s_vals = df[col_sec_found].astype(str).str.strip().str.replace('.0', '', regex=False)
-            df = df[s_vals == str(user_sector).strip()]
+    for t in tiers_config:
+        nom = t["nombre"]
+        if not df_cb.empty and col_n:
+            sub = df_cb[df_cb[col_n].astype(str).str.strip().str.lower() == nom.lower()]
+            tot = len(sub)
+            col_sit = 'Sit. Comercial' if 'Sit. Comercial' in sub.columns else ('Situación' if 'Situación' in sub.columns else None)
+            act = len(sub[sub[col_sit].astype(str).str.strip().str.lower() == 'activa']) if col_sit else 0
+            pct_act = (act / tot * 100) if tot > 0 else 0
+            f_nat = sub['Fact. Natura'].fillna(0) if 'Fact. Natura' in sub.columns else 0
+            f_avo = sub['Fact. AVON'].fillna(0) if 'Fact. AVON' in sub.columns else 0
+            f_ce = sub['Fact. C&E'].fillna(0) if 'Fact. C&E' in sub.columns else 0
+            fact_tot = (f_nat + f_avo + f_ce).sum()
+            prom = (fact_tot / act) if act > 0 else 0
         else:
-            grupos_sector = {str(u.get('codigo_grupo')).strip() for u in cargar_usuarios().values() if str(u.get('codigo_sector')).strip() == str(user_sector).strip() and u.get('codigo_grupo')}
-            col_grp_ref = next((c for c in df.columns if 'grupo' in str(c).lower()), None)
-            if col_grp_ref and grupos_sector:
-                g_vals = df[col_grp_ref].astype(str).str.split('.').str[0].str.strip()
-                df = df[g_vals.isin(grupos_sector)]
-    elif user_rol == 'gerente' and not user_sector:
-        # Si la gerente NO tiene sector asignado en usuarios.json, mostrar vista limpia de 0 filas
-        df = df.iloc[0:0]
+            tot, act, pct_act, fact_tot, prom = 0, 0, 0.0, 0.0, 0.0
+
+        tier_stats[nom] = {
+            "tot": tot,
+            "act": act,
+            "pct": pct_act,
+            "fact": fact_tot,
+            "prom": prom,
+            "pct_total": (tot / total_gral * 100) if total_gral > 0 else 0
+        }
+
+    # Render horizontal de 5 columnas
+    tcols = st.columns(5)
+    for idx, t in enumerate(tiers_config):
+        s_d = tier_stats[t["nombre"]]
+        c_acc = t["color"]
+        with tcols[idx]:
+            st.markdown(f"""
+            <div class="tier-card" style="border-top: 3.5px solid {c_acc};">
+                <div class="tier-header">
+                    <span class="tier-title" style="color: {c_acc};">{t['icon']} {t['nombre']}</span>
+                    <span class="tier-pct-badge">{s_d['pct_total']:.0f}% del total</span>
+                </div>
+                <div class="tier-count">{s_d['tot']}</div>
+                <div class="tier-sublabel">Consultoras registradas</div>
+                
+                <div class="tier-act-chip">
+                    <span class="tier-dot" style="background-color: #22C55E;"></span>
+                    <span class="tier-act-text"><b>{s_d['act']}</b> activas ({s_d['pct']:.1f}%)</span>
+                </div>
+                
+                <div class="tier-progress-track">
+                    <div class="tier-progress-fill" style="width: {min(s_d['pct'], 100):.1f}%; background-color: {c_acc};"></div>
+                </div>
+                
+                <div class="tier-financials">
+                    <div>
+                        <span class="tier-fact-lbl">Facturación</span>
+                        <span class="tier-fact-val">${s_d['fact']/1e6:.1f}M</span>
+                    </div>
+                    <div style="text-align: right;">
+                        <span class="tier-prom-lbl">Prom / Pedido</span>
+                        <span class="tier-prom-val">${s_d['prom']:,.0f}</span>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
 
 # Header Principal Dinámico según el Rol y Sector del Usuario
 if user_rol == 'superadmin' and not admin_sector_audit:
     st.markdown("<div class='main-header'>🛠️ Panel Corporativo de Administración (Super Admin)</div>", unsafe_allow_html=True)
     st.markdown("<div class='sub-header'>Centro de Control: Gestión de Cuentas, Roles, Suscripciones y Mantenimiento del Sistema</div>", unsafe_allow_html=True)
 else:
-    st.markdown(f"<div class='main-header'>📈 Panel de Control - Estado de Ciclo {user_sector_nombre}</div>", unsafe_allow_html=True)
-    st.markdown(f"<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento • {user_sector_nombre}</div>", unsafe_allow_html=True)
+    head_c1, head_c2 = st.columns([3, 1])
+    with head_c1:
+        primer_nombre = user_nombre.split()[0] if user_nombre else "Gerente"
+        st.markdown(f"""
+        <div class="brand-top-header">
+            <div class="brand-greeting">¡Hola, {primer_nombre}! 👋</div>
+            <div class="brand-subgreeting">Gerencia <b>{user_sector_nombre}</b> • <span class="badge-ciclo">Ciclo Activo</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+    with head_c2:
+        if puede_subir_archivos and (user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit)):
+            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            if st.button("☁️ Cargar Datos", type="primary", key="btn_top_cargar_datos", use_container_width=True, help="Abre el centro de actualización de bases y archivos de campaña"):
+                modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user)
+
+    # Grid de Clasificación (Tier Cards: Bronce, Plata, Oro, Zafiro, Diamante)
+    render_tier_cards_grid(user_sector)
+    st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
 
 # Diagnóstico informativo si no hay datos de metas en "Cómo Vamos" para el sector o rol activo
 if df.empty and (user_rol in ['gerente', 'lider'] or (user_rol == 'superadmin' and admin_sector_audit)):
@@ -4302,33 +4595,33 @@ permisos_tab_config = app_config.get("permisos_pestanas", DEFAULT_PERMISOS_PESTA
 
 if user_rol == 'lider':
     tabs_definidas = [
-        ("tab_tableau", "📋 MI LISTADO"),
-        ("tab_geral", "💳 GERA_CREDITO&COBRANZA"),
-        ("tab_resumen", "📊 RESUMEN & KPIS"),
-        ("tab_ganancia", "🧮 SIMULADORES"),
-        ("tab_diagnostico", "👑 MIS LÍDERES"),
-        ("tab_metas", "🎯 METAS DE CRECIMIENTO (CE+)"),
-        ("tab_detalle", "📑 GENERADOR DE INFORMES"),
+        ("tab_tableau", "Informes"),
+        ("tab_geral", "Crédito y Cobranza"),
+        ("tab_resumen", "KPIs"),
+        ("tab_ganancia", "Simuladores"),
+        ("tab_diagnostico", "Mis Líderes"),
+        ("tab_metas", "Metas CE+"),
+        ("tab_detalle", "Generador"),
     ]
 elif user_rol == 'superadmin' and not admin_sector_audit:
     tabs_definidas = [
-        ("tab_usuarios", "🔑 GESTIÓN DE USUARIOS, ROLES & PERMISOS")
+        ("tab_usuarios", "Usuarios")
     ]
 else:
     tabs_definidas = [
-        ("tab_tableau", "📊 INFORME TABLEAU CAM"),
-        ("tab_geral", "💳 GERA_CREDITO&COBRANZA"),
-        ("tab_resumen", "📊 RESUMEN & KPIS"),
-        ("tab_ganancia", "🧮 SIMULADORES"),
-        ("tab_diagnostico", "👑 MIS LÍDERES"),
-        ("tab_metas", "🎯 METAS DE CRECIMIENTO (CE+)"),
-        ("tab_detalle", "📑 GENERADOR DE INFORMES"),
+        ("tab_tableau", "Informes"),
+        ("tab_geral", "Crédito y Cobranza"),
+        ("tab_resumen", "KPIs"),
+        ("tab_ganancia", "Simuladores"),
+        ("tab_diagnostico", "Mis Líderes"),
+        ("tab_metas", "Metas CE+"),
+        ("tab_detalle", "Generador"),
     ]
 
 if user_rol == 'superadmin' and admin_sector_audit:
-    tabs_definidas.append(("tab_usuarios", "🔑 GESTIÓN DE USUARIOS, ROLES & PERMISOS"))
+    tabs_definidas.append(("tab_usuarios", "Usuarios"))
 elif user_rol == 'gerente':
-    tabs_definidas.append(("tab_lideres_gerente", "🔑 DIRECTORIO & ACCESOS DE LÍDERES"))
+    tabs_definidas.append(("tab_lideres_gerente", "Directorio Líderes"))
 
 tabs_permitidas = []
 for key_tab, label_tab in tabs_definidas:
