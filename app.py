@@ -171,6 +171,17 @@ components.html(
                 targetDoc.body.classList.add('notranslate');
             }
 
+            // Asegurar que la barra lateral permanezca expandida en escritorio
+            setTimeout(function() {
+                try {
+                    const sb = targetDoc.querySelector('[data-testid="stSidebar"]');
+                    const btnCollapse = targetDoc.querySelector('[data-testid="collapsedControl"] button') || targetDoc.querySelector('[data-testid="collapsedControl"]');
+                    if (targetWin.innerWidth >= 992 && sb && sb.getAttribute('aria-expanded') === 'false' && btnCollapse) {
+                        btnCollapse.click();
+                    }
+                } catch(e) {}
+            }, 350);
+
             // 3. Blindaje React DOM: neutralizar removeChild / insertBefore cuando
             // traductores o extensiones de navegador mutan o envuelven nodos del DOM
             const NodeProto = targetWin.Node && targetWin.Node.prototype;
@@ -779,13 +790,41 @@ st.markdown("""
         }
     }
 
-        /* Ocultar barra superior y eliminar espacio vacío arriba */
+    /* Barra superior transparente sin altura pero con botón de menú siempre accesible */
     header[data-testid="stHeader"] {
-        display: none !important;
-        height: 0 !important;
-        min-height: 0 !important;
+        background: transparent !important;
+        height: 0px !important;
+        min-height: 0px !important;
         padding: 0 !important;
         margin: 0 !important;
+        overflow: visible !important;
+        z-index: 999990 !important;
+    }
+
+    /* Botón visible y accesible para abrir/cerrar la barra lateral */
+    [data-testid="collapsedControl"],
+    header[data-testid="stHeader"] [data-testid="collapsedControl"] {
+        display: flex !important;
+        visibility: visible !important;
+        opacity: 1 !important;
+        position: fixed !important;
+        top: 8px !important;
+        left: 8px !important;
+        z-index: 999999 !important;
+        background: linear-gradient(135deg, #FF6B4A 0%, #F97316 100%) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.4) !important;
+        border-radius: 10px !important;
+        padding: 4px 6px !important;
+        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.45) !important;
+        cursor: pointer !important;
+    }
+    [data-testid="collapsedControl"] svg,
+    header[data-testid="stHeader"] [data-testid="collapsedControl"] svg {
+        fill: #FFFFFF !important;
+        stroke: #FFFFFF !important;
+        color: #FFFFFF !important;
+        width: 20px !important;
+        height: 20px !important;
     }
 
     /* ========================================================= */
