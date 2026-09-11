@@ -4425,16 +4425,20 @@ ganancia_total = float(df_filtrado['Ganancia estimada'].sum()) if 'Ganancia esti
 inicios_totales = float(df_filtrado['Inicios'].sum()) if 'Inicios' in df_filtrado.columns else 0.0
 reinicios_totales = float(df_filtrado['Reinicios'].sum()) if 'Reinicios' in df_filtrado.columns else 0.0
 
-# 4. TARJETAS DE KPIS SUPERIORES (VISTA COMPLETA)
-# Recordatorio y Banner de Cumpleaños para Líderes y Gerentes
-# En vista consolidada de Super Administrador (sin líder específica seleccionada), se omite para asegurar máxima velocidad
+# 4. TARJETAS DE KPIS SUPERIORES (VISTA COMPLETA - DINÁMICA)
+# Se muestran EXCLUSIVAMENTE en la pestaña de Informe Tableau / Mi Listado
+# En las demás pestañas permanecen ocultas para no saturar la vista y navegar fluidamente
+modulo_activo_canvas = st.session_state.get('modulo_activo', 'tab_tableau')
+es_tab_tableau_activo = (modulo_activo_canvas == 'tab_tableau')
+
 mostrar_banner_top = False
 if user_rol in ['lider', 'gerente']:
     mostrar_banner_top = True
 elif user_rol == 'superadmin' and ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes"):
     mostrar_banner_top = True
 
-if mostrar_banner_top:
+# El banner de cumpleaños solo se muestra en la vista de Tableau / Mi Listado
+if mostrar_banner_top and es_tab_tableau_activo:
     grupo_cumple_filtro = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
     sector_cumple_filtro = user_sector if (user_rol in ['gerente', 'lider'] and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None)
     df_tableau_cumple = cached_consultar_tableau_sql(grupo=grupo_cumple_filtro, sector=sector_cumple_filtro)
@@ -4559,7 +4563,7 @@ else:
     def dialog_origen_lideres(*args, **kwargs): pass
     def dialog_origen_facturacion(*args, **kwargs): pass
 
-if user_rol == 'lider':
+if es_tab_tableau_activo and user_rol == 'lider':
     # --- CUADRO DE MANDO DE DESAFÍOS OPERATIVOS EXCLUSIVO PARA LÍDERES ---
     arte_lider = obtener_metas_efectivas(grupo=user_grupo) if user_grupo else {}
     if arte_lider.get('es_ajuste_zona'):
@@ -4695,7 +4699,7 @@ if user_rol == 'lider':
             delta_color="normal"
         )
 
-elif user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit):
+elif es_tab_tableau_activo and (user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit)):
     # --- CUADRO DE MANDO CONSOLIDADO PARA GERENTES Y SUPERADMIN AUDITANDO ---
     kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
@@ -4757,7 +4761,7 @@ elif user_rol == 'superadmin':
 # CLASIFICACIÓN DE NIVELES (TIER CARDS: BRONCE, PLATA, ORO, ZAFIRO, DIAMANTE)
 # Ubicadas directamente debajo de los Desafíos y Bolsa de Recuperación ("Abajito")
 # =========================================================================
-if user_rol in ['lider', 'gerente'] or (user_rol == 'superadmin' and admin_sector_audit):
+if es_tab_tableau_activo and (user_rol in ['lider', 'gerente'] or (user_rol == 'superadmin' and admin_sector_audit)):
     st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
     grupo_tier = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
     render_tier_cards_grid(user_sector, grupo=grupo_tier)
@@ -5101,8 +5105,12 @@ if tab_tableau is not None:
         else:
             df_tab_filt = df_tableau.copy()
 
-            # 1. Aplicar filtros activos desde st.session_state (para cálculo en tiempo real de las 5 tarjetas)
-            lider_sel_init = st.session_state.get("tab_lider_grp_sel", "Todas las Líderes (Consolidado Zona)")
+            # 1. Aplicar filtros activos (Filtro Centralizado para Gerente/Admin, grupo propio para Líder)
+            if user_rol in ['gerente', 'superadmin']:
+                lider_sel_init = lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else "Todas las Líderes (Consolidado Zona)"
+            else:
+                lider_sel_init = str(user_grupo).strip() if user_grupo else "Todas las Líderes (Consolidado Zona)"
+
             if lider_sel_init != "Todas las Líderes (Consolidado Zona)" and 'Grupo' in df_tab_filt.columns:
                 df_tab_filt = df_tab_filt[df_tab_filt['Grupo'].astype(str).str.strip() == str(lider_sel_init).strip()]
 
@@ -5243,22 +5251,16 @@ if tab_tableau is not None:
             portal_opciones = ["Base Principal (Todas)", "🚪 Consultoras Cesadas (Portal mi_grupo)", "📝 Nuevas Registradas (Portal mi_grupo)", "🌟 Intención (Portal mi_grupo)"]
 
             if user_rol in ['gerente', 'superadmin']:
-                lista_grupos_t = sorted([str(g).strip() for g in df_tableau['Grupo'].dropna().unique()]) if 'Grupo' in df_tableau.columns else []
+                # Variable de compatibilidad con subpestañas usando el filtro centralizado
+                lider_sel_t = lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else "Todas las Líderes (Consolidado Zona)"
 
-                # Fila 1: Filtros de Identificación y Segmentación Comercial
-                col_r1_1, col_r1_2, col_r1_3, col_r1_4 = st.columns([1.4, 1.2, 1.1, 1.3])
+                # Fila 1: Filtros de Segmentación Comercial (Filtro Centralizado arriba, sin duplicados aquí)
+                col_r1_1, col_r1_2, col_r1_3 = st.columns([1.3, 1.2, 1.5])
                 with col_r1_1:
-                    lider_sel_t = st.selectbox(
-                        "👤 Líder / Grupo",
-                        options=["Todas las Líderes (Consolidado Zona)"] + lista_grupos_t,
-                        format_func=format_lider_tab,
-                        key="tab_lider_grp_sel"
-                    )
-                with col_r1_2:
                     sits_sel = st.multiselect("🚦 Sit. Comercial", options=sits_disponibles, default=[], key="filt_sit_com")
-                with col_r1_3:
+                with col_r1_2:
                     colores_tab_sel = st.multiselect("🏆 Nivel / Color", options=colores_tab_disp, default=[], key="filt_color_tab")
-                with col_r1_4:
+                with col_r1_3:
                     busq_t = st.text_input("🔍 Buscar Consultora (Nombre o Código)", "", key="tab_busq")
 
                 # Fila 2: Filtros de Cartera, Ubicación y Portal (Responsivos)

@@ -817,7 +817,38 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         </div>
         """, unsafe_allow_html=True)
 
-        # --- DESGLOSE ANALÍTICO POR NIVEL Y ESTADO COMERCIAL (MÓVIL) ---
+        # Tarjetas Responsivas de Niveles (Bronce, Plata, Oro, Zafiro, Diamante) con Paleta Oficial
+        if not df_tab_filtrado.empty:
+            col_color_t = 'Color' if 'Color' in df_tab_filtrado.columns else ('Nivel / Color' if 'Nivel / Color' in df_tab_filtrado.columns else None)
+            if col_color_t:
+                tiers_mob = [
+                    {"nombre": "Bronce", "color": "#CD7F32", "icon": "🥉", "bg": "rgba(205, 127, 50, 0.12)", "border": "rgba(205, 127, 50, 0.45)"},
+                    {"nombre": "Plata", "color": "#64748B", "icon": "🥈", "bg": "rgba(100, 116, 139, 0.14)", "border": "rgba(100, 116, 139, 0.45)"},
+                    {"nombre": "Oro", "color": "#D97706", "icon": "🥇", "bg": "rgba(245, 158, 11, 0.14)", "border": "rgba(217, 119, 6, 0.45)"},
+                    {"nombre": "Zafiro", "color": "#2563EB", "icon": "💎", "bg": "rgba(37, 99, 235, 0.12)", "border": "rgba(37, 99, 235, 0.45)"},
+                    {"nombre": "Diamante", "color": "#7C3AED", "icon": "👑", "bg": "rgba(124, 58, 237, 0.13)", "border": "rgba(124, 58, 237, 0.45)"}
+                ]
+                
+                tot_mob_all = len(df_tab_filtrado)
+                col_sit_mob = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filtrado.columns else ('Situación' if 'Situación' in df_tab_filtrado.columns else None)
+                
+                cards_mob_html = '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; margin: 4px 0 12px 0;">'
+                for tm in tiers_mob:
+                    sub_tm = df_tab_filtrado[df_tab_filtrado[col_color_t].astype(str).str.strip().str.lower() == tm["nombre"].lower()]
+                    c_tot = len(sub_tm)
+                    c_act = len(sub_tm[sub_tm[col_sit_mob].astype(str).str.strip().str.lower() == 'activa']) if col_sit_mob else 0
+                    pct_t = (c_tot / tot_mob_all * 100) if tot_mob_all > 0 else 0
+                    
+                    cards_mob_html += f'''<div style="background: {tm['bg']}; border: 1.5px solid {tm['border']}; border-top: 3.5px solid {tm['color']}; border-radius: 12px; padding: 7px 5px; text-align: center; box-shadow: 0 2px 8px rgba(0,0,0,0.06);">
+                        <div style="font-size: 10px; font-weight: 800; color: {tm['color']}; text-transform: uppercase;">{tm['icon']} {tm['nombre']}</div>
+                        <div style="font-size: 17px; font-weight: 800; color: {tm['color']}; line-height: 1.2; margin: 2px 0;">{c_tot}</div>
+                        <div style="font-size: 9px; color: #64748B; font-weight: 600;">{pct_t:.0f}% total</div>
+                        <div style="font-size: 9.5px; color: #15803D; font-weight: 700; margin-top: 2px;">🟢 {c_act} act.</div>
+                    </div>'''
+                cards_mob_html += '</div>'
+                st.markdown(cards_mob_html, unsafe_allow_html=True)
+
+                # --- DESGLOSE ANALÍTICO POR NIVEL Y ESTADO COMERCIAL (MÓVIL) ---
         with st.expander("🎨 Ver Análisis de Niveles, Estados y Facturación", expanded=False):
             st.markdown("##### 🎨 Clasificación por Niveles y Estado Comercial")
             orden_niveles = ['Bronce', 'Plata', 'Oro', 'Zafiro', 'Diamante']
