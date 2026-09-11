@@ -3117,67 +3117,21 @@ if current_user.get('debe_cambiar_password', False):
             st.rerun()
     st.stop()
 
-# 3. BARRA LATERAL (Perfil de Usuario, Logout y Opciones según Rol)
-st.sidebar.markdown(f"### 👤 {user_nombre}")
-if user_rol == 'superadmin':
-    st.sidebar.caption("🛠️ **Rol**: Super Administrador del Sistema (Control Total & Roles)")
-elif user_rol == 'gerente':
-    st.sidebar.caption(f"👑 **Gerencia**: {user_sector_nombre} (Sector `{user_sector}`)")
-elif user_rol == 'lider':
-    st.sidebar.caption(f"👩‍💼 **Rol**: Líder de Negocio (Grupo `{user_grupo}` • {user_sector_nombre})")
-else:
-    st.sidebar.caption(f"👤 **Rol**: Consultora / Consulta de Facturación ({user_sector_nombre})")
-
+# 3. CONTROL DE SESIÓN Y VISTA
+is_dark_theme = False
 if info_suscripcion.get("estado") == "prueba":
-    st.sidebar.info(f"⏳ **Modo Prueba**: Te quedan **{info_suscripcion['dias_restantes']} días** de prueba gratuita (Vence el {info_suscripcion['fecha_vencimiento_str']}).")
+    st.sidebar.info(f"⏳ **Modo Prueba**: Te quedan **{info_suscripcion['dias_restantes']} días** de prueba gratuita.")
 
-if st.sidebar.button("🚪 Cerrar Sesión", type="secondary"):
-    st.session_state['user'] = None
-    st.query_params.clear()
-    if 'msg_timeout' in st.session_state:
-        del st.session_state['msg_timeout']
-    st.rerun()
-
-modo_tema = st.sidebar.radio(
-    "🎨 Tema Visual",
-    options=["🌙 Oscuro Neón", "☀️ Modo Claro"],
-    index=0,
-    horizontal=True,
-    key="app_theme_mode_selector"
-)
-is_dark_theme = (modo_tema == "🌙 Oscuro Neón")
-
-# Selector de Interfaz (Móvil vs Escritorio)
-# Para Líderes: Por defecto se activa la vista Móvil de su sector
-# Para Gerentes y Administradores: Por defecto se activa '💻 Escritorio (Completo)'
 sector_corto_app = obtener_nombre_corto_sector(user_sector_nombre)
 label_opcion_movil = f"📱 Móvil (App {sector_corto_app})"
-
 es_lider_check = (user_rol == 'lider')
 vista_query = st.query_params.get('vista')
 idx_def_vista = 1 if ((es_lider_check and vista_query != 'escritorio') or (vista_query == 'movil')) else 0
 
-modo_vista = st.sidebar.radio(
-    "📱 Interfaz del Sistema",
-    options=["💻 Escritorio (Completo)", label_opcion_movil],
-    index=idx_def_vista,
-    horizontal=True,
-    key="app_view_mode_selector"
-)
-
-if modo_vista == label_opcion_movil or "Móvil" in modo_vista:
+# Si se solicitó modo móvil por query param 'vista=movil'
+if vista_query == 'movil':
     import app_matices
     app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
-    st.markdown("---")
-    st.markdown(f"""
-    <div style="text-align: center; padding: 10px 0 15px 0; color: #94A3B8; font-size: 0.84rem; letter-spacing: 0.3px;">
-        <span>📈 <b>Panel Móvil {user_sector_nombre}</b></span>
-        <span style="margin: 0 8px; opacity: 0.4;">•</span>
-        <span>Desarrollado por <b>Tao-System</b></span>
-        <span style="margin: 0 6px; opacity: 0.4;">|</span>
-        <span style="color: #64748B; font-weight: 500;">Powered by <b>XYZ</b></span>
-    </div>
-    """, unsafe_allow_html=True)
     st.stop()
 
 # Activador de corrector ortográfico nativo del explorador en celdas y campos editables
@@ -3851,13 +3805,13 @@ def modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user):
 
 
 
-def render_tier_cards_grid(user_sector):
+def render_tier_cards_grid(user_sector, grupo=None):
     """
     Renderiza el Grid horizontal de 5 tarjetas para los niveles de consultoras:
     Bronce, Plata, Oro, Zafiro, Diamante con acentos sutiles de 3px y fondo blanco.
     """
     try:
-        df_cb = procesador.consultar_tableau_sql(sector=user_sector) if user_sector else procesador.consultar_tableau_sql()
+        df_cb = procesador.consultar_tableau_sql(grupo=grupo, sector=user_sector) if (user_sector or grupo) else procesador.consultar_tableau_sql()
     except Exception:
         df_cb = pd.DataFrame()
 
@@ -3936,26 +3890,67 @@ def render_tier_cards_grid(user_sector):
 
 # Header Principal Dinámico según el Rol y Sector del Usuario
 if user_rol == 'superadmin' and not admin_sector_audit:
-    st.markdown("<div class='main-header'>🛠️ Panel Corporativo de Administración (Super Admin)</div>", unsafe_allow_html=True)
-    st.markdown("<div class='sub-header'>Centro de Control: Gestión de Cuentas, Roles, Suscripciones y Mantenimiento del Sistema</div>", unsafe_allow_html=True)
+    head_s1, head_s2 = st.columns([3, 1])
+    with head_s1:
+        st.markdown("<div class='main-header'>🛠️ Panel Corporativo de Administración (Super Admin)</div>", unsafe_allow_html=True)
+        st.markdown("<div class='sub-header'>Centro de Control: Gestión de Cuentas, Roles, Suscripciones y Mantenimiento del Sistema</div>", unsafe_allow_html=True)
+    with head_s2:
+        if st.button("🚪 Cerrar Sesión", key="btn_logout_admin_top", use_container_width=True):
+            st.session_state['user'] = None
+            st.query_params.clear()
+            st.rerun()
 else:
-    head_c1, head_c2 = st.columns([3, 1])
+    head_c1, head_c2 = st.columns([2.3, 1.7])
     with head_c1:
-        primer_nombre = user_nombre.split()[0] if user_nombre else "Gerente"
+        primer_nombre = user_nombre.split()[0] if user_nombre else "Usuario"
+        badge_rol_lbl = f"Grupo {user_grupo}" if (user_rol == 'lider' and user_grupo) else ("Gerencia" if user_rol == 'gerente' else "Consulta")
         st.markdown(f"""
         <div class="brand-top-header">
             <div class="brand-greeting">¡Hola, {primer_nombre}! 👋</div>
-            <div class="brand-subgreeting">Gerencia <b>{user_sector_nombre}</b> • <span class="badge-ciclo">Ciclo Activo</span></div>
+            <div class="brand-subgreeting"><b>{user_sector_nombre}</b> • <span class="badge-ciclo">{badge_rol_lbl}</span> • <span class="badge-ciclo">Ciclo Activo</span></div>
         </div>
         """, unsafe_allow_html=True)
     with head_c2:
+        st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+        
+        # Panel frontal de controles estáticos
+        opts_v = ["💻 Escritorio", "📱 Móvil"]
+        def_idx = 1 if (vista_query == 'movil' or (es_lider_check and vista_query != 'escritorio')) else 0
+        
         if puede_subir_archivos and (user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit)):
-            st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
-            if st.button("☁️ Cargar Datos", type="primary", key="btn_top_cargar_datos", use_container_width=True, help="Abre el centro de actualización de bases y archivos de campaña"):
-                modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user)
+            top_c1, top_c2, top_c3 = st.columns([1.4, 1.2, 0.8])
+            with top_c1:
+                sel_v = st.segmented_control("Vista", options=opts_v, default=opts_v[def_idx], key="top_segmented_vista", label_visibility="collapsed")
+                if sel_v == "📱 Móvil":
+                    import app_matices
+                    app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
+                    st.stop()
+            with top_c2:
+                if st.button("☁️ Cargar Datos", type="primary", key="btn_top_cargar_datos", use_container_width=True, help="Abre el centro de actualización de bases y archivos de campaña"):
+                    modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user)
+            with top_c3:
+                if st.button("🚪 Salir", key="btn_top_logout", use_container_width=True, help="Cerrar sesión de forma segura"):
+                    st.session_state['user'] = None
+                    st.query_params.clear()
+                    st.rerun()
+        else:
+            top_c1, top_c2 = st.columns([1.8, 0.9])
+            with top_c1:
+                sel_v = st.segmented_control("Vista", options=opts_v, default=opts_v[def_idx], key="top_segmented_vista", label_visibility="collapsed")
+                if sel_v == "📱 Móvil":
+                    import app_matices
+                    app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
+                    st.stop()
+            with top_c2:
+                if st.button("🚪 Salir", key="btn_top_logout", use_container_width=True, help="Cerrar sesión de forma segura"):
+                    st.session_state['user'] = None
+                    st.query_params.clear()
+                    st.rerun()
 
     # Grid de Clasificación (Tier Cards: Bronce, Plata, Oro, Zafiro, Diamante)
-    render_tier_cards_grid(user_sector)
+    # Si es líder, filtra por su grupo; si es gerente, muestra el sector completo
+    grupo_tier = user_grupo if user_rol == 'lider' else None
+    render_tier_cards_grid(user_sector, grupo=grupo_tier)
     st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
 
 # Diagnóstico informativo si no hay datos de metas en "Cómo Vamos" para el sector o rol activo
@@ -4593,33 +4588,33 @@ permisos_tab_config = app_config.get("permisos_pestanas", DEFAULT_PERMISOS_PESTA
 
 if user_rol == 'lider':
     tabs_definidas = [
-        ("tab_tableau", "Informes"),
-        ("tab_geral", "Crédito y Cobranza"),
-        ("tab_resumen", "KPIs"),
-        ("tab_ganancia", "Simuladores"),
-        ("tab_diagnostico", "Mis Líderes"),
-        ("tab_metas", "Metas CE+"),
-        ("tab_detalle", "Generador"),
+        ("tab_tableau", "📊 Informes"),
+        ("tab_geral", "💰 Crédito y Cobranza"),
+        ("tab_resumen", "⚡ KPIs"),
+        ("tab_ganancia", "🧮 Simuladores"),
+        ("tab_diagnostico", "👥 Mis Líderes"),
+        ("tab_metas", "🎯 Metas CE+"),
+        ("tab_detalle", "📑 Generador"),
     ]
 elif user_rol == 'superadmin' and not admin_sector_audit:
     tabs_definidas = [
-        ("tab_usuarios", "Usuarios")
+        ("tab_usuarios", "🔑 Gestión Usuarios")
     ]
 else:
     tabs_definidas = [
-        ("tab_tableau", "Informes"),
-        ("tab_geral", "Crédito y Cobranza"),
-        ("tab_resumen", "KPIs"),
-        ("tab_ganancia", "Simuladores"),
-        ("tab_diagnostico", "Mis Líderes"),
-        ("tab_metas", "Metas CE+"),
-        ("tab_detalle", "Generador"),
+        ("tab_tableau", "📊 Informes"),
+        ("tab_geral", "💰 Crédito y Cobranza"),
+        ("tab_resumen", "⚡ KPIs"),
+        ("tab_ganancia", "🧮 Simuladores"),
+        ("tab_diagnostico", "👑 Mis Líderes"),
+        ("tab_metas", "🎯 Metas CE+"),
+        ("tab_detalle", "📑 Generador"),
     ]
 
 if user_rol == 'superadmin' and admin_sector_audit:
-    tabs_definidas.append(("tab_usuarios", "Usuarios"))
+    tabs_definidas.append(("tab_usuarios", "🔑 Gestión Usuarios"))
 elif user_rol == 'gerente':
-    tabs_definidas.append(("tab_lideres_gerente", "Directorio Líderes"))
+    tabs_definidas.append(("tab_lideres_gerente", "📇 Directorio Líderes"))
 
 tabs_permitidas = []
 for key_tab, label_tab in tabs_definidas:
