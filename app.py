@@ -605,6 +605,71 @@ st.markdown("""
         font-weight: 800 !important;
     }
 
+    
+    /* ========================================================================= */
+    /* SLIM SIDEBAR VERTICAL NAVIGATION (ESTILO SAAS MODERNO / PALETA CORAL)     */
+    /* ========================================================================= */
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] {
+        gap: 7px !important;
+        padding: 4px 0 12px 0 !important;
+    }
+
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label {
+        background: #FFFFFF !important;
+        border: 1.5px solid #E2E8F0 !important;
+        border-radius: 12px !important;
+        padding: 11px 15px !important;
+        margin: 0 !important;
+        cursor: pointer !important;
+        transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.03) !important;
+        display: flex !important;
+        align-items: center !important;
+        width: 100% !important;
+        box-sizing: border-box !important;
+    }
+
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:hover {
+        background: rgba(249, 115, 22, 0.06) !important;
+        border-color: #F97316 !important;
+        transform: translateX(4px) !important;
+        box-shadow: 0 4px 12px rgba(249, 115, 22, 0.15) !important;
+    }
+
+    /* Ocultar el círculo nativo de radio button */
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label div:first-child {
+        display: none !important;
+    }
+
+    /* Pestaña / Opción Activa: Gradiente Coral Vibrante con texto blanco */
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked),
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] {
+        background: linear-gradient(135deg, #FF6B4A 0%, #F97316 100%) !important;
+        border-color: #F97316 !important;
+        box-shadow: 0 6px 18px rgba(249, 115, 22, 0.38) !important;
+        transform: translateX(4px) !important;
+    }
+
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) p,
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] p,
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label:has(input:checked) span,
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label[data-checked="true"] span {
+        color: #FFFFFF !important;
+        font-weight: 800 !important;
+        -webkit-text-fill-color: #FFFFFF !important;
+    }
+
+    [data-testid="stSidebar"] div[data-testid="stRadio"] [role="radiogroup"] label p {
+        font-size: 0.90rem !important;
+        font-weight: 700 !important;
+        color: #1E293B !important;
+        margin: 0 !important;
+        letter-spacing: 0.01em !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+    }
+
     header[data-testid="stHeader"] {
         background: transparent !important;
     }
@@ -3206,10 +3271,7 @@ puede_subir_archivos = (user_rol in ['gerente', 'superadmin']) or app_config.get
 # 4. Objetivos Arte
 # -----------------------------------------------------------------------------
 # Carga de archivos trasladada al modal Top-Right (Header)
-st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Recargar Datos Actuales"):
-    st.cache_data.clear()
-    st.rerun()
+# Recarga de datos disponible en panel superior
 
 if user_rol == 'superadmin':
     try:
@@ -4000,22 +4062,17 @@ if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_cread
             del st.session_state['lideres_creadas_log']
             st.rerun()
 
-# 3. BARRA LATERAL (Filtro Único: Seleccionar Líder / Grupo)
-if user_rol != 'superadmin' or admin_sector_audit:
-    st.sidebar.header("🔐 Filtros de Control")
-
+# 3. FILTRO DE CONTROL EN EL CANVAS PRINCIPAL
 df_filtrado = df.copy()
 lider_seleccionada_sb = "Todas las Líderes"
 
 # Segmentación Privada por Rol (Preservando el código madre intacto)
-# Si ingresa una Líder de Negocio, sus tarjetas superiores, tacómetros y reportes se restringen automáticamente a su Grupo
 if user_rol == 'lider' and user_grupo and not df_filtrado.empty:
     col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
     if col_grp_ref and col_grp_ref in df_filtrado.columns:
         df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(user_grupo).strip()]
-    st.sidebar.info(f"👩‍💼 **Grupo Activo:** `{user_grupo}` — {user_nombre}")
 
-# Filtro Global por Líder / Grupo (Habilitado para Gerencia y SuperAdmin)
+# Filtro Global por Líder / Grupo en el Canvas (Habilitado para Gerencia y SuperAdmin)
 if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
     col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
     if col_grp_ref and col_grp_ref in df_filtrado.columns:
@@ -4024,24 +4081,27 @@ if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
         
         def format_lider_sb(g_val):
             if g_val == "Todas las Líderes":
-                return "🌟 Todas las Líderes"
+                return "🌟 Todas las Líderes (Consolidado)"
             nom = mapa_lideres_sb.get(str(g_val).strip())
             if nom:
                 return f"👩‍💼 Grupo {g_val} — {nom}"
             return f"👥 Grupo {g_val}"
 
-        lider_seleccionada_sb = st.sidebar.selectbox(
-            "👤 Seleccionar Líder / Grupo",
-            options=["Todas las Líderes"] + grupos_unicos,
-            format_func=format_lider_sb,
-            index=0
-        )
+        f_col1, f_col2 = st.columns([2.5, 1.5])
+        with f_col1:
+            lider_seleccionada_sb = st.selectbox(
+                "👤 Filtrar por Líder / Grupo:",
+                options=["Todas las Líderes"] + grupos_unicos,
+                format_func=format_lider_sb,
+                index=0,
+                key="filtro_lider_canvas_top"
+            )
+        with f_col2:
+            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+            st.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
+
         if lider_seleccionada_sb != "Todas las Líderes":
             df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
-
-if user_rol != 'superadmin' or admin_sector_audit:
-    st.sidebar.markdown("---")
-    st.sidebar.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
 
 # Asegurar conversión numérica limpia en df_filtrado para evitar sumar strings
 columnas_numericas_clave = [
@@ -4820,9 +4880,41 @@ else:
     }
     </style>
     """, unsafe_allow_html=True)
-    list_tab_objects = st.tabs([label for _, label in tabs_permitidas])
-    tab_objs = {key: obj for (key, _), obj in zip(tabs_permitidas, list_tab_objects)}
-    
+    # =========================================================================
+    # MENÚ DE NAVEGACIÓN VERTICAL EN LA BARRA LATERAL (SLIM SIDEBAR ESTILO SAAS)
+    # =========================================================================
+    st.sidebar.markdown("""
+    <div style="padding: 6px 2px 8px 2px; display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1.2rem;">🧭</span>
+        <div>
+            <div style="font-size: 0.86rem; font-weight: 800; color: #1E293B; letter-spacing: 0.02em;">MÓDULOS DEL SISTEMA</div>
+            <div style="font-size: 0.70rem; color: #64748B; font-weight: 500;">Navegación Principal</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    menu_opciones = [label for _, label in tabs_permitidas]
+    label_to_key = {label: key for key, label in tabs_permitidas}
+
+    nav_seleccionada = st.sidebar.radio(
+        "Navegación:",
+        options=menu_opciones,
+        index=0,
+        key="nav_sidebar_vertical",
+        label_visibility="collapsed"
+    )
+
+    key_activa = label_to_key.get(nav_seleccionada, tabs_permitidas[0][0])
+
+    # El contenedor del módulo activo se renderiza con st.container()
+    # Todos los demás son None, garantizando máxima velocidad y preservando la lógica intacta
+    tab_objs = {}
+    for key, _ in tabs_permitidas:
+        if key == key_activa:
+            tab_objs[key] = st.container()
+        else:
+            tab_objs[key] = None
+
     tab_tableau = tab_objs.get("tab_tableau")
     tab_geral = tab_objs.get("tab_geral")
     tab_resumen = tab_objs.get("tab_resumen")
