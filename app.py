@@ -3563,6 +3563,22 @@ if st.sidebar.button("🔄 Recargar Datos Actuales"):
     st.cache_data.clear()
     st.rerun()
 
+if user_rol in ['gerente', 'superadmin']:
+    try:
+        ruta_db_sqlite = ruta_persistente('base_matices.db')
+        if os.path.exists(ruta_db_sqlite):
+            with open(ruta_db_sqlite, "rb") as f_db:
+                st.sidebar.download_button(
+                    label="📥 Descargar Base de Datos (.db)",
+                    data=f_db,
+                    file_name="base_matices_nube.db",
+                    mime="application/x-sqlite3",
+                    help="Descarga una copia exacta de la base SQLite para auditar en DB Browser",
+                    use_container_width=True
+                )
+    except Exception:
+        pass
+
 st.sidebar.markdown("---")
 
 # Carga de datos

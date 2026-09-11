@@ -32,7 +32,8 @@ from procesador import (
     refrescar_perfil_usuario_en_sesion,
     registrar_evento_auditoria,
     obtener_nombre_sector_usuario,
-    obtener_nombre_corto_sector
+    obtener_nombre_corto_sector,
+    ruta_persistente
 )
 
 # Funciones de formato y styler para tablas dinámicas
@@ -489,6 +490,107 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         if col_g:
             df_cv = df_cv_all[df_cv_all[col_g].astype(str).str.split('.').str[0].str.strip() == str(grupo_activo).strip()]
 
+    # --- MODALES INTERACTIVOS DE DRILL-DOWN (AUDITORÍA DE ORIGEN DE DATOS) ---
+    if hasattr(st, 'dialog'):
+        @st.dialog("🔍 Origen y Desglose de Activas Reales", width="large")
+        def dialog_origen_activas(df_fuente, sector_nombre, real_act, obj_act, cump_act):
+            st.markdown(f"### 📊 Auditoría y Desglose de Activas Reales")
+            st.markdown(f"**Ámbito:** `{sector_nombre}` • **Total Activas Reportadas:** `{int(real_act)}`")
+            
+            st.info(
+                "📁 **Origen oficial de los datos:** Archivo comercial **`Base para el como vamos.xlsx`** (Reporte oficial de metas de Natura).\n\n"
+                "🔢 **Fórmula del cálculo:** Se toma la columna **`Real Activas`** y se suman las activas acumuladas de ciclo de cada una de las líderes de negocio que componen este sector."
+            )
+
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("👥 Activas Reales Logradas", f"{int(real_act)}")
+            with c2:
+                st.metric("🎯 Objetivo Total de Activas", f"{int(obj_act)}")
+            with c3:
+                st.metric("📈 Cumplimiento de Sector", f"{cump_act:.1f}%")
+
+            st.markdown("---")
+            st.markdown("#### 📋 Aporte Detallado por cada Líder de Negocio")
+
+            col_grp = next((c for c in df_fuente.columns if 'grupo' in str(c).lower()), 'Código de grupo')
+            col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_fuente.columns else ('Consultora' if 'Consultora' in df_fuente.columns else df_fuente.columns[0])
+
+            df_det = df_fuente.copy()
+            if col_nom in df_det.columns:
+                df_det = df_det[df_det[col_nom].notna() & (~df_det[col_nom].astype(str).str.strip().str.lower().isin(['nan', 'none', '', '0']))]
+
+            cols_sel = []
+            rename_map = {}
+            if col_grp in df_det.columns:
+                cols_sel.append(col_grp)
+                rename_map[col_grp] = 'Grupo'
+            if col_nom in df_det.columns:
+                cols_sel.append(col_nom)
+                rename_map[col_nom] = 'Líder / Grupo'
+            if 'Real Activas' in df_det.columns:
+                cols_sel.append('Real Activas')
+                rename_map['Real Activas'] = 'Activas Reales'
+            if 'Objetivo Activas' in df_det.columns:
+                cols_sel.append('Objetivo Activas')
+                rename_map['Objetivo Activas'] = 'Meta Activas'
+            if 'Cumplimiento Activas' in df_det.columns:
+                cols_sel.append('Cumplimiento Activas')
+                rename_map['Cumplimiento Activas'] = '% Cumplimiento'
+
+            df_view = df_det[cols_sel].copy() if cols_sel else df_det.copy()
+            if rename_map:
+                df_view = df_view.rename(columns=rename_map)
+
+            if 'Activas Reales' in df_view.columns:
+                df_view['Activas Reales'] = pd.to_numeric(df_view['Activas Reales'], errors='coerce').fillna(0).astype(int)
+                df_view = df_view.sort_values(by='Activas Reales', ascending=False)
+
+            if 'Meta Activas' in df_view.columns:
+                df_view['Meta Activas'] = pd.to_numeric(df_view['Meta Activas'], errors='coerce').fillna(0).astype(int)
+
+            if '% Cumplimiento' in df_view.columns:
+                df_view['% Cumplimiento'] = pd.to_numeric(df_view['% Cumplimiento'], errors='coerce').fillna(0).apply(lambda v: f"{v:.1f}%")
+
+            st.dataframe(df_view, use_container_width=True, hide_index=True)
+
+            st.caption(
+                "💡 **Diferencia técnica con Tableau:** En la pestaña *'📋 MI LISTADO'*, se auditan las consultoras individuales con pedido en el corte específico de base. "
+                "En cambio, este indicador de metas suma las activas oficiales que acumulan las líderes según las reglas del ciclo comercial de Natura."
+            )
+
+        @st.dialog("💰 Origen y Desglose de Facturación", width="large")
+        def dialog_origen_facturacion(df_fuente, sector_nombre, r_fact, o_fact, c_fact):
+            st.markdown(f"### 💰 Auditoría de Facturación — {sector_nombre}")
+            st.info("📁 **Origen oficial:** Archivo comercial **`Base para el como vamos.xlsx`** (columna `Real Facturación`).")
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                st.metric("Venta Real", f"${r_fact:,.0f} COP")
+            with c2:
+                st.metric("Meta Venta", f"${o_fact:,.0f} COP")
+            with c3:
+                st.metric("Cumplimiento", f"{c_fact:.1f}%")
+
+            col_grp = next((c for c in df_fuente.columns if 'grupo' in str(c).lower()), 'Código de grupo')
+            col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df_fuente.columns else df_fuente.columns[0]
+            df_f = df_fuente.copy()
+            if col_nom in df_f.columns:
+                df_f = df_f[df_f[col_nom].notna() & (~df_f[col_nom].astype(str).str.strip().str.lower().isin(['nan', 'none', '', '0']))]
+            cols_f = [c for c in [col_grp, col_nom, 'Real Facturación', 'Objetivo Facturación', 'Cumplimiento Facturación', 'Ganancia estimada'] if c in df_f.columns]
+            df_f_view = df_f[cols_f].copy()
+            if 'Real Facturación' in df_f_view.columns:
+                df_f_view['Real Facturación'] = df_f_view['Real Facturación'].apply(formato_cop)
+            if 'Objetivo Facturación' in df_f_view.columns:
+                df_f_view['Objetivo Facturación'] = df_f_view['Objetivo Facturación'].apply(formato_cop)
+            if 'Cumplimiento Facturación' in df_f_view.columns:
+                df_f_view['Cumplimiento Facturación'] = df_f_view['Cumplimiento Facturación'].apply(lambda v: f"{v:.1f}%")
+            if 'Ganancia estimada' in df_f_view.columns:
+                df_f_view['Ganancia estimada'] = df_f_view['Ganancia estimada'].apply(formato_cop)
+            st.dataframe(df_f_view, use_container_width=True, hide_index=True)
+    else:
+        def dialog_origen_activas(*args, **kwargs): pass
+        def dialog_origen_facturacion(*args, **kwargs): pass
+
     # 6. Pestañas Principales Móviles (4 Pestañas Condensadas en MAYÚSCULAS)
     tab_cv, tab_tab, tab_cartera, tab_lideres = st.tabs([
         "🎯 MIS DESAFÍOS",
@@ -584,6 +686,15 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
     <div class="kpi-sub {'kpi-sub-green' if ini_rei_pct>=100 else 'kpi-sub-orange'}">{ini_rei_pct:.1f}% Desafío ({ini_rei_m})</div>
     </div>
     </div>""", unsafe_allow_html=True)
+
+            # Botones de Auditoría Drill-Down Móvil
+            col_aud1, col_aud2 = st.columns(2)
+            with col_aud1:
+                if st.button("🔍 Auditar Activas Reales", key="mob_drill_act", use_container_width=True, help="Auditar de dónde salen las activas y el aporte de cada líder"):
+                    dialog_origen_activas(df_cv_all if (df_cv_all is not None and not df_cv_all.empty) else df_cv, user_sector if user_sector else (f"Grupo {grupo_activo}" if grupo_activo else "Sector"), act_r, act_m, act_pct)
+            with col_aud2:
+                if st.button("💰 Auditar Facturación", key="mob_drill_fact", use_container_width=True, help="Auditar el origen de la facturación y metas"):
+                    dialog_origen_facturacion(df_cv_all if (df_cv_all is not None and not df_cv_all.empty) else df_cv, user_sector if user_sector else (f"Grupo {grupo_activo}" if grupo_activo else "Sector"), fact_r, fact_m, fact_pct)
 
             # FILA 2: Bolsa de Recuperación de Red (4 Tarjetas Abiertas)
             st.markdown("<p style='font-size:11px; font-weight:800; color:#E3007B; margin:8px 0 4px 2px;'>🌸 BOLSA DE RECUPERACIÓN (INACTIVAS & RECUPEROS):</p>", unsafe_allow_html=True)
@@ -1482,7 +1593,15 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
             # --- 2. TABLA DE ACTIVAS / PEDIDOS ---
             st.markdown("---")
-            st.markdown("###### 👥 2. Tabla de Activas / Pedidos")
+            col_t_act1, col_t_act2 = st.columns([2, 1])
+            with col_t_act1:
+                st.markdown("###### 👥 2. Tabla de Activas / Pedidos")
+            with col_t_act2:
+                if st.button("🔍 Auditar Activas", key="mob_drill_tab4_act", use_container_width=True):
+                    tot_r_act = df_diag['Real Activas'].apply(lambda v: limpiar_numero(v, 0.0)).sum() if 'Real Activas' in df_diag.columns else 0
+                    tot_o_act = df_diag['Objetivo Activas'].apply(lambda v: limpiar_numero(v, 0.0)).sum() if 'Objetivo Activas' in df_diag.columns else 0
+                    cump_t = (tot_r_act / tot_o_act * 100.0) if tot_o_act > 0 else 0.0
+                    dialog_origen_activas(df_diag, user_sector if user_sector else "Sector", tot_r_act, tot_o_act, cump_t)
 
             if 'Objetivo Activas' in df_diag.columns and 'Real Activas' in df_diag.columns:
                 obj_a_num = df_diag['Objetivo Activas'].apply(lambda v: limpiar_numero(v, 0.0))
