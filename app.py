@@ -3019,6 +3019,45 @@ st.markdown("""
 
 st.sidebar.markdown("---")
 
+# Modo de Operación para SuperAdmin (Aislamiento Total de Datos Comerciales)
+admin_sector_audit = None
+if user_rol == 'superadmin':
+    st.sidebar.markdown("### 👑 Modo de Vista Admin")
+    
+    mapa_sec_nombres = {}
+    try:
+        for u in cargar_usuarios().values():
+            if isinstance(u, dict):
+                cs = str(u.get('codigo_sector', '')).strip()
+                ns = str(u.get('nombre_sector', '')).strip()
+                if cs and cs not in ['-', '', 'None', 'nan']:
+                    if ns and cs not in mapa_sec_nombres:
+                        mapa_sec_nombres[cs] = ns
+    except Exception:
+        pass
+
+    lista_sectores_disp = sorted(list(mapa_sec_nombres.keys()))
+    opciones_modo_admin = ["🔒 Solo Panel de Control (Sin Datos de Campaña)"]
+    for s_cod in lista_sectores_disp:
+        s_nom = mapa_sec_nombres.get(s_cod, f"Sector {s_cod}")
+        opciones_modo_admin.append(f"🔍 Auditar Sector: {s_cod} — {s_nom}")
+
+    sel_admin_vista = st.sidebar.selectbox(
+        "Operación de Administrador:",
+        options=opciones_modo_admin,
+        index=0,
+        help="Por defecto el Admin opera sin cargar datos comerciales de campaña para máxima velocidad y estabilidad. Selecciona un sector únicamente si deseas auditar la campaña de una gerente específica.",
+        key="sel_admin_vista_modo"
+    )
+
+    if sel_admin_vista != "🔒 Solo Panel de Control (Sin Datos de Campaña)":
+        admin_sector_audit = sel_admin_vista.split(":")[1].split("—")[0].strip()
+        user_sector = admin_sector_audit
+        user_sector_nombre = mapa_sec_nombres.get(admin_sector_audit, f"Sector {admin_sector_audit}")
+        st.sidebar.warning(f"👁️ **Modo Auditoría Activo**: Visualizando sector `{admin_sector_audit}`.")
+
+    st.sidebar.markdown("---")
+
 # Cargar configuración global de permisos
 app_config = cargar_configuracion()
 puede_subir_archivos = (user_rol in ['gerente', 'superadmin']) or app_config.get('permitir_carga_lideres', False)
@@ -3031,7 +3070,7 @@ puede_subir_archivos = (user_rol in ['gerente', 'superadmin']) or app_config.get
 # 4. Objetivos Arte
 # -----------------------------------------------------------------------------
 if puede_subir_archivos:
-    if user_rol in ['gerente', 'superadmin']:
+    if user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit):
         st.sidebar.markdown("### 📥 Carga de Archivos")
 
         # 1. TABLEAU
@@ -3581,8 +3620,11 @@ if user_rol == 'superadmin':
         pass
 
 # Carga de datos
-with st.spinner("Cargando y procesando la base de datos..."):
-    df_raw = load_and_process_data('Base para el como vamos.xlsx')
+if user_rol == 'superadmin' and not admin_sector_audit:
+    df_raw = None
+else:
+    with st.spinner("Cargando y procesando la base de datos..."):
+        df_raw = load_and_process_data('Base para el como vamos.xlsx')
 
 if df_raw is None:
     df = pd.DataFrame()
@@ -3595,8 +3637,8 @@ else:
                           (~df[col_lider_check].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))
         df = df[mask_valida_df]
 
-    # Aislamiento Multitenant: Filtrar df por el sector asignado tanto para Gerente como para Líder
-    if user_sector and user_rol in ['gerente', 'lider']:
+    # Aislamiento Multitenant: Filtrar df por el sector asignado tanto para Gerente como para Líder o Admin auditando
+    if user_sector and (user_rol in ['gerente', 'lider'] or (user_rol == 'superadmin' and admin_sector_audit)):
         col_sec_found = None
         for c in df.columns:
             c_low = str(c).lower().replace('ó', 'o')
@@ -3617,12 +3659,16 @@ else:
         # Si la gerente NO tiene sector asignado en usuarios.json, mostrar vista limpia de 0 filas
         df = df.iloc[0:0]
 
-# Header Principal Dinámico según el Sector del Usuario
-st.markdown(f"<div class='main-header'>📈 Panel de Control - Estado de Ciclo {user_sector_nombre}</div>", unsafe_allow_html=True)
-st.markdown(f"<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento • {user_sector_nombre}</div>", unsafe_allow_html=True)
+# Header Principal Dinámico según el Rol y Sector del Usuario
+if user_rol == 'superadmin' and not admin_sector_audit:
+    st.markdown("<div class='main-header'>🛠️ Panel Corporativo de Administración (Super Admin)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-header'>Centro de Control: Gestión de Cuentas, Roles, Suscripciones y Mantenimiento del Sistema</div>", unsafe_allow_html=True)
+else:
+    st.markdown(f"<div class='main-header'>📈 Panel de Control - Estado de Ciclo {user_sector_nombre}</div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='sub-header'>Gestión de Líderes, Seguimiento de Metas e Indicadores de Crecimiento • {user_sector_nombre}</div>", unsafe_allow_html=True)
 
 # Diagnóstico informativo si no hay datos de metas en "Cómo Vamos" para el sector o rol activo
-if df.empty:
+if df.empty and (user_rol in ['gerente', 'lider'] or (user_rol == 'superadmin' and admin_sector_audit)):
     if user_rol == 'gerente':
         info_sector_actual = f"**{user_sector_nombre}** (Cód: `{user_sector}`)"
         
@@ -3669,7 +3715,8 @@ if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_cread
             st.rerun()
 
 # 3. BARRA LATERAL (Filtro Único: Seleccionar Líder / Grupo)
-st.sidebar.header("🔐 Filtros de Control")
+if user_rol != 'superadmin' or admin_sector_audit:
+    st.sidebar.header("🔐 Filtros de Control")
 
 df_filtrado = df.copy()
 lider_seleccionada_sb = "Todas las Líderes"
@@ -3706,8 +3753,9 @@ if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
         if lider_seleccionada_sb != "Todas las Líderes":
             df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
 
-st.sidebar.markdown("---")
-st.sidebar.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
+if user_rol != 'superadmin' or admin_sector_audit:
+    st.sidebar.markdown("---")
+    st.sidebar.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
 
 # Asegurar conversión numérica limpia en df_filtrado para evitar sumar strings
 columnas_numericas_clave = [
@@ -4189,8 +4237,8 @@ if user_rol == 'lider':
             delta_color="normal"
         )
 
-else:
-    # --- CUADRO DE MANDO CONSOLIDADO PARA GERENTES Y SUPERADMIN ---
+elif user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit):
+    # --- CUADRO DE MANDO CONSOLIDADO PARA GERENTES Y SUPERADMIN AUDITANDO ---
     kpi1, kpi2, kpi3, kpi4, kpi5 = st.columns(5)
 
     with kpi1:
@@ -4229,6 +4277,23 @@ else:
             f"{int(inicios_totales + reinicios_totales)}",
             f"↑ {int(inicios_totales)} Inic. | {int(reinicios_totales)} Rein."
         )
+elif user_rol == 'superadmin':
+    # --- TARJETAS EJECUTIVAS PARA ADMINISTRADOR GLOBAL (SIN CARGAR DATOS OPERATIVOS) ---
+    us_all = cargar_usuarios()
+    tot_cuentas = len(us_all)
+    tot_gerentes = sum(1 for u in us_all.values() if isinstance(u, dict) and u.get('rol') == 'gerente')
+    tot_lideres = sum(1 for u in us_all.values() if isinstance(u, dict) and u.get('rol') == 'lider')
+    tot_sectores = len(set(str(u.get('codigo_sector')).strip() for u in us_all.values() if isinstance(u, dict) and u.get('codigo_sector') and str(u.get('codigo_sector')).strip() not in ['-', '', 'None', 'nan']))
+
+    ak1, ak2, ak3, ak4 = st.columns(4)
+    with ak1:
+        st.metric("👥 TOTAL CUENTAS", f"{tot_cuentas}")
+    with ak2:
+        st.metric("👑 GERENTES ACTIVAS", f"{tot_gerentes}")
+    with ak3:
+        st.metric("👩‍💼 LÍDERES REGISTRADAS", f"{tot_lideres}")
+    with ak4:
+        st.metric("📍 SECTORES CONFIGURADOS", f"{tot_sectores}")
 
 st.markdown("---")
 
@@ -4245,6 +4310,10 @@ if user_rol == 'lider':
         ("tab_metas", "🎯 METAS DE CRECIMIENTO (CE+)"),
         ("tab_detalle", "📑 GENERADOR DE INFORMES"),
     ]
+elif user_rol == 'superadmin' and not admin_sector_audit:
+    tabs_definidas = [
+        ("tab_usuarios", "🔑 GESTIÓN DE USUARIOS, ROLES & PERMISOS")
+    ]
 else:
     tabs_definidas = [
         ("tab_tableau", "📊 INFORME TABLEAU CAM"),
@@ -4256,7 +4325,7 @@ else:
         ("tab_detalle", "📑 GENERADOR DE INFORMES"),
     ]
 
-if user_rol == 'superadmin':
+if user_rol == 'superadmin' and admin_sector_audit:
     tabs_definidas.append(("tab_usuarios", "🔑 GESTIÓN DE USUARIOS, ROLES & PERMISOS"))
 elif user_rol == 'gerente':
     tabs_definidas.append(("tab_lideres_gerente", "🔑 DIRECTORIO & ACCESOS DE LÍDERES"))
