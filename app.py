@@ -623,23 +623,23 @@ st.markdown("""
         display: flex;
         align-items: center;
         gap: 12px;
-        padding: 12px 14px 14px 14px;
-        background: rgba(255, 255, 255, 0.04);
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        padding: 12px 14px;
+        background: #FFFFFF;
+        border: 1.5px solid #E2E8F0;
         border-radius: 16px;
         margin-bottom: 14px;
-        backdrop-filter: blur(10px);
+        box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
     }
     .sb-nav-header-badge {
         width: 42px;
         height: 42px;
         border-radius: 12px;
-        background: linear-gradient(135deg, rgba(255, 107, 74, 0.2) 0%, rgba(249, 115, 22, 0.35) 100%);
-        border: 1.5px solid rgba(249, 115, 22, 0.4);
+        background: linear-gradient(135deg, rgba(255, 107, 74, 0.15) 0%, rgba(249, 115, 22, 0.25) 100%);
+        border: 1.5px solid rgba(249, 115, 22, 0.35);
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.25);
+        box-shadow: 0 2px 8px rgba(249, 115, 22, 0.20);
         flex-shrink: 0;
     }
     .sb-nav-compass {
@@ -656,27 +656,27 @@ st.markdown("""
         font-weight: 800;
         letter-spacing: 0.04em;
         text-transform: uppercase;
-        background: linear-gradient(135deg, #FF8C66 0%, #F97316 100%);
+        background: linear-gradient(135deg, #FF6B4A 0%, #EA580C 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         line-height: 1.2;
     }
     .sb-nav-subtitle {
-        font-size: 0.72rem;
-        color: #94A3B8;
-        font-weight: 500;
+        font-size: 0.74rem;
+        color: #64748B;
+        font-weight: 600;
         letter-spacing: 0.01em;
         margin-top: 2px;
     }
 
-        /* Segmented Control de Vista en la Barra Lateral (Posición 3) */
+    /* Segmented Control de Vista en la Barra Lateral (Posición 3) */
     [data-testid="stSidebar"] div[data-testid="stSegmentedControl"] {
         width: 100% !important;
         margin-bottom: 6px !important;
     }
     [data-testid="stSidebar"] div[data-testid="stSegmentedControl"] > div {
-        background: rgba(255, 255, 255, 0.05) !important;
-        border: 1.5px solid rgba(255, 255, 255, 0.10) !important;
+        background: #F1F5F9 !important;
+        border: 1.5px solid #CBD5E1 !important;
         border-radius: 12px !important;
         padding: 3px !important;
         width: 100% !important;
@@ -692,6 +692,22 @@ st.markdown("""
         justify-content: center !important;
         padding: 0 8px !important;
         margin: 0 !important;
+        color: #334155 !important;
+        background: transparent !important;
+        border: none !important;
+        transition: all 0.2s ease !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stSegmentedControl"] button[aria-checked="true"],
+    [data-testid="stSidebar"] div[data-testid="stSegmentedControl"] button[data-selected="true"] {
+        background: #FFFFFF !important;
+        color: #EA580C !important;
+        border: 1.5px solid #F97316 !important;
+        box-shadow: 0 2px 8px rgba(249, 115, 22, 0.20) !important;
+        font-weight: 800 !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stSegmentedControl"] button p {
+        color: inherit !important;
+        font-weight: inherit !important;
     }
 
     /* Espaciado del contenedor de cada botón en la barra lateral */
@@ -702,7 +718,7 @@ st.markdown("""
 
     /* Botones de navegación en la barra lateral (Generosos, Modernos y Flexibles) */
     [data-testid="stSidebar"] button[data-testid^="stBaseButton"] {
-        min-height: 54px !important;
+        min-height: 52px !important;
         height: auto !important;
         border-radius: 14px !important;
         font-size: 0.98rem !important;
@@ -713,7 +729,7 @@ st.markdown("""
         justify-content: flex-start !important;
         text-align: left !important;
         padding: 12px 16px !important;
-        transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
         box-sizing: border-box !important;
         position: relative !important;
         overflow: hidden !important;
@@ -734,59 +750,58 @@ st.markdown("""
         width: 100% !important;
     }
 
-    /* Botón INACTIVO (Secundario): Estilo Glassmorphism Premium */
+    /* Botón INACTIVO (Secundario): Tarjeta Blanca con Borde Definido y Alto Contraste para Modo Claro */
     [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"] {
-        background: rgba(255, 255, 255, 0.05) !important;
-        border: 1.5px solid rgba(255, 255, 255, 0.10) !important;
-        color: #E2E8F0 !important;
-        backdrop-filter: blur(8px) !important;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12) !important;
+        background: #FFFFFF !important;
+        border: 1.5px solid #CBD5E1 !important;
+        color: #1E293B !important;
+        box-shadow: 0 2px 6px rgba(15, 23, 42, 0.05) !important;
     }
     [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"] p {
-        color: #E2E8F0 !important;
-        font-weight: 600 !important;
+        color: #1E293B !important;
+        font-weight: 700 !important;
     }
 
-    /* Hover en Botón INACTIVO: Desplazamiento interactivo, brillo coral y fondo dinámico */
+    /* Hover en Botón INACTIVO: Desplazamiento interactivo, tinte suave coral y borde coral */
     [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"]:hover {
-        background: rgba(249, 115, 22, 0.14) !important;
+        background: #FFF7ED !important;
         border-color: #F97316 !important;
-        color: #FFFFFF !important;
-        transform: translateX(6px) scale(1.01) !important;
-        box-shadow: 0 6px 20px rgba(249, 115, 22, 0.30) !important;
+        color: #EA580C !important;
+        transform: translateX(4px) scale(1.01) !important;
+        box-shadow: 0 4px 14px rgba(249, 115, 22, 0.18) !important;
     }
     [data-testid="stSidebar"] button[data-testid="stBaseButton-secondary"]:hover p {
-        color: #FFFFFF !important;
-        font-weight: 700 !important;
+        color: #EA580C !important;
+        font-weight: 800 !important;
     }
 
     /* Botón ACTIVO (Primario): Gradiente Coral Neón Radiante con sombra resplandeciente */
     [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] {
         background: linear-gradient(135deg, #FF6B4A 0%, #F97316 100%) !important;
-        border: 1.5px solid rgba(255, 255, 255, 0.45) !important;
+        border: 1.5px solid #EA580C !important;
         color: #FFFFFF !important;
         font-weight: 800 !important;
-        transform: translateX(5px) !important;
-        box-shadow: 0 8px 25px rgba(249, 115, 22, 0.48), 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+        transform: translateX(4px) !important;
+        box-shadow: 0 6px 20px rgba(249, 115, 22, 0.40), 0 2px 8px rgba(0, 0, 0, 0.10) !important;
         animation: activeGlowPulse 4s ease-in-out infinite alternate !important;
     }
     [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"] p {
         color: #FFFFFF !important;
         font-weight: 800 !important;
-        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35) !important;
+        text-shadow: 0 1px 2px rgba(0, 0, 0, 0.25) !important;
     }
 
     [data-testid="stSidebar"] button[data-testid="stBaseButton-primary"]:hover {
-        transform: translateX(7px) scale(1.02) !important;
-        box-shadow: 0 10px 32px rgba(249, 115, 22, 0.65) !important;
+        transform: translateX(6px) scale(1.02) !important;
+        box-shadow: 0 8px 25px rgba(249, 115, 22, 0.55) !important;
     }
 
     @keyframes activeGlowPulse {
         0% {
-            box-shadow: 0 8px 25px rgba(249, 115, 22, 0.42), 0 2px 8px rgba(0, 0, 0, 0.2);
+            box-shadow: 0 6px 18px rgba(249, 115, 22, 0.35), 0 2px 6px rgba(0, 0, 0, 0.10);
         }
         100% {
-            box-shadow: 0 10px 30px rgba(255, 107, 74, 0.65), 0 3px 12px rgba(0, 0, 0, 0.28);
+            box-shadow: 0 8px 24px rgba(255, 107, 74, 0.55), 0 3px 10px rgba(0, 0, 0, 0.16);
         }
     }
 
@@ -886,11 +901,13 @@ st.markdown("""
         border-color: rgba(255, 107, 0, 0.6) !important;
     }
 
+    [data-testid="stMetricLabel"],
     [data-testid="stMetricLabel"] p {
+        color: #334155 !important;
         font-size: clamp(0.72rem, 0.85vw, 0.88rem) !important;
         font-weight: 700 !important;
         letter-spacing: 0.01em;
-        opacity: 0.9;
+        opacity: 1 !important;
         white-space: nowrap !important;
         text-overflow: ellipsis !important;
         overflow: hidden !important;
@@ -5051,7 +5068,7 @@ else:
     opts_v = ["💻 Escritorio", "📱 Móvil"]
     def_idx = 1 if (vista_query == 'movil' or (es_lider_check and vista_query != 'escritorio')) else 0
     st.sidebar.markdown("""
-    <div style="font-size: 0.72rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; padding-left: 2px;">
+    <div style="font-size: 0.74rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; padding-left: 2px;">
         🖥️ Interfaz del Sistema
     </div>
     """, unsafe_allow_html=True)
@@ -5096,7 +5113,7 @@ else:
     # =========================================================================
     # POSICIONES 1 Y 2: ACCIONES GLOBALES EN LA PARTE INFERIOR DEL SIDEBAR
     # =========================================================================
-    st.sidebar.markdown("<div style='margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;'></div>", unsafe_allow_html=True)
+    st.sidebar.markdown("<div style='margin-top: 14px; border-top: 1px solid #E2E8F0; padding-top: 12px;'></div>", unsafe_allow_html=True)
 
     # Posición 1: Cargar Datos (Solo si tiene permisos)
     if puede_subir_archivos and (user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit)):
