@@ -487,24 +487,21 @@ st.markdown("""
 
     /* Grid de Clasificación (Tier Cards: Bronce, Plata, Oro, Zafiro, Diamante) */
     .tier-cards-container {
-        margin: 6px 0 18px 0;
+        margin: 6px 0 16px 0;
     }
     .tier-card {
-        background: #FFFFFF !important;
-        border-radius: 12px !important;
+        border-radius: 14px !important;
         padding: 14px 13px !important;
-        border: 1px solid #E2E8F0 !important;
-        box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.05) !important;
-        transition: all 0.25s ease !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
         display: flex !important;
         flex-direction: column !important;
         justify-content: space-between !important;
         height: 100% !important;
         box-sizing: border-box !important;
+        backdrop-filter: blur(10px) !important;
     }
     .tier-card:hover {
-        transform: translateY(-3px) !important;
-        box-shadow: 0 10px 25px -4px rgba(0, 0, 0, 0.09) !important;
+        transform: translateY(-4px) scale(1.01) !important;
     }
     .tier-header {
         display: flex !important;
@@ -782,21 +779,30 @@ st.markdown("""
         }
     }
 
-        header[data-testid="stHeader"] {
-        background: transparent !important;
+        /* Ocultar barra superior y eliminar espacio vacío arriba */
+    header[data-testid="stHeader"] {
+        display: none !important;
+        height: 0 !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
     }
 
-    /* Gradient Brand Text Headers */
     /* ========================================================= */
     /* SISTEMA DE DISEÑO ULTRA-RESPONSIVO (LAPTOPS, TABLETS, PC) */
     /* ========================================================= */
     
     .block-container {
-        padding-top: clamp(2.4rem, 3.2vw, 3.2rem) !important;
-        padding-bottom: clamp(2rem, 3vw, 3.5rem) !important;
-        padding-left: clamp(1rem, 2vw, 2.8rem) !important;
-        padding-right: clamp(1rem, 2vw, 2.8rem) !important;
+        padding-top: 0.4rem !important;
+        padding-bottom: clamp(1.5rem, 2.5vw, 3rem) !important;
+        padding-left: clamp(0.8rem, 1.8vw, 2.4rem) !important;
+        padding-right: clamp(0.8rem, 1.8vw, 2.4rem) !important;
         max-width: 100% !important;
+    }
+
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"]:first-child,
+    [data-testid="stSidebar"] > div:first-child {
+        padding-top: 0.5rem !important;
     }
 
     .main-header {
@@ -1806,7 +1812,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                 else:
                     st.success(f"🎂 **¡Hoy tenemos {len(hoy_list)} cumpleañera{'s' if len(hoy_list) > 1 else ''} en tu equipo!** Puedes felicitarlas con el botón individual de cada tarjeta o con el despachador automático:")
                 _render_despachador_cumple_evolution(hoy_list, label_periodo="Hoy", key_pfx="hoy")
-                st.markdown("<br>", unsafe_allow_html=True)
+                # Espacio superior eliminado
                 _render_cards_cumple(hoy_list, es_hoy=True)
                 col_b1, col_b2 = st.columns([2, 2])
                 with col_b1:
@@ -3980,7 +3986,7 @@ def modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user):
 def render_tier_cards_grid(user_sector, grupo=None):
     """
     Renderiza el Grid horizontal de 5 tarjetas para los niveles de consultoras:
-    Bronce, Plata, Oro, Zafiro, Diamante con acentos sutiles de 3px y fondo blanco.
+    Bronce, Plata, Oro, Zafiro, Diamante armonizados con la paleta de colores corporativa.
     """
     try:
         df_cb = procesador.consultar_tableau_sql(grupo=grupo, sector=user_sector) if (user_sector or grupo) else procesador.consultar_tableau_sql()
@@ -3988,11 +3994,56 @@ def render_tier_cards_grid(user_sector, grupo=None):
         df_cb = pd.DataFrame()
 
     tiers_config = [
-        {"nombre": "BRONCE", "color": "#CD7F32", "icon": "🥉"},
-        {"nombre": "PLATA", "color": "#94A3B8", "icon": "🥈"},
-        {"nombre": "ORO", "color": "#EAB308", "icon": "🥇"},
-        {"nombre": "ZAFIRO", "color": "#2563EB", "icon": "💎"},
-        {"nombre": "DIAMANTE", "color": "#8B5CF6", "icon": "👑"}
+        {
+            "nombre": "BRONCE", 
+            "color": "#CD7F32", 
+            "icon": "🥉",
+            "bg_card": "linear-gradient(145deg, rgba(205, 127, 50, 0.10) 0%, rgba(255, 255, 255, 0.95) 100%)",
+            "border_card": "rgba(205, 127, 50, 0.40)",
+            "shadow_card": "0 8px 20px -4px rgba(205, 127, 50, 0.22)",
+            "badge_bg": "rgba(205, 127, 50, 0.16)",
+            "badge_color": "#92400E"
+        },
+        {
+            "nombre": "PLATA", 
+            "color": "#64748B", 
+            "icon": "🥈",
+            "bg_card": "linear-gradient(145deg, rgba(100, 116, 139, 0.12) 0%, rgba(255, 255, 255, 0.95) 100%)",
+            "border_card": "rgba(100, 116, 139, 0.40)",
+            "shadow_card": "0 8px 20px -4px rgba(100, 116, 139, 0.20)",
+            "badge_bg": "rgba(100, 116, 139, 0.16)",
+            "badge_color": "#334155"
+        },
+        {
+            "nombre": "ORO", 
+            "color": "#D97706", 
+            "icon": "🥇",
+            "bg_card": "linear-gradient(145deg, rgba(245, 158, 11, 0.12) 0%, rgba(255, 255, 255, 0.95) 100%)",
+            "border_card": "rgba(217, 119, 6, 0.44)",
+            "shadow_card": "0 8px 20px -4px rgba(217, 119, 6, 0.24)",
+            "badge_bg": "rgba(245, 158, 11, 0.18)",
+            "badge_color": "#92400E"
+        },
+        {
+            "nombre": "ZAFIRO", 
+            "color": "#2563EB", 
+            "icon": "💎",
+            "bg_card": "linear-gradient(145deg, rgba(37, 99, 235, 0.10) 0%, rgba(255, 255, 255, 0.95) 100%)",
+            "border_card": "rgba(37, 99, 235, 0.40)",
+            "shadow_card": "0 8px 20px -4px rgba(37, 99, 235, 0.22)",
+            "badge_bg": "rgba(37, 99, 235, 0.16)",
+            "badge_color": "#1E40AF"
+        },
+        {
+            "nombre": "DIAMANTE", 
+            "color": "#7C3AED", 
+            "icon": "👑",
+            "bg_card": "linear-gradient(145deg, rgba(124, 58, 237, 0.11) 0%, rgba(255, 255, 255, 0.95) 100%)",
+            "border_card": "rgba(124, 58, 237, 0.42)",
+            "shadow_card": "0 8px 20px -4px rgba(124, 58, 237, 0.24)",
+            "badge_bg": "rgba(124, 58, 237, 0.16)",
+            "badge_color": "#5B21B6"
+        }
     ]
 
     tier_stats = {}
@@ -4031,12 +4082,12 @@ def render_tier_cards_grid(user_sector, grupo=None):
         c_acc = t["color"]
         with tcols[idx]:
             card_html = (
-                f'<div class="tier-card" style="border-top: 3.5px solid {c_acc};">'
+                f'<div class="tier-card" style="background: {t["bg_card"]}; border: 1.5px solid {t["border_card"]}; border-top: 4px solid {c_acc}; box-shadow: {t["shadow_card"]};">'
                 f'<div class="tier-header">'
                 f'<span class="tier-title" style="color: {c_acc};">{t["icon"]} {t["nombre"]}</span>'
-                f'<span class="tier-pct-badge">{s_d["pct_total"]:.0f}% del total</span>'
+                f'<span class="tier-pct-badge" style="background: {t["badge_bg"]}; color: {t["badge_color"]};">{s_d["pct_total"]:.0f}% del total</span>'
                 f'</div>'
-                f'<div class="tier-count">{s_d["tot"]}</div>'
+                f'<div class="tier-count" style="color: {c_acc};">{s_d["tot"]}</div>'
                 f'<div class="tier-sublabel">Consultoras registradas</div>'
                 f'<div class="tier-act-chip">'
                 f'<span class="tier-dot" style="background-color: #22C55E;"></span>'
@@ -4074,11 +4125,7 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
-    # Grid de Clasificación (Tier Cards: Bronce, Plata, Oro, Zafiro, Diamante)
-    # Si es líder, filtra por su grupo; si es gerente, muestra el sector completo
-    grupo_tier = user_grupo if user_rol == 'lider' else None
-    render_tier_cards_grid(user_sector, grupo=grupo_tier)
-    st.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
+# Grid de Clasificación reubicado abajo de los Desafíos y Cumpleaños
 
 # Diagnóstico informativo si no hay datos de metas en "Cómo Vamos" para el sector o rol activo
 if df.empty and (user_rol in ['gerente', 'lider'] or (user_rol == 'superadmin' and admin_sector_audit)):
@@ -4705,6 +4752,16 @@ elif user_rol == 'superadmin':
         st.metric("👩‍💼 LÍDERES REGISTRADAS", f"{tot_lideres}")
     with ak4:
         st.metric("📍 SECTORES CONFIGURADOS", f"{tot_sectores}")
+
+# =========================================================================
+# CLASIFICACIÓN DE NIVELES (TIER CARDS: BRONCE, PLATA, ORO, ZAFIRO, DIAMANTE)
+# Ubicadas directamente debajo de los Desafíos y Bolsa de Recuperación ("Abajito")
+# =========================================================================
+if user_rol in ['lider', 'gerente'] or (user_rol == 'superadmin' and admin_sector_audit):
+    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    grupo_tier = user_grupo if user_rol == 'lider' else (lider_seleccionada_sb if ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes") else None)
+    render_tier_cards_grid(user_sector, grupo=grupo_tier)
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
 st.markdown("---")
 
