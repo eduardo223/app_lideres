@@ -661,6 +661,31 @@ st.markdown("""
         margin-top: 2px;
     }
 
+        /* Segmented Control de Vista en la Barra Lateral (Posición 3) */
+    [data-testid="stSidebar"] div[data-testid="stSegmentedControl"] {
+        width: 100% !important;
+        margin-bottom: 6px !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stSegmentedControl"] > div {
+        background: rgba(255, 255, 255, 0.05) !important;
+        border: 1.5px solid rgba(255, 255, 255, 0.10) !important;
+        border-radius: 12px !important;
+        padding: 3px !important;
+        width: 100% !important;
+        display: flex !important;
+    }
+    [data-testid="stSidebar"] div[data-testid="stSegmentedControl"] button {
+        flex: 1 !important;
+        min-height: 36px !important;
+        height: 36px !important;
+        border-radius: 9px !important;
+        font-size: 0.84rem !important;
+        font-weight: 700 !important;
+        justify-content: center !important;
+        padding: 0 8px !important;
+        margin: 0 !important;
+    }
+
     /* Espaciado del contenedor de cada botón en la barra lateral */
     [data-testid="stSidebar"] div.stButton,
     [data-testid="stSidebar"] [data-testid="element-container"]:has(button) {
@@ -4037,62 +4062,17 @@ def render_tier_cards_grid(user_sector, grupo=None):
 
 # Header Principal Dinámico según el Rol y Sector del Usuario
 if user_rol == 'superadmin' and not admin_sector_audit:
-    head_s1, head_s2 = st.columns([3, 1])
-    with head_s1:
-        st.markdown("<div class='main-header'>🛠️ Panel Corporativo de Administración (Super Admin)</div>", unsafe_allow_html=True)
-        st.markdown("<div class='sub-header'>Centro de Control: Gestión de Cuentas, Roles, Suscripciones y Mantenimiento del Sistema</div>", unsafe_allow_html=True)
-    with head_s2:
-        if st.button("🚪 Cerrar Sesión", key="btn_logout_admin_top", use_container_width=True):
-            st.session_state['user'] = None
-            st.query_params.clear()
-            st.rerun()
+    st.markdown("<div class='main-header'>🛠️ Panel Corporativo de Administración (Super Admin)</div>", unsafe_allow_html=True)
+    st.markdown("<div class='sub-header'>Centro de Control: Gestión de Cuentas, Roles, Suscripciones y Mantenimiento del Sistema</div>", unsafe_allow_html=True)
 else:
-    head_c1, head_c2 = st.columns([2.3, 1.7])
-    with head_c1:
-        primer_nombre = user_nombre.split()[0] if user_nombre else "Usuario"
-        badge_rol_lbl = f"Grupo {user_grupo}" if (user_rol == 'lider' and user_grupo) else ("Gerencia" if user_rol == 'gerente' else "Consulta")
-        st.markdown(f"""
-        <div class="brand-top-header">
-            <div class="brand-greeting">¡Hola, {primer_nombre}! 👋</div>
-            <div class="brand-subgreeting"><b>{user_sector_nombre}</b> • <span class="badge-ciclo">{badge_rol_lbl}</span> • <span class="badge-ciclo">Ciclo Activo</span></div>
-        </div>
-        """, unsafe_allow_html=True)
-    with head_c2:
-        st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
-        
-        # Panel frontal de controles estáticos
-        opts_v = ["💻 Escritorio", "📱 Móvil"]
-        def_idx = 1 if (vista_query == 'movil' or (es_lider_check and vista_query != 'escritorio')) else 0
-        
-        if puede_subir_archivos and (user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit)):
-            top_c1, top_c2, top_c3 = st.columns([1.4, 1.2, 0.8])
-            with top_c1:
-                sel_v = st.segmented_control("Vista", options=opts_v, default=opts_v[def_idx], key="top_segmented_vista", label_visibility="collapsed")
-                if sel_v == "📱 Móvil":
-                    import app_matices
-                    app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
-                    st.stop()
-            with top_c2:
-                if st.button("☁️ Cargar Datos", type="primary", key="btn_top_cargar_datos", use_container_width=True, help="Abre el centro de actualización de bases y archivos de campaña"):
-                    modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user)
-            with top_c3:
-                if st.button("🚪 Salir", key="btn_top_logout", use_container_width=True, help="Cerrar sesión de forma segura"):
-                    st.session_state['user'] = None
-                    st.query_params.clear()
-                    st.rerun()
-        else:
-            top_c1, top_c2 = st.columns([1.8, 0.9])
-            with top_c1:
-                sel_v = st.segmented_control("Vista", options=opts_v, default=opts_v[def_idx], key="top_segmented_vista", label_visibility="collapsed")
-                if sel_v == "📱 Móvil":
-                    import app_matices
-                    app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
-                    st.stop()
-            with top_c2:
-                if st.button("🚪 Salir", key="btn_top_logout", use_container_width=True, help="Cerrar sesión de forma segura"):
-                    st.session_state['user'] = None
-                    st.query_params.clear()
-                    st.rerun()
+    primer_nombre = user_nombre.split()[0] if user_nombre else "Usuario"
+    badge_rol_lbl = f"Grupo {user_grupo}" if (user_rol == 'lider' and user_grupo) else ("Gerencia" if user_rol == 'gerente' else "Consulta")
+    st.markdown(f"""
+    <div class="brand-top-header" style="margin-bottom: 14px;">
+        <div class="brand-greeting">¡Hola, {primer_nombre}! 👋</div>
+        <div class="brand-subgreeting"><b>{user_sector_nombre}</b> • <span class="badge-ciclo">{badge_rol_lbl}</span> • <span class="badge-ciclo">Ciclo Activo</span></div>
+    </div>
+    """, unsafe_allow_html=True)
 
     # Grid de Clasificación (Tier Cards: Bronce, Plata, Oro, Zafiro, Diamante)
     # Si es líder, filtra por su grupo; si es gerente, muestra el sector completo
@@ -4966,6 +4946,24 @@ else:
     </style>
     """, unsafe_allow_html=True)
     # =========================================================================
+    # POSICIÓN 3: MODO DE VISTA (ESCRITORIO / MÓVIL) EN LA PARTE SUPERIOR DEL SIDEBAR
+    # =========================================================================
+    opts_v = ["💻 Escritorio", "📱 Móvil"]
+    def_idx = 1 if (vista_query == 'movil' or (es_lider_check and vista_query != 'escritorio')) else 0
+    st.sidebar.markdown("""
+    <div style="font-size: 0.72rem; font-weight: 700; color: #94A3B8; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; padding-left: 2px;">
+        🖥️ Interfaz del Sistema
+    </div>
+    """, unsafe_allow_html=True)
+    sel_v = st.sidebar.segmented_control("Vista Interfaz", options=opts_v, default=opts_v[def_idx], key="sb_segmented_vista", label_visibility="collapsed")
+    if sel_v == "📱 Móvil":
+        import app_matices
+        app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
+        st.stop()
+
+    st.sidebar.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+
+    # =========================================================================
     # MENÚ DE NAVEGACIÓN VERTICAL EN LA BARRA LATERAL (SLIM SIDEBAR ESTILO SAAS)
     # =========================================================================
     st.sidebar.markdown("""
@@ -4994,6 +4992,22 @@ else:
                 st.rerun()
 
     key_activa = st.session_state['modulo_activo']
+
+    # =========================================================================
+    # POSICIONES 1 Y 2: ACCIONES GLOBALES EN LA PARTE INFERIOR DEL SIDEBAR
+    # =========================================================================
+    st.sidebar.markdown("<div style='margin-top: 14px; border-top: 1px solid rgba(255, 255, 255, 0.08); padding-top: 12px;'></div>", unsafe_allow_html=True)
+
+    # Posición 1: Cargar Datos (Solo si tiene permisos)
+    if puede_subir_archivos and (user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit)):
+        if st.sidebar.button("☁️ Cargar Datos", type="primary", key="sb_btn_cargar_datos", use_container_width=True, help="Abre el centro de actualización de bases y archivos de campaña"):
+            modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user)
+
+    # Posición 2: Salir / Cerrar Sesión
+    if st.sidebar.button("🚪 Cerrar Sesión", key="sb_btn_logout", use_container_width=True, help="Cerrar sesión de forma segura"):
+        st.session_state['user'] = None
+        st.query_params.clear()
+        st.rerun()
 
     # El contenedor del módulo activo se renderiza con st.container()
     # Todos los demás son None, garantizando máxima velocidad y preservando la lógica intacta
