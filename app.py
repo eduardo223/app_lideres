@@ -3904,36 +3904,34 @@ def render_tier_cards_grid(user_sector):
         s_d = tier_stats[t["nombre"]]
         c_acc = t["color"]
         with tcols[idx]:
-            st.markdown(f"""
-            <div class="tier-card" style="border-top: 3.5px solid {c_acc};">
-                <div class="tier-header">
-                    <span class="tier-title" style="color: {c_acc};">{t['icon']} {t['nombre']}</span>
-                    <span class="tier-pct-badge">{s_d['pct_total']:.0f}% del total</span>
-                </div>
-                <div class="tier-count">{s_d['tot']}</div>
-                <div class="tier-sublabel">Consultoras registradas</div>
-                
-                <div class="tier-act-chip">
-                    <span class="tier-dot" style="background-color: #22C55E;"></span>
-                    <span class="tier-act-text"><b>{s_d['act']}</b> activas ({s_d['pct']:.1f}%)</span>
-                </div>
-                
-                <div class="tier-progress-track">
-                    <div class="tier-progress-fill" style="width: {min(s_d['pct'], 100):.1f}%; background-color: {c_acc};"></div>
-                </div>
-                
-                <div class="tier-financials">
-                    <div>
-                        <span class="tier-fact-lbl">Facturación</span>
-                        <span class="tier-fact-val">${s_d['fact']/1e6:.1f}M</span>
-                    </div>
-                    <div style="text-align: right;">
-                        <span class="tier-prom-lbl">Prom / Pedido</span>
-                        <span class="tier-prom-val">${s_d['prom']:,.0f}</span>
-                    </div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            card_html = (
+                f'<div class="tier-card" style="border-top: 3.5px solid {c_acc};">'
+                f'<div class="tier-header">'
+                f'<span class="tier-title" style="color: {c_acc};">{t["icon"]} {t["nombre"]}</span>'
+                f'<span class="tier-pct-badge">{s_d["pct_total"]:.0f}% del total</span>'
+                f'</div>'
+                f'<div class="tier-count">{s_d["tot"]}</div>'
+                f'<div class="tier-sublabel">Consultoras registradas</div>'
+                f'<div class="tier-act-chip">'
+                f'<span class="tier-dot" style="background-color: #22C55E;"></span>'
+                f'<span class="tier-act-text"><b>{s_d["act"]}</b> activas ({s_d["pct"]:.1f}%)</span>'
+                f'</div>'
+                f'<div class="tier-progress-track">'
+                f'<div class="tier-progress-fill" style="width: {min(s_d["pct"], 100):.1f}%; background-color: {c_acc};"></div>'
+                f'</div>'
+                f'<div class="tier-financials">'
+                f'<div>'
+                f'<span class="tier-fact-lbl">Facturación</span>'
+                f'<span class="tier-fact-val">${s_d["fact"]/1e6:.1f}M</span>'
+                f'</div>'
+                f'<div style="text-align: right;">'
+                f'<span class="tier-prom-lbl">Prom / Pedido</span>'
+                f'<span class="tier-prom-val">${s_d["prom"]:,.0f}</span>'
+                f'</div>'
+                f'</div>'
+                f'</div>'
+            )
+            st.markdown(card_html, unsafe_allow_html=True)
 
 
 # Header Principal Dinámico según el Rol y Sector del Usuario
