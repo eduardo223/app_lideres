@@ -515,27 +515,62 @@ st.markdown("""
         line-height: 1.25 !important;
     }
 
-    /* Botones de Drill-Down y Auditoría bajo las Tarjetas de Métricas */
-    div[data-testid="stMetric"] ~ div[data-testid="stButton"] button {
-        background: rgba(227, 0, 123, 0.08) !important;
-        border: 1px solid rgba(227, 0, 123, 0.28) !important;
-        color: #E3007B !important;
-        border-radius: 12px !important;
-        font-size: clamp(0.68rem, 0.75vw, 0.78rem) !important;
-        font-weight: 700 !important;
-        padding: 4px 8px !important;
-        min-height: 28px !important;
-        height: auto !important;
-        margin-top: 4px !important;
-        width: 100% !important;
-        transition: all 0.25s ease !important;
+    /* ========================================================================= */
+    /* BOTONES DE AUDITORÍA TOTALMENTE INMERSOS EN LAS TARJETAS DE MÉTRICAS      */
+    /* ========================================================================= */
+    div[data-testid="column"]:has([data-testid="stMetric"]):has([data-testid="stButton"]) {
+        position: relative !important;
     }
-    div[data-testid="stMetric"] ~ div[data-testid="stButton"] button:hover {
-        background: linear-gradient(135deg, rgba(255, 107, 0, 0.2) 0%, rgba(227, 0, 123, 0.25) 100%) !important;
-        border-color: #FF6B00 !important;
-        color: #FF6B00 !important;
-        transform: translateY(-2px) !important;
-        box-shadow: 0 4px 12px rgba(227, 0, 123, 0.2) !important;
+
+    /* El contenedor del botón flota inmerso en la esquina superior derecha de la tarjeta */
+    div[data-testid="column"]:has([data-testid="stMetric"]) div.stElementContainer:has([data-testid="stButton"]),
+    div[data-testid="column"]:has([data-testid="stMetric"]) div[data-testid="stButton"] {
+        position: absolute !important;
+        top: 8px !important;
+        right: 10px !important;
+        width: auto !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        z-index: 15 !important;
+    }
+
+    /* Estilo de pastilla / badge inmerso dentro de la tarjeta */
+    div[data-testid="column"]:has([data-testid="stMetric"]) div[data-testid="stButton"] button,
+    div[data-testid="column"]:has([data-testid="stMetric"]) button {
+        background: rgba(255, 255, 255, 0.75) !important;
+        border: 1px solid rgba(227, 0, 123, 0.35) !important;
+        color: #E3007B !important;
+        border-radius: 9999px !important;
+        font-size: 0.68rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.02em !important;
+        padding: 1px 9px !important;
+        height: 22px !important;
+        min-height: 22px !important;
+        line-height: 20px !important;
+        box-shadow: 0 1px 4px rgba(227, 0, 123, 0.1) !important;
+        backdrop-filter: blur(8px) !important;
+        cursor: pointer !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 2px !important;
+        width: auto !important;
+    }
+
+    div[data-testid="column"]:has([data-testid="stMetric"]) div[data-testid="stButton"] button:hover,
+    div[data-testid="column"]:has([data-testid="stMetric"]) button:hover {
+        background: linear-gradient(135deg, #FF6B00 0%, #E3007B 100%) !important;
+        border-color: transparent !important;
+        color: #ffffff !important;
+        transform: scale(1.06) !important;
+        box-shadow: 0 3px 8px rgba(227, 0, 123, 0.35) !important;
+    }
+
+    /* Espacio a la derecha en el título de la tarjeta para no colisionar con el badge */
+    div[data-testid="column"]:has([data-testid="stButton"]) [data-testid="stMetricLabel"] p {
+        padding-right: 68px !important;
     }
 
     /* Auto-Wrapping inteligente de columnas Streamlit para Portátiles */
@@ -4042,7 +4077,7 @@ if user_rol == 'lider':
             f"{act_pct:.1f}% Desafío ({act_meta})" if act_meta > 0 else None,
             delta_color="normal"
         )
-        if st.button("🔍 ¿De dónde sale?", key="btn_drill_lider_act", use_container_width=True, help="Auditar el origen de tus activas reportadas"):
+        if st.button("🔍 Origen", key="btn_drill_lider_act", help="Auditar el origen de tus activas reportadas"):
             dialog_origen_activas(df_filtrado, f"Grupo {user_grupo} ({user_nombre})", act_real, act_meta, act_pct)
 
     with lkpi3:
@@ -4122,7 +4157,7 @@ else:
 
     with kpi1:
         st.metric("👥 CONSULTORAS / LÍDERES", f"{total_consultoras}")
-        if st.button("🔍 Ver Quiénes Son", key="btn_drill_lideres", use_container_width=True, help="Ver las líderes que componen este total"):
+        if st.button("🔍 Ver", key="btn_drill_lideres", help="Ver las líderes que componen este total"):
             dialog_origen_lideres(df_filtrado, user_sector_nombre, total_consultoras)
 
     with kpi2:
@@ -4131,7 +4166,7 @@ else:
             f"{int(real_activas)}",
             f"↑ {cump_activas:.1f}% Cumplimiento" if obj_activas > 0 else "0.0%"
         )
-        if st.button("🔍 ¿De dónde sale?", key="btn_drill_activas", use_container_width=True, help="Auditar el origen de este número y ver el aporte de cada líder"):
+        if st.button("🔍 Origen", key="btn_drill_activas", help="Auditar el origen de este número y ver el aporte de cada líder"):
             dialog_origen_activas(df_filtrado, user_sector_nombre, real_activas, obj_activas, cump_activas)
 
     with kpi3:
@@ -4140,7 +4175,7 @@ else:
             f"${real_fact/1e6:.1f}M COP",
             f"↑ {cump_fact:.1f}% Cumplimiento" if obj_fact > 0 else "0.0%"
         )
-        if st.button("🔍 Desglose Ventas", key="btn_drill_fact", use_container_width=True, help="Auditar el desglose de facturación por líder"):
+        if st.button("🔍 Detalle", key="btn_drill_fact", help="Auditar el desglose de facturación por líder"):
             dialog_origen_facturacion(df_filtrado, user_sector_nombre, real_fact, obj_fact, cump_fact)
 
     with kpi4:
