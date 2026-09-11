@@ -3563,7 +3563,7 @@ if st.sidebar.button("🔄 Recargar Datos Actuales"):
     st.cache_data.clear()
     st.rerun()
 
-if user_rol in ['gerente', 'superadmin']:
+if user_rol == 'superadmin':
     try:
         ruta_db_sqlite = ruta_persistente('base_matices.db')
         if os.path.exists(ruta_db_sqlite):
@@ -3573,13 +3573,12 @@ if user_rol in ['gerente', 'superadmin']:
                     data=f_db,
                     file_name="base_matices_nube.db",
                     mime="application/x-sqlite3",
-                    help="Descarga una copia exacta de la base SQLite para auditar en DB Browser",
+                    help="Descarga una copia exacta de la base SQLite para auditar en DB Browser (Exclusivo Administrador)",
                     use_container_width=True
                 )
+            st.sidebar.markdown("---")
     except Exception:
         pass
-
-st.sidebar.markdown("---")
 
 # Carga de datos
 with st.spinner("Cargando y procesando la base de datos..."):
