@@ -3381,6 +3381,8 @@ sel_v = st.sidebar.segmented_control("Vista Interfaz", options=opts_v, default=o
 # Si se solicitó o seleccionó modo móvil, delegar inmediatamente a app_matices SIN renderizar tarjetas de escritorio
 if sel_v == "📱 Móvil" or vista_query == 'movil':
     import app_matices
+    import importlib
+    importlib.reload(app_matices)
     app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
     st.stop()
 
