@@ -5553,57 +5553,99 @@ if tab_tableau is not None:
                         cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
                         cbs_con_mora = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_mora, 0))) > 0] if c_col_mora else []
 
-                        # Botones de selección rápida
-                        b_cols = st.columns(5 if cbs_con_notas or cbs_inactivas else 3)
-                        with b_cols[0]:
-                            if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_tab_wa", use_container_width=True):
-                                st.session_state['cbs_sel_tab_wa'] = list(mapa_wa_tab.keys())
-                                st.rerun()
-                        with b_cols[1]:
-                            if st.button("🧹 Deseleccionar", key="btn_desel_todas_tab_wa", use_container_width=True):
-                                st.session_state['cbs_sel_tab_wa'] = []
-                                st.rerun()
-                        col_idx_b = 2
-                        if cbs_con_notas and col_idx_b < len(b_cols):
-                            with b_cols[col_idx_b]:
-                                if st.button(f"💬 Con Notas ({len(cbs_con_notas)})", key="btn_sel_notas_tab_wa", use_container_width=True):
-                                    st.session_state['cbs_sel_tab_wa'] = cbs_con_notas
-                                    st.rerun()
-                            col_idx_b += 1
-                        if cbs_inactivas and col_idx_b < len(b_cols):
-                            with b_cols[col_idx_b]:
-                                if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_tab_wa", use_container_width=True):
-                                    st.session_state['cbs_sel_tab_wa'] = cbs_inactivas
-                                    st.rerun()
-                            col_idx_b += 1
-                        if cbs_con_ped and col_idx_b < len(b_cols):
-                            with b_cols[col_idx_b]:
-                                if st.button(f"⌛ Con Pedidos ({len(cbs_con_ped)})", key="btn_sel_ped_tab_wa", use_container_width=True):
-                                    st.session_state['cbs_sel_tab_wa'] = cbs_con_ped
-                                    st.rerun()
+                        # Subgrupos para botones de lote
+                        cbs_todas = list(mapa_wa_tab.keys())
+                        cbs_con_notas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if str(r.get(c_col_nota, '')).strip()] if c_col_nota else []
+                        cbs_inactivas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if 'inactiva' in str(r.get(c_col_sit, '')).lower()] if c_col_sit else []
+                        cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
+                        cbs_con_mora = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_mora, 0))) > 0] if c_col_mora else []
 
                         # Inicializar estado de selección
-                        if 'cbs_sel_tab_wa' not in st.session_state:
-                            st.session_state['cbs_sel_tab_wa'] = list(mapa_wa_tab.keys())
+                        if 'cbs_sel_tab_wa' not in st.session_state or st.session_state.get('cbs_sel_tab_wa') is None:
+                            st.session_state['cbs_sel_tab_wa'] = list(cbs_todas)
+                        if 'filtro_enfoque_tab_wa' not in st.session_state:
+                            st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
 
-                        st.caption("💡 **Tip para enviar a una sola consultora:** Haz clic en **'🧹 Deseleccionar'** y luego búscala por su nombre o código en el cuadro de abajo, o pulsa la **'✖️'** sobre las que desees quitar.")
-                        sel_cbs_activos = st.multiselect(
-                            "👥 Consultoras Seleccionadas para la Campaña WhatsApp:",
-                            options=list(mapa_wa_tab.keys()),
-                            default=[c for c in st.session_state['cbs_sel_tab_wa'] if c in mapa_wa_tab],
-                            format_func=lambda c: mapa_wa_tab.get(c, c),
-                            key="multiselect_tab_wa_widget"
-                        )
-                        st.session_state['cbs_sel_tab_wa'] = sel_cbs_activos
+                        st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 4px 0 2px 0;'>🎯 Segmentación Rápida de Audiencia:</p>", unsafe_allow_html=True)
+                        b_cols = st.columns(5)
+                        with b_cols[0]:
+                            if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_tab_wa", use_container_width=True):
+                                st.session_state['cbs_sel_tab_wa'] = list(cbs_todas)
+                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.rerun()
+                        with b_cols[1]:
+                            if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_tab_wa", use_container_width=True):
+                                st.session_state['cbs_sel_tab_wa'] = list(cbs_inactivas)
+                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.rerun()
+                        with b_cols[2]:
+                            if st.button(f"⌛ Con Pedidos ({len(cbs_con_ped)})", key="btn_sel_ped_tab_wa", use_container_width=True):
+                                st.session_state['cbs_sel_tab_wa'] = list(cbs_con_ped)
+                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.rerun()
+                        with b_cols[3]:
+                            lbl_b4 = f"💬 Con Notas ({len(cbs_con_notas)})" if cbs_con_notas else f"💳 Con Mora ({len(cbs_con_mora)})"
+                            action_b4 = cbs_con_notas if cbs_con_notas else cbs_con_mora
+                            if st.button(lbl_b4, key="btn_sel_extra_tab_wa", use_container_width=True):
+                                st.session_state['cbs_sel_tab_wa'] = list(action_b4)
+                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.rerun()
+                        with b_cols[4]:
+                            if st.button("🧹 Ninguna (0)", key="btn_desel_todas_tab_wa", use_container_width=True):
+                                st.session_state['cbs_sel_tab_wa'] = []
+                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.rerun()
+
+                        # Selector individual opcional para enfocar sin ruido
+                        col_ind1, col_ind2 = st.columns([2.4, 1.6])
+                        with col_ind1:
+                            opciones_individual = ["👥 Todas las seleccionadas por filtro"] + [f"{mapa_wa_tab[cb]}" for cb in cbs_todas]
+                            idx_ind = 0
+                            cur_ind_val = st.session_state.get('filtro_enfoque_tab_wa', "👥 Todas las seleccionadas por filtro")
+                            if cur_ind_val in opciones_individual:
+                                idx_ind = opciones_individual.index(cur_ind_val)
+                            
+                            sel_enfoque = st.selectbox(
+                                "🎯 O envía a una consultora en específico:",
+                                options=opciones_individual,
+                                index=idx_ind,
+                                key="sel_enfoque_campana_wa"
+                            )
+                            st.session_state['filtro_enfoque_tab_wa'] = sel_enfoque
+
+                        # Determinar códigos objetivo
+                        if sel_enfoque != "👥 Todas las seleccionadas por filtro":
+                            import re
+                            cb_match = re.search(r'\(CB:\s*([^\)]+)\)', sel_enfoque)
+                            sel_cbs_activos = [cb_match.group(1).strip()] if cb_match else []
+                        else:
+                            sel_cbs_activos = st.session_state.get('cbs_sel_tab_wa', cbs_todas)
+
+                        # Tarjeta resumen compacta de estado (reemplaza las 262 etiquetas naranjas)
+                        df_target_tab_wa = df_edit_view[df_edit_view[c_col_cb].astype(str).str.strip().isin(sel_cbs_activos)].copy()
+                        n_dest = len(df_target_tab_wa)
+                        n_act_sel = len(df_target_tab_wa[df_target_tab_wa[c_col_sit].astype(str).str.strip().str.lower() == 'activa']) if c_col_sit else 0
+                        n_inact_sel = len(df_target_tab_wa[df_target_tab_wa[c_col_sit].astype(str).str.contains('inactiva', case=False, na=False)]) if c_col_sit else 0
+                        n_ped_sel = len(df_target_tab_wa[df_target_tab_wa[c_col_ped].apply(lambda x: float(limpiar_numero(x, 0))) > 0]) if c_col_ped else 0
+
+                        with col_ind2:
+                            st.markdown(f"""
+                            <div style="background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 8px 14px; margin-top: 24px; box-shadow: 0 2px 6px rgba(15,23,42,0.04); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                                <div>
+                                    <div style="font-size: 0.90rem; font-weight: 800; color: #0F172A;">Destinatarias: <span style="color: #EA580C;">{n_dest}</span></div>
+                                    <div style="font-size: 0.70rem; color: #64748B;">de {len(df_edit_view)} en lista</div>
+                                </div>
+                                <div style="display: flex; gap: 6px; font-size: 0.70rem; font-weight: 700;">
+                                    <span style="background: #F0FDF4; color: #166534; padding: 2px 6px; border-radius: 6px; border: 1px solid #BBF7D0;">🟢 {n_act_sel}</span>
+                                    <span style="background: #FFF7ED; color: #C2410C; padding: 2px 6px; border-radius: 6px; border: 1px solid #FFEDD5;">🌸 {n_inact_sel}</span>
+                                    <span style="background: #FEF3C7; color: #92400E; padding: 2px 6px; border-radius: 6px; border: 1px solid #FDE68A;">⌛ {n_ped_sel}</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
                         df_campana_tab_out = pd.DataFrame()
 
                         if sel_cbs_activos:
-                            df_target_tab_wa = df_edit_view[df_edit_view[c_col_cb].astype(str).str.strip().isin(sel_cbs_activos)].copy()
-                            if len(df_target_tab_wa) == 1:
-                                r_uno = df_target_tab_wa.iloc[0]
-                                st.success(f"🎯 **Envío Individual Seleccionado:** **{r_uno.get(c_col_nom)}** ({r_uno.get(c_col_col, '')} · {r_uno.get(c_col_sit, '')}) — Celular: **{r_uno.get(c_col_cel, 'Sin celular')}**")
-                            else:
-                                st.info(f"🎯 **{len(df_target_tab_wa)} consultora(s) seleccionada(s)** listas para recibir mensaje.")
 
                             col_cfg_t1, col_cfg_t2 = st.columns([1.2, 1.8])
                             with col_cfg_t1:
