@@ -5533,319 +5533,290 @@ if tab_tableau is not None:
                     c_col_pts = 'Pts Acum' if 'Pts Acum' in df_edit_view.columns else None
 
                     if c_col_cb and c_col_nom:
-                        # Mapeo de consultoras disponibles
-                        mapa_wa_tab = {}
-                        for _, r_w in df_edit_view.iterrows():
-                            k_cb = str(r_w.get(c_col_cb, '')).strip()
-                            n_consultora = str(r_w.get(c_col_nom, '')).strip()
-                            n_color = str(r_w.get(c_col_col, 'Nivel')) if c_col_col else ''
-                            n_sit = str(r_w.get(c_col_sit, 'Estado')) if c_col_sit else ''
-                            n_nota = str(r_w.get(c_col_nota, '')).strip() if c_col_nota else ''
-
-                            etiqueta = f"[{n_color}] [{n_sit}] {n_consultora} (CB: {k_cb})"
-                            if n_nota:
-                                etiqueta += f' — 💬 "{n_nota[:28]}..."'
-                            mapa_wa_tab[k_cb] = etiqueta
-
-                        # Subgrupos para botones de lote
+                        cbs_todas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if str(r.get(c_col_cb, '')).strip()]
                         cbs_con_notas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if str(r.get(c_col_nota, '')).strip()] if c_col_nota else []
                         cbs_inactivas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if 'inactiva' in str(r.get(c_col_sit, '')).lower()] if c_col_sit else []
                         cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
                         cbs_con_mora = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_mora, 0))) > 0] if c_col_mora else []
 
-                        # Subgrupos para botones de lote
-                        cbs_todas = list(mapa_wa_tab.keys())
-                        cbs_con_notas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if str(r.get(c_col_nota, '')).strip()] if c_col_nota else []
-                        cbs_inactivas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if 'inactiva' in str(r.get(c_col_sit, '')).lower()] if c_col_sit else []
-                        cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
-                        cbs_con_mora = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_mora, 0))) > 0] if c_col_mora else []
-
-                        # Inicializar estado de selección
+                        # Inicializar estado de selección de casillas
                         if 'cbs_sel_tab_wa' not in st.session_state or st.session_state.get('cbs_sel_tab_wa') is None:
-                            st.session_state['cbs_sel_tab_wa'] = list(cbs_todas)
-                        if 'cbs_sel_especificas_wa' not in st.session_state:
-                            st.session_state['cbs_sel_especificas_wa'] = []
+                            st.session_state['cbs_sel_tab_wa'] = set(cbs_todas)
+                        elif isinstance(st.session_state['cbs_sel_tab_wa'], list):
+                            st.session_state['cbs_sel_tab_wa'] = set(st.session_state['cbs_sel_tab_wa'])
+                        if 'editor_ver_tab' not in st.session_state:
+                            st.session_state['editor_ver_tab'] = 0
 
-                        st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 4px 0 2px 0;'>🎯 Segmentación Rápida de Audiencia:</p>", unsafe_allow_html=True)
+                        st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 4px 0 2px 0;'>🎯 Segmentación Rápida con Casillas (O marca/desmarca directamente en la lista abajo):</p>", unsafe_allow_html=True)
                         b_cols = st.columns(5)
                         with b_cols[0]:
                             if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_tab_wa", use_container_width=True):
-                                st.session_state['cbs_sel_tab_wa'] = list(cbs_todas)
-                                st.session_state['cbs_sel_especificas_wa'] = []
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_todas)
+                                st.session_state['editor_ver_tab'] = st.session_state.get('editor_ver_tab', 0) + 1
                                 st.rerun()
                         with b_cols[1]:
                             if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_tab_wa", use_container_width=True):
-                                st.session_state['cbs_sel_tab_wa'] = list(cbs_inactivas)
-                                st.session_state['cbs_sel_especificas_wa'] = []
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_inactivas)
+                                st.session_state['editor_ver_tab'] = st.session_state.get('editor_ver_tab', 0) + 1
                                 st.rerun()
                         with b_cols[2]:
                             if st.button(f"⌛ Con Pedidos ({len(cbs_con_ped)})", key="btn_sel_ped_tab_wa", use_container_width=True):
-                                st.session_state['cbs_sel_tab_wa'] = list(cbs_con_ped)
-                                st.session_state['cbs_sel_especificas_wa'] = []
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_con_ped)
+                                st.session_state['editor_ver_tab'] = st.session_state.get('editor_ver_tab', 0) + 1
                                 st.rerun()
                         with b_cols[3]:
                             lbl_b4 = f"💬 Con Notas ({len(cbs_con_notas)})" if cbs_con_notas else f"💳 Con Mora ({len(cbs_con_mora)})"
                             action_b4 = cbs_con_notas if cbs_con_notas else cbs_con_mora
                             if st.button(lbl_b4, key="btn_sel_extra_tab_wa", use_container_width=True):
-                                st.session_state['cbs_sel_tab_wa'] = list(action_b4)
-                                st.session_state['cbs_sel_especificas_wa'] = []
+                                st.session_state['cbs_sel_tab_wa'] = set(action_b4)
+                                st.session_state['editor_ver_tab'] = st.session_state.get('editor_ver_tab', 0) + 1
                                 st.rerun()
                         with b_cols[4]:
                             if st.button("🧹 Ninguna (0)", key="btn_desel_todas_tab_wa", use_container_width=True):
-                                st.session_state['cbs_sel_tab_wa'] = []
-                                st.session_state['cbs_sel_especificas_wa'] = []
+                                st.session_state['cbs_sel_tab_wa'] = set()
+                                st.session_state['editor_ver_tab'] = st.session_state.get('editor_ver_tab', 0) + 1
                                 st.rerun()
 
-                        # Selector de consultoras específicas a mano (inicia 100% limpio y vacío)
-                        col_ind1, col_ind2 = st.columns([2.6, 1.4])
-                        with col_ind1:
-                            cbs_especificas = st.multiselect(
-                                "🎯 O busca y selecciona consultora(s) específica(s) a mano:",
-                                options=cbs_todas,
-                                default=st.session_state.get('cbs_sel_especificas_wa', []),
-                                format_func=lambda cb: mapa_wa_tab.get(cb, cb),
-                                placeholder="🔍 Escribe el nombre o código para elegir consultoras puntuales (ej: 2 o 3 específicas)...",
-                                key="multiselect_especificas_tab_wa"
+                        # Configuración de plantilla de mensaje
+                        col_cfg_t1, col_cfg_t2 = st.columns([1.2, 1.8])
+                        with col_cfg_t1:
+                            tipo_camp_tab = st.selectbox(
+                                "Tipo de Plantilla de Mensaje:",
+                                options=[
+                                    "💬 1. Usar mis Notas / Comentarios",
+                                    "🎁 2. Reactivación Comercial (Inactivas)",
+                                    "🌟 3. Impulso de Puntos & Nivel",
+                                    "📦 4. Pedido Pendiente / Retenido",
+                                    "🌸 5. Saludo & Seguimiento General",
+                                    "✍️ 6. Mensaje Libre / Personalizado"
+                                ],
+                                index=0 if cbs_con_notas else 1,
+                                key="sel_tipo_camp_tab_widget"
                             )
-                            st.session_state['cbs_sel_especificas_wa'] = cbs_especificas
-                            if cbs_especificas:
-                                st.caption("💡 **Modo manual activo**: Estás enviando solo a las consultoras seleccionadas aquí. Para volver al grupo completo, pulsa **'👥 Todas'** o borra las etiquetas.")
+                            remitente_tab_wa = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_tab_wa")
 
-                        # Determinar destinatarias objetivo
-                        if cbs_especificas:
-                            sel_cbs_activos = cbs_especificas
-                            tipo_origen_lbl = f"Manual ({len(cbs_especificas)})"
-                        else:
-                            sel_cbs_activos = st.session_state.get('cbs_sel_tab_wa', cbs_todas)
-                            tipo_origen_lbl = "Por segmento"
+                        with col_cfg_t2:
+                            # Plantilla predeterminada según tipo
+                            if "1. Usar mis Notas" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                    "Te contacto para contarte: *{nota}*.\n\n"
+                                    "¡Quedo muy atenta a lo que necesites para apoyarte! ✨"
+                                )
+                            elif "2. Reactivación" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "¡Hola *{primer_nombre}*! 🌸 Te extrañamos mucho en nuestro equipo de *Natura & Avon*.\n\n"
+                                    "En este ciclo tenemos promociones exclusivas, descuentos especiales y kits de reinicio pensados para ti.\n\n"
+                                    "¿Te gustaría que te comparta el catálogo virtual interactivo de este ciclo? 📖✨"
+                                )
+                            elif "3. Impulso" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "¡Hola *{primer_nombre}*! 🌟 Felicitaciones por tus *{pts_acum} puntos* acumulados en tu nivel *{nivel}*.\n\n"
+                                    "Estás muy cerca de tu siguiente meta de premios y beneficios de este ciclo. ¡Pasa tu pedido y gana más con Natura & Avon! 🎁✨"
+                                )
+                            elif "4. Pedido" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "Hola *{primer_nombre}* 🛍️, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                    "Tienes *{pedidos} pedido(s)* en espera de despacho por saldo de *{deuda_mora}*.\n\n"
+                                    "Al poner al día tu pago hoy, tu pedido saldrá de inmediato para entrega. ¡Quedo atenta para ayudarte! 📦✨"
+                                )
+                            elif "5. Saludo" in tipo_camp_tab:
+                                tpl_tab_def = (
+                                    "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                                    "Quería saludarte y desearte una semana llena de éxitos y ventas. ¡Cuenta conmigo para cualquier duda o apoyo comercial! ✨"
+                                )
+                            else:
+                                tpl_tab_def = "Hola *{primer_nombre}* 🌸, te escribe {remitente}.\n\n"
 
-                        # Tarjeta resumen compacta de estado
-                        df_target_tab_wa = df_edit_view[df_edit_view[c_col_cb].astype(str).str.strip().isin(sel_cbs_activos)].copy()
-                        n_dest = len(df_target_tab_wa)
-                        n_act_sel = len(df_target_tab_wa[df_target_tab_wa[c_col_sit].astype(str).str.strip().str.lower() == 'activa']) if c_col_sit else 0
-                        n_inact_sel = len(df_target_tab_wa[df_target_tab_wa[c_col_sit].astype(str).str.contains('inactiva', case=False, na=False)]) if c_col_sit else 0
-                        n_ped_sel = len(df_target_tab_wa[df_target_tab_wa[c_col_ped].apply(lambda x: float(limpiar_numero(x, 0))) > 0]) if c_col_ped else 0
+                            texto_plantilla_tab = st.text_area(
+                                "✏️ Personaliza la Plantilla:",
+                                value=tpl_tab_def,
+                                height=110,
+                                key=f"txt_tpl_tab_{tipo_camp_tab[:2]}"
+                            )
+                            st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
 
-                        with col_ind2:
-                            st.markdown(f"""
-                            <div style="background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 8px 14px; margin-top: 24px; box-shadow: 0 2px 6px rgba(15,23,42,0.04); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                                <div>
-                                    <div style="font-size: 0.90rem; font-weight: 800; color: #0F172A;">Destinatarias: <span style="color: #EA580C;">{n_dest}</span></div>
-                                    <div style="font-size: 0.70rem; color: #64748B;">{tipo_origen_lbl} · {n_dest} de {len(df_edit_view)}</div>
-                                </div>
-                                <div style="display: flex; gap: 6px; font-size: 0.70rem; font-weight: 700;">
-                                    <span style="background: #F0FDF4; color: #166534; padding: 2px 6px; border-radius: 6px; border: 1px solid #BBF7D0;">🟢 {n_act_sel}</span>
-                                    <span style="background: #FFF7ED; color: #C2410C; padding: 2px 6px; border-radius: 6px; border: 1px solid #FFEDD5;">🌸 {n_inact_sel}</span>
-                                    <span style="background: #FEF3C7; color: #92400E; padding: 2px 6px; border-radius: 6px; border: 1px solid #FDE68A;">⌛ {n_ped_sel}</span>
+                        # Generar filas de mensajes para todo el grupo filtrado con casilla de selección
+                        filas_wa_tab = []
+                        set_sel_actual = st.session_state.get('cbs_sel_tab_wa', set(cbs_todas))
+                        for _, r_t in df_edit_view.iterrows():
+                            cb_val = str(r_t.get(c_col_cb, '')).strip()
+                            n_full = str(r_t.get(c_col_nom, '')).strip()
+                            p_nom = n_full.split()[0].title() if n_full else "Consultora"
+                            cel_raw = str(r_t.get(c_col_cel, '')).strip().replace(' ', '').replace('-', '').replace('+', '')
+                            cel_val = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
+
+                            nota_val = str(r_t.get(c_col_nota, '')).strip() if c_col_nota else ''
+                            sit_val = str(r_t.get(c_col_sit, '')) if c_col_sit else ''
+                            nivel_val = str(r_t.get(c_col_col, 'Consultora')) if c_col_col else 'Consultora'
+                            pts_val = str(r_t.get(c_col_pts, '0')) if c_col_pts else '0'
+                            ped_val = str(r_t.get(c_col_ped, '0')) if c_col_ped else '0'
+                            mora_val = formato_cop(r_t.get(c_col_mora, 0)) if c_col_mora else '$0'
+
+                            msg_t = (
+                                texto_plantilla_tab
+                                .replace("{primer_nombre}", p_nom)
+                                .replace("{nombre}", n_full.title())
+                                .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                                .replace("{nivel}", nivel_val)
+                                .replace("{pts_acum}", pts_val)
+                                .replace("{pedidos}", ped_val)
+                                .replace("{deuda_mora}", mora_val)
+                                .replace("{remitente}", remitente_tab_wa)
+                            )
+
+                            link_t = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_t)}" if cel_val and len(cel_val) >= 10 else ""
+
+                            filas_wa_tab.append({
+                                '✅ Enviar': cb_val in set_sel_actual,
+                                'Consultora': n_full,
+                                'Código CB': cb_val,
+                                'Sit. Comercial': sit_val,
+                                'Nivel / Color': nivel_val,
+                                'Celular': cel_val if cel_val else "Sin celular",
+                                'Nota Líder': nota_val if nota_val else "-",
+                                '📲 Enviar WhatsApp': link_t,
+                                'Mensaje Personalizado': msg_t
+                            })
+
+                        df_campana_tab_out = pd.DataFrame(filas_wa_tab)
+
+                        st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para marcar o desmarcar a cada consultora, o pulsa **'Abrir WhatsApp'** para chatear directamente.")
+
+                        df_editado_tab = st.data_editor(
+                            df_campana_tab_out[[
+                                '✅ Enviar', 'Consultora', 'Código CB', 'Sit. Comercial', 
+                                'Nivel / Color', 'Celular', 'Nota Líder', 
+                                '📲 Enviar WhatsApp', 'Mensaje Personalizado'
+                            ]],
+                            column_config={
+                                '✅ Enviar': st.column_config.CheckboxColumn(
+                                    "✅ Enviar",
+                                    help="Marca o desmarca la casilla para incluirla en el envío",
+                                    default=True
+                                ),
+                                '📲 Enviar WhatsApp': st.column_config.LinkColumn(
+                                    "📲 Enviar WhatsApp",
+                                    display_text="Abrir WhatsApp"
+                                )
+                            },
+                            disabled=[
+                                'Consultora', 'Código CB', 'Sit. Comercial', 
+                                'Nivel / Color', 'Celular', 'Nota Líder', 
+                                '📲 Enviar WhatsApp', 'Mensaje Personalizado'
+                            ],
+                            use_container_width=True,
+                            hide_index=True,
+                            key=f"editor_campana_tab_{st.session_state.get('editor_ver_tab', 0)}"
+                        )
+
+                        # Actualizar estado de seleccionadas desde las casillas
+                        df_marcadas = df_editado_tab[df_editado_tab['✅ Enviar'] == True]
+                        n_marcadas = len(df_marcadas)
+                        n_act_m = len(df_marcadas[df_marcadas['Sit. Comercial'].astype(str).str.strip().str.lower() == 'activa']) if not df_marcadas.empty else 0
+                        n_inact_m = len(df_marcadas[df_marcadas['Sit. Comercial'].astype(str).str.contains('inactiva', case=False, na=False)]) if not df_marcadas.empty else 0
+
+                        st.markdown(f"""
+                        <div style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 8px 14px; margin-top: 6px; display: flex; align-items: center; justify-content: space-between;">
+                            <div>
+                                <span style="font-size: 0.90rem; font-weight: 800; color: #0F172A;">🎯 Consultoras marcadas con casilla: </span>
+                                <span style="font-size: 1.05rem; font-weight: 800; color: #EA580C;">{n_marcadas}</span> 
+                                <span style="font-size: 0.75rem; color: #64748B;">de {len(df_campana_tab_out)} en lista</span>
                             </div>
-                            """, unsafe_allow_html=True)
-
-                        df_campana_tab_out = pd.DataFrame()
-
-                        if sel_cbs_activos:
-
-                            col_cfg_t1, col_cfg_t2 = st.columns([1.2, 1.8])
-                            with col_cfg_t1:
-                                tipo_camp_tab = st.selectbox(
-                                    "Tipo de Plantilla de Mensaje:",
-                                    options=[
-                                        "💬 1. Usar mis Notas / Comentarios",
-                                        "🎁 2. Reactivación Comercial (Inactivas)",
-                                        "🌟 3. Impulso de Puntos & Nivel",
-                                        "📦 4. Pedido Pendiente / Retenido",
-                                        "🌸 5. Saludo & Seguimiento General",
-                                        "✍️ 6. Mensaje Libre / Personalizado"
-                                    ],
-                                    index=0 if cbs_con_notas else 1,
-                                    key="sel_tipo_camp_tab_widget"
-                                )
-                                remitente_tab_wa = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_tab_wa")
-
-                            with col_cfg_t2:
-                                # Plantilla predeterminada según tipo
-                                if "1. Usar mis Notas" in tipo_camp_tab:
-                                    tpl_tab_def = (
-                                        "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
-                                        "Te contacto para contarte: *{nota}*.\n\n"
-                                        "¡Quedo muy atenta a lo que necesites para apoyarte! ✨"
-                                    )
-                                elif "2. Reactivación" in tipo_camp_tab:
-                                    tpl_tab_def = (
-                                        "¡Hola *{primer_nombre}*! 🌸 Te extrañamos mucho en nuestro equipo de *Natura & Avon*.\n\n"
-                                        "En este ciclo tenemos promociones exclusivas, descuentos especiales y kits de reinicio pensados para ti.\n\n"
-                                        "¿Te gustaría que te comparta el catálogo virtual interactivo de este ciclo? 📖✨"
-                                    )
-                                elif "3. Impulso" in tipo_camp_tab:
-                                    tpl_tab_def = (
-                                        "¡Hola *{primer_nombre}*! 🌟 Felicitaciones por tus *{pts_acum} puntos* acumulados en tu nivel *{nivel}*.\n\n"
-                                        "Estás muy cerca de tu siguiente meta de premios y beneficios de este ciclo. ¡Pasa tu pedido y gana más con Natura & Avon! 🎁✨"
-                                    )
-                                elif "4. Pedido" in tipo_camp_tab:
-                                    tpl_tab_def = (
-                                        "Hola *{primer_nombre}* 🛍️, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
-                                        "Tienes *{pedidos} pedido(s)* en espera de despacho por saldo de *{deuda_mora}*.\n\n"
-                                        "Al poner al día tu pago hoy, tu pedido saldrá de inmediato para entrega. ¡Quedo atenta para ayudarte! 📦✨"
-                                    )
-                                elif "5. Saludo" in tipo_camp_tab:
-                                    tpl_tab_def = (
-                                        "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
-                                        "Quería saludarte y desearte una semana llena de éxitos y ventas. ¡Cuenta conmigo para cualquier duda o apoyo comercial! ✨"
-                                    )
-                                else:
-                                    tpl_tab_def = "Hola *{primer_nombre}* 🌸, te escribe {remitente}.\n\n"
-
-                                texto_plantilla_tab = st.text_area(
-                                    "✏️ Personaliza la Plantilla:",
-                                    value=tpl_tab_def,
-                                    height=110,
-                                    key=f"txt_tpl_tab_{tipo_camp_tab[:2]}"
-                                )
-                                st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
-
-                            # Generar filas de mensajes
-                            filas_wa_tab = []
-                            for _, r_t in df_target_tab_wa.iterrows():
-                                n_full = str(r_t.get(c_col_nom, '')).strip()
-                                p_nom = n_full.split()[0].title() if n_full else "Consultora"
-                                cel_raw = str(r_t.get(c_col_cel, '')).strip().replace(' ', '').replace('-', '').replace('+', '')
-                                cel_val = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
-
-                                nota_val = str(r_t.get(c_col_nota, '')).strip() if c_col_nota else ''
-                                nivel_val = str(r_t.get(c_col_col, 'Consultora')) if c_col_col else 'Consultora'
-                                pts_val = str(r_t.get(c_col_pts, '0')) if c_col_pts else '0'
-                                ped_val = str(r_t.get(c_col_ped, '0')) if c_col_ped else '0'
-                                mora_val = formato_cop(r_t.get(c_col_mora, 0)) if c_col_mora else '$0'
-
-                                # Reemplazar variables
-                                msg_t = (
-                                    texto_plantilla_tab
-                                    .replace("{primer_nombre}", p_nom)
-                                    .replace("{nombre}", n_full.title())
-                                    .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
-                                    .replace("{nivel}", nivel_val)
-                                    .replace("{pts_acum}", pts_val)
-                                    .replace("{pedidos}", ped_val)
-                                    .replace("{deuda_mora}", mora_val)
-                                    .replace("{remitente}", remitente_tab_wa)
-                                )
-
-                                link_t = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_t)}" if cel_val and len(cel_val) >= 10 else ""
-
-                                filas_wa_tab.append({
-                                    'Consultora': n_full,
-                                    'Código CB': str(r_t.get(c_col_cb, '')),
-                                    'Sit. Comercial': str(r_t.get(c_col_sit, '')),
-                                    'Nivel / Color': nivel_val,
-                                    'Celular': cel_val if cel_val else "Sin celular",
-                                    'Nota Líder': nota_val if nota_val else "-",
-                                    'Enlace Directo WhatsApp': link_t,
-                                    'Mensaje Personalizado': msg_t
-                                })
-
-                            df_campana_tab_out = pd.DataFrame(filas_wa_tab)
-
-                            # Tabla previa con enlace interactivo
-                            st.dataframe(
-                                df_campana_tab_out[['Consultora', 'Código CB', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Nota Líder', 'Enlace Directo WhatsApp', 'Mensaje Personalizado']],
-                                column_config={
-                                    "Enlace Directo WhatsApp": st.column_config.LinkColumn(
-                                        "📲 Enviar WhatsApp",
-                                        display_text="Abrir WhatsApp"
-                                    )
-                                },
-                                use_container_width=True,
-                                hide_index=True
-                            )
+                            <div style="display: flex; gap: 6px; font-size: 0.72rem; font-weight: 700;">
+                                <span style="background: #F0FDF4; color: #166534; padding: 3px 8px; border-radius: 6px; border: 1px solid #BBF7D0;">🟢 {n_act_m} Activas</span>
+                                <span style="background: #FFF7ED; color: #C2410C; padding: 3px 8px; border-radius: 6px; border: 1px solid #FFEDD5;">🌸 {n_inact_m} Inactivas</span>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
 
-                            # Envío automático por Evolution API
-                            with st.expander("🔌 Envío Masivo Automático por Evolution API (Opcional)", expanded=False):
-                                st.markdown("##### 🚀 Envío Automático a Consultoras Seleccionadas:")
-                                import requests
-                                evo_url_tab = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
-                                inst_def_tab = obtener_instancia_evolution(current_user, user_rol, user_grupo)
-                                if 'in_evo_instance' in st.session_state:
-                                    val_inst_prev = str(st.session_state['in_evo_instance'])
-                                    if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
-                                        st.session_state['in_evo_instance'] = inst_def_tab
-                                evo_inst_tab = st.session_state.get('in_evo_instance', inst_def_tab)
-                                if '{' in str(evo_inst_tab) or 'password_hash' in str(evo_inst_tab):
-                                    evo_inst_tab = inst_def_tab
+                        # Envío automático por Evolution API
+                        with st.expander("🔌 Envío Masivo Automático por Evolution API (Opcional)", expanded=False):
+                            st.markdown("##### 🚀 Envío Automático a Consultoras Seleccionadas:")
+                            import requests
+                            evo_url_tab = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+                            inst_def_tab = obtener_instancia_evolution(current_user, user_rol, user_grupo)
+                            if 'in_evo_instance' in st.session_state:
+                                val_inst_prev = str(st.session_state['in_evo_instance'])
+                                if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
                                     st.session_state['in_evo_instance'] = inst_def_tab
-                                evo_tok_tab = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+                            evo_inst_tab = st.session_state.get('in_evo_instance', inst_def_tab)
+                            if '{' in str(evo_inst_tab) or 'password_hash' in str(evo_inst_tab):
+                                evo_inst_tab = inst_def_tab
+                                st.session_state['in_evo_instance'] = inst_def_tab
+                            evo_tok_tab = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
 
-                                st.caption(f"📡 Conectando a instancia: **`{evo_inst_tab}`** en `{evo_url_tab}`")
-                                delay_tab_wa = st.slider("⏱️ Pausa entre mensajes (Segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_tab_wa")
+                            st.caption(f"📡 Conectando a instancia: **`{evo_inst_tab}`** en `{evo_url_tab}`")
+                            delay_tab_wa = st.slider("⏱️ Pausa entre mensajes (Segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_tab_wa")
 
-                                btn_disparar_tab_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_tab_out)} Consultoras", type="primary", use_container_width=True, key="btn_disparar_api_tab")
+                            btn_disparar_tab_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_marcadas)} Consultoras Marcadas", type="primary", use_container_width=True, key="btn_disparar_api_tab", disabled=(len(df_marcadas) == 0))
 
-                                if btn_disparar_tab_api:
-                                    prog_bar_tab = st.progress(0.0)
-                                    stat_txt_tab = st.empty()
-                                    ok_cnt_tab = 0
-                                    err_cnt_tab = 0
+                            if btn_disparar_tab_api:
+                                prog_bar_tab = st.progress(0.0)
+                                stat_txt_tab = st.empty()
+                                ok_cnt_tab = 0
+                                err_cnt_tab = 0
 
-                                    for i_t, r_ct in enumerate(df_campana_tab_out.iterrows()):
-                                        r_ct = r_ct[1]
-                                        c_num = str(r_ct['Celular']).strip()
-                                        c_nom = str(r_ct.get('Consultora', '')).strip()
-                                        c_cb = str(r_ct.get('Código CB', '') or r_ct.get('Codigo CB', '')).strip()
-                                        msg_txt = str(r_ct.get('Mensaje Personalizado', ''))
+                                for i_t, r_ct in enumerate(df_marcadas.iterrows()):
+                                    r_ct = r_ct[1]
+                                    c_num = str(r_ct['Celular']).strip()
+                                    c_nom = str(r_ct.get('Consultora', '')).strip()
+                                    c_cb = str(r_ct.get('Código CB', '') or r_ct.get('Codigo CB', '')).strip()
+                                    msg_txt = str(r_ct.get('Mensaje Personalizado', ''))
 
-                                        if c_num and len(c_num) >= 10:
-                                            try:
-                                                 c_clean_t = f"57{c_num}" if not c_num.startswith('57') else c_num
-                                                 e_url_t = f"{evo_url_tab.strip().rstrip('/')}/message/sendText/{evo_inst_tab.strip()}"
-                                                 e_payload_t = {
-                                                     "number": c_clean_t,
-                                                     "text": msg_txt,
-                                                     "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
-                                                 }
-                                                 e_headers_t = {"apikey": evo_tok_tab.strip(), "Content-Type": "application/json"}
-                                                 res_t = requests.post(e_url_t, json=e_payload_t, headers=e_headers_t, timeout=12)
-                                                 if res_t.status_code in [200, 201]:
-                                                     ok_cnt_tab += 1
-                                                     registrar_log_whatsapp(
-                                                         modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="EXITOSO",
-                                                         http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
-                                                         rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
-                                                         destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
-                                                     )
-                                                 else:
-                                                     err_cnt_tab += 1
-                                                     registrar_log_whatsapp(
-                                                         modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="FALLIDO",
-                                                         http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
-                                                         rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
-                                                         destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
-                                                     )
-                                            except Exception as ex_tab:
-                                                err_cnt_tab += 1
-                                                registrar_log_whatsapp(
-                                                    modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
-                                                    http_codigo=0, respuesta_servidor=str(ex_tab), remitente=current_user,
-                                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
-                                                    destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
-                                                )
-                                        else:
+                                    if c_num and len(c_num) >= 10:
+                                        try:
+                                             c_clean_t = f"57{c_num}" if not c_num.startswith('57') else c_num
+                                             e_url_t = f"{evo_url_tab.strip().rstrip('/')}/message/sendText/{evo_inst_tab.strip()}"
+                                             e_payload_t = {
+                                                 "number": c_clean_t,
+                                                 "text": msg_txt,
+                                                 "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                             }
+                                             e_headers_t = {"apikey": evo_tok_tab.strip(), "Content-Type": "application/json"}
+                                             res_t = requests.post(e_url_t, json=e_payload_t, headers=e_headers_t, timeout=12)
+                                             if res_t.status_code in [200, 201]:
+                                                 ok_cnt_tab += 1
+                                                 registrar_log_whatsapp(
+                                                     modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="EXITOSO",
+                                                     http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
+                                                     rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                                     destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                                 )
+                                             else:
+                                                 err_cnt_tab += 1
+                                                 registrar_log_whatsapp(
+                                                     modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="FALLIDO",
+                                                     http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
+                                                     rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                                     destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                                 )
+                                        except Exception as ex_tab:
                                             err_cnt_tab += 1
                                             registrar_log_whatsapp(
                                                 modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
-                                                http_codigo=400, respuesta_servidor="Número celular no válido o menor a 10 dígitos", remitente=current_user,
+                                                http_codigo=0, respuesta_servidor=str(ex_tab), remitente=current_user,
                                                 rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
                                                 destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
                                             )
+                                    else:
+                                        err_cnt_tab += 1
+                                        registrar_log_whatsapp(
+                                            modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                            http_codigo=400, respuesta_servidor="Número celular no válido o menor a 10 dígitos", remitente=current_user,
+                                            rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                            destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                        )
 
-                                        prog_bar_tab.progress((i_t + 1) / len(df_campana_tab_out))
-                                        stat_txt_tab.caption(f"Despachando {i_t+1} de {len(df_campana_tab_out)}: {r_ct['Consultora']}...")
-                                        if i_t < len(df_campana_tab_out) - 1:
-                                            time.sleep(delay_tab_wa)
+                                    prog_bar_tab.progress((i_t + 1) / len(df_marcadas))
+                                    stat_txt_tab.caption(f"Despachando {i_t+1} de {len(df_marcadas)}: {r_ct['Consultora']}...")
+                                    if i_t < len(df_marcadas) - 1:
+                                        time.sleep(delay_tab_wa)
 
-                                    st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {ok_cnt_tab} | Fallidos: {err_cnt_tab}")
-                                    with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Tableau Campaña)", expanded=False):
-                                        renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Tableau Campaña", key_suffix="tab_camp")
-                        else:
-                            st.info("👆 Selecciona al menos una consultora arriba o pulsa un botón de selección rápida para preparar los mensajes.")
+                                st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {ok_cnt_tab} | Fallidos: {err_cnt_tab}")
+                                with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Tableau Campaña)", expanded=False):
+                                    renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Tableau Campaña", key_suffix="tab_camp")
                     else:
                         st.warning("⚠️ No se identificaron las columnas mínimas de Código y Nombre para preparar los mensajes de WhatsApp.")
 
