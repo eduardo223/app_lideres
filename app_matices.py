@@ -33,7 +33,10 @@ from procesador import (
     registrar_evento_auditoria,
     obtener_nombre_sector_usuario,
     obtener_nombre_corto_sector,
-    ruta_persistente
+    ruta_persistente,
+    consultar_ce_plus_df,
+    cargar_datos_ganancia_arte,
+    obtener_cumpleanos_equipo
 )
 
 # Funciones de formato y styler para tablas dinámicas
