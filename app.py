@@ -5563,65 +5563,63 @@ if tab_tableau is not None:
                         # Inicializar estado de selección
                         if 'cbs_sel_tab_wa' not in st.session_state or st.session_state.get('cbs_sel_tab_wa') is None:
                             st.session_state['cbs_sel_tab_wa'] = list(cbs_todas)
-                        if 'filtro_enfoque_tab_wa' not in st.session_state:
-                            st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                        if 'cbs_sel_especificas_wa' not in st.session_state:
+                            st.session_state['cbs_sel_especificas_wa'] = []
 
                         st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 4px 0 2px 0;'>🎯 Segmentación Rápida de Audiencia:</p>", unsafe_allow_html=True)
                         b_cols = st.columns(5)
                         with b_cols[0]:
                             if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_tab_wa", use_container_width=True):
                                 st.session_state['cbs_sel_tab_wa'] = list(cbs_todas)
-                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.session_state['cbs_sel_especificas_wa'] = []
                                 st.rerun()
                         with b_cols[1]:
                             if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_tab_wa", use_container_width=True):
                                 st.session_state['cbs_sel_tab_wa'] = list(cbs_inactivas)
-                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.session_state['cbs_sel_especificas_wa'] = []
                                 st.rerun()
                         with b_cols[2]:
                             if st.button(f"⌛ Con Pedidos ({len(cbs_con_ped)})", key="btn_sel_ped_tab_wa", use_container_width=True):
                                 st.session_state['cbs_sel_tab_wa'] = list(cbs_con_ped)
-                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.session_state['cbs_sel_especificas_wa'] = []
                                 st.rerun()
                         with b_cols[3]:
                             lbl_b4 = f"💬 Con Notas ({len(cbs_con_notas)})" if cbs_con_notas else f"💳 Con Mora ({len(cbs_con_mora)})"
                             action_b4 = cbs_con_notas if cbs_con_notas else cbs_con_mora
                             if st.button(lbl_b4, key="btn_sel_extra_tab_wa", use_container_width=True):
                                 st.session_state['cbs_sel_tab_wa'] = list(action_b4)
-                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.session_state['cbs_sel_especificas_wa'] = []
                                 st.rerun()
                         with b_cols[4]:
                             if st.button("🧹 Ninguna (0)", key="btn_desel_todas_tab_wa", use_container_width=True):
                                 st.session_state['cbs_sel_tab_wa'] = []
-                                st.session_state['filtro_enfoque_tab_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.session_state['cbs_sel_especificas_wa'] = []
                                 st.rerun()
 
-                        # Selector individual opcional para enfocar sin ruido
-                        col_ind1, col_ind2 = st.columns([2.4, 1.6])
+                        # Selector de consultoras específicas a mano (inicia 100% limpio y vacío)
+                        col_ind1, col_ind2 = st.columns([2.6, 1.4])
                         with col_ind1:
-                            opciones_individual = ["👥 Todas las seleccionadas por filtro"] + [f"{mapa_wa_tab[cb]}" for cb in cbs_todas]
-                            idx_ind = 0
-                            cur_ind_val = st.session_state.get('filtro_enfoque_tab_wa', "👥 Todas las seleccionadas por filtro")
-                            if cur_ind_val in opciones_individual:
-                                idx_ind = opciones_individual.index(cur_ind_val)
-                            
-                            sel_enfoque = st.selectbox(
-                                "🎯 O envía a una consultora en específico:",
-                                options=opciones_individual,
-                                index=idx_ind,
-                                key="sel_enfoque_campana_wa"
+                            cbs_especificas = st.multiselect(
+                                "🎯 O busca y selecciona consultora(s) específica(s) a mano:",
+                                options=cbs_todas,
+                                default=st.session_state.get('cbs_sel_especificas_wa', []),
+                                format_func=lambda cb: mapa_wa_tab.get(cb, cb),
+                                placeholder="🔍 Escribe el nombre o código para elegir consultoras puntuales (ej: 2 o 3 específicas)...",
+                                key="multiselect_especificas_tab_wa"
                             )
-                            st.session_state['filtro_enfoque_tab_wa'] = sel_enfoque
+                            st.session_state['cbs_sel_especificas_wa'] = cbs_especificas
+                            if cbs_especificas:
+                                st.caption("💡 **Modo manual activo**: Estás enviando solo a las consultoras seleccionadas aquí. Para volver al grupo completo, pulsa **'👥 Todas'** o borra las etiquetas.")
 
-                        # Determinar códigos objetivo
-                        if sel_enfoque != "👥 Todas las seleccionadas por filtro":
-                            import re
-                            cb_match = re.search(r'\(CB:\s*([^\)]+)\)', sel_enfoque)
-                            sel_cbs_activos = [cb_match.group(1).strip()] if cb_match else []
+                        # Determinar destinatarias objetivo
+                        if cbs_especificas:
+                            sel_cbs_activos = cbs_especificas
+                            tipo_origen_lbl = f"Manual ({len(cbs_especificas)})"
                         else:
                             sel_cbs_activos = st.session_state.get('cbs_sel_tab_wa', cbs_todas)
+                            tipo_origen_lbl = "Por segmento"
 
-                        # Tarjeta resumen compacta de estado (reemplaza las 262 etiquetas naranjas)
+                        # Tarjeta resumen compacta de estado
                         df_target_tab_wa = df_edit_view[df_edit_view[c_col_cb].astype(str).str.strip().isin(sel_cbs_activos)].copy()
                         n_dest = len(df_target_tab_wa)
                         n_act_sel = len(df_target_tab_wa[df_target_tab_wa[c_col_sit].astype(str).str.strip().str.lower() == 'activa']) if c_col_sit else 0
@@ -5633,13 +5631,12 @@ if tab_tableau is not None:
                             <div style="background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 8px 14px; margin-top: 24px; box-shadow: 0 2px 6px rgba(15,23,42,0.04); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                                 <div>
                                     <div style="font-size: 0.90rem; font-weight: 800; color: #0F172A;">Destinatarias: <span style="color: #EA580C;">{n_dest}</span></div>
-                                    <div style="font-size: 0.70rem; color: #64748B;">de {len(df_edit_view)} en lista</div>
+                                    <div style="font-size: 0.70rem; color: #64748B;">{tipo_origen_lbl} · {n_dest} de {len(df_edit_view)}</div>
                                 </div>
                                 <div style="display: flex; gap: 6px; font-size: 0.70rem; font-weight: 700;">
                                     <span style="background: #F0FDF4; color: #166534; padding: 2px 6px; border-radius: 6px; border: 1px solid #BBF7D0;">🟢 {n_act_sel}</span>
                                     <span style="background: #FFF7ED; color: #C2410C; padding: 2px 6px; border-radius: 6px; border: 1px solid #FFEDD5;">🌸 {n_inact_sel}</span>
                                     <span style="background: #FEF3C7; color: #92400E; padding: 2px 6px; border-radius: 6px; border: 1px solid #FDE68A;">⌛ {n_ped_sel}</span>
-                                </div>
                             </div>
                             """, unsafe_allow_html=True)
 

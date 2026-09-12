@@ -1169,61 +1169,59 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     # Inicializar estado de selección
                     if 'cbs_sel_mob_wa' not in st.session_state or st.session_state.get('cbs_sel_mob_wa') is None:
                         st.session_state['cbs_sel_mob_wa'] = list(cbs_todas_m)
-                    if 'filtro_enfoque_mob_wa' not in st.session_state:
-                        st.session_state['filtro_enfoque_mob_wa'] = "👥 Todas las seleccionadas por filtro"
+                    if 'cbs_sel_especificas_mob_wa' not in st.session_state:
+                        st.session_state['cbs_sel_especificas_mob_wa'] = []
 
                     st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 4px 0 2px 0;'>🎯 Segmentación Rápida de Audiencia:</p>", unsafe_allow_html=True)
                     b_cols_m = st.columns(4 if not cbs_con_notas else 5)
                     with b_cols_m[0]:
                         if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_mob_wa", use_container_width=True):
                             st.session_state['cbs_sel_mob_wa'] = list(cbs_todas_m)
-                            st.session_state['filtro_enfoque_mob_wa'] = "👥 Todas las seleccionadas por filtro"
+                            st.session_state['cbs_sel_especificas_mob_wa'] = []
                             st.rerun()
                     with b_cols_m[1]:
                         if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_mob_wa", use_container_width=True):
                             st.session_state['cbs_sel_mob_wa'] = list(cbs_inactivas)
-                            st.session_state['filtro_enfoque_mob_wa'] = "👥 Todas las seleccionadas por filtro"
+                            st.session_state['cbs_sel_especificas_mob_wa'] = []
                             st.rerun()
                     with b_cols_m[2]:
                         if st.button(f"⌛ Con Pedidos ({len(cbs_con_ped)})", key="btn_sel_ped_mob_wa", use_container_width=True):
                             st.session_state['cbs_sel_mob_wa'] = list(cbs_con_ped)
-                            st.session_state['filtro_enfoque_mob_wa'] = "👥 Todas las seleccionadas por filtro"
+                            st.session_state['cbs_sel_especificas_mob_wa'] = []
                             st.rerun()
                     col_idx_m = 3
                     if cbs_con_notas:
                         with b_cols_m[col_idx_m]:
                             if st.button(f"💬 Con Notas ({len(cbs_con_notas)})", key="btn_sel_notas_mob_wa", use_container_width=True):
                                 st.session_state['cbs_sel_mob_wa'] = list(cbs_con_notas)
-                                st.session_state['filtro_enfoque_mob_wa'] = "👥 Todas las seleccionadas por filtro"
+                                st.session_state['cbs_sel_especificas_mob_wa'] = []
                                 st.rerun()
                         col_idx_m += 1
                     with b_cols_m[col_idx_m]:
                         if st.button("🧹 Ninguna (0)", key="btn_desel_todas_mob_wa", use_container_width=True):
                             st.session_state['cbs_sel_mob_wa'] = []
-                            st.session_state['filtro_enfoque_mob_wa'] = "👥 Todas las seleccionadas por filtro"
+                            st.session_state['cbs_sel_especificas_mob_wa'] = []
                             st.rerun()
 
-                    # Selector individual opcional para móvil
-                    opciones_ind_mob = ["👥 Todas las seleccionadas por filtro"] + [f"{mapa_wa_mob[cb]}" for cb in cbs_todas_m]
-                    idx_ind_m = 0
-                    cur_ind_m = st.session_state.get('filtro_enfoque_mob_wa', "👥 Todas las seleccionadas por filtro")
-                    if cur_ind_m in opciones_ind_mob:
-                        idx_ind_m = opciones_ind_mob.index(cur_ind_m)
-
-                    sel_enfoque_m = st.selectbox(
-                        "🎯 O envía a una consultora en específico:",
-                        options=opciones_ind_mob,
-                        index=idx_ind_m,
-                        key="sel_enfoque_mob_wa"
+                    # Selector de consultoras específicas para móvil (inicia vacío)
+                    cbs_especificas_m = st.multiselect(
+                        "🎯 O elige consultora(s) específica(s) a mano:",
+                        options=cbs_todas_m,
+                        default=st.session_state.get('cbs_sel_especificas_mob_wa', []),
+                        format_func=lambda cb: mapa_wa_mob.get(cb, cb),
+                        placeholder="🔍 Escribe nombre o código para elegir 1, 2 o más...",
+                        key="multiselect_especificas_mob_wa"
                     )
-                    st.session_state['filtro_enfoque_mob_wa'] = sel_enfoque_m
+                    st.session_state['cbs_sel_especificas_mob_wa'] = cbs_especificas_m
+                    if cbs_especificas_m:
+                        st.caption("💡 **Modo manual activo**: Para volver al grupo completo, pulsa **'👥 Todas'**.")
 
-                    if sel_enfoque_m != "👥 Todas las seleccionadas por filtro":
-                        import re
-                        cb_match_m = re.search(r'\(CB:\s*([^\)]+)\)', sel_enfoque_m)
-                        sel_cbs_activos_m = [cb_match_m.group(1).strip()] if cb_match_m else []
+                    if cbs_especificas_m:
+                        sel_cbs_activos_m = cbs_especificas_m
+                        tipo_origen_mob_lbl = f"Manual ({len(cbs_especificas_m)})"
                     else:
                         sel_cbs_activos_m = st.session_state.get('cbs_sel_mob_wa', cbs_todas_m)
+                        tipo_origen_mob_lbl = "Por segmento"
 
                     df_target_mob_wa = df_edit_view[df_edit_view[c_col_cb].astype(str).str.strip().isin(sel_cbs_activos_m)].copy()
                     n_dest_m = len(df_target_mob_wa)
@@ -1234,7 +1232,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     st.markdown(f"""
                     <div style="background: #FFFFFF; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 6px 12px; margin: 4px 0 10px 0; box-shadow: 0 1px 4px rgba(15,23,42,0.04); display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <div>
-                            <div style="font-size: 0.85rem; font-weight: 800; color: #0F172A;">Destinatarias: <span style="color: #EA580C;">{n_dest_m}</span> <span style="font-size: 0.70rem; color: #64748B;">de {len(df_edit_view)}</span></div>
+                            <div style="font-size: 0.85rem; font-weight: 800; color: #0F172A;">Destinatarias: <span style="color: #EA580C;">{n_dest_m}</span> <span style="font-size: 0.70rem; color: #64748B;">({tipo_origen_mob_lbl})</span></div>
                         </div>
                         <div style="display: flex; gap: 4px; font-size: 0.68rem; font-weight: 700;">
                             <span style="background: #F0FDF4; color: #166534; padding: 2px 5px; border-radius: 5px; border: 1px solid #BBF7D0;">🟢 {n_act_m}</span>
