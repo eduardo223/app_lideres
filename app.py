@@ -3365,13 +3365,25 @@ sector_corto_app = obtener_nombre_corto_sector(user_sector_nombre)
 label_opcion_movil = f"📱 Móvil (App {sector_corto_app})"
 es_lider_check = (user_rol == 'lider')
 vista_query = st.query_params.get('vista')
+opts_v = ["💻 Escritorio", "📱 Móvil"]
 idx_def_vista = 1 if ((es_lider_check and vista_query != 'escritorio') or (vista_query == 'movil')) else 0
 
-# Si se solicitó modo móvil por query param 'vista=movil'
-if vista_query == 'movil':
+# =========================================================================
+# SELECTOR DE INTERFAZ DEL SISTEMA (ESCRITORIO / MÓVIL)
+# =========================================================================
+st.sidebar.markdown("""
+<div style="font-size: 0.74rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; padding-left: 2px;">
+    🖥️ Interfaz del Sistema
+</div>
+""", unsafe_allow_html=True)
+sel_v = st.sidebar.segmented_control("Vista Interfaz", options=opts_v, default=opts_v[idx_def_vista], key="sb_segmented_vista", label_visibility="collapsed")
+
+# Si se solicitó o seleccionó modo móvil, delegar inmediatamente a app_matices SIN renderizar tarjetas de escritorio
+if sel_v == "📱 Móvil" or vista_query == 'movil':
     import app_matices
     app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
     st.stop()
+
 
 # Activador de corrector ortográfico nativo del explorador en celdas y campos editables
 st.markdown("""
@@ -5062,23 +5074,7 @@ else:
     }
     </style>
     """, unsafe_allow_html=True)
-    # =========================================================================
-    # POSICIÓN 3: MODO DE VISTA (ESCRITORIO / MÓVIL) EN LA PARTE SUPERIOR DEL SIDEBAR
-    # =========================================================================
-    opts_v = ["💻 Escritorio", "📱 Móvil"]
-    def_idx = 1 if (vista_query == 'movil' or (es_lider_check and vista_query != 'escritorio')) else 0
-    st.sidebar.markdown("""
-    <div style="font-size: 0.74rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 6px; padding-left: 2px;">
-        🖥️ Interfaz del Sistema
-    </div>
-    """, unsafe_allow_html=True)
-    sel_v = st.sidebar.segmented_control("Vista Interfaz", options=opts_v, default=opts_v[def_idx], key="sb_segmented_vista", label_visibility="collapsed")
-    if sel_v == "📱 Móvil":
-        import app_matices
-        app_matices.render_vista_movil(current_user=current_user, mostrar_salir=False)
-        st.stop()
-
-    st.sidebar.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    st.sidebar.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
 
     # =========================================================================
     # MENÚ DE NAVEGACIÓN VERTICAL EN LA BARRA LATERAL (SLIM SIDEBAR ESTILO SAAS)

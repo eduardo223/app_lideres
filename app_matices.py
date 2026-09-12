@@ -409,21 +409,29 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 st.query_params.clear()
                 st.rerun()
     else:
-        st.markdown(f"""
-        <div class="mob-header-card">
-            <div class="mob-header-top">
-                <div class="mob-header-title">
-                    <span class="mob-title-icon">📱</span>
-                    <span class="mob-title-text">App {nombre_sector_app}</span>
+        col_m_top1, col_m_top2 = st.columns([3, 1.2])
+        with col_m_top1:
+            st.markdown(f"""
+            <div class="mob-header-card">
+                <div class="mob-header-top">
+                    <div class="mob-header-title">
+                        <span class="mob-title-icon">📱</span>
+                        <span class="mob-title-text">App {nombre_sector_app}</span>
+                    </div>
+                    <span class="mob-badge-group">🏷️ {grupo_str}</span>
                 </div>
-                <span class="mob-badge-group">🏷️ {grupo_str}</span>
+                <div class="mob-header-sub">
+                    <span class="mob-user-text">👤 <b>{user_nombre}</b></span>
+                    <span class="mob-badge-mode">✨ Vista Móvil</span>
+                </div>
             </div>
-            <div class="mob-header-sub">
-                <span class="mob-user-text">👤 <b>{user_nombre}</b></span>
-                <span class="mob-badge-mode">✨ Vista Móvil Optimizada</span>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+            """, unsafe_allow_html=True)
+        with col_m_top2:
+            st.markdown("<div style='height: 4px;'></div>", unsafe_allow_html=True)
+            if st.button("💻 PC", key="btn_switch_to_desktop", use_container_width=True, help="Cambiar a la versión de Escritorio (PC)"):
+                st.session_state['sb_segmented_vista'] = "💻 Escritorio"
+                st.query_params['vista'] = 'escritorio'
+                st.rerun()
 
     # Si es Gerente o Admin, permitir seleccionar qué grupo auditar
     grupo_activo = user_grupo
@@ -606,6 +614,38 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         st.markdown("##### 🎯 Cuadro de Mando de Desafíos Líder")
         if arte_lider.get('es_ajuste_zona'):
             st.caption(f"✨ *Metas calibradas por Gerencia de Zona ({arte_lider.get('campana', 'Campaña Activa')})*")
+
+        # Banner de Cumpleaños Móvil (si hay cumpleañeras en el equipo)
+        try:
+            from procesador import obtener_cumpleanos_equipo
+            plantilla_wa = st.session_state.get('plantilla_wa_cumpleanos', None)
+            data_cumple = obtener_cumpleanos_equipo(df_tab, user_nombre=user_nombre, plantilla_wa=plantilla_wa)
+            if data_cumple and data_cumple.get('total_mes', 0) > 0:
+                h_c = len(data_cumple.get('hoy', []))
+                s_c = len(data_cumple.get('semana', []))
+                tot_c = data_cumple.get('total_mes', 0)
+                mes_c = data_cumple.get('nombre_mes', '')
+                
+                if h_c > 0:
+                    b_txt = f"🎂 ¡HOY HAY {h_c} CUMPLEAÑERA{'S' if h_c > 1 else ''}! 🎉"
+                elif s_c > 0:
+                    b_txt = f"🎁 {s_c} CUMPLEAÑOS EN PRÓXIMOS 7 DÍAS 📅"
+                else:
+                    b_txt = f"🗓️ {tot_c} CUMPLEAÑOS EN {mes_c.upper()} ✨"
+                
+                with st.expander(f"{b_txt} • Ver & Felicitar", expanded=False):
+                    items_cumple = data_cumple.get('hoy', []) + data_cumple.get('semana', [])
+                    if not items_cumple:
+                        items_cumple = data_cumple.get('mes', [])[:12]
+                    for itm in items_cumple[:12]:
+                        c_c1, c_c2 = st.columns([2, 1])
+                        with c_c1:
+                            st.markdown(f"🌸 **{itm['nombre']}** (CB: `{itm['codigo_cb']}` • Día {itm['dia']})")
+                        with c_c2:
+                            if itm.get('link_wa'):
+                                st.link_button("📲 Felicitar", url=itm['link_wa'], use_container_width=True)
+        except Exception:
+            pass
 
         if df_cv.empty:
             st.info(f"ℹ️ **Metas del ciclo para el Grupo {grupo_activo if grupo_activo else ''}:**\n\nEl archivo de metas se sincronizará automáticamente. Puedes gestionar tu red en **'📋 MI LISTADO'** y consultar el comparativo en **'👑 MIS LÍDERES'**.")
