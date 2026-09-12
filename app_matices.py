@@ -1341,16 +1341,6 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
                         df_campana_mob_out = pd.DataFrame(filas_wa_mob)
 
-                        # Despacho 1 a 1 para celular
-                        st.markdown("###### 📲 Abrir WhatsApp Directo:")
-                        nom_sel_mob = st.selectbox("Elige la consultora para enviar de inmediato:", options=df_campana_mob_out['Consultora'].tolist(), key="sel_rapido_mob_wa")
-                        row_sel_mob = df_campana_mob_out[df_campana_mob_out['Consultora'] == nom_sel_mob].iloc[0]
-                        link_wa_mob_env = row_sel_mob.get('Enlace WhatsApp')
-                        if link_wa_mob_env:
-                            st.link_button(f"📲 Abrir WhatsApp a {str(nom_sel_mob).split()[0].title()}", url=link_wa_mob_env, type="primary", use_container_width=True)
-                        else:
-                            st.warning("⚠️ Esta consultora no tiene celular válido.")
-
                         # Tabla en vivo con enlaces interactivos
                         st.dataframe(
                             df_campana_mob_out[['Consultora', 'Sit. Comercial', 'Celular', 'Nota Líder', 'Enlace WhatsApp']],
@@ -1362,20 +1352,6 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                             },
                             use_container_width=True,
                             hide_index=True
-                        )
-
-                        # Descarga de respaldo
-                        towrite_mob_wa = io.BytesIO()
-                        with pd.ExcelWriter(towrite_mob_wa, engine='openpyxl') as writer:
-                            df_campana_mob_out.to_excel(writer, sheet_name="Campana_Tableau_WA", index=False)
-                        towrite_mob_wa.seek(0)
-                        st.download_button(
-                            label=f"📥 Descargar Base en Excel ({len(df_campana_mob_out)} Mensajes)",
-                            data=towrite_mob_wa,
-                            file_name=f"Campana_Tableau_WA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                            use_container_width=True,
-                            key="btn_descargar_mob_wa_excel"
                         )
                     else:
                         st.info("👆 Selecciona al menos una consultora arriba para preparar los mensajes.")

@@ -5757,32 +5757,6 @@ if tab_tableau is not None:
                                 hide_index=True
                             )
 
-                            # Acciones inferiores: Despacho individual y Descargas
-                            col_t_d1, col_t_d2 = st.columns([1.5, 1.5])
-                            with col_t_d1:
-                                st.markdown("###### 📲 Despachar Consultora Individual:")
-                                nom_sel_rap_t = st.selectbox("Elige la consultora para enviar de inmediato:", options=df_campana_tab_out['Consultora'].tolist(), key="sel_rapido_tab_wa")
-                                row_sel_rap_t = df_campana_tab_out[df_campana_tab_out['Consultora'] == nom_sel_rap_t].iloc[0]
-                                link_wa_t_env = row_sel_rap_t.get('Enlace Directo WhatsApp')
-                                if link_wa_t_env:
-                                    st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rap_t).split()[0].title()}", url=link_wa_t_env, use_container_width=True)
-                                else:
-                                    st.warning("⚠️ Esta consultora no tiene celular válido registrado.")
-
-                            with col_t_d2:
-                                st.markdown("###### 📥 Descargar Base de Campaña:")
-                                towrite_tab_wa = io.BytesIO()
-                                with pd.ExcelWriter(towrite_tab_wa, engine='openpyxl') as writer:
-                                    df_campana_tab_out.to_excel(writer, sheet_name="Campana_Tableau_WA", index=False)
-                                towrite_tab_wa.seek(0)
-                                st.download_button(
-                                    label=f"📥 Descargar Campaña en Excel ({len(df_campana_tab_out)} Mensajes)",
-                                    data=towrite_tab_wa,
-                                    file_name=f"Campana_Tableau_WA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                    use_container_width=True,
-                                    key="btn_descargar_camp_tab_wa_excel"
-                                )
 
                             # Envío automático por Evolution API
                             with st.expander("🔌 Envío Masivo Automático por Evolution API (Opcional)", expanded=False):
