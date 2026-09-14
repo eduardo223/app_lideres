@@ -28,6 +28,8 @@ from procesador import (
     color_nivel,
     color_situacion,
     color_deuda_mora,
+    color_pts_cierre_anterior,
+    archivar_cierre_ciclo_actual,
     actualizar_situacion_comercial_desde_mi_grupo,
     actualizar_base_desde_activas,
     autenticar_usuario,
@@ -4047,6 +4049,12 @@ def modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user):
                 cons_actuales = contar_registros_sector_tableau(user_sector if user_rol == 'gerente' else None)
                 if cons_actuales > 0:
                     st.caption(f"🟢 **Base Consultoras**: {cons_actuales:,} registradas ({user_sector_nombre if user_rol == 'gerente' else 'Global'})".replace(",", "."))
+                    with st.expander("📸 Resguardo Manual de Cierre de Campaña", expanded=False):
+                        st.caption("Asegura el resguardo permanente de los Pts Natura y Pts AVON del ciclo actual antes de actualizar con una nueva base:")
+                        if st.button("📸 Asegurar Cierre de Ciclo en Histórico", type="secondary", use_container_width=True, key="btn_manual_cierre_tab"):
+                            sec_arc = user_sector if user_rol in ['lider', 'gerente'] else None
+                            n_arch = archivar_cierre_ciclo_actual(cod_sector=sec_arc)
+                            st.success(f"✅ ¡Cierre de ciclo resguardado con éxito! {n_arch} consultoras aseguradas en el histórico.")
                     with st.expander("🗑️ Vaciar Consultoras de este Sector", expanded=False):
                         st.warning("⚠️ Esta acción vaciará el directorio de consultoras de tu sector hasta cargar una nueva base Tableau.")
                         cod_conf_tab = st.text_input("Escribe **BORRAR** para confirmar:", key="input_conf_borrar_tab")
@@ -6333,14 +6341,30 @@ if tab_tableau is not None:
                     if c not in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB'] and pd.api.types.is_float_dtype(df_edit_view[c]):
                         df_edit_view[c] = df_edit_view[c].fillna(0).round().astype('int64')
 
+                # Detectar columnas de puntos históricos del ciclo anterior
+                cols_pts_hist = [c for c in df_edit_view.columns if any(k in str(c).lower() for k in ['(c-', 'ant', 'cierre']) and 'pts' in str(c).lower()]
+                c_bar1, c_bar2 = st.columns([3.5, 6.5])
+                with c_bar1:
+                    if cols_pts_hist:
+                        tag_cierre = cols_pts_hist[0].split('(')[-1].replace(')', '').strip() if '(' in cols_pts_hist[0] else "Cierre"
+                        resaltar_cierre_pc = st.toggle(f"🎨 Resaltar Puntos Ciclo Anterior ({tag_cierre})", value=True, key="pc_toggle_resaltar_cierre")
+                    else:
+                        resaltar_cierre_pc = False
+
                 # Usar st.data_editor para permitir editar notas directamente en la tabla
                 col_config = {}
                 for col_name in df_edit_view.columns:
                     # Si es una columna de dinero (Deuda o Facturación), formatear con $
                     if 'Deuda' in col_name or 'Fact.' in col_name:
                         col_config[col_name] = st.column_config.NumberColumn(col_name, format="$%d", disabled=True)
-                    # Si es DocumentoGPP, Celular o Código CB, formatear como texto limpio sin comas
-                    elif col_name in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB']:
+                    # Inmovilizar permanentemente Código CB
+                    elif col_name in ['Código CB', 'Codigo CB']:
+                        col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True, pinned=True)
+                    # Inmovilizar permanentemente Asesora / Consultora
+                    elif col_name in ['Asesora / Consultora', 'Consultora', 'Nombre']:
+                        col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True, pinned=True)
+                    # Si es DocumentoGPP o Celular, formatear como texto limpio sin comas
+                    elif col_name in ['DocumentoGPP', 'Celular']:
                         col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
                     # Si es una columna numérica (Pts, Crédito, Pedidos, Ciclos), formatear como número entero limpio sin $
                     elif 'Pts' in col_name or 'Ped.' in col_name or 'Ciclos' in col_name or 'Credito' in col_name or 'Crédito' in col_name:
@@ -6367,13 +6391,18 @@ if tab_tableau is not None:
                 num_celdas = len(df_data_render) * len(df_data_render.columns)
                 if num_celdas <= 250_000:
                     try:
-                        df_data_to_edit = df_data_render.style.map(
+                        styler_editor = df_data_render.style.map(
                             color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_data_render.columns else []
                         ).map(
                             color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_data_render.columns else []
                         ).map(
                             color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_data_render.columns else []
                         )
+                        if resaltar_cierre_pc and cols_pts_hist:
+                            styler_editor = styler_editor.map(
+                                color_pts_cierre_anterior, subset=cols_pts_hist
+                            )
+                        df_data_to_edit = styler_editor
                     except Exception:
                         df_data_to_edit = df_data_render
                 else:

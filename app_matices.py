@@ -28,6 +28,7 @@ from procesador import (
     color_nivel,
     color_situacion,
     color_deuda_mora,
+    color_pts_cierre_anterior,
     guardar_todos_comentarios,
     limpiar_codigo_cb_estandar,
     refrescar_perfil_usuario_en_sesion,
@@ -1040,14 +1041,28 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 if c not in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB'] and pd.api.types.is_float_dtype(df_edit_view[c]):
                     df_edit_view[c] = df_edit_view[c].fillna(0).round().astype('int64')
 
+            # Detectar columnas de puntos históricos del ciclo anterior
+            cols_pts_hist_m = [c for c in df_edit_view.columns if any(k in str(c).lower() for k in ['(c-', 'ant', 'cierre']) and 'pts' in str(c).lower()]
+            if cols_pts_hist_m:
+                tag_cierre_m = cols_pts_hist_m[0].split('(')[-1].replace(')', '').strip() if '(' in cols_pts_hist_m[0] else "Cierre"
+                resaltar_cierre_mob = st.toggle(f"🎨 Resaltar Puntos Ciclo Anterior ({tag_cierre_m})", value=True, key="mob_toggle_resaltar_cierre")
+            else:
+                resaltar_cierre_mob = False
+
             # Usar st.data_editor para permitir editar notas directamente en la tabla
             col_config = {}
             for col_name in df_edit_view.columns:
                 # Si es una columna de dinero (Deuda o Facturación), formatear con $
                 if 'Deuda' in col_name or 'Fact.' in col_name:
                     col_config[col_name] = st.column_config.NumberColumn(col_name, format="$%d", disabled=True)
-                # Si es DocumentoGPP, Celular o Código CB, formatear como texto limpio sin comas
-                elif col_name in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB']:
+                # Inmovilizar permanentemente Código CB
+                elif col_name in ['Código CB', 'Codigo CB']:
+                    col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True, pinned=True)
+                # Inmovilizar permanentemente Asesora / Consultora
+                elif col_name in ['Asesora / Consultora', 'Consultora', 'Nombre']:
+                    col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True, pinned=True)
+                # Si es DocumentoGPP o Celular, formatear como texto limpio sin comas
+                elif col_name in ['DocumentoGPP', 'Celular']:
                     col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
                 # Si es una columna numérica (Pts, Crédito, Pedidos, Ciclos), formatear como número entero limpio sin $
                 elif 'Pts' in col_name or 'Ped.' in col_name or 'Ciclos' in col_name or 'Credito' in col_name or 'Crédito' in col_name:
@@ -1068,13 +1083,18 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             num_celdas = len(df_data_render) * len(df_data_render.columns)
             if num_celdas <= 250_000:
                 try:
-                    df_data_to_edit = df_data_render.style.map(
+                    styler_mob = df_data_render.style.map(
                         color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_data_render.columns else []
                     ).map(
                         color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_data_render.columns else []
                     ).map(
                         color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_data_render.columns else []
                     )
+                    if resaltar_cierre_mob and cols_pts_hist_m:
+                        styler_mob = styler_mob.map(
+                            color_pts_cierre_anterior, subset=cols_pts_hist_m
+                        )
+                    df_data_to_edit = styler_mob
                 except Exception:
                     df_data_to_edit = df_data_render
             else:

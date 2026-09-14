@@ -2236,8 +2236,24 @@ def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None, es_lider=False
     # Eliminar duplicados de columnas
     df = df.loc[:, ~df.columns.duplicated()].copy()
 
-    # Seleccionar orden de columnas objetivo
-    cols_objetivo = [c for c in COLUMNAS_ORDEN_TABLEAU if not (es_lider and c == 'Líder / Grupo')]
+    # Detectar dinámicamente columnas de puntos históricos de cierre anterior (ej: 'Pts Natura (C-13)', 'Pts AVON (C-13)')
+    cols_pts_nat_ant = [c for c in df.columns if 'pts natura' in str(c).lower() and any(k in str(c).lower() for k in ['(c-', 'ant', 'cierre'])]
+    cols_pts_avo_ant = [c for c in df.columns if 'pts avon' in str(c).lower() and any(k in str(c).lower() for k in ['(c-', 'ant', 'cierre'])]
+
+    # Seleccionar orden de columnas objetivo intercalando puntos históricos antes de Pts Natura
+    cols_objetivo = []
+    for c in COLUMNAS_ORDEN_TABLEAU:
+        if es_lider and c == 'Líder / Grupo':
+            continue
+        if c == 'Pts Natura':
+            for h in cols_pts_nat_ant:
+                if h not in cols_objetivo:
+                    cols_objetivo.append(h)
+            for h in cols_pts_avo_ant:
+                if h not in cols_objetivo:
+                    cols_objetivo.append(h)
+        cols_objetivo.append(c)
+
     cols_existentes = [c for c in cols_objetivo if c in df.columns]
     df_resultado = df[cols_existentes].copy()
 
@@ -2952,6 +2968,27 @@ def color_deuda_mora(val):
             return 'background-color: #FEE2E2; color: #991B1B; font-weight: bold;'
     except Exception:
         return ""
+
+def color_pts_cierre_anterior(val):
+    """
+    Estilo visual distintivo para celdas de puntos del ciclo de cierre anterior (ej: Ciclo 13).
+    Aplica fondo lavanda/índigo suave (#EDE9FE) con texto índigo profundo (#4338CA) y borde acento
+    a las consultoras que tuvieron puntos > 0.
+    """
+    try:
+        if pd.isna(val):
+            return ""
+        s = str(val).replace('$', '').replace('+', '').replace(',', '').replace(' ', '').strip()
+        if not s:
+            return ""
+        num = float(s)
+        if num > 0:
+            return 'background-color: #EDE9FE; color: #4338CA; font-weight: 700; border-left: 3px solid #6366F1;'
+        else:
+            return 'background-color: #F8FAFC; color: #94A3B8; font-weight: 500;'
+    except Exception:
+        return ""
+
 
 def limpiar_codigo_cb_estandar(v):
     """
@@ -5715,6 +5752,47 @@ def inicializar_db_sqlite(conn=None, forzar=False):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_codigo_cb ON consultoras_tableau (codigo_cb)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_codigo_cb_txt ON consultoras_tableau (CAST(codigo_cb AS TEXT))")
 
+    # Columnas de puntos anteriores en consultoras_tableau
+    for col_add in [
+        ("pts_natura_ant", "INTEGER DEFAULT 0"),
+        ("pts_avon_ant", "INTEGER DEFAULT 0"),
+        ("ciclo_ant", "INTEGER DEFAULT 0")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE consultoras_tableau ADD COLUMN {col_add[0]} {col_add[1]}")
+        except Exception:
+            pass
+
+    # Tabla permanente de histórico de cierre de ciclo (Pts Natura y Pts AVON)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS historico_puntos_cierre (
+        codigo_cb TEXT,
+        cod_sector TEXT,
+        ciclo INTEGER,
+        pts_natura INTEGER DEFAULT 0,
+        pts_avon INTEGER DEFAULT 0,
+        sit_comercial TEXT DEFAULT '',
+        fecha_cierre TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (codigo_cb, cod_sector, ciclo)
+    )
+    """)
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_hpc_cb_ciclo ON historico_puntos_cierre (codigo_cb, ciclo DESC)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_hpc_sector_ciclo ON historico_puntos_cierre (cod_sector, ciclo DESC)")
+
+    # Snapshot preventivo inicial si el histórico está vacío pero existen consultoras con ciclo cargado
+    try:
+        cursor.execute("SELECT COUNT(*) FROM historico_puntos_cierre")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute("""
+            INSERT OR IGNORE INTO historico_puntos_cierre (codigo_cb, cod_sector, ciclo, pts_natura, pts_avon, sit_comercial)
+            SELECT codigo_cb, cod_sector, ciclo, COALESCE(pts_natura, 0), COALESCE(pts_avon, 0), COALESCE(sit_comercial, '')
+            FROM consultoras_tableau
+            WHERE ciclo IS NOT NULL AND ciclo > 0
+            """)
+    except Exception:
+        pass
+
+
     # 4. Tabla de Metas "Cómo Vamos"
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS metas_como_vamos (
@@ -6745,9 +6823,63 @@ def obtener_metricas_usabilidad(dias_atras=30):
         "sectores_alerta": sectores_alerta
     }
 
+def archivar_cierre_ciclo_actual(cod_sector=None, ciclo_origen=None, conn=None):
+    """
+    Resguarda el estado final de las consultoras (Pts Natura, Pts AVON y Sit. Comercial)
+    para el sector y ciclo indicados en la tabla permanente 'historico_puntos_cierre'.
+    Preserva intactas las actualizaciones previas de mi_grupo y activas realizadas en el ciclo.
+    """
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db()
+        close_at_end = True
+    try:
+        cursor = conn.cursor()
+        where_clauses = ["ciclo IS NOT NULL AND ciclo > 0"]
+        params = []
+        if cod_sector:
+            sec_clean = str(cod_sector).strip().split('.')[0]
+            sec_short = sec_clean[6:] if (len(sec_clean) > 6 and sec_clean.startswith("700000")) else sec_clean
+            where_clauses.append("(cod_sector = ? OR cod_sector = ? OR cod_sector LIKE ?)")
+            params.extend([sec_clean, sec_short, f"%{sec_clean}%"])
+        if ciclo_origen:
+            where_clauses.append("ciclo = ?")
+            params.append(int(ciclo_origen))
+        
+        where_sql = " AND ".join(where_clauses)
+        sql_archive = f"""
+        INSERT OR REPLACE INTO historico_puntos_cierre (
+            codigo_cb, cod_sector, ciclo, pts_natura, pts_avon, sit_comercial, fecha_cierre
+        )
+        SELECT 
+            codigo_cb, cod_sector, ciclo, 
+            COALESCE(pts_natura, 0), COALESCE(pts_avon, 0), 
+            COALESCE(sit_comercial, ''),
+            CURRENT_TIMESTAMP
+        FROM consultoras_tableau
+        WHERE {where_sql}
+        """
+        cursor.execute(sql_archive, params)
+        total_archivadas = cursor.rowcount
+        conn.commit()
+        safe_print(f"Archivado de cierre: {total_archivadas} consultoras guardadas para ciclo {ciclo_origen} (sector: {cod_sector})")
+        return total_archivadas
+    except Exception as e_arch:
+        safe_print(f"Error al archivar cierre de ciclo en SQLite: {e_arch}")
+        return 0
+    finally:
+        if close_at_end and conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
 def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=None):
     """
     Convierte y vuelca el archivo Excel de Tableau hacia la tabla consultoras_tableau en SQLite.
+    Detecta automáticamente si el archivo corresponde a un nuevo ciclo (ej: Ciclo 14 respecto al 13)
+    y archiva previamente el ciclo saliente en historico_puntos_cierre, vinculando los puntos
+    del ciclo anterior para su visualización contigua en la Base Maestra Gestionable.
     """
     df = procesar_base_tableau_manager(ruta_excel)
     if df is None or df.empty:
@@ -6763,8 +6895,17 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         cursor.execute("ALTER TABLE consultoras_tableau ADD COLUMN indicador TEXT")
     except Exception:
         pass
+    for col_add in [
+        ("pts_natura_ant", "INTEGER DEFAULT 0"),
+        ("pts_avon_ant", "INTEGER DEFAULT 0"),
+        ("ciclo_ant", "INTEGER DEFAULT 0")
+    ]:
+        try:
+            cursor.execute(f"ALTER TABLE consultoras_tableau ADD COLUMN {col_add[0]} {col_add[1]}")
+        except Exception:
+            pass
     
-    # Extraer el código de sector del dataframe subido para borrar ÚNICAMENTE los registros de ese sector
+    # Extraer el código de sector del dataframe subido
     col_sec_check = None
     for c in df.columns:
         c_low = str(c).lower().replace('ó', 'o')
@@ -6774,8 +6915,49 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         elif 'sector' in c_low or 'setor' in c_low:
             col_sec_check = c
             
+    col_sec_found_val = None
     if col_sec_check and not df[col_sec_check].dropna().empty:
         col_sec_found_val = str(df[col_sec_check].dropna().iloc[0]).strip().split('.')[0]
+
+    # Detectar ciclo del nuevo archivo subido
+    col_ciclo_check = next((c for c in df.columns if 'ciclo' in str(c).lower()), None)
+    ciclo_nuevo = int(limpiar_numero(df[col_ciclo_check].dropna().iloc[0])) if (col_ciclo_check and not df[col_ciclo_check].dropna().empty) else 0
+
+    # Consultar el ciclo actual existente en SQLite para este sector
+    ciclo_actual_db = 0
+    if col_sec_found_val:
+        cursor.execute("SELECT ciclo FROM consultoras_tableau WHERE cod_sector = ? OR sector LIKE ? LIMIT 1", (col_sec_found_val, f"%{col_sec_found_val}%"))
+        r_c_act = cursor.fetchone()
+        if r_c_act and r_c_act[0]:
+            ciclo_actual_db = int(r_c_act[0])
+    else:
+        cursor.execute("SELECT ciclo FROM consultoras_tableau LIMIT 1")
+        r_c_act = cursor.fetchone()
+        if r_c_act and r_c_act[0]:
+            ciclo_actual_db = int(r_c_act[0])
+
+    # Si hay cambio de ciclo (ej: suben Ciclo 14 y en base está el 13), archivar el ciclo saliente
+    if ciclo_actual_db > 0 and ciclo_nuevo > 0 and ciclo_nuevo != ciclo_actual_db:
+        archivar_cierre_ciclo_actual(cod_sector=col_sec_found_val, ciclo_origen=ciclo_actual_db, conn=conn)
+
+    # Obtener el mapa de puntos del ciclo inmediatamente anterior
+    mapa_pts_ant = {}
+    ciclo_ant_ref = 0
+    try:
+        where_sec_h = "(cod_sector = ? OR cod_sector LIKE ?)" if col_sec_found_val else "1=1"
+        p_sec_h = [col_sec_found_val, f"%{col_sec_found_val}%"] if col_sec_found_val else []
+        cursor.execute(f"SELECT MAX(ciclo) FROM historico_puntos_cierre WHERE {where_sec_h} AND ciclo < ?", p_sec_h + [ciclo_nuevo if ciclo_nuevo > 0 else 999999])
+        r_max_ant = cursor.fetchone()
+        if r_max_ant and r_max_ant[0]:
+            ciclo_ant_ref = int(r_max_ant[0])
+            cursor.execute(f"SELECT codigo_cb, pts_natura, pts_avon FROM historico_puntos_cierre WHERE {where_sec_h} AND ciclo = ?", p_sec_h + [ciclo_ant_ref])
+            for r in cursor.fetchall():
+                mapa_pts_ant[str(r[0]).strip()] = (int(r[1] or 0), int(r[2] or 0), ciclo_ant_ref)
+    except Exception as e_m_ant:
+        safe_print(f"Nota mapa puntos anteriores: {e_m_ant}")
+
+    # Borrar registros previos del sector correspondiente
+    if col_sec_found_val:
         cursor.execute("DELETE FROM consultoras_tableau WHERE cod_sector = ? OR sector LIKE ?", (col_sec_found_val, f"%{col_sec_found_val}%"))
     else:
         cursor.execute("DELETE FROM consultoras_tableau")
@@ -6788,6 +6970,11 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         nom = str(row.get('Asesora / Consultora') if 'Asesora / Consultora' in df.columns else row.get('Nombre', ''))
         col = str(row.get('Nivel / Color') if 'Nivel / Color' in df.columns else row.get('Color', ''))
         
+        info_ant = mapa_pts_ant.get(cb, (0, 0, ciclo_ant_ref))
+        pts_nat_ant = int(info_ant[0])
+        pts_avo_ant = int(info_ant[1])
+        ciclo_ant_val = int(info_ant[2])
+
         cursor.execute("""
         INSERT OR REPLACE INTO consultoras_tableau (
             codigo_cb, nombre, documento_gpp, cod_gerencia, gerencia, cod_sector, sector, grupo, ciclo, color,
@@ -6799,7 +6986,8 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             celular, correo,
             dpto_residencia, ciudad_residencia, barrio_residencia, direccion_residencia, complemento_residencia, referencia_residencia,
             dpto_entrega, ciudad_entrega, barrio_entrega, direccion_entrega, complemento_entrega, referencia_entrega,
-            tiempo_casa, origen_cb, notas_lider, indicador
+            tiempo_casa, origen_cb, notas_lider, indicador,
+            pts_natura_ant, pts_avon_ant, ciclo_ant
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
@@ -6810,7 +6998,8 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
-            ?, ?, ?, ?
+            ?, ?, ?, ?,
+            ?, ?, ?
         )
         """, (
             cb,
@@ -6869,7 +7058,10 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             int(limpiar_numero(row.get('Tiempo de Casa (Ciclo)', 0))),
             str(row.get('Origen CB', '')),
             str(row.get('Notas / Comentarios Líder', '')),
-            str(row.get('Indicador', ''))
+            str(row.get('Indicador', '')),
+            pts_nat_ant,
+            pts_avo_ant,
+            ciclo_ant_val
         ))
     
     conn.commit()
@@ -6879,6 +7071,7 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         except Exception:
             pass
     return True
+
 
 def sincronizar_excel_metas_a_sqlite(df_metas, conn=None):
     """
@@ -7016,7 +7209,10 @@ def consultar_tableau_sql(grupo=None, sector=None):
         tiempo_casa AS 'Tiempo de Casa (Ciclo)',
         origen_cb AS 'Origen CB',
         notas_lider AS 'Notas / Comentarios Líder',
-        indicador AS 'Indicador'
+        indicador AS 'Indicador',
+        COALESCE(pts_natura_ant, 0) AS '__pts_natura_ant__',
+        COALESCE(pts_avon_ant, 0) AS '__pts_avon_ant__',
+        COALESCE(ciclo_ant, 0) AS '__ciclo_ant__'
     FROM consultoras_tableau
     """
     where_clauses = []
@@ -7045,6 +7241,36 @@ def consultar_tableau_sql(grupo=None, sector=None):
     df = pd.DataFrame()
     try:
         df = pd.read_sql_query(query, conn, params=params)
+
+        # Enriquecer con los puntos del ciclo inmediatamente anterior si existen
+        if not df.empty:
+            ciclo_ant_val = 0
+            if '__ciclo_ant__' in df.columns and (df['__ciclo_ant__'] > 0).any():
+                ciclo_ant_val = int(df['__ciclo_ant__'].max())
+            elif 'Ciclo' in df.columns and (df['Ciclo'] > 0).any():
+                ciclo_act = int(df['Ciclo'].max())
+                try:
+                    cur_ant = conn.cursor()
+                    cur_ant.execute("SELECT MAX(ciclo) FROM historico_puntos_cierre WHERE ciclo < ?", (ciclo_act,))
+                    r_c_ant = cur_ant.fetchone()
+                    if r_c_ant and r_c_ant[0]:
+                        ciclo_ant_val = int(r_c_ant[0])
+                        if df['__pts_natura_ant__'].sum() == 0 and df['__pts_avon_ant__'].sum() == 0:
+                            cur_ant.execute("SELECT codigo_cb, pts_natura, pts_avon FROM historico_puntos_cierre WHERE ciclo = ?", (ciclo_ant_val,))
+                            dict_ant = {str(r[0]).strip(): (int(r[1] or 0), int(r[2] or 0)) for r in cur_ant.fetchall()}
+                            df['__pts_natura_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0))[0])
+                            df['__pts_avon_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0))[1])
+                except Exception:
+                    pass
+
+            if ciclo_ant_val > 0:
+                c_label = str(ciclo_ant_val)[-2:] if len(str(ciclo_ant_val)) >= 2 else str(ciclo_ant_val)
+                col_nat_ant_name = f"Pts Natura (C-{c_label})"
+                col_avo_ant_name = f"Pts AVON (C-{c_label})"
+                df[col_nat_ant_name] = df['__pts_natura_ant__'].fillna(0).astype('int64')
+                df[col_avo_ant_name] = df['__pts_avon_ant__'].fillna(0).astype('int64')
+
+            df = df.drop(columns=[c for c in ['__pts_natura_ant__', '__pts_avon_ant__', '__ciclo_ant__'] if c in df.columns])
     except Exception as e_sql:
         safe_print(f"Error al consultar Tableau en SQLite: {e_sql}")
         df = pd.DataFrame()
@@ -7053,6 +7279,7 @@ def consultar_tableau_sql(grupo=None, sector=None):
             conn.close()
         except Exception:
             pass
+
 
     # Sincronizar dinámicamente con comentarios_lideres.json para asegurar consistencia total
     if not df.empty and 'Código CB' in df.columns:
