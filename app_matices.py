@@ -6,6 +6,7 @@ import urllib.parse
 import os
 import io
 import time
+import base64
 from datetime import datetime
 import requests
 
@@ -36,7 +37,8 @@ from procesador import (
     ruta_persistente,
     consultar_ce_plus_df,
     cargar_datos_ganancia_arte,
-    obtener_cumpleanos_equipo
+    obtener_cumpleanos_equipo,
+    obtener_conexion_db
 )
 
 # Funciones de formato y styler para tablas dinámicas
@@ -776,7 +778,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         st.caption("Escribe las notas de gestión por cada consultora. Se guardarán de forma permanente por `Codigo CB`. Puedes usar el corrector del explorador (subrayado rojo y clic derecho) para sugerencias ortográficas directas.")
 
         # Filtros Rápidos
-        f_c1, f_c2, f_c3 = st.columns(3)
+        f_c1, f_c2, f_c3, f_c4 = st.columns(4)
         with f_c1:
             opciones_sit = ["Todas"]
             if not df_tab.empty and 'Sit. Comercial' in df_tab.columns:
@@ -785,9 +787,17 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             filtro_sit = st.selectbox("🏷️ Sit. Comercial", options=opciones_sit, key="mob_f_sit")
 
         with f_c2:
-            filtro_mora = st.selectbox("💳 Deuda en Mora", options=["Todas", "🔴 Solo con Mora", "🟢 Al Día"], key="mob_f_mora")
+            opciones_col = ["Todos"]
+            col_nivel_tab = 'Nivel / Color' if 'Nivel / Color' in df_tab.columns else ('Color' if 'Color' in df_tab.columns else None)
+            if not df_tab.empty and col_nivel_tab:
+                cols_unicas = [str(x) for x in df_tab[col_nivel_tab].dropna().unique() if str(x).strip()]
+                opciones_col += sorted(cols_unicas)
+            filtro_col = st.selectbox("🏆 Nivel / Color", options=opciones_col, key="mob_f_col")
 
         with f_c3:
+            filtro_mora = st.selectbox("💳 Deuda en Mora", options=["Todas", "🔴 Solo con Mora", "🟢 Al Día"], key="mob_f_mora")
+
+        with f_c4:
             filtro_ped = st.selectbox("⌛ Pedidos Pendientes", options=["Todos", "Con Pedidos Pendientes (> 0)", "Sin Pedidos Pendientes (0)"], key="mob_f_ped")
 
         # Búsqueda rápida por nombre, documento o código
@@ -799,6 +809,9 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         if not df_tab_filtrado.empty:
             if filtro_sit != "Todas" and 'Sit. Comercial' in df_tab_filtrado.columns:
                 df_tab_filtrado = df_tab_filtrado[df_tab_filtrado['Sit. Comercial'].astype(str) == filtro_sit]
+
+            if filtro_col != "Todos" and col_nivel_tab:
+                df_tab_filtrado = df_tab_filtrado[df_tab_filtrado[col_nivel_tab].astype(str) == filtro_col]
 
             if 'Deuda Mora' in df_tab_filtrado.columns:
                 df_tab_filtrado['Deuda_Num'] = df_tab_filtrado['Deuda Mora'].apply(lambda x: limpiar_numero(x, 0.0))
@@ -1165,6 +1178,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     cbs_con_notas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if str(r.get(c_col_nota, '')).strip() and str(r.get(c_col_nota, '')).strip().lower() not in ['nan', 'none']] if c_col_nota else []
                     cbs_inactivas = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if 'inactiva' in str(r.get(c_col_sit, '')).lower()] if c_col_sit else []
                     cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
+                    cbs_con_mora = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_mora, 0))) > 0] if c_col_mora else []
 
                     # Inicializar estado de selección de casillas
                     if 'cbs_sel_mob_wa' not in st.session_state or st.session_state.get('cbs_sel_mob_wa') is None:
@@ -1175,35 +1189,133 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                         st.session_state['editor_ver_mob'] = 0
 
                     st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 4px 0 2px 0;'>🎯 Segmentación Rápida con Casillas (O marca/desmarca directamente en la lista abajo):</p>", unsafe_allow_html=True)
-                    b_cols_m = st.columns(4 if not cbs_con_notas else 5)
-                    with b_cols_m[0]:
+                    num_bcols = 5 + (1 if cbs_con_notas else 0)
+                    b_cols_m = st.columns(num_bcols)
+                    b_idx = 0
+                    with b_cols_m[b_idx]:
                         if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_mob_wa", use_container_width=True):
                             st.session_state['cbs_sel_mob_wa'] = set(cbs_todas_m)
                             st.session_state['editor_ver_mob'] = st.session_state.get('editor_ver_mob', 0) + 1
                             st.rerun()
-                    with b_cols_m[1]:
+                    b_idx += 1
+                    with b_cols_m[b_idx]:
                         if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_mob_wa", use_container_width=True):
                             st.session_state['cbs_sel_mob_wa'] = set(cbs_inactivas)
                             st.session_state['editor_ver_mob'] = st.session_state.get('editor_ver_mob', 0) + 1
                             st.rerun()
-                    with b_cols_m[2]:
+                    b_idx += 1
+                    with b_cols_m[b_idx]:
                         if st.button(f"⌛ Con Pedidos ({len(cbs_con_ped)})", key="btn_sel_ped_mob_wa", use_container_width=True):
                             st.session_state['cbs_sel_mob_wa'] = set(cbs_con_ped)
                             st.session_state['editor_ver_mob'] = st.session_state.get('editor_ver_mob', 0) + 1
                             st.rerun()
-                    col_idx_m = 3
+                    b_idx += 1
+                    with b_cols_m[b_idx]:
+                        if st.button(f"🚨 Con Mora ({len(cbs_con_mora)})", key="btn_sel_mora_mob_wa", use_container_width=True):
+                            st.session_state['cbs_sel_mob_wa'] = set(cbs_con_mora)
+                            st.session_state['editor_ver_mob'] = st.session_state.get('editor_ver_mob', 0) + 1
+                            st.rerun()
+                    b_idx += 1
                     if cbs_con_notas:
-                        with b_cols_m[col_idx_m]:
+                        with b_cols_m[b_idx]:
                             if st.button(f"💬 Con Notas ({len(cbs_con_notas)})", key="btn_sel_notas_mob_wa", use_container_width=True):
                                 st.session_state['cbs_sel_mob_wa'] = set(cbs_con_notas)
                                 st.session_state['editor_ver_mob'] = st.session_state.get('editor_ver_mob', 0) + 1
                                 st.rerun()
-                        col_idx_m += 1
-                    with b_cols_m[col_idx_m]:
+                        b_idx += 1
+                    with b_cols_m[b_idx]:
                         if st.button("🧹 Ninguna (0)", key="btn_desel_todas_mob_wa", use_container_width=True):
                             st.session_state['cbs_sel_mob_wa'] = set()
                             st.session_state['editor_ver_mob'] = st.session_state.get('editor_ver_mob', 0) + 1
                             st.rerun()
+
+                    # Flyer de Campaña Opcional (Formato ultra compacto con 1-clic copiado)
+                    flyer_mob_file = None
+                    with st.expander("🖼️ Adjuntar Imagen o Flyer de Campaña (Opcional)", expanded=False):
+                        flyer_mob_file = st.file_uploader(
+                            "Subir imagen promocional o volante para WhatsApp",
+                            type=["jpg", "jpeg", "png", "webp"],
+                            key="flyer_mob_wa_uploader",
+                            help="Sube un volante o flyer. Podrás copiarlo al portapapeles con 1 clic para pegarlo directamente en WhatsApp (Ctrl + V)."
+                        )
+                        if flyer_mob_file is not None:
+                            b64_flyer_m = base64.b64encode(flyer_mob_file.getvalue()).decode('utf-8')
+                            mime_flyer_m = flyer_mob_file.type or 'image/jpeg'
+                            flyer_kb_m = len(flyer_mob_file.getvalue()) // 1024
+
+                            try:
+                                dir_campanas = os.path.join('data', 'campanas')
+                                os.makedirs(dir_campanas, exist_ok=True)
+                                with open(os.path.join(dir_campanas, flyer_mob_file.name), 'wb') as f_fly:
+                                    f_fly.write(flyer_mob_file.getvalue())
+                            except Exception:
+                                pass
+
+                            st.markdown(f"""
+                            <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.35); border-radius: 10px; padding: 8px 12px; margin-bottom: 6px;">
+                                <div style="font-weight: 700; color: #128C7E; font-size: 0.85rem; display: flex; align-items: center; justify-content: space-between;">
+                                    <span>🖼️ Flyer Listo: <strong>{flyer_mob_file.name}</strong> ({flyer_kb_m} KB)</span>
+                                    <span style="background: #25D366; color: white; padding: 2px 7px; border-radius: 8px; font-size: 0.68rem; font-weight: 700;">LISTO</span>
+                                </div>
+                                <div style="font-size: 0.75rem; color: #475569; margin-top: 2px;">
+                                    Pulsa <strong>Copiar Flyer</strong> y luego en WhatsApp presiona <strong>Ctrl + V</strong> para enviar imagen y texto juntos.
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                            col_btn_m1, col_btn_m2 = st.columns([1.5, 1])
+                            with col_btn_m1:
+                                copy_script_mob = f"""
+                                <div style="display: flex; flex-direction: column; gap: 4px; font-family: sans-serif;">
+                                    <button onclick="copiarFlyerMob()" style="
+                                        background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+                                        color: white; border: none; padding: 7px 10px; border-radius: 8px;
+                                        font-weight: 700; font-size: 0.80rem; cursor: pointer; width: 100%;
+                                        display: flex; align-items: center; justify-content: center; gap: 6px;
+                                        box-shadow: 0 2px 6px rgba(37, 211, 102, 0.25);
+                                    ">
+                                        📋 Copiar Flyer al Portapapeles (Ctrl + V)
+                                    </button>
+                                    <div id="statusCopiarFlyerMob" style="font-size: 0.72rem; color: #128C7E; font-weight: 600; text-align: center; display: none;"></div>
+                                </div>
+                                <script>
+                                async function copiarFlyerMob() {{
+                                    try {{
+                                        const b64 = "{b64_flyer_m}";
+                                        const byteCharacters = atob(b64);
+                                        const byteNumbers = new Array(byteCharacters.length);
+                                        for (let i = 0; i < byteCharacters.length; i++) {{
+                                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                        }}
+                                        const byteArray = new Uint8Array(byteNumbers);
+                                        const blob = new Blob([byteArray], {{ type: "{mime_flyer_m}" }});
+                                        await navigator.clipboard.write([
+                                            new ClipboardItem({{ [blob.type]: blob }})
+                                        ]);
+                                        const el = document.getElementById('statusCopiarFlyerMob');
+                                        el.innerText = '✅ ¡Flyer copiado! Abre WhatsApp y presiona Ctrl + V';
+                                        el.style.display = 'block';
+                                    }} catch (e) {{
+                                        const el = document.getElementById('statusCopiarFlyerMob');
+                                        el.innerHTML = '💡 <em>Para copiar: Clic derecho sobre la imagen ➔ "Copiar imagen"</em>';
+                                        el.style.display = 'block';
+                                    }}
+                                }}
+                                </script>
+                                """
+                                st.components.v1.html(copy_script_mob, height=48)
+                            with col_btn_m2:
+                                st.download_button(
+                                    "📥 Descargar Flyer",
+                                    data=flyer_mob_file.getvalue(),
+                                    file_name=flyer_mob_file.name,
+                                    mime=mime_flyer_m,
+                                    use_container_width=True,
+                                    key="btn_dl_flyer_mob_wa"
+                                )
+                            col_prev1, col_prev2 = st.columns([1, 2])
+                            with col_prev1:
+                                st.image(flyer_mob_file, caption="Vista previa", width=140)
 
                     tipo_camp_mob = st.selectbox(
                         "Tipo de Plantilla de Mensaje:",
@@ -1212,8 +1324,10 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                             "🎁 2. Reactivación Comercial (Inactivas)",
                             "🌟 3. Impulso de Puntos & Nivel",
                             "📦 4. Pedido Pendiente / Retenido",
-                            "🌸 5. Saludo & Seguimiento General",
-                            "✍️ 6. Mensaje Libre / Personalizado"
+                            "🚨 5. Cobro Amable / Recordatorio de Pago",
+                            "⏰ 6. Cierre de Campaña Urgente",
+                            "🌸 7. Saludo & Seguimiento General",
+                            "✍️ 8. Mensaje Libre / Personalizado"
                         ],
                         index=0 if cbs_con_notas else 1,
                         key="sel_tipo_camp_mob_widget"
@@ -1244,7 +1358,18 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                             "Tienes *{pedidos} pedido(s)* en espera de despacho por saldo de *{deuda_mora}*.\n\n"
                             "Al poner al día tu pago hoy, tu pedido saldrá de inmediato para entrega. ¡Quedo atenta para ayudarte! 📦✨"
                         )
-                    elif "5. Saludo" in tipo_camp_mob:
+                    elif "5. Cobro Amable" in tipo_camp_mob:
+                        tpl_mob_def = (
+                            "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                            "Te recuerdo amablemente que registras un saldo pendiente de *{deuda_mora}*.\n\n"
+                            "Ponte al día hoy mismo para mantener tu crédito activo y no perder tus premios y beneficios de este ciclo. ¡Avísame si necesitas el enlace de pago PSE! 💳✨"
+                        )
+                    elif "6. Cierre" in tipo_camp_mob:
+                        tpl_mob_def = (
+                            "¡URGENTE *{primer_nombre}*! ⏰ Quedan pocas horas para el cierre de campaña de *Natura & Avon*.\n\n"
+                            "No te quedes sin tus puntos ({pts_acum} acumulados) y aprovecha las ofertas de liquidación de este ciclo. ¡Pasa tu pedido ya y gana más! 🚀✨"
+                        )
+                    elif "7. Saludo" in tipo_camp_mob:
                         tpl_mob_def = (
                             "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
                             "Quería saludarte y desearte muchos éxitos en tus ventas de este ciclo. ¡Cuenta conmigo para cualquier apoyo! ✨"
@@ -1294,35 +1419,55 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
 
                         link_m = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_m)}" if cel_val and len(cel_val) >= 10 else ""
 
-                        filas_wa_mob.append({
+                        fila_m = {
                             '✅ Enviar': cb_val_m in set_sel_mob_actual,
                             'Consultora': n_full,
                             'Código CB': cb_val_m,
                             'Sit. Comercial': sit_val_m,
                             'Celular': cel_val if cel_val else "Sin celular",
+                        }
+                        if flyer_mob_file is not None:
+                            fila_m['📎 Flyer Listo'] = '🖼️ Adjunto'
+                        fila_m.update({
                             'Nota Líder': nota_val if nota_val else "-",
                             'Enlace WhatsApp': link_m,
                             'Mensaje': msg_m
                         })
+                        filas_wa_mob.append(fila_m)
 
                     df_campana_mob_out = pd.DataFrame(filas_wa_mob)
 
                     st.caption("👇 **Toca las casillas '✅ Enviar'** para incluir o quitar a cualquier consultora de tu lista, o pulsa **'Abrir WhatsApp'** para chatear directamente.")
 
+                    cols_editor_mob = ['✅ Enviar', 'Consultora', 'Sit. Comercial', 'Celular']
+                    if flyer_mob_file is not None:
+                        cols_editor_mob.append('📎 Flyer Listo')
+                    cols_editor_mob.extend(['Nota Líder', 'Enlace WhatsApp'])
+
+                    cols_disabled_mob = [c for c in cols_editor_mob if c != '✅ Enviar']
+
+                    col_cfg_mob = {
+                        '✅ Enviar': st.column_config.CheckboxColumn(
+                            "✅ Enviar",
+                            help="Marca o desmarca la casilla para incluirla en el envío",
+                            default=True
+                        ),
+                        "Enlace WhatsApp": st.column_config.LinkColumn(
+                            "📲 Enviar WhatsApp",
+                            display_text="Abrir WhatsApp"
+                        )
+                    }
+                    if flyer_mob_file is not None:
+                        col_cfg_mob['📎 Flyer Listo'] = st.column_config.TextColumn(
+                            "📎 Flyer",
+                            help="Indica que el flyer está listo para enviar junto con el mensaje",
+                            width="small"
+                        )
+
                     df_editado_mob = st.data_editor(
-                        df_campana_mob_out[['✅ Enviar', 'Consultora', 'Sit. Comercial', 'Celular', 'Nota Líder', 'Enlace WhatsApp']],
-                        column_config={
-                            '✅ Enviar': st.column_config.CheckboxColumn(
-                                "✅ Enviar",
-                                help="Marca o desmarca la casilla para incluirla en el envío",
-                                default=True
-                            ),
-                            "Enlace WhatsApp": st.column_config.LinkColumn(
-                                "📲 Enviar WhatsApp",
-                                display_text="Abrir WhatsApp"
-                            )
-                        },
-                        disabled=['Consultora', 'Sit. Comercial', 'Celular', 'Nota Líder', 'Enlace WhatsApp'],
+                        df_campana_mob_out[cols_editor_mob],
+                        column_config=col_cfg_mob,
+                        disabled=cols_disabled_mob,
                         use_container_width=True,
                         hide_index=True,
                         key=f"editor_campana_mob_{st.session_state.get('editor_ver_mob', 0)}"
@@ -1333,6 +1478,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                     n_marc_m = len(df_marcadas_m)
                     n_act_m2 = len(df_marcadas_m[df_marcadas_m['Sit. Comercial'].astype(str).str.strip().str.lower() == 'activa']) if not df_marcadas_m.empty else 0
                     n_inact_m2 = len(df_marcadas_m[df_marcadas_m['Sit. Comercial'].astype(str).str.contains('inactiva', case=False, na=False)]) if not df_marcadas_m.empty else 0
+                    n_mora_m = len(df_marcadas_m[df_marcadas_m['Consultora'].isin([r['Consultora'] for r in filas_wa_mob if float(limpiar_numero(r.get('deuda_mora', 0))) > 0])]) if not df_marcadas_m.empty else 0
 
                     st.markdown(f"""
                     <div style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 6px 12px; margin-top: 6px; display: flex; align-items: center; justify-content: space-between;">
@@ -1344,9 +1490,45 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                         <div style="display: flex; gap: 4px; font-size: 0.68rem; font-weight: 700;">
                             <span style="background: #F0FDF4; color: #166534; padding: 2px 5px; border-radius: 5px; border: 1px solid #BBF7D0;">🟢 {n_act_m2} Act.</span>
                             <span style="background: #FFF7ED; color: #C2410C; padding: 2px 5px; border-radius: 5px; border: 1px solid #FFEDD5;">🌸 {n_inact_m2} Inact.</span>
+                            <span style="background: #FEF2F2; color: #DC2626; padding: 2px 5px; border-radius: 5px; border: 1px solid #FECACA;">🚨 {n_mora_m} Mora</span>
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
+
+                    # Botones de exportación rápida para las consultoras marcadas
+                    if not df_marcadas_m.empty:
+                        idx_marcadas = df_editado_mob[df_editado_mob['✅ Enviar'] == True].index
+                        df_marcadas_exp = df_campana_mob_out.loc[idx_marcadas]
+
+                        st.markdown("<div style='margin-top: 6px;'></div>", unsafe_allow_html=True)
+                        c_dl1, c_dl2 = st.columns(2)
+                        with c_dl1:
+                            buf_csv = io.BytesIO()
+                            cols_exp = [c for c in ['Consultora', 'Código CB', 'Sit. Comercial', 'Celular', 'Nota Líder', 'Mensaje'] if c in df_marcadas_exp.columns]
+                            df_marcadas_exp[cols_exp].to_csv(buf_csv, index=False, encoding='utf-8-sig')
+                            st.download_button(
+                                f"📥 Descargar CSV ({len(df_marcadas_exp)})",
+                                data=buf_csv.getvalue(),
+                                file_name=f"campana_wa_mob_{datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                                mime="text/csv",
+                                use_container_width=True,
+                                key="btn_dl_csv_mob_wa"
+                            )
+                        with c_dl2:
+                            buf_xls = io.BytesIO()
+                            try:
+                                with pd.ExcelWriter(buf_xls, engine='openpyxl') as writer:
+                                    df_marcadas_exp[cols_exp].to_excel(writer, index=False, sheet_name='Campana WA')
+                                st.download_button(
+                                    f"📊 Descargar Excel ({len(df_marcadas_exp)})",
+                                    data=buf_xls.getvalue(),
+                                    file_name=f"campana_wa_mob_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                    use_container_width=True,
+                                    key="btn_dl_xls_mob_wa"
+                                )
+                            except Exception:
+                                pass
                 else:
                     st.warning("⚠️ No se encontraron las columnas necesarias en la tabla.")
 
@@ -2118,6 +2300,164 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                         )
 
 
+
+            # =========================================================================
+            # MÓDULO DE REPORTE DE DESEMPEÑO POR WHATSAPP A LÍDER (CÓMO VAMOS)
+            # =========================================================================
+            with st.expander("📲 Enviar Reporte de Desempeño por WhatsApp a Líder", expanded=False):
+                st.markdown("###### 📲 Reporte Oficial de Facturación, Activas y Desafíos")
+                st.caption("Genera y envía por WhatsApp el reporte integral a cualquier líder con métricas de 95%, 100%, 110%, Inicios, Reinicios, Saldo y Disponibles.")
+
+                # Construir mapa de celulares
+                mapa_cel_lid_mob = {}
+                try:
+                    conn_cel_m = procesador.obtener_conexion_db(timeout=5.0)
+                    cursor_cel_m = conn_cel_m.cursor()
+                    cursor_cel_m.execute("SELECT codigo_cb, nombre, celular, grupo FROM consultoras_tableau WHERE celular IS NOT NULL AND TRIM(celular) != ''")
+                    for r_cm in cursor_cel_m.fetchall():
+                        cb_cm = str(r_cm[0]).strip().split('.')[0]
+                        nom_cm = str(r_cm[1]).strip().upper()
+                        cel_vm = str(r_cm[2]).strip()
+                        grp_cm = str(r_cm[3]).strip().split('.')[0] if r_cm[3] else ""
+                        if cb_cm and cb_cm != '0':
+                            mapa_cel_lid_mob[f"cb_{cb_cm}"] = cel_vm
+                        if nom_cm:
+                            mapa_cel_lid_mob[f"nom_{nom_cm}"] = cel_vm
+                        if grp_cm and grp_cm != '0' and f"grp_{grp_cm}" not in mapa_cel_lid_mob:
+                            mapa_cel_lid_mob[f"grp_{grp_cm}"] = cel_vm
+                    conn_cel_m.close()
+                except Exception:
+                    pass
+
+                try:
+                    usr_cat_m = cargar_usuarios()
+                    for _, uv_m in usr_cat_m.items():
+                        if isinstance(uv_m, dict) and uv_m.get('telefono'):
+                            un_m = str(uv_m.get('nombre', '')).strip().upper()
+                            ug_m = str(uv_m.get('codigo_grupo', '')).strip().split('.')[0]
+                            tf_m = str(uv_m.get('telefono')).strip()
+                            if un_m and tf_m:
+                                mapa_cel_lid_mob[f"nom_{un_m}"] = tf_m
+                            if ug_m and tf_m and f"grp_{ug_m}" not in mapa_cel_lid_mob:
+                                mapa_cel_lid_mob[f"grp_{ug_m}"] = tf_m
+                except Exception:
+                    pass
+
+                # Extraer opciones de líderes de df_diag
+                opciones_lideres_rep = []
+                for _, r_lid in df_diag.iterrows():
+                    nom_lid = str(r_lid.get(col_lider, '')).strip()
+                    if not nom_lid or nom_lid.lower() in ['nan', 'none', '', '0', 'null', 'total general']:
+                        continue
+                    cb_lid = str(r_lid.get('Código de consultora', '')).strip().split('.')[0]
+                    if cb_lid == '0':
+                        cb_lid = ''
+                    col_g_tmp = next((c for c in r_lid.index if 'grupo' in str(c).lower()), None)
+                    grp_lid = str(r_lid.get(col_g_tmp, '')).strip().split('.')[0] if col_g_tmp else ''
+
+                    cel_lid = mapa_cel_lid_mob.get(f"cb_{cb_lid}") or mapa_cel_lid_mob.get(f"nom_{nom_lid.upper()}") or mapa_cel_lid_mob.get(f"grp_{grp_lid}") or ""
+                    opciones_lideres_rep.append({
+                        'nombre': nom_lid,
+                        'grupo': grp_lid,
+                        'codigo_cb': cb_lid,
+                        'celular': cel_lid,
+                        'row': r_lid
+                    })
+
+                if opciones_lideres_rep:
+                    nombres_sel_rep = [f"{it['nombre']}{' (Grp ' + it['grupo'] + ')' if it['grupo'] else ''}" for it in opciones_lideres_rep]
+                    idx_lid_rep = st.selectbox("👤 Selecciona la Líder:", range(len(opciones_lideres_rep)), format_func=lambda i: nombres_sel_rep[i], key="sel_lider_rep_wa_mob")
+                    lid_sel_info = opciones_lideres_rep[idx_lid_rep]
+                    r_sel = lid_sel_info['row']
+                    nom_sel = lid_sel_info['nombre']
+                    cel_sel = lid_sel_info['celular']
+
+                    # Generar texto del reporte oficial con faltantes 95%, 100%, 110%
+                    r_fact_num = float(limpiar_numero(r_sel.get('Real Facturación', 0.0), 0.0))
+                    o_fact_num = float(limpiar_numero(r_sel.get('Objetivo Facturación', 0.0), 0.0))
+                    c_fact_num = (r_fact_num / o_fact_num * 100.0) if o_fact_num > 0 else 0.0
+                    c_fact_str = f"{c_fact_num:.1f}%"
+
+                    meta_95_fact = o_fact_num * 0.95
+                    falta_95_fact = max(0.0, meta_95_fact - r_fact_num)
+                    falta_95_fact_str = "¡Logrado! 🎉" if falta_95_fact == 0 and o_fact_num > 0 and r_fact_num >= meta_95_fact else formato_cop(falta_95_fact)
+
+                    falta_100_fact = max(0.0, o_fact_num - r_fact_num)
+                    falta_100_fact_str = "¡Logrado! 🎉" if falta_100_fact == 0 and o_fact_num > 0 and r_fact_num >= o_fact_num else formato_cop(falta_100_fact)
+
+                    meta_110_fact = o_fact_num * 1.10
+                    falta_110_fact = max(0.0, meta_110_fact - r_fact_num)
+                    falta_110_fact_str = "¡Logrado! 🎉" if falta_110_fact == 0 and o_fact_num > 0 and r_fact_num >= meta_110_fact else formato_cop(falta_110_fact)
+
+                    r_act_num = float(limpiar_numero(r_sel.get('Real Activas', 0), 0))
+                    o_act_num = float(limpiar_numero(r_sel.get('Objetivo Activas', 0), 0))
+                    c_act_num = (r_act_num / o_act_num * 100.0) if o_act_num > 0 else 0.0
+                    c_act_str = f"{c_act_num:.1f}%"
+
+                    meta_95_act = int(round(o_act_num * 0.95))
+                    falta_95_act = max(0, meta_95_act - int(r_act_num))
+                    falta_95_act_str = "¡Logrado! 🎉" if falta_95_act == 0 and o_act_num > 0 and r_act_num >= meta_95_act else f"{falta_95_act} activas"
+
+                    falta_100_act = max(0, int(o_act_num) - int(r_act_num))
+                    falta_100_act_str = "¡Logrado! 🎉" if falta_100_act == 0 and o_act_num > 0 and r_act_num >= int(o_act_num) else f"{falta_100_act} activas"
+
+                    meta_110_act = int(round(o_act_num * 1.10))
+                    falta_110_act = max(0, meta_110_act - int(r_act_num))
+                    falta_110_act_str = "¡Logrado! 🎉" if falta_110_act == 0 and o_act_num > 0 and r_act_num >= meta_110_act else f"{falta_110_act} activas"
+
+                    sal_num = int(round(limpiar_numero(r_sel.get('Saldo', 0), 0)))
+                    sal_str = f"{sal_num:+d}" if sal_num != 0 else "0"
+
+                    disp_num = int(round(limpiar_numero(r_sel.get('Disponibles', 0), 0)))
+                    inicios_num = int(round(limpiar_numero(r_sel.get('Inicios', 0), 0)))
+                    reinicios_num = int(round(limpiar_numero(r_sel.get('Reinicios', 0), 0)))
+                    tot_inicios_reinicios = inicios_num + reinicios_num
+                    meta_ir_num = int(round(limpiar_numero(r_sel.get('Meta Inicios + Reinicios', 0), 0)))
+                    meta_ir_suffix = f" (Meta: {meta_ir_num})" if meta_ir_num > 0 else ""
+
+                    gan_l = formato_cop(r_sel.get('Ganancia estimada', 0))
+                    sector_l = str(r_sel.get('Nombre Setor', user_sector or 'Sector')).strip()
+
+                    msg_reporte_lider = (
+                        f"📊 *REPORTE CÓMO VAMOS*\n"
+                        f"👤 *Líder:* {nom_sel}\n"
+                        f"📍 *Sector:* {sector_l}\n\n"
+                        f"💰 *--- FACTURACIÓN ---*\n"
+                        f"💵 *Facturación Real:* {formato_cop(r_fact_num)}\n"
+                        f"🎯 *Objetivo Facturación:* {formato_cop(o_fact_num)}\n"
+                        f"📈 *Cumplimiento Facturación:* {c_fact_str}\n"
+                        f"⚡ *Falta para 95% (Mínimo):* {falta_95_fact_str}\n"
+                        f"💵 *Falta para 100%:* {falta_100_fact_str}\n"
+                        f"🚀 *Falta para 110%:* {falta_110_fact_str}\n\n"
+                        f"👥 *--- ACTIVAS & DISPONIBLES ---*\n"
+                        f"👥 *Activas Reales:* {int(r_act_num)}\n"
+                        f"🎯 *Objetivo Activas:* {int(o_act_num)}\n"
+                        f"📈 *Cumplimiento Activas:* {c_act_str}\n"
+                        f"⚡ *Falta para 95% (Mínimo):* {falta_95_act_str}\n"
+                        f"🌱 *Falta para 100%:* {falta_100_act_str}\n"
+                        f"🚀 *Falta para 110%:* {falta_110_act_str}\n"
+                        f"📋 *Disponibles en Red:* {disp_num} consultoras\n\n"
+                        f"🚀 *--- INICIOS, REINICIOS & SALDO ---*\n"
+                        f"🌱 *Inicios:* {inicios_num}\n"
+                        f"🔄 *Reinicios:* {reinicios_num}\n"
+                        f"✨ *Total Inicios + Reinicios:* {tot_inicios_reinicios}{meta_ir_suffix}\n"
+                        f"⚖️ *Saldo Comercial:* {sal_str}\n"
+                        f"💵 *Ganancia Estimada:* {gan_l}\n"
+                    )
+
+                    c_rep_t1, c_rep_t2 = st.columns([2, 1])
+                    with c_rep_t1:
+                        txt_rep_edit = st.text_area("✏️ Mensaje del Reporte:", value=msg_reporte_lider, height=180, key="txt_rep_lider_mob_edit")
+                    with c_rep_t2:
+                        tel_rep_input = st.text_input("📱 Celular Líder:", value=cel_sel, key="txt_tel_lider_mob_edit")
+                        tel_clean_r = tel_rep_input.strip().replace(' ', '').replace('-', '').replace('+', '')
+                        link_wa_rep = f"https://api.whatsapp.com/send?phone=57{tel_clean_r}&text={urllib.parse.quote(txt_rep_edit)}" if len(tel_clean_r) >= 10 else ""
+                        if link_wa_rep:
+                            st.link_button(f"📲 Enviar WhatsApp a {nom_sel.split()[0]}", url=link_wa_rep, type="primary", use_container_width=True)
+                        else:
+                            st.warning("⚠️ Ingresa un celular válido (10 dígitos)")
+                else:
+                    st.info("ℹ️ No hay líderes registradas en la vista actual.")
 
             # =========================================================================
             # SUBPESTAÑAS DE SEPARACIÓN ESTRATÉGICA: LN vs CE+ vs TODA LA RED

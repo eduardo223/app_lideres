@@ -67,6 +67,8 @@ from procesador import (
     rotar_y_guardar_nuevo_ciclo,
     eliminar_datos_por_grupo_o_usuario,
     vaciar_base_datos_completa,
+    generar_backup_completo_zip,
+    restaurar_base_datos_o_backup,
     color_cumplimiento,
     color_avance,
     color_saldo,
@@ -514,6 +516,96 @@ st.markdown("""
     .tier-card:hover {
         transform: translateY(-4px) scale(1.01) !important;
     }
+    /* ========================================================================= */
+    /* TARJETAS DE NIVELES CLICKEABLES CON LUPITA INMERSA                       */
+    /* ========================================================================= */
+    div[data-testid="stHorizontalBlock"] > div:has(.tier-card),
+    div[data-testid="stColumn"]:has(.tier-card),
+    div[data-testid="column"]:has(.tier-card) {
+        position: relative !important;
+        cursor: pointer !important;
+    }
+
+    /* Lupita inmersa circular visible en la esquina superior derecha */
+    .tier-lupa-badge {
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        border-radius: 50% !important;
+        background: rgba(255, 255, 255, 0.95) !important;
+        border: 1.5px solid rgba(148, 163, 184, 0.45) !important;
+        box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12) !important;
+        font-size: 0.88rem !important;
+        line-height: 1 !important;
+        cursor: pointer !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        pointer-events: none !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] > div:has(.tier-card):hover .tier-lupa-badge,
+    div[data-testid="stColumn"]:has(.tier-card):hover .tier-lupa-badge,
+    div[data-testid="column"]:has(.tier-card):hover .tier-lupa-badge,
+    .tier-card:hover .tier-lupa-badge {
+        transform: scale(1.22) rotate(12deg) !important;
+        background: #FFFFFF !important;
+        border-color: #E3007B !important;
+        box-shadow: 0 4px 12px rgba(227, 0, 123, 0.3) !important;
+    }
+
+    .tier-lupa-badge.active {
+        background: #FEE2E2 !important;
+        border-color: #EF4444 !important;
+        color: #DC2626 !important;
+        box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3) !important;
+        transform: scale(1.08) !important;
+    }
+
+    /* El botón se estira como un overlay 100% invisible sobre toda la tarjeta */
+    div[data-testid="stHorizontalBlock"] > div:has(.tier-card) div:has(> button),
+    div[data-testid="stHorizontalBlock"] > div:has(.tier-card) [data-testid="stButton"],
+    div[data-testid="stHorizontalBlock"] > div:has(.tier-card) div.stElementContainer:has(button),
+    div[data-testid="stColumn"]:has(.tier-card) div:has(> button),
+    div[data-testid="stColumn"]:has(.tier-card) [data-testid="stButton"],
+    div[data-testid="stColumn"]:has(.tier-card) div.stElementContainer:has(button),
+    div[data-testid="column"]:has(.tier-card) div:has(> button),
+    div[data-testid="column"]:has(.tier-card) [data-testid="stButton"],
+    div[data-testid="column"]:has(.tier-card) div.stElementContainer:has(button),
+    div[class*="st-key-btn_tier_card_"],
+    div[class*="st-key-btn_tier_lupa_"] {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        z-index: 20 !important;
+    }
+
+    div[data-testid="stHorizontalBlock"] > div:has(.tier-card) button,
+    div[data-testid="stColumn"]:has(.tier-card) button,
+    div[data-testid="column"]:has(.tier-card) button,
+    div[class*="st-key-btn_tier_card_"] button,
+    div[class*="st-key-btn_tier_lupa_"] button {
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        background: transparent !important;
+        border: none !important;
+        color: transparent !important;
+        font-size: 0 !important;
+        cursor: pointer !important;
+        box-shadow: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+    }
     .tier-header {
         display: flex !important;
         justify-content: space-between !important;
@@ -618,6 +710,84 @@ st.markdown("""
     /* SLIM SIDEBAR: BOTONES DE NAVEGACIÓN GRANDES, MODERNOS Y ANIMADOS (2026)  */
     /* ========================================================================= */
     
+    /* ========================================================================= */
+    /* BOTÓN DE WHATSAPP OFICIAL EN LA PARTE SUPERIOR DE LA BARRA LATERAL       */
+    /* ========================================================================= */
+    div.st-key-sb_btn_wa_gateway {
+        margin-bottom: 8px !important;
+    }
+    div.st-key-sb_btn_wa_gateway button {
+        display: flex !important;
+        align-items: center !important;
+        justify-content: flex-start !important;
+        gap: 12px !important;
+        padding: 9px 12px !important;
+        background: #FFFFFF !important;
+        border: 1.5px solid #25D366 !important;
+        border-radius: 16px !important;
+        min-height: 58px !important;
+        height: auto !important;
+        box-shadow: 0 3px 12px rgba(37, 211, 102, 0.18) !important;
+        transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        position: relative !important;
+        text-align: left !important;
+        width: 100% !important;
+        cursor: pointer !important;
+    }
+    div.st-key-sb_btn_wa_gateway button:hover {
+        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%) !important;
+        border-color: #128C7E !important;
+        box-shadow: 0 6px 20px rgba(37, 211, 102, 0.32) !important;
+        transform: translateY(-2px) scale(1.01) !important;
+    }
+    div.st-key-sb_btn_wa_gateway button::before {
+        content: '' !important;
+        display: inline-block !important;
+        width: 42px !important;
+        height: 42px !important;
+        min-width: 42px !important;
+        border-radius: 12px !important;
+        background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik0uMDU3IDI0bDEuNjg3LTYuMTYzYy0xLjA0MS0xLjgwNC0xLjU4OC0zLjg0OS0xLjU4Ny01Ljk0Ni4wMDMtNi41NTYgNS4zMzgtMTEuODkxIDExLjg5My0xMS44OTEgMy4xODEuMDAxIDYuMTY3IDEuMjQgOC40MTMgMy40ODggMi4yNDUgMi4yNDggMy40ODEgNS4yMzYgMy40OCA4LjQxNC0uMDAzIDYuNTU3LTUuMzM4IDExLjg5Mi0xMS44OTMgMTEuODkyLTEuOTktLjAwMS0zLjk1MS0uNS01LjY4OC0xLjQ0OGwtNi4zMDUgMS42NTR6bTYuNTk3LTMuODA3YzEuNjc2Ljk5NSAzLjI3NiAxLjU5MSA1LjM5MiAxLjU5MiA1LjQ0OCAwIDkuODg2LTQuNDM0IDkuODg5LTkuODg1LjAwMi01LjQ2Mi00LjQxNS05Ljg5LTkuODgxLTkuODkyLTUuNDUyIDAtOS44ODcgNC40MzQtOS44ODkgOS44ODQtLjAwMSAyLjIyNS42NTEgMy44OTEgMS43NDYgNS42MzRsLS45OTkgMy42NDggMy43NDItLjk4MXptMTEuMzg3LTUuNDY0Yy0uMDc0LS4xMjQtLjI3Mi0uMTk4LS41Ny0uMzQ3LS4yOTctLjE0OS0xLjc1OC0uODY4LTIuMDMxLS45NjctLjI3Mi0uMDk5LS40Ny0uMTQ5LS42NjkuMTQ5LS4xOTguMjk3LS43NjguOTY3LS45NDEgMS4xNjUtLjE3My4xOTgtLjM0Ny4yMjMtLjY0NC4wNzQtLjI5Ny0uMTQ5LTEuMjU1LS40NjItMi4zOS0xLjQ3NS0uODgzLS43ODgtMS40OC0xLjc2MS0xLjY1My0yLjA1OS0uMTczLS4yOTctLjAxOC0uNDU4LjEzLS42MDYuMTM0LS4xMzMuMjk3LS4zNDcuNDQ2LS41MjEuMTUxLS4xNzIuMi0uMjk2LjMtLjQ5NS4wOTktLjE5OC4wNS0uMzcyLS4wMjUtLjUyMS0uMDc1LS4xNDgtLjY2OS0xLjYxMS0uOTE2LTIuMjA2LS4yNDItLjU3OS0uNDg3LS41MDEtLjY2OS0uNTFsLS41Ny0uMDFjLS4xOTggMC0uNTIuMDc0LS43OTIuMzcycy0xLjA0IDEuMDE2LTEuMDQgMi40NzkgMS4wNjUgMi44NzYgMS4yMTMgMy4wNzRjLjE0OS4xOTggMi4wOTUgMy4yIDUuMDc2IDQuNDg3LjcwOS4zMDYgMS4yNjMuNDg5IDEuNjk0LjYyNi43MTIuMjI2IDEuMzYuMTk0IDEuODcyLjExOC41NzEtLjA4NSAxLjc1OC0uNzE5IDIuMDA2LTEuNDEzLjI0OC0uNjk1LjI0OC0xLjI5LjE3My0xLjQxNHoiLz48L3N2Zz4="), linear-gradient(135deg, #25D366 0%, #128C7E 100%) !important;
+        background-position: center center, center center !important;
+        background-repeat: no-repeat, no-repeat !important;
+        background-size: 24px 24px, cover !important;
+        box-shadow: 0 2px 8px rgba(37, 211, 102, 0.40) !important;
+        flex-shrink: 0 !important;
+        animation: waPulse 3s ease-in-out infinite !important;
+    }
+    @keyframes waPulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 2px 8px rgba(37, 211, 102, 0.35); }
+        50% { transform: scale(1.05); box-shadow: 0 4px 14px rgba(37, 211, 102, 0.55); }
+    }
+    div.st-key-sb_btn_wa_gateway button p {
+        white-space: pre-line !important;
+        line-height: 1.25 !important;
+        text-align: left !important;
+        margin: 0 !important;
+        color: #075E54 !important;
+        font-size: 0.88rem !important;
+        font-weight: 800 !important;
+        letter-spacing: 0.02em !important;
+    }
+    .sb-modules-section-title {
+        font-size: 0.72rem;
+        font-weight: 800;
+        color: #64748B;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        margin: 10px 0 6px 4px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+    }
+    .sb-modules-section-title::after {
+        content: '';
+        flex: 1;
+        height: 1px;
+        background: #E2E8F0;
+        margin-left: 6px;
+    }
+
     /* Header estilizado de Navegación en la Barra Lateral */
     .sb-nav-header {
         display: flex;
@@ -3460,21 +3630,67 @@ puede_subir_archivos = (user_rol in ['gerente', 'superadmin']) or app_config.get
 # Recarga de datos disponible en panel superior
 
 if user_rol == 'superadmin':
-    try:
-        ruta_db_sqlite = ruta_persistente('base_matices.db')
-        if os.path.exists(ruta_db_sqlite):
-            with open(ruta_db_sqlite, "rb") as f_db:
-                st.sidebar.download_button(
-                    label="📥 Descargar Base de Datos (.db)",
-                    data=f_db,
-                    file_name="base_matices_nube.db",
-                    mime="application/x-sqlite3",
-                    help="Descarga una copia exacta de la base SQLite para auditar en DB Browser (Exclusivo Administrador)",
-                    use_container_width=True
+    with st.sidebar.expander("🔄 Sincronización Nube ⟷ Local", expanded=False):
+        st.caption("Respalda y actualiza datos entre la Nube y tu computador local:")
+        
+        # 1. Descargar .db
+        try:
+            ruta_db_sqlite = ruta_persistente('base_matices.db')
+            if os.path.exists(ruta_db_sqlite):
+                with open(ruta_db_sqlite, "rb") as f_db:
+                    st.download_button(
+                        label="📥 Descargar Base (.db)",
+                        data=f_db,
+                        file_name="base_matices_nube.db",
+                        mime="application/x-sqlite3",
+                        help="Descarga una copia exacta de la base SQLite para auditar en DB Browser o llevar a local",
+                        use_container_width=True,
+                        key="sb_btn_download_db"
+                    )
+        except Exception:
+            pass
+
+        # 2. Descargar .zip completo
+        try:
+            zip_data = generar_backup_completo_zip()
+            if zip_data:
+                st.download_button(
+                    label="📦 Descargar Todo (.zip)",
+                    data=zip_data,
+                    file_name=f"backup_sistema_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
+                    mime="application/zip",
+                    help="Descarga base SQLite + usuarios + configuraciones + excels en un solo ZIP",
+                    use_container_width=True,
+                    key="sb_btn_download_zip"
                 )
-            st.sidebar.markdown("---")
-    except Exception:
-        pass
+        except Exception:
+            pass
+
+        st.markdown("<hr style='margin: 8px 0;'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 0.8rem; font-weight: 700; color: #334155;'>📤 Restaurar / Actualizar Local:</div>", unsafe_allow_html=True)
+        st.caption("Arrastra aquí el archivo descargado (`.db` o `.zip`):")
+        archivo_restaurar_sb = st.file_uploader("Subir base o backup", type=["db", "sqlite", "sqlite3", "zip"], key="uploader_restore_sidebar", label_visibility="collapsed")
+        
+        if archivo_restaurar_sb is not None:
+            if st.button("⚡ Aplicar y Reemplazar Local", type="primary", use_container_width=True, key="btn_apply_restore_sb"):
+                with st.spinner("Restaurando base de datos y actualizando registros..."):
+                    ok_r, msg_r = restaurar_base_datos_o_backup(archivo_restaurar_sb, current_user=current_user)
+                    if ok_r:
+                        registrar_evento_auditoria(
+                            current_user,
+                            categoria="🔄 Sincronización",
+                            accion="Restauración Base de Datos",
+                            detalle=msg_r[:150],
+                            dispositivo="🖥️ PC / Escritorio"
+                        )
+                        st.success(f"✅ {msg_r}")
+                        st.cache_data.clear()
+                        st.cache_resource.clear()
+                        time.sleep(1.2)
+                        st.rerun()
+                    else:
+                        st.error(f"❌ {msg_r}")
+    st.sidebar.markdown("---")
 
 # Carga de datos
 if user_rol == 'superadmin' and not admin_sector_audit:
@@ -3515,6 +3731,260 @@ else:
     elif user_rol == 'gerente' and not user_sector:
         # Si la gerente NO tiene sector asignado en usuarios.json, mostrar vista limpia de 0 filas
         df = df.iloc[0:0]
+
+
+# =========================================================================
+# MODAL GLOBAL: INTEGRACIÓN & CONEXIÓN CON PASARELAS DE WHATSAPP (QR / API)
+# =========================================================================
+@st.dialog("💬 Integración & Conexión con Pasarelas de WhatsApp", width="large")
+def modal_configuracion_whatsapp(current_user, user_rol, user_grupo, user_sector):
+    import requests
+    import time
+    import base64
+    from datetime import datetime
+
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #075E54 0%, #128C7E 55%, #25D366 100%); padding: 14px 18px; border-radius: 14px; color: white; margin-bottom: 16px; box-shadow: 0 4px 14px rgba(18, 140, 126, 0.25);">
+        <div style="display: flex; align-items: center; gap: 14px;">
+            <div style="width: 44px; height: 44px; border-radius: 12px; background: rgba(255,255,255,0.22); display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0;">
+                💬
+            </div>
+            <div>
+                <div style="font-size: 1.12rem; font-weight: 800; letter-spacing: 0.02em;">Conexión & Pasarelas de WhatsApp</div>
+                <div style="font-size: 0.82rem; opacity: 0.94; line-height: 1.35;">Vincula tu celular con código QR para habilitar envíos masivos automáticos desde todos los módulos del sistema (Cobranza, Diagnóstico, Campañas).</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    prov_opc = st.radio(
+        "Selecciona el Proveedor de WhatsApp:",
+        ["👑 Evolution API (Recomendada - Multi-Líder)", "🌐 UltraMsg (Cloud SaaS)", "⚙️ Endpoint Personalizado / Genérico"],
+        index=0,
+        horizontal=True,
+        key="modal_radio_proveedor_wa"
+    )
+    st.session_state['radio_proveedor_wa'] = prov_opc
+
+    if "Evolution API" in prov_opc:
+        col_evo1, col_evo2, col_evo3 = st.columns([2, 1.2, 1.8])
+        with col_evo1:
+            default_url = st.session_state.get('in_evo_url', "https://evolution-api-production-7a2f.up.railway.app")
+            evo_base_url = st.text_input("URL Base de Evolution API:", value=default_url, placeholder="https://mi-evolution.up.railway.app", key="modal_in_evo_url")
+            st.session_state['in_evo_url'] = evo_base_url
+        with col_evo2:
+            instancia_default = obtener_instancia_evolution(current_user, user_rol, user_grupo)
+            if 'in_evo_instance' in st.session_state:
+                val_inst_prev2 = str(st.session_state['in_evo_instance'])
+                if '{' in val_inst_prev2 or 'password_hash' in val_inst_prev2:
+                    st.session_state['in_evo_instance'] = instancia_default
+            default_inst = st.session_state.get('in_evo_instance', instancia_default)
+            evo_instance = st.text_input("Instancia (Única por Usuario):", value=default_inst, placeholder="ej. lider_177", key="modal_in_evo_instance")
+            st.session_state['in_evo_instance'] = evo_instance
+        with col_evo3:
+            default_tok = st.session_state.get('in_evo_token', "6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad")
+            evo_token = st.text_input("API Key (Global Token):", value=default_tok, type="password", key="modal_in_evo_token")
+            st.session_state['in_evo_token'] = evo_token
+
+        # Botones de Acción: Comprobar / QR y Desvincular
+        col_qr1, col_qr2 = st.columns(2)
+        with col_qr1:
+            btn_check_qr = st.button("🔄 Verificar Conexión / Ver QR", key="modal_btn_check_evo_qr", type="primary", use_container_width=True)
+        with col_qr2:
+            btn_logout_qr = st.button("🔴 Desvincular Celular (Cerrar Sesión)", key="modal_btn_logout_evo", use_container_width=True)
+
+        if btn_logout_qr:
+            if not evo_base_url.strip() or not evo_token.strip():
+                st.warning("⚠️ Ingresa la URL Base y la API Key de Evolution API.")
+            else:
+                clean_base = evo_base_url.strip().rstrip('/')
+                clean_inst = evo_instance.strip()
+                headers_evo = {"apikey": evo_token.strip()}
+                try:
+                    r_l = requests.delete(f"{clean_base}/instance/logout/{clean_inst}", headers=headers_evo, timeout=10)
+                    st.session_state['wa_connection_state'] = 'close'
+                    if r_l.status_code == 200:
+                        st.success(f"✅ ¡Tu WhatsApp ha sido desvinculado exitosamente de la instancia '{clean_inst}'! Ya no enviará mensajes.")
+                    else:
+                        st.info(f"Aviso: {r_l.text}")
+                except Exception as ex_l:
+                    st.error(f"Error al desvincular: {ex_l}")
+
+        if btn_check_qr:
+            if not evo_base_url.strip() or not evo_token.strip():
+                st.warning("⚠️ Ingresa la URL Base y la API Key de Evolution API.")
+            else:
+                clean_base = evo_base_url.strip().rstrip('/')
+                clean_inst = evo_instance.strip()
+                headers_evo = {"apikey": evo_token.strip()}
+                try:
+                    # 1. Chequear estado de conexion
+                    res_state = requests.get(f"{clean_base}/instance/connectionState/{clean_inst}", headers=headers_evo, timeout=8)
+
+                    # Si no existe la instancia (404), la creamos automáticamente
+                    if res_state.status_code == 404:
+                        st.info(f"⚙️ Creando nueva instancia '{clean_inst}' en Evolution API...")
+                        payload_create = {
+                            "instanceName": clean_inst,
+                            "qrcode": True,
+                            "integration": "WHATSAPP-BAILEYS"
+                        }
+                        res_create = requests.post(f"{clean_base}/instance/create", json=payload_create, headers=headers_evo, timeout=12)
+                        if res_create.status_code in [200, 201]:
+                            data_c = res_create.json()
+                            b64_qr = data_c.get('qrcode', {}).get('base64') or data_c.get('base64', '')
+                            if b64_qr:
+                                st.success(f"✅ Instancia '{clean_inst}' creada exitosamente. ¡Escanea el código QR abajo!")
+                                clean_b64 = b64_qr.split(",")[-1]
+                                st.image(base64.b64decode(clean_b64), caption=f"Escanea con tu WhatsApp (Instancia: {clean_inst})", width=280)
+                                st.markdown("""
+                                <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 10px; padding: 10px 14px; margin-top: 8px;">
+                                    <div style="font-weight: 700; color: #166534; margin-bottom: 4px;">📲 Pasos para Vincular:</div>
+                                    <div style="font-size: 0.85rem; color: #14532D; line-height: 1.5;">
+                                        1. Abre <b>WhatsApp</b> en tu celular.<br>
+                                        2. Toca <b>Menú</b> (Android) o <b>Configuración</b> (iPhone) > <b>Dispositivos vinculados</b>.<br>
+                                        3. Toca <b>Vincular un dispositivo</b> y apunta la cámara a este código QR.
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
+                            else:
+                                st.info("Instancia creada. Generando QR...")
+                                res_state = requests.get(f"{clean_base}/instance/connectionState/{clean_inst}", headers=headers_evo, timeout=8)
+                        else:
+                            st.error(f"Error al crear instancia: {res_create.status_code} - {res_create.text}")
+
+                    if res_state.status_code == 200:
+                        state_data = res_state.json()
+                        curr_state = state_data.get('instance', {}).get('state', '') or state_data.get('state', '')
+
+                        if curr_state == 'open':
+                            st.session_state['wa_connection_state'] = 'open'
+                            st.success(f"🟢 ¡Instancia '{clean_inst}' CONECTADA y lista para enviar mensajes de WhatsApp!")
+                        else:
+                            st.session_state['wa_connection_state'] = curr_state
+                            st.info(f"🟡 Estado actual: '{curr_state or 'Esperando conexión'}'. Obteniendo código QR actualizado...")
+                            res_qr = requests.get(f"{clean_base}/instance/connect/{clean_inst}", headers=headers_evo, timeout=10)
+                            if res_qr.status_code == 200:
+                                qr_json = res_qr.json()
+                                b64_qr = qr_json.get('base64') or qr_json.get('qrcode', {}).get('base64', '')
+                                if b64_qr:
+                                    clean_b64 = b64_qr.split(",")[-1]
+                                    st.image(base64.b64decode(clean_b64), caption=f"Escanea con tu WhatsApp (Instancia: {clean_inst})", width=280)
+                                    st.markdown("""
+                                    <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 10px; padding: 10px 14px; margin-top: 8px;">
+                                        <div style="font-weight: 700; color: #166534; margin-bottom: 4px;">📲 Pasos para Vincular:</div>
+                                        <div style="font-size: 0.85rem; color: #14532D; line-height: 1.5;">
+                                            1. Abre <b>WhatsApp</b> en tu celular.<br>
+                                            2. Toca <b>Menú</b> (Android) o <b>Configuración</b> (iPhone) > <b>Dispositivos vinculados</b>.<br>
+                                            3. Toca <b>Vincular un dispositivo</b> y apunta la cámara a este código QR.
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                else:
+                                    st.warning("La instancia está en proceso de inicialización. Por favor haz clic en Verificar nuevamente en unos segundos.")
+                            else:
+                                st.warning(f"No se pudo conectar a la instancia: {res_qr.status_code} - {res_qr.text}")
+                except Exception as ex_evo:
+                    st.error(f"❌ Error al consultar Evolution API: {ex_evo}")
+
+    elif "UltraMsg" in prov_opc:
+        col_um1, col_um2 = st.columns(2)
+        with col_um1:
+            um_instance = st.text_input("Instance ID de UltraMsg:", value=st.session_state.get('in_um_instance', ''), placeholder="ej. instance105423", key="modal_in_um_instance")
+            st.session_state['in_um_instance'] = um_instance
+        with col_um2:
+            um_token = st.text_input("Token de UltraMsg:", value=st.session_state.get('in_um_token', ''), type="password", placeholder="ej. b28h1v98x...", key="modal_in_um_token")
+            st.session_state['in_um_token'] = um_token
+
+    else: # Personalizado
+        col_api1, col_api2 = st.columns(2)
+        with col_api1:
+            api_url_in = st.text_input("Endpoint Completo:", value=st.session_state.get('in_api_url_geral', ''), placeholder="ej. https://mi-api.com/send", key="modal_in_api_url_geral")
+            st.session_state['in_api_url_geral'] = api_url_in
+        with col_api2:
+            api_token_in = st.text_input("API Key / Bearer Token:", value=st.session_state.get('in_api_token_geral', ''), type="password", key="modal_in_api_token_geral")
+            st.session_state['in_api_token_geral'] = api_token_in
+
+    st.markdown("---")
+
+    # --- PRUEBA INDIVIDUAL A CELULAR ---
+    st.markdown("##### 📲 Enviar Mensaje de Prueba a tu Celular:")
+    col_test1, col_test2 = st.columns([2, 1])
+    with col_test1:
+        test_phone = st.text_input("Ingresa tu número celular (10 dígitos):", placeholder="ej. 3101234567", key="modal_in_cel_test_unit")
+    with col_test2:
+        st.write("")
+        st.write("")
+        btn_send_test = st.button("📲 Probar con mi Celular", key="modal_btn_send_test_unit", type="secondary", use_container_width=True)
+
+    if btn_send_test:
+        if not test_phone or len(test_phone.strip()) < 10:
+            st.warning("⚠️ Por favor escribe un número celular válido de al menos 10 dígitos.")
+        else:
+            msg_test_body = (
+                "✨ *Prueba de Conexión Exitosa - App Líderes & Gerentes* ✨\n\n"
+                "¡Hola! Este es un mensaje de prueba en vivo desde tu pasarela de WhatsApp Evolution API.\n"
+                f"📡 *Proveedor:* {prov_opc}\n"
+                f"📅 *Fecha:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
+                "Si estás leyendo esto, tu vinculación está 100% activa y lista para enviar a tus consultoras desde cualquier módulo. 🚀"
+            )
+            try:
+                cel_clean = str(test_phone).replace("+", "").replace(" ", "").replace("-", "").strip()
+                if not cel_clean.startswith("57") and len(cel_clean) == 10:
+                    cel_clean = f"57{cel_clean}"
+
+                if "Evolution API" in prov_opc:
+                    cur_url = st.session_state.get('in_evo_url', "https://evolution-api-production-7a2f.up.railway.app").strip().rstrip('/')
+                    cur_inst = st.session_state.get('in_evo_instance', obtener_instancia_evolution(current_user, user_rol, user_grupo)).strip()
+                    cur_tok = st.session_state.get('in_evo_token', "6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad").strip()
+                    if not cur_url or not cur_tok:
+                        st.warning("⚠️ Ingresa URL y Token de Evolution API.")
+                    else:
+                        t_url = f"{cur_url}/message/sendText/{cur_inst}"
+                        t_payload = {
+                            "number": cel_clean,
+                            "text": msg_test_body,
+                            "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                        }
+                        t_headers = {"apikey": cur_tok, "Content-Type": "application/json"}
+                        t_res = requests.post(t_url, json=t_payload, headers=t_headers, timeout=15)
+                elif "UltraMsg" in prov_opc:
+                    cur_u_inst = st.session_state.get('in_um_instance', '').strip().replace("https://api.ultramsg.com/", "").strip("/")
+                    cur_u_tok = st.session_state.get('in_um_token', '').strip()
+                    t_url = f"https://api.ultramsg.com/{cur_u_inst}/messages/chat"
+                    t_payload = {"token": cur_u_tok, "to": cel_clean, "body": msg_test_body, "priority": 10}
+                    t_headers = {"content-type": "application/x-www-form-urlencoded"}
+                    t_res = requests.post(t_url, data=t_payload, headers=t_headers, timeout=15)
+                else:
+                    cur_api = st.session_state.get('in_api_url_geral', '').strip()
+                    cur_tok = st.session_state.get('in_api_token_geral', '').strip()
+                    t_url = cur_api
+                    t_payload = {"number": cel_clean, "text": msg_test_body, "body": msg_test_body}
+                    t_headers = {"apikey": cur_tok, "Authorization": f"Bearer {cur_tok}", "Content-Type": "application/json"}
+                    t_res = requests.post(t_url, json=t_payload, headers=t_headers, timeout=15)
+
+                inst_g = st.session_state.get('in_evo_instance', '')
+                if 't_res' in locals() and t_res.status_code in [200, 201]:
+                    st.success(f"✅ ¡Mensaje de prueba enviado con éxito a {test_phone}! Revisa tu WhatsApp en tu celular.")
+                    st.session_state['wa_connection_state'] = 'open'
+                    registrar_log_whatsapp(
+                        modulo="Pasarela Modal WA (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="EXITOSO",
+                        http_codigo=t_res.status_code, respuesta_servidor=t_res.text, remitente=current_user,
+                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                        destinatario_cb="", mensaje_snippet=msg_test_body[:100]
+                    )
+                elif 't_res' in locals() and ("Connection Closed" in t_res.text or "not connected" in t_res.text.lower()):
+                    st.warning("⚠️ Tu WhatsApp aún no está vinculado a la instancia. Haz clic arriba en '🔄 Verificar Conexión / Ver QR' y escanea el código QR con tu celular.")
+                    registrar_log_whatsapp(
+                        modulo="Pasarela Modal WA (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="FALLIDO",
+                        http_codigo=t_res.status_code, respuesta_servidor=t_res.text, remitente=current_user,
+                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                        destinatario_cb="", mensaje_snippet=msg_test_body[:100]
+                    )
+                elif 't_res' in locals():
+                    st.error(f"❌ Error al enviar prueba (Código {t_res.status_code}): {t_res.text}")
+            except Exception as ex_t:
+                st.error(f"❌ Fallo de conexión: {ex_t}")
 
 
 # =========================================================================
@@ -4049,8 +4519,392 @@ def modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user):
                 st.caption("⚪ Sin movimientos recientes registrados.")
 
 
+# =========================================================================
+# RADIOGRAFÍA PROFUNDA Y CENTRO DE DIAGNÓSTICO POR NIVEL (TIER DEEP DIVE)
+# =========================================================================
+if hasattr(st, 'dialog'):
+    @st.dialog("🔍 Búsqueda & Auditoría de Consultoras", width="large")
+    def dialog_auditoria_nivel(sub, nom_nivel, t_conf):
+        c_acc = t_conf["color"]
+        st.markdown(f"""
+        <div style="display: flex; align-items: center; justify-content: space-between; border-bottom: 2px solid {c_acc}; padding-bottom: 8px; margin-bottom: 12px;">
+            <div>
+                <span style="font-size: 1.35rem; font-weight: 800; color: {c_acc};">{t_conf['icon']} Búsqueda & Detalle: Nivel {nom_nivel}</span>
+                <div style="font-size: 0.88rem; color: #64748B;">Consulta individual, estado comercial, cartera y filtros rápidos</div>
+            </div>
+            <span style="background: {t_conf['badge_bg']}; color: {t_conf['badge_color']}; font-weight: 700; padding: 4px 10px; border-radius: 20px; font-size: 0.85rem;">{len(sub)} consultoras</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Buscador instantáneo dentro de la ventana
+        busq_modal = st.text_input(
+            f"🔍 Buscar consultora en {nom_nivel} (Nombre, Código CB o Grupo):",
+            placeholder="Escribe el nombre o código de consultora...",
+            key=f"search_input_dialog_{nom_nivel}"
+        ).strip()
+
+        df_filtrada = sub.copy()
+        if busq_modal:
+            mask = pd.Series(False, index=df_filtrada.index)
+            if 'Nombre' in df_filtrada.columns:
+                mask = mask | df_filtrada['Nombre'].astype(str).str.contains(busq_modal, case=False, na=False)
+            if 'Asesora / Consultora' in df_filtrada.columns:
+                mask = mask | df_filtrada['Asesora / Consultora'].astype(str).str.contains(busq_modal, case=False, na=False)
+            if 'Código CB' in df_filtrada.columns:
+                mask = mask | df_filtrada['Código CB'].astype(str).str.contains(busq_modal, case=False, na=False)
+            if 'Codigo CB' in df_filtrada.columns:
+                mask = mask | df_filtrada['Codigo CB'].astype(str).str.contains(busq_modal, case=False, na=False)
+            if 'Grupo' in df_filtrada.columns:
+                mask = mask | df_filtrada['Grupo'].astype(str).str.contains(busq_modal, case=False, na=False)
+            df_filtrada = df_filtrada[mask]
+            st.caption(f"Coincidencias encontradas: **{len(df_filtrada)}** de {len(sub)}")
+
+        m_tab1, m_tab2, m_tab3 = st.tabs(["📋 Listado y Búsqueda", "📈 Distribución y Mix", "⚠️ Alertas de Cartera"])
+
+        with m_tab1:
+            cols_export = [c for c in ['Código CB', 'Nombre', 'Grupo', 'Sit. Comercial', 'Fact. Total', 'Pts Acum', 'Deuda Mora', 'Ped. Pendientes', 'Tienda Online', 'celular'] if c in df_filtrada.columns]
+            df_exp = df_filtrada[cols_export] if cols_export else df_filtrada
+            st.dataframe(df_exp, use_container_width=True, hide_index=True)
+
+            csv_buf = io.StringIO()
+            df_exp.to_csv(csv_buf, index=False, sep=";")
+            st.download_button(
+                f"📥 Descargar CSV ({len(df_exp)} consultoras {nom_nivel})",
+                csv_buf.getvalue(),
+                file_name=f"Consultoras_{nom_nivel}_{date.today().strftime('%Y%m%d')}.csv",
+                mime="text/csv",
+                key=f"btn_dl_csv_modal_{nom_nivel}",
+                use_container_width=True
+            )
+
+        with m_tab2:
+            col_g1, col_g2 = st.columns(2)
+            with col_g1:
+                st.markdown("##### 🎯 Situación Comercial")
+                col_sit = 'Sit. Comercial' if 'Sit. Comercial' in sub.columns else ('Situación' if 'Situación' in sub.columns else None)
+                if col_sit and not sub.empty:
+                    df_sit = sub[col_sit].value_counts().reset_index()
+                    df_sit.columns = ['Situación', 'Cantidad']
+                    fig_sit = px.pie(
+                        df_sit, 
+                        names='Situación', 
+                        values='Cantidad', 
+                        hole=0.45,
+                        color_discrete_sequence=['#22C55E', '#F59E0B', '#EF4444', '#3B82F6', '#8B5CF6', '#EC4899', '#64748B']
+                    )
+                    fig_sit.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=240, showlegend=True)
+                    st.plotly_chart(fig_sit, use_container_width=True)
+                else:
+                    st.caption("Sin datos de situación comercial.")
+
+            with col_g2:
+                st.markdown("##### 🛍️ Facturación por Marca")
+                f_nat = float(sub['Fact. Natura'].fillna(0).sum()) if 'Fact. Natura' in sub.columns else 0.0
+                f_avo = float(sub['Fact. AVON'].fillna(0).sum()) if 'Fact. AVON' in sub.columns else 0.0
+                f_ce = float(sub['Fact. C&E'].fillna(0).sum()) if 'Fact. C&E' in sub.columns else 0.0
+                
+                df_marcas = pd.DataFrame({
+                    "Marca": ["Natura", "AVON", "Casa & Estilo"],
+                    "Venta": [f_nat, f_avo, f_ce]
+                })
+                fig_m = px.bar(
+                    df_marcas,
+                    x="Marca",
+                    y="Venta",
+                    text_auto=".2s",
+                    color="Marca",
+                    color_discrete_map={"Natura": "#FF6A00", "AVON": "#DE0052", "Casa & Estilo": "#6366F1"}
+                )
+                fig_m.update_layout(margin=dict(l=10, r=10, t=10, b=10), height=240, showlegend=False)
+                st.plotly_chart(fig_m, use_container_width=True)
+
+        with m_tab3:
+            st.markdown("##### 🚨 Semáforo de Riesgo y Cartera del Nivel")
+            col_r1, col_r2, col_r3 = st.columns(3)
+            tot_mora = float(sub['Deuda Mora'].sum()) if 'Deuda Mora' in sub.columns else 0.0
+            cnt_mora = int((sub['Deuda Mora'] > 0).sum()) if 'Deuda Mora' in sub.columns else 0
+            cnt_ped = int((sub['Ped. Pendientes'] > 0).sum()) if 'Ped. Pendientes' in sub.columns else 0
+            tot_cred = float(sub['Credito Disponible'].sum()) if 'Credito Disponible' in sub.columns else 0.0
+            
+            with col_r1:
+                st.metric("⏳ Con Pedidos Pendientes", f"{cnt_ped} pers.")
+            with col_r2:
+                st.metric("⚠️ Con Deuda Mora", f"{cnt_mora} pers.", f"${tot_mora/1e6:.2f}M COP", delta_color="inverse")
+            with col_r3:
+                st.metric("💳 Crédito Total Disponible", f"{int(tot_cred):,} pts".replace(",", "."))
+
+            if 'Deuda Mora' in sub.columns or 'Ped. Pendientes' in sub.columns:
+                m1 = (sub['Deuda Mora'] > 0) if 'Deuda Mora' in sub.columns else pd.Series(False, index=sub.index)
+                m2 = (sub['Ped. Pendientes'] > 0) if 'Ped. Pendientes' in sub.columns else pd.Series(False, index=sub.index)
+                sub_alert = sub[m1 | m2]
+                if not sub_alert.empty:
+                    st.markdown(f"**Consultoras con Atención Prioritaria ({len(sub_alert)}):**")
+                    cols_al = [c for c in ['Código CB', 'Nombre', 'Grupo', 'Sit. Comercial', 'Ped. Pendientes', 'Deuda Mora'] if c in sub_alert.columns]
+                    st.dataframe(sub_alert[cols_al].head(30), use_container_width=True, hide_index=True)
+else:
+    def dialog_auditoria_nivel(*args, **kwargs):
+        pass
 
 
+def render_tier_deep_dive_panel(df_cb, nom_upper, tiers_config):
+    """
+    Renderiza la consola analítica avanzada e interactiva (Tier Deep Dive)
+    para el nivel seleccionado (Bronce, Plata, Oro, Zafiro, Diamante).
+    Reemplaza la barra estática previa por métricas accionables de recuperación,
+    cartera, carrera y talentos destacados.
+    """
+    t_conf = next((tc for tc in tiers_config if tc["nombre"] == nom_upper), tiers_config[0])
+    c_acc = t_conf["color"]
+    
+    col_n = 'Nivel / Color' if 'Nivel / Color' in df_cb.columns else ('Color' if 'Color' in df_cb.columns else None)
+    if not df_cb.empty and col_n:
+        sub = df_cb[df_cb[col_n].astype(str).str.strip().str.lower() == nom_upper.lower()].copy()
+    else:
+        sub = pd.DataFrame()
+
+    total_sub = len(sub)
+    if total_sub == 0:
+        st.info(f"⚪ No se registran consultoras asignadas al nivel **{nom_upper}** en este ámbito.")
+        return
+
+    # Cálculos analíticos clave (sin repetir los 4 de la tarjeta)
+    col_sit = 'Sit. Comercial' if 'Sit. Comercial' in sub.columns else ('Situación' if 'Situación' in sub.columns else None)
+    if col_sit:
+        sits_s = sub[col_sit].astype(str).str.strip()
+        cnt_act = int((sits_s.str.lower() == 'activa').sum())
+        cnt_i1 = int(sits_s.str.lower().str.contains('inactiva 1|i1', na=False).sum())
+        cnt_i2 = int(sits_s.str.lower().str.contains('inactiva 2|i2', na=False).sum())
+        cnt_i3 = int(sits_s.str.lower().str.contains('inactiva 3|i3', na=False).sum())
+        cnt_i4_mas = total_sub - (cnt_act + cnt_i1 + cnt_i2 + cnt_i3)
+        cnt_i4_mas = max(cnt_i4_mas, 0)
+    else:
+        cnt_act, cnt_i1, cnt_i2, cnt_i3, cnt_i4_mas = 0, 0, 0, 0, 0
+
+    # Cartera y mora
+    cnt_ped_ret = int((sub['Ped. Pendientes'] > 0).sum()) if 'Ped. Pendientes' in sub.columns else 0
+    cnt_con_mora = int((sub['Deuda Mora'] > 0).sum()) if 'Deuda Mora' in sub.columns else 0
+    tot_mora = float(sub['Deuda Mora'].sum()) if 'Deuda Mora' in sub.columns else 0.0
+    tot_cred_disp = float(sub['Credito Disponible'].sum()) if 'Credito Disponible' in sub.columns else 0.0
+
+    # Carrera y Digitalización
+    if 'Ascenso CB' in sub.columns:
+        asc_s = sub['Ascenso CB'].astype(str).str.lower()
+        cnt_asc = int(asc_s.str.contains('ascend', na=False).sum())
+        cnt_mant = int(asc_s.str.contains('mantu', na=False).sum())
+        cnt_desc = int(asc_s.str.contains('descend', na=False).sum())
+    else:
+        cnt_asc, cnt_mant, cnt_desc = 0, 0, 0
+
+    if 'Tienda Online' in sub.columns:
+        tienda_s = sub['Tienda Online'].astype(str).str.lower()
+        cnt_tienda = int((tienda_s.str.contains('tienda online', na=False) & ~tienda_s.str.contains('sin', na=False)).sum())
+        pct_tienda = (cnt_tienda / total_sub * 100.0) if total_sub > 0 else 0.0
+    else:
+        cnt_tienda, pct_tienda = 0, 0.0
+
+    # Estado de microfiltros activos actualmente
+    filtro_sit_activo = st.session_state.get('filt_sit_com', [])
+    filtro_ped_activo = st.session_state.get('filt_ped_opt', 'Todos')
+    filtro_mora_activo = st.session_state.get('filt_mora_opt', 'Todas')
+    hay_subfiltros = bool(filtro_sit_activo or filtro_ped_activo != 'Todos' or filtro_mora_activo != 'Todas')
+
+    # CONTENEDOR PRINCIPAL ESTILIZADO
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, rgba(255,255,255,0.98) 0%, rgba(248,250,252,0.95) 100%); 
+                border: 1.8px solid {c_acc}66; 
+                border-left: 8px solid {c_acc}; 
+                border-radius: 14px; 
+                padding: 16px 20px; 
+                margin-top: 14px; 
+                margin-bottom: 8px;
+                box-shadow: 0 10px 28px -6px {c_acc}25, 0 4px 12px -2px rgba(15,23,42,0.06);">
+        <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid rgba(148,163,184,0.25); padding-bottom: 12px;">
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <span style="font-size: 1.6rem; line-height: 1;">{t_conf['icon']}</span>
+                <div>
+                    <span style="font-size: 1.15rem; font-weight: 900; color: #0F172A; letter-spacing: -0.3px;">
+                        🎯 Panel de Opciones & Diagnóstico: Nivel {nom_upper}
+                    </span>
+                    <div style="font-size: 0.82rem; color: #64748B; font-weight: 600;">
+                        Auditoría en tiempo real • {total_sub} consultoras en red • 
+                        <span style="color: {c_acc}; font-weight: 800;">Filtro de nivel aplicado a la tabla inferior</span>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="background: {t_conf['badge_bg']}; color: {t_conf['badge_color']}; font-weight: 800; font-size: 0.78rem; padding: 4px 12px; border-radius: 20px; border: 1px solid {c_acc}40;">
+                    {nom_upper} ACTIVO
+                </span>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # BARRA DE ACCIÓN SUPERIOR: BOTONES MODAL Y OCULTAR
+    bcol1, bcol2, bcol3 = st.columns([2.0, 1.5, 1.5])
+    with bcol1:
+        if hay_subfiltros:
+            st.caption(f"⚡ **Microfiltros aplicados:** Sit: `{filtro_sit_activo or 'Todas'}` • Ped: `{filtro_ped_activo}` • Mora: `{filtro_mora_activo}`")
+        else:
+            st.caption("💡 Pica la lupita ✖️ de la tarjeta o el botón a la derecha para ocultar estas opciones.")
+    with bcol2:
+        if hasattr(st, 'dialog'):
+            if st.button("🔎 Buscador & Auditoría Modal", key=f"btn_open_diag_{nom_upper}", use_container_width=True, help="Abre ventana flotante con buscador de consultoras y descarga Excel"):
+                dialog_auditoria_nivel(sub, nom_upper, t_conf)
+    with bcol3:
+        if st.button("✖️ Ocultar Opciones (Ver Todo)", key=f"btn_clear_tier_full_{nom_upper}", type="secondary", use_container_width=True, help="Oculta esta ventana y muestra la vista normal sin filtros"):
+            st.session_state['tier_card_sel_nivel'] = None
+            st.session_state['filt_sit_com'] = []
+            st.session_state['filt_ped_opt'] = 'Todos'
+            st.session_state['filt_mora_opt'] = 'Todas'
+            st.rerun()
+
+    # 3 CUADRANTES ANALÍTICOS DE ALTO IMPACTO (NO REPETITIVOS)
+    col_a1, col_a2, col_a3 = st.columns(3)
+
+    # 1. SALUD COMERCIAL & RECUPERACIÓN (INACTIVAS I1, I2, I3)
+    with col_a1:
+        pct_i1 = (cnt_i1 / total_sub * 100.0) if total_sub > 0 else 0.0
+        st.markdown(f"""
+        <div style="background: #FFFFFF; border: 1.2px solid rgba(226,232,240,0.9); border-top: 4px solid #F59E0B; border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 10px -2px rgba(15,23,42,0.04); height: 100%;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 0.88rem; font-weight: 800; color: #1E293B;">🔄 Potencial de Recuperación</span>
+                <span style="font-size: 0.75rem; background: #FEF3C7; color: #92400E; padding: 2px 8px; border-radius: 12px; font-weight: 700;">{cnt_i1 + cnt_i2 + cnt_i3} inactivas</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; text-align: center; margin: 10px 0;">
+                <div style="background: #FFFBEB; border: 1px solid #FDE68A; border-radius: 6px; padding: 6px 2px;">
+                    <div style="font-size: 1.15rem; font-weight: 900; color: #D97706;">{cnt_i1}</div>
+                    <div style="font-size: 0.70rem; font-weight: 700; color: #78350F;">Inactiva 1 (I1)</div>
+                    <div style="font-size: 0.65rem; color: #B45309;">{pct_i1:.1f}% red</div>
+                </div>
+                <div style="background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px 2px;">
+                    <div style="font-size: 1.15rem; font-weight: 900; color: #475569;">{cnt_i2}</div>
+                    <div style="font-size: 0.70rem; font-weight: 700; color: #334155;">Inactiva 2 (I2)</div>
+                    <div style="font-size: 0.65rem; color: #64748B;">En riesgo</div>
+                </div>
+                <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; padding: 6px 2px;">
+                    <div style="font-size: 1.15rem; font-weight: 900; color: #DC2626;">{cnt_i3}</div>
+                    <div style="font-size: 0.70rem; font-weight: 700; color: #991B1B;">Inactiva 3 (I3)</div>
+                    <div style="font-size: 0.65rem; color: #DC2626;">Peligro fuga</div>
+                </div>
+            </div>
+            <div style="font-size: 0.73rem; color: #64748B; margin-top: 4px; line-height: 1.3;">
+                🎯 <b>Foco prioritario:</b> Las <b>{cnt_i1} I1</b> solo llevan 1 ciclo sin pedido y son el segmento más recuperable del ciclo.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        btn_i1_label = "⚡ Filtrar solo I1 para Rescate" if filtro_sit_activo != ['Inactiva 1'] else "✅ Mostrando solo I1"
+        if st.button(btn_i1_label, key=f"btn_f_i1_{nom_upper}", use_container_width=True):
+            st.session_state['filt_sit_com'] = ['Inactiva 1']
+            st.rerun()
+
+    # 2. CARTERA & PEDIDOS RETENIDOS
+    with col_a2:
+        mora_txt = f"${tot_mora/1e6:.2f}M" if tot_mora >= 1e6 else f"${tot_mora:,.0f}".replace(",", ".")
+        cred_txt = f"${tot_cred_disp/1e6:.1f}M pts" if tot_cred_disp >= 1e6 else f"{int(tot_cred_disp):,} pts".replace(",", ".")
+        st.markdown(f"""
+        <div style="background: #FFFFFF; border: 1.2px solid rgba(226,232,240,0.9); border-top: 4px solid #EF4444; border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 10px -2px rgba(15,23,42,0.04); height: 100%;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 0.88rem; font-weight: 800; color: #1E293B;">⚠️ Cartera & Despacho</span>
+                <span style="font-size: 0.75rem; background: #FEE2E2; color: #991B1B; padding: 2px 8px; border-radius: 12px; font-weight: 700;">{cnt_ped_ret} retenidos</span>
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; text-align: left; margin: 10px 0;">
+                <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px; padding: 8px 10px;">
+                    <div style="font-size: 0.70rem; font-weight: 700; color: #991B1B;">PEDIDOS RETENIDOS</div>
+                    <div style="font-size: 1.25rem; font-weight: 900; color: #B91C1C;">{cnt_ped_ret} <span style="font-size: 0.75rem; font-weight: 600;">pers.</span></div>
+                    <div style="font-size: 0.65rem; color: #7F1D1D;">Aguardando liberación</div>
+                </div>
+                <div style="background: #FFF1F2; border: 1px solid #FFE4E6; border-radius: 6px; padding: 8px 10px;">
+                    <div style="font-size: 0.70rem; font-weight: 700; color: #9F1239;">CON DEUDA MORA</div>
+                    <div style="font-size: 1.25rem; font-weight: 900; color: #BE123C;">{cnt_con_mora} <span style="font-size: 0.75rem; font-weight: 600;">pers.</span></div>
+                    <div style="font-size: 0.65rem; color: #881337;">Total: {mora_txt} COP</div>
+                </div>
+            </div>
+            <div style="font-size: 0.73rem; color: #64748B; margin-top: 4px; line-height: 1.3;">
+                💳 <b>Crédito disponible libre:</b> <b>{cred_txt}</b> para facturar sin impedimentos de cartera.
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        btn_ped_label = "⏳ Filtrar Pedidos Retenidos" if filtro_ped_activo != "Con Pedidos Pendientes (> 0)" else "✅ Mostrando Retenidos"
+        if st.button(btn_ped_label, key=f"btn_f_ped_{nom_upper}", use_container_width=True):
+            st.session_state['filt_ped_opt'] = "Con Pedidos Pendientes (> 0)"
+            st.rerun()
+
+    # 3. CARRERA & ADOPCIÓN DIGITAL
+    with col_a3:
+        st.markdown(f"""
+        <div style="background: #FFFFFF; border: 1.2px solid rgba(226,232,240,0.9); border-top: 4px solid #3B82F6; border-radius: 10px; padding: 12px 14px; box-shadow: 0 4px 10px -2px rgba(15,23,42,0.04); height: 100%;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                <span style="font-size: 0.88rem; font-weight: 800; color: #1E293B;">🎖️ Carrera & Digitalización</span>
+                <span style="font-size: 0.75rem; background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 12px; font-weight: 700;">{pct_tienda:.0f}% Online</span>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: #F8FAFC; border: 1px solid #E2E8F0; border-radius: 6px; padding: 8px 12px; margin: 8px 0;">
+                <div>
+                    <div style="font-size: 0.70rem; font-weight: 700; color: #475569;">MOVIMIENTO DE NIVEL</div>
+                    <div style="font-size: 0.82rem; font-weight: 800; color: #0F172A; margin-top: 2px;">
+                        <span style="color: #16A34A;">🟢 {cnt_asc} Ascendieron</span> • 
+                        <span style="color: #2563EB;">🔵 {cnt_mant} Mantuvieron</span> • 
+                        <span style="color: #DC2626;">🔴 {cnt_desc} Bajaron</span>
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; align-items: center; justify-content: space-between; background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px; padding: 8px 12px; margin-bottom: 4px;">
+                <div>
+                    <div style="font-size: 0.70rem; font-weight: 700; color: #1E40AF;">TIENDA ONLINE ACTIVA</div>
+                    <div style="font-size: 0.95rem; font-weight: 900; color: #1D4ED8;">{cnt_tienda} <span style="font-size: 0.75rem; font-weight: 600;">consultoras digitales ({pct_tienda:.1f}%)</span></div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        if hay_subfiltros:
+            if st.button("🧹 Quitar Microfiltros (Ver nivel)", key=f"btn_reset_sub_{nom_upper}", use_container_width=True):
+                st.session_state['filt_sit_com'] = []
+                st.session_state['filt_ped_opt'] = 'Todos'
+                st.session_state['filt_mora_opt'] = 'Todas'
+                st.rerun()
+        else:
+            btn_mora_lbl = "🚨 Filtrar solo con Deuda Mora"
+            if st.button(btn_mora_lbl, key=f"btn_f_mora_{nom_upper}", use_container_width=True):
+                st.session_state['filt_mora_opt'] = "Con Deuda Mora (> $0)"
+                st.rerun()
+
+    # BLOQUE DE TALENTOS DESTACADOS: TOP 3 DEL NIVEL
+    col_nom_dest = 'Nombre' if 'Nombre' in sub.columns else ('Asesora / Consultora' if 'Asesora / Consultora' in sub.columns else None)
+    col_fact_dest = 'Fact. Total' if 'Fact. Total' in sub.columns else ('Fact. Natura' if 'Fact. Natura' in sub.columns else None)
+    
+    if col_nom_dest and col_fact_dest and not sub.empty:
+        df_top = sub.sort_values(by=col_fact_dest, ascending=False).head(3)
+        if not df_top.empty and float(df_top[col_fact_dest].max()) > 0:
+            st.markdown(f"""
+            <div style="background: rgba(248,250,252,0.95); border: 1px dashed rgba(148,163,184,0.4); border-radius: 8px; padding: 6px 12px; margin-top: 8px; margin-bottom: 6px;">
+                <span style="font-size: 0.80rem; font-weight: 800; color: #334155;">👑 Top Referentes en Facturación ({nom_upper}):</span>
+            </div>
+            """, unsafe_allow_html=True)
+            
+            top_cols = st.columns(3)
+            medallas = ["🥇", "🥈", "🥉"]
+            for idx_top, (_, r_top) in enumerate(df_top.iterrows()):
+                if idx_top < 3:
+                    nom_cb = str(r_top.get(col_nom_dest, 'Consultora')).strip().title()
+                    nom_cb_short = " ".join(nom_cb.split()[:2])
+                    f_val = float(r_top.get(col_fact_dest, 0))
+                    f_val_txt = f"${f_val/1e6:.2f}M" if f_val >= 1e6 else f"${f_val:,.0f}".replace(",", ".")
+                    sit_top = str(r_top.get('Sit. Comercial', 'Activa')).strip()
+                    grp_top = str(r_top.get('Grupo', '-')).strip()
+                    
+                    with top_cols[idx_top]:
+                        st.markdown(f"""
+                        <div style="background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 6px; padding: 6px 10px; font-size: 0.80rem; display: flex; align-items: center; justify-content: space-between; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                            <div>
+                                <span style="font-weight: 800; color: #0F172A;">{medallas[idx_top]} {nom_cb_short}</span>
+                                <div style="font-size: 0.70rem; color: #64748B;">Grupo {grp_top} • <span style="color: #16A34A; font-weight: 700;">{sit_top}</span></div>
+                            </div>
+                            <span style="font-weight: 900; color: {c_acc}; font-size: 0.85rem;">{f_val_txt}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
 
 
 def render_tier_cards_grid(user_sector, grupo=None):
@@ -4145,17 +4999,57 @@ def render_tier_cards_grid(user_sector, grupo=None):
             "pct_total": (tot / total_gral * 100) if total_gral > 0 else 0
         }
 
+    tier_activo = st.session_state.get('tier_card_sel_nivel', None)
+
+    if tier_activo is None:
+        st.markdown(
+            "<div style='text-align: right; margin-top: -8px; margin-bottom: 6px;'>"
+            "<span style='font-size: 0.76rem; color: #64748B; font-weight: 600;'>💡 Pica la lupita 🔍 de cualquier tarjeta para ver su auditoría y opciones</span>"
+            "</div>",
+            unsafe_allow_html=True
+        )
+
     # Render horizontal de 5 columnas
     tcols = st.columns(5)
     for idx, t in enumerate(tiers_config):
         s_d = tier_stats[t["nombre"]]
         c_acc = t["color"]
+        es_activo = (str(tier_activo).strip().upper() == t["nombre"].upper()) if tier_activo else False
+
+        # Estilos dinámicos de selección activa
+        lupa_cls = "tier-lupa-badge active" if es_activo else "tier-lupa-badge"
+        lupa_icon = "✖️" if es_activo else "🔍"
+        lupa_title = f"Pica para ocultar opciones de {t['nombre']}" if es_activo else f"Pica para ver análisis y opciones de {t['nombre']}"
+        lupa_html = f'<span class="{lupa_cls}" title="{lupa_title}">{lupa_icon}</span>'
+
+        if es_activo:
+            border_card = f"2.5px solid {c_acc}"
+            shadow_card = f"0 0 20px {c_acc}55, 0 10px 24px -4px {c_acc}40"
+            card_transform = "transform: translateY(-4px) scale(1.02);"
+            badge_html = f'<span class="tier-pct-badge" style="background: {c_acc}; color: #ffffff; font-weight: 800; font-size: 0.70rem; box-shadow: 0 2px 8px {c_acc}66;">✅ ACTIVO</span>'
+            card_opacity = "opacity: 1.0;"
+        elif tier_activo is not None:
+            border_card = f"1.5px solid {t['border_card']}"
+            shadow_card = "none"
+            card_transform = ""
+            badge_html = f'<span class="tier-pct-badge" style="background: {t["badge_bg"]}; color: {t["badge_color"]};">{s_d["pct_total"]:.0f}% del total</span>'
+            card_opacity = "opacity: 0.62; filter: grayscale(25%);"
+        else:
+            border_card = f"1.5px solid {t['border_card']}"
+            shadow_card = t["shadow_card"]
+            card_transform = ""
+            badge_html = f'<span class="tier-pct-badge" style="background: {t["badge_bg"]}; color: {t["badge_color"]};">{s_d["pct_total"]:.0f}% del total</span>'
+            card_opacity = "opacity: 1.0;"
+
         with tcols[idx]:
             card_html = (
-                f'<div class="tier-card" style="background: {t["bg_card"]}; border: 1.5px solid {t["border_card"]}; border-top: 4px solid {c_acc}; box-shadow: {t["shadow_card"]};">'
+                f'<div class="tier-card" style="background: {t["bg_card"]}; border: {border_card}; border-top: 5px solid {c_acc}; box-shadow: {shadow_card}; {card_transform} {card_opacity}">'
                 f'<div class="tier-header">'
                 f'<span class="tier-title" style="color: {c_acc};">{t["icon"]} {t["nombre"]}</span>'
-                f'<span class="tier-pct-badge" style="background: {t["badge_bg"]}; color: {t["badge_color"]};">{s_d["pct_total"]:.0f}% del total</span>'
+                f'<div style="display: flex; align-items: center; gap: 6px;">'
+                f'{badge_html}'
+                f'{lupa_html}'
+                f'</div>'
                 f'</div>'
                 f'<div class="tier-count" style="color: {c_acc};">{s_d["tot"]}</div>'
                 f'<div class="tier-sublabel">Consultoras registradas</div>'
@@ -4179,6 +5073,26 @@ def render_tier_cards_grid(user_sector, grupo=None):
                 f'</div>'
             )
             st.markdown(card_html, unsafe_allow_html=True)
+
+            btn_key = f"btn_tier_card_{t['nombre']}"
+            btn_help = f"Pica aquí para ocultar opciones de {t['nombre']}" if es_activo else f"Pica aquí para ver análisis y opciones de {t['nombre']}"
+            if st.button(f"toggle_tier_{t['nombre']}", key=btn_key, help=btn_help):
+                if es_activo:
+                    # AL PICAR EL ✖️: SE OCULTA LA INFORMACIÓN Y SE LIMPIA LA VISTA
+                    st.session_state['tier_card_sel_nivel'] = None
+                    st.session_state['filt_sit_com'] = []
+                    st.session_state['filt_ped_opt'] = 'Todos'
+                    st.session_state['filt_mora_opt'] = 'Todas'
+                else:
+                    # AL PICAR LA 🔍: SE ACTIVA Y SE MUESTRAN LAS OPCIONES Y EL ANÁLISIS DEL NIVEL
+                    st.session_state['tier_card_sel_nivel'] = t['nombre']
+                st.rerun()
+
+    # Centro de Diagnóstico Dinámico por Nivel (Tier Deep Dive Console)
+    tier_activo_post = st.session_state.get('tier_card_sel_nivel', None)
+    if tier_activo_post:
+        nom_upper = str(tier_activo_post).strip().upper()
+        render_tier_deep_dive_panel(df_cb, nom_upper, tiers_config)
 
 
 # Header Principal Dinámico según el Rol y Sector del Usuario
@@ -5079,18 +5993,22 @@ else:
     st.sidebar.markdown("<div style='height: 6px;'></div>", unsafe_allow_html=True)
 
     # =========================================================================
-    # MENÚ DE NAVEGACIÓN VERTICAL EN LA BARRA LATERAL (SLIM SIDEBAR ESTILO SAAS)
+    # BOTÓN DE VINCULACIÓN & PASARELA DE WHATSAPP EN LA PARTE SUPERIOR
     # =========================================================================
+    wa_is_connected = (st.session_state.get('wa_connection_state') == 'open')
+    wa_badge_txt = "🟢 CONECTADO" if wa_is_connected else "VINCULAR WHATSAPP"
+    wa_sub_txt = "Listo para Envíos Auto" if wa_is_connected else "Conexión QR • Envíos Auto"
+
+    if st.sidebar.button(
+        f"{wa_badge_txt}\n{wa_sub_txt}",
+        key="sb_btn_wa_gateway",
+        use_container_width=True,
+        help="Haz clic para vincular tu WhatsApp por código QR o verificar tu conexión para envíos automáticos"
+    ):
+        modal_configuracion_whatsapp(current_user, user_rol, user_grupo, user_sector)
+
     st.sidebar.markdown("""
-    <div class="sb-nav-header">
-        <div class="sb-nav-header-badge">
-            <span class="sb-nav-compass">🧭</span>
-        </div>
-        <div>
-            <div class="sb-nav-title">MÓDULOS DEL SISTEMA</div>
-            <div class="sb-nav-subtitle">Navegación Principal • 2026</div>
-        </div>
-    </div>
+    <div class="sb-modules-section-title">MÓDULOS DEL SISTEMA</div>
     """, unsafe_allow_html=True)
 
     # Estado persistente del módulo activo
@@ -5171,6 +6089,13 @@ if tab_tableau is not None:
             sits_sel_init = st.session_state.get("filt_sit_com", [])
             if sits_sel_init and 'Sit. Comercial' in df_tab_filt.columns:
                 df_tab_filt = df_tab_filt[df_tab_filt['Sit. Comercial'].astype(str).isin(sits_sel_init)]
+
+            # Filtro interactivo de nivel seleccionado desde las Tier Cards (Bronce, Plata, Oro, Zafiro, Diamante)
+            tier_sel_activo = st.session_state.get("tier_card_sel_nivel", None)
+            if tier_sel_activo:
+                col_c_check = 'Color' if 'Color' in df_tab_filt.columns else ('Nivel / Color' if 'Nivel / Color' in df_tab_filt.columns else None)
+                if col_c_check:
+                    df_tab_filt = df_tab_filt[df_tab_filt[col_c_check].astype(str).str.strip().str.lower() == str(tier_sel_activo).strip().lower()]
 
             colores_sel_init = st.session_state.get("filt_color_tab", [])
             if colores_sel_init and 'Color' in df_tab_filt.columns:
@@ -5636,6 +6561,98 @@ if tab_tableau is not None:
                             )
                             st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
 
+                        # Flyer opcional compacto para Base Maestra
+                        uploaded_flyer_tab = None
+                        with st.expander("🖼️ Adjuntar Imagen o Flyer de Campaña (Opcional)", expanded=False):
+                            col_fl_b1, col_fl_b2 = st.columns([1.2, 1.8])
+                            with col_fl_b1:
+                                uploaded_flyer_tab = st.file_uploader(
+                                    "Subir imagen (Flyer, Kit o Catálogo):",
+                                    type=["png", "jpg", "jpeg", "webp"],
+                                    key="uploader_flyer_tab_maestra",
+                                    help="Sube un flyer para compartirlo junto al mensaje en WhatsApp"
+                                )
+                            with col_fl_b2:
+                                if uploaded_flyer_tab is not None:
+                                    import base64
+                                    b64_flyer_tab = base64.b64encode(uploaded_flyer_tab.getvalue()).decode('utf-8')
+                                    mime_flyer_tab = uploaded_flyer_tab.type or "image/png"
+                                    flyer_kb_tab = len(uploaded_flyer_tab.getvalue()) // 1024
+
+                                    # Asegurar persistencia del flyer en disco
+                                    try:
+                                        dir_campanas = os.path.join('data', 'campanas')
+                                        os.makedirs(dir_campanas, exist_ok=True)
+                                        with open(os.path.join(dir_campanas, uploaded_flyer_tab.name), 'wb') as f_fly:
+                                            f_fly.write(uploaded_flyer_tab.getvalue())
+                                    except Exception:
+                                        pass
+
+                                    st.markdown(f"""
+                                    <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.35); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px;">
+                                        <div style="font-weight: 700; color: #128C7E; font-size: 0.88rem; display: flex; align-items: center; justify-content: space-between;">
+                                            <span>🖼️ Flyer Listo: <strong>{uploaded_flyer_tab.name}</strong> ({flyer_kb_tab} KB)</span>
+                                            <span style="background: #25D366; color: white; padding: 2px 7px; border-radius: 8px; font-size: 0.70rem; font-weight: 700;">LISTO</span>
+                                        </div>
+                                        <div style="font-size: 0.78rem; color: #475569; margin-top: 3px;">
+                                            Pulsa <strong>Copiar Flyer</strong> y luego en WhatsApp presiona <strong>Ctrl + V</strong> para enviar imagen y mensaje juntos.
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+
+                                    col_btn_b1, col_btn_b2 = st.columns([1.5, 1])
+                                    with col_btn_b1:
+                                        copy_script_bm = f"""
+                                        <div style="display: flex; flex-direction: column; gap: 4px; font-family: sans-serif;">
+                                            <button onclick="copiarFlyerBm()" style="
+                                                background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+                                                color: white; border: none; padding: 8px 12px; border-radius: 8px;
+                                                font-weight: 700; font-size: 0.82rem; cursor: pointer; width: 100%;
+                                                display: flex; align-items: center; justify-content: center; gap: 6px;
+                                                box-shadow: 0 2px 6px rgba(37, 211, 102, 0.25);
+                                            ">
+                                                📋 Copiar Flyer al Portapapeles (1 Clic)
+                                            </button>
+                                            <div id="statusCopiarFlyerBm" style="font-size: 0.75rem; color: #128C7E; font-weight: 600; text-align: center; display: none;"></div>
+                                        </div>
+                                        <script>
+                                        async function copiarFlyerBm() {{
+                                            try {{
+                                                const b64 = "{b64_flyer_tab}";
+                                                const byteCharacters = atob(b64);
+                                                const byteNumbers = new Array(byteCharacters.length);
+                                                for (let i = 0; i < byteCharacters.length; i++) {{
+                                                    byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                                }}
+                                                const byteArray = new Uint8Array(byteNumbers);
+                                                const blob = new Blob([byteArray], {{ type: "{mime_flyer_tab}" }});
+                                                await navigator.clipboard.write([
+                                                    new ClipboardItem({{ [blob.type]: blob }})
+                                                ]);
+                                                const el = document.getElementById('statusCopiarFlyerBm');
+                                                el.innerText = '✅ ¡Flyer copiado! Abre WhatsApp y presiona Ctrl + V';
+                                                el.style.display = 'block';
+                                            }} catch (e) {{
+                                                const el = document.getElementById('statusCopiarFlyerBm');
+                                                el.innerHTML = '💡 <em>Para copiar: Clic derecho sobre la imagen ➔ "Copiar imagen"</em>';
+                                                el.style.display = 'block';
+                                            }}
+                                        }}
+                                        </script>
+                                        """
+                                        st.components.v1.html(copy_script_bm, height=52)
+                                    with col_btn_b2:
+                                        st.download_button(
+                                            "📥 Descargar Flyer",
+                                            data=uploaded_flyer_tab.getvalue(),
+                                            file_name=uploaded_flyer_tab.name,
+                                            mime=mime_flyer_tab,
+                                            use_container_width=True,
+                                            key="btn_descarga_flyer_tab_maestra"
+                                        )
+                                else:
+                                    st.caption("💡 **Sin imagen adjunta**: El envío será únicamente de texto. Si deseas compartir una imagen promocional o kit, súbela a la izquierda.")
+
                         # Generar filas de mensajes para todo el grupo filtrado con casilla de selección
                         filas_wa_tab = []
                         set_sel_actual = st.session_state.get('cbs_sel_tab_wa', set(cbs_todas))
@@ -5667,7 +6684,7 @@ if tab_tableau is not None:
 
                             link_t = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_t)}" if cel_val and len(cel_val) >= 10 else ""
 
-                            filas_wa_tab.append({
+                            fila_bm_item = {
                                 '✅ Enviar': cb_val in set_sel_actual,
                                 'Consultora': n_full,
                                 'Código CB': cb_val,
@@ -5677,34 +6694,44 @@ if tab_tableau is not None:
                                 'Nota Líder': nota_val if nota_val else "-",
                                 '📲 Enviar WhatsApp': link_t,
                                 'Mensaje Personalizado': msg_t
-                            })
+                            }
+                            if uploaded_flyer_tab is not None:
+                                fila_bm_item['📎 Flyer'] = '🖼️ Flyer Listo'
+                            filas_wa_tab.append(fila_bm_item)
 
                         df_campana_tab_out = pd.DataFrame(filas_wa_tab)
 
                         st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para marcar o desmarcar a cada consultora, o pulsa **'Abrir WhatsApp'** para chatear directamente.")
 
+                        cols_editor_tab = ['✅ Enviar', 'Consultora', 'Código CB', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Nota Líder']
+                        if uploaded_flyer_tab is not None:
+                            cols_editor_tab.append('📎 Flyer')
+                        cols_editor_tab.extend(['📲 Enviar WhatsApp', 'Mensaje Personalizado'])
+
+                        cfg_columnas_tab = {
+                            '✅ Enviar': st.column_config.CheckboxColumn(
+                                "✅ Enviar",
+                                help="Marca o desmarca la casilla para incluirla en el envío",
+                                default=True
+                            ),
+                            '📲 Enviar WhatsApp': st.column_config.LinkColumn(
+                                "📲 Enviar WhatsApp",
+                                display_text="Abrir WhatsApp"
+                            )
+                        }
+                        if uploaded_flyer_tab is not None:
+                            cfg_columnas_tab['📎 Flyer'] = st.column_config.TextColumn(
+                                "📎 Flyer",
+                                help="Flyer cargado listo para pegar con Ctrl + V",
+                                width="small"
+                            )
+
+                        cols_disabled_tab = [c for c in cols_editor_tab if c != '✅ Enviar']
+
                         df_editado_tab = st.data_editor(
-                            df_campana_tab_out[[
-                                '✅ Enviar', 'Consultora', 'Código CB', 'Sit. Comercial', 
-                                'Nivel / Color', 'Celular', 'Nota Líder', 
-                                '📲 Enviar WhatsApp', 'Mensaje Personalizado'
-                            ]],
-                            column_config={
-                                '✅ Enviar': st.column_config.CheckboxColumn(
-                                    "✅ Enviar",
-                                    help="Marca o desmarca la casilla para incluirla en el envío",
-                                    default=True
-                                ),
-                                '📲 Enviar WhatsApp': st.column_config.LinkColumn(
-                                    "📲 Enviar WhatsApp",
-                                    display_text="Abrir WhatsApp"
-                                )
-                            },
-                            disabled=[
-                                'Consultora', 'Código CB', 'Sit. Comercial', 
-                                'Nivel / Color', 'Celular', 'Nota Líder', 
-                                '📲 Enviar WhatsApp', 'Mensaje Personalizado'
-                            ],
+                            df_campana_tab_out[cols_editor_tab],
+                            column_config=cfg_columnas_tab,
+                            disabled=cols_disabled_tab,
                             use_container_width=True,
                             hide_index=True,
                             key=f"editor_campana_tab_{st.session_state.get('editor_ver_tab', 0)}"
@@ -5730,7 +6757,6 @@ if tab_tableau is not None:
                         </div>
                         """, unsafe_allow_html=True)
 
-
                         # Envío automático por Evolution API
                         with st.expander("🔌 Envío Masivo Automático por Evolution API (Opcional)", expanded=False):
                             st.markdown("##### 🚀 Envío Automático a Consultoras Seleccionadas:")
@@ -5750,6 +6776,14 @@ if tab_tableau is not None:
                             st.caption(f"📡 Conectando a instancia: **`{evo_inst_tab}`** en `{evo_url_tab}`")
                             delay_tab_wa = st.slider("⏱️ Pausa entre mensajes (Segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_tab_wa")
 
+                            tiene_flyer_bm = uploaded_flyer_tab is not None
+                            adjuntar_flyer_api_bm = st.checkbox(
+                                f"🖼️ Adjuntar imagen del Flyer ({uploaded_flyer_tab.name if tiene_flyer_bm else 'Ninguno subido'}) junto con el mensaje",
+                                value=tiene_flyer_bm,
+                                disabled=not tiene_flyer_bm,
+                                key="chk_adjuntar_flyer_evo_bm"
+                            )
+
                             btn_disparar_tab_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_marcadas)} Consultoras Marcadas", type="primary", use_container_width=True, key="btn_disparar_api_tab", disabled=(len(df_marcadas) == 0))
 
                             if btn_disparar_tab_api:
@@ -5767,31 +6801,62 @@ if tab_tableau is not None:
 
                                     if c_num and len(c_num) >= 10:
                                         try:
-                                             c_clean_t = f"57{c_num}" if not c_num.startswith('57') else c_num
-                                             e_url_t = f"{evo_url_tab.strip().rstrip('/')}/message/sendText/{evo_inst_tab.strip()}"
-                                             e_payload_t = {
-                                                 "number": c_clean_t,
-                                                 "text": msg_txt,
-                                                 "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
-                                             }
-                                             e_headers_t = {"apikey": evo_tok_tab.strip(), "Content-Type": "application/json"}
-                                             res_t = requests.post(e_url_t, json=e_payload_t, headers=e_headers_t, timeout=12)
-                                             if res_t.status_code in [200, 201]:
-                                                 ok_cnt_tab += 1
-                                                 registrar_log_whatsapp(
-                                                     modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="EXITOSO",
-                                                     http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
-                                                     rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
-                                                     destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
-                                                 )
-                                             else:
-                                                 err_cnt_tab += 1
-                                                 registrar_log_whatsapp(
-                                                     modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="FALLIDO",
-                                                     http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=current_user,
-                                                     rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
-                                                     destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
-                                                 )
+                                            c_clean_t = f"57{c_num}" if not c_num.startswith('57') else c_num
+                                            e_headers_t = {"apikey": evo_tok_tab.strip(), "Content-Type": "application/json"}
+                                            enviado_ok_bm = False
+                                            last_code_bm = 0
+                                            last_resp_bm = ""
+
+                                            # Intento multimedia si hay flyer
+                                            if adjuntar_flyer_api_bm and tiene_flyer_bm and 'b64_flyer_tab' in locals():
+                                                try:
+                                                    url_media_bm = f"{evo_url_tab.strip().rstrip('/')}/message/sendMedia/{evo_inst_tab.strip()}"
+                                                    payload_media_bm = {
+                                                        "number": c_clean_t,
+                                                        "mediatype": "image",
+                                                        "mimetype": mime_flyer_tab,
+                                                        "caption": msg_txt,
+                                                        "media": b64_flyer_tab,
+                                                        "fileName": uploaded_flyer_tab.name
+                                                    }
+                                                    res_m_bm = requests.post(url_media_bm, json=payload_media_bm, headers=e_headers_t, timeout=18)
+                                                    last_code_bm = res_m_bm.status_code
+                                                    last_resp_bm = res_m_bm.text
+                                                    if res_m_bm.status_code in [200, 201]:
+                                                        enviado_ok_bm = True
+                                                except Exception as ex_mb:
+                                                    last_resp_bm = f"Error sendMedia: {ex_mb}"
+                                                    enviado_ok_bm = False
+
+                                            if not enviado_ok_bm:
+                                                e_url_t = f"{evo_url_tab.strip().rstrip('/')}/message/sendText/{evo_inst_tab.strip()}"
+                                                e_payload_t = {
+                                                    "number": c_clean_t,
+                                                    "text": msg_txt,
+                                                    "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                                }
+                                                res_t = requests.post(e_url_t, json=e_payload_t, headers=e_headers_t, timeout=12)
+                                                last_code_bm = res_t.status_code
+                                                last_resp_bm = res_t.text
+                                                if res_t.status_code in [200, 201]:
+                                                    enviado_ok_bm = True
+
+                                            if enviado_ok_bm:
+                                                ok_cnt_tab += 1
+                                                registrar_log_whatsapp(
+                                                    modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="EXITOSO",
+                                                    http_codigo=last_code_bm, respuesta_servidor=last_resp_bm, remitente=current_user,
+                                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                                    destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                                )
+                                            else:
+                                                err_cnt_tab += 1
+                                                registrar_log_whatsapp(
+                                                    modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="FALLIDO",
+                                                    http_codigo=last_code_bm, respuesta_servidor=last_resp_bm, remitente=current_user,
+                                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_tab,
+                                                    destinatario_cb=c_cb, mensaje_snippet=msg_txt[:100]
+                                                )
                                         except Exception as ex_tab:
                                             err_cnt_tab += 1
                                             registrar_log_whatsapp(
@@ -6407,10 +7472,11 @@ if tab_tableau is not None:
                 st.markdown("##### 📲 Centro de Gestión & Campañas de WhatsApp")
                 st.caption("Genera mensajes comerciales hiper-personalizados y envíalos de inmediato a través de WhatsApp Web / Móvil o expórtalos para plataformas masivas.")
 
-                col_camp1, col_camp2 = st.columns([1.5, 2.5])
-                with col_camp1:
+                # 1. Segmentación de Destinatarias
+                col_seg1, col_seg2, col_seg3 = st.columns([1.5, 1.7, 1.0])
+                with col_seg1:
                     tipo_camp = st.selectbox(
-                        "🎯 Tipo de Campaña / Objetivo:",
+                        "🎯 Segmento Objetivo de Campaña:",
                         options=[
                             "💬 0. Listado Actualmente Filtrado (con Notas)",
                             "💳 1. Cobro de Cartera en Mora",
@@ -6422,83 +7488,53 @@ if tab_tableau is not None:
                         key="tipo_camp_sel_tab"
                     )
 
-                    # Segmentación automática según tipo de campaña
+                    # Segmentación de datos según tipo de campaña
                     if "0. Listado" in tipo_camp:
                         df_wa_target = df_tab_filt.copy()
-                        plantilla_def = (
-                            "Hola *{primer_nombre}* 🌸, te saluda tu Líder de *Natura & Avon*.\n\n"
-                            "Te contacto para contarte: *{nota}*.\n\n"
-                            "¡Quedo atenta para apoyarte en lo que necesites! ✨"
-                        )
                     elif "1. Cobro" in tipo_camp:
                         opt_filtro_mora = st.radio(
                             "🔍 Filtro de Cartera:",
-                            options=["🚨 Solo Consultoras con Saldo en Mora (> $0) [Recomendado]", "📋 Todas con Deuda Total (> $0)"],
+                            options=["🚨 Solo Saldo en Mora (> $0)", "📋 Toda Deuda Total (> $0)"],
                             index=0,
                             horizontal=True,
                             key="radio_filtro_cobro_wa"
                         )
-                        if "Solo Consultoras con Saldo en Mora" in opt_filtro_mora:
+                        if "Solo Saldo en Mora" in opt_filtro_mora:
                             df_wa_target = df_tab_filt[pd.to_numeric(df_tab_filt['Deuda Mora'], errors='coerce').fillna(0) > 0].copy()
                             df_wa_target = df_wa_target.sort_values(by='Deuda Mora', ascending=False)
                         else:
                             df_wa_target = df_tab_filt[pd.to_numeric(df_tab_filt['Deuda Total'], errors='coerce').fillna(0) > 0].copy()
                             df_wa_target = df_wa_target.sort_values(by=['Deuda Total', 'Deuda Mora'], ascending=[False, False])
-
-                        plantilla_def = (
-                            "Hola *{primer_nombre}* 🌸, te saluda tu Líder de *Natura & Avon*.\n\n"
-                            "Queremos recordarte que tienes un saldo pendiente de *{deuda_mora}* (Total: {deuda_total}).\n\n"
-                            "Te invitamos a realizar tu pago hoy para liberar tu cupo de crédito y seguir disfrutando de tus beneficios. ¡Escríbeme si necesitas apoyo con tu código de pago! 💳✨"
-                        )
                     elif "2. Liberación" in tipo_camp:
                         df_wa_target = df_tab_filt[(df_tab_filt['Ped. Pendientes'] > 0) | (df_tab_filt['Ped. Mora'] > 0)].copy()
-                        plantilla_def = (
-                            "Hola *{primer_nombre}* 🛍️, te saluda tu Líder de *Natura & Avon*.\n\n"
-                            "Tienes *{pedidos} pedido(s)* en espera de liberación por saldo de *{deuda_mora}*.\n\n"
-                            "Al poner al día tu pago hoy, tu pedido saldrá de inmediato para despacho. ¡Quedo atenta para ayudarte! 📦✨"
-                        )
                     elif "3. Impulso" in tipo_camp:
                         df_wa_target = df_tab_filt[(df_tab_filt['Pts Acum'] > 0) | (df_tab_filt['Pts Asc'] > 0)].copy()
-                        plantilla_def = (
-                            "¡Hola *{primer_nombre}*! 🌟 Felicitaciones por tus *{pts_acum} puntos* acumulados en tu nivel *{nivel}*.\n\n"
-                            "Estás muy cerca de tu siguiente meta de premios y beneficios exclusivos de este ciclo. ¡Pasa tu pedido y gana más con Natura & Avon! 🎁✨"
-                        )
                     elif "4. Reactivación" in tipo_camp:
                         df_wa_target = df_tab_filt[df_tab_filt['Sit. Comercial'].astype(str).str.contains('Inactiva', case=False, na=False)].copy()
-                        plantilla_def = (
-                            "¡Hola *{primer_nombre}*! 🌸 Te extrañamos mucho en nuestro grupo de *Natura & Avon*.\n\n"
-                            "En este ciclo tenemos promociones exclusivas, descuentos especiales y kits de reinicio pensados para ti.\n\n"
-                            "¿Te gustaría que te comparta el catálogo virtual interactivo de este ciclo? 📖✨"
-                        )
                     else:
                         df_wa_target = df_tab_filt.copy()
-                        plantilla_def = (
-                            "Hola *{primer_nombre}* 🌸, te saluda tu Líder de *Natura & Avon*.\n\n"
-                            "Queremos desearte muchos éxitos en este ciclo. ¡Cuenta con nosotras para tus pedidos y metas comerciales! ✨"
-                        )
 
-                    # --- FILTROS DE SEGMENTACIÓN: SITUACIÓN COMERCIAL & NIVEL/COLOR ---
+                with col_seg2:
                     c_sit_key = 'Sit. Comercial' if 'Sit. Comercial' in df_wa_target.columns else None
                     c_col_key = 'Color' if 'Color' in df_wa_target.columns else ('Nivel / Color' if 'Nivel / Color' in df_wa_target.columns else None)
-
                     sits_disp_sub = sorted([str(s).strip() for s in df_wa_target[c_sit_key].dropna().unique() if str(s).strip()]) if c_sit_key else []
                     colores_disp_sub = sorted([str(c).strip() for c in df_wa_target[c_col_key].dropna().unique() if str(c).strip()]) if c_col_key else []
 
                     col_f_sit, col_f_col = st.columns(2)
                     with col_f_sit:
                         filt_sit_sub = st.multiselect(
-                            "🚦 Filtrar por Situación:",
+                            "🚦 Situación Comercial:",
                             options=sits_disp_sub,
                             default=[],
-                            placeholder="Todas las situaciones...",
+                            placeholder="Todas...",
                             key="wa_subtab_filt_sit_com"
                         )
                     with col_f_col:
                         filt_col_sub = st.multiselect(
-                            "💎 Filtrar por Nivel / Color:",
+                            "💎 Nivel / Color:",
                             options=colores_disp_sub,
                             default=[],
-                            placeholder="Todos los colores...",
+                            placeholder="Todos...",
                             key="wa_subtab_filt_color"
                         )
 
@@ -6507,501 +7543,550 @@ if tab_tableau is not None:
                     if filt_col_sub and c_col_key:
                         df_wa_target = df_wa_target[df_wa_target[c_col_key].astype(str).str.strip().isin(filt_col_sub)]
 
-                    st.metric("👥 Consultoras en este Segmento", f"{len(df_wa_target):,} personas".replace(",", "."))
+                with col_seg3:
+                    st.metric("👥 En Segmento", f"{len(df_wa_target):,} personas".replace(",", "."))
 
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    st.markdown("###### 🖼️ Imagen o Flyer de Campaña")
-                    st.caption("Sube un flyer promocional, kit o aviso para acompañar tus mensajes:")
-                    uploaded_flyer = st.file_uploader(
-                        "Seleccionar imagen:",
-                        type=["png", "jpg", "jpeg", "webp"],
-                        key="uploader_flyer_campana",
-                        help="Sube una imagen para compartirla junto al mensaje en WhatsApp"
+                # 2. Redacción del Mensaje con Selector de Plantillas Rápidas de Ejemplo
+                col_red1, col_red2 = st.columns([1.3, 1.7])
+                with col_red1:
+                    idx_tpl_sug = 0
+                    if "1. Cobro" in tipo_camp: idx_tpl_sug = 1
+                    elif "2. Liberación" in tipo_camp: idx_tpl_sug = 2
+                    elif "3. Impulso" in tipo_camp: idx_tpl_sug = 3
+                    elif "4. Reactivación" in tipo_camp: idx_tpl_sug = 4
+                    elif "5. Mensaje Libre" in tipo_camp: idx_tpl_sug = 6
+
+                    plantilla_elegida = st.selectbox(
+                        "📝 Mensajes Rápidos / Plantillas de Ejemplo:",
+                        options=[
+                            "💬 1. Usar mis Notas / Comentarios del Listado",
+                            "💳 2. Cobro de Cartera en Mora",
+                            "⌛ 3. Liberación de Pedidos Retenidos",
+                            "🌟 4. Impulso de Puntos & Ascenso de Nivel",
+                            "🌸 5. Reactivación Comercial (Inactivas)",
+                            "🎂 6. Felicitación & Reconocimiento",
+                            "✍️ 7. Mensaje Libre / Personalizado"
+                        ],
+                        index=idx_tpl_sug,
+                        key="sel_plantilla_rapida_camp"
                     )
-                    if uploaded_flyer is not None:
-                        st.success(f"✅ **Imagen cargada**: `{uploaded_flyer.name}`")
 
-                with col_camp2:
+                    if "1. Usar mis Notas" in plantilla_elegida:
+                        plantilla_def = (
+                            "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                            "Te contacto para contarte: *{nota}*.\n\n"
+                            "¡Quedo atenta para apoyarte en lo que necesites! ✨"
+                        )
+                    elif "2. Cobro" in plantilla_elegida:
+                        plantilla_def = (
+                            "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                            "Queremos recordarte que tienes un saldo pendiente de *{deuda_mora}* (Total: {deuda_total}).\n\n"
+                            "Te invitamos a realizar tu pago hoy para liberar tu cupo de crédito y seguir disfrutando de tus beneficios. ¡Escríbeme si necesitas apoyo con tu código de pago! 💳✨"
+                        )
+                    elif "3. Liberación" in plantilla_elegida:
+                        plantilla_def = (
+                            "Hola *{primer_nombre}* 🛍️, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                            "Tienes *{pedidos} pedido(s)* en espera de liberación por saldo de *{deuda_mora}*.\n\n"
+                            "Al poner al día tu pago hoy, tu pedido saldrá de inmediato para despacho. ¡Quedo atenta para ayudarte! 📦✨"
+                        )
+                    elif "4. Impulso" in plantilla_elegida:
+                        plantilla_def = (
+                            "¡Hola *{primer_nombre}*! 🌟 Felicitaciones por tus *{pts_acum} puntos* acumulados en tu nivel *{nivel}*.\n\n"
+                            "Estás muy cerca de tu siguiente meta de premios y beneficios exclusivos de este ciclo. ¡Pasa tu pedido y gana más con Natura & Avon! 🎁✨"
+                        )
+                    elif "5. Reactivación" in plantilla_elegida:
+                        plantilla_def = (
+                            "¡Hola *{primer_nombre}*! 🌸 Te extrañamos mucho en nuestro grupo de *Natura & Avon*.\n\n"
+                            "En este ciclo tenemos promociones exclusivas, descuentos especiales y kits de reinicio pensados para ti.\n\n"
+                            "¿Te gustaría que te comparta el catálogo virtual interactivo de este ciclo? 📖✨"
+                        )
+                    elif "6. Felicitación" in plantilla_elegida:
+                        plantilla_def = (
+                            "¡Hola *{primer_nombre}*! 🎉 Te envío un saludo muy especial de parte de todo el equipo de *Natura & Avon*.\n\n"
+                            "Queremos desearte un ciclo lleno de éxitos, abundancia y grandes logros en tu negocio independiente. ¡Cuenta siempre con mi apoyo! 🌟💖"
+                        )
+                    else:
+                        plantilla_def = (
+                            "Hola *{primer_nombre}* 🌸, te saluda tu Líder {remitente} de *Natura & Avon*.\n\n"
+                            "Queremos desearte muchos éxitos en este ciclo. ¡Cuenta con nosotras para tus pedidos y metas comerciales! ✨"
+                        )
+
+                    remitente_wa = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_camp_wa")
+                    st.caption("💡 Elige un mensaje rápido para precargar el texto o escribe uno nuevo a la derecha.")
+
+                with col_red2:
                     plantilla_txt = st.text_area(
-                        "✏️ Plantilla del Mensaje (Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{remitente}`, `{deuda_mora}`, `{deuda_total}`, `{pedidos}`, `{nivel}`, `{pts_acum}`, `{credito_disp}`):",
+                        "✏️ Plantilla del Mensaje (Variables dinámicas permitidas):",
                         value=plantilla_def,
-                        height=130,
-                        key=f"plantilla_txt_{tipo_camp[:2]}"
+                        height=125,
+                        key=f"plantilla_txt_{plantilla_elegida[:2]}_{tipo_camp[:2]}"
                     )
+                    st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{remitente}`, `{deuda_mora}`, `{deuda_total}`, `{pedidos}`, `{nivel}`, `{pts_acum}`, `{credito_disp}`")
 
-                    if uploaded_flyer is not None:
-                        import base64
-                        import re
+                # 3. Flyer Opcional Compacto
+                uploaded_flyer = None
+                with st.expander("🖼️ Adjuntar Imagen o Flyer de Campaña (Opcional)", expanded=False):
+                    col_fly1, col_fly2 = st.columns([1.2, 1.8])
+                    with col_fly1:
+                        uploaded_flyer = st.file_uploader(
+                            "Subir imagen (Flyer, Kit o Catálogo):",
+                            type=["png", "jpg", "jpeg", "webp"],
+                            key="uploader_flyer_campana",
+                            help="Sube una imagen para compartirla junto al mensaje en WhatsApp"
+                        )
+                    with col_fly2:
+                        if uploaded_flyer is not None:
+                            import base64
+                            import re
+                            b64_flyer = base64.b64encode(uploaded_flyer.getvalue()).decode('utf-8')
+                            mime_flyer = uploaded_flyer.type or "image/png"
+                            flyer_kb = len(uploaded_flyer.getvalue()) // 1024
 
-                        b64_flyer = base64.b64encode(uploaded_flyer.getvalue()).decode('utf-8')
-                        mime_flyer = uploaded_flyer.type or "image/png"
-                        flyer_kb = len(uploaded_flyer.getvalue()) // 1024
-
-                        # Asegurar persistencia del flyer en disco
-                        try:
-                            dir_campanas = os.path.join('data', 'campanas')
-                            os.makedirs(dir_campanas, exist_ok=True)
-                            with open(os.path.join(dir_campanas, uploaded_flyer.name), 'wb') as f_fly:
-                                f_fly.write(uploaded_flyer.getvalue())
-                        except Exception:
-                            pass
-
-                        # Tarjeta de acción rápida y guía
-                        st.markdown(f"""
-                        <div style="background: linear-gradient(135deg, rgba(37, 211, 102, 0.08) 0%, rgba(227, 0, 123, 0.05) 100%);
-                                    border: 1px solid rgba(37, 211, 102, 0.35); border-radius: 12px; padding: 12px 16px; margin-top: 8px; margin-bottom: 8px;">
-                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-                                <div style="font-weight: 700; color: #128C7E; font-size: 0.92rem; display: flex; align-items: center; gap: 8px;">
-                                    <span>🖼️</span> Flyer Listo: <strong>{uploaded_flyer.name}</strong> ({flyer_kb} KB)
-                                </div>
-                                <span style="background: #25D366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.72rem; font-weight: 700;">
-                                    LISTO PARA WHATSAPP
-                                </span>
-                            </div>
-                            <div style="font-size: 0.83rem; color: #334155; line-height: 1.4;">
-                                <strong>⚡ Envío rápido en 3 pasos:</strong><br>
-                                1️⃣ Haz clic en <strong>📋 Copiar Flyer</strong> (o clic derecho sobre la imagen ➔ <em>Copiar imagen</em>).<br>
-                                2️⃣ En la tabla de abajo, haz clic en <strong>📲 Enviar WA</strong> para abrir el chat con el mensaje listo.<br>
-                                3️⃣ En WhatsApp presiona <strong>Ctrl + V</strong> (o Pegar) y ¡envía el mensaje con la imagen juntos!
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
-
-                        col_btn_img1, col_btn_img2 = st.columns([1.5, 1])
-                        with col_btn_img1:
-                            copy_script_html = f"""
-                            <div style="display: flex; flex-direction: column; gap: 4px; font-family: sans-serif;">
-                                <button id="btnCopiarFlyerClip" onclick="copiarFlyerAlPortapapeles()" style="
-                                    background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
-                                    color: white; border: none; padding: 9px 14px; border-radius: 9px;
-                                    font-weight: 700; font-size: 0.85rem; cursor: pointer; width: 100%;
-                                    display: flex; align-items: center; justify-content: center; gap: 8px;
-                                    box-shadow: 0 4px 10px rgba(37, 211, 102, 0.25);
-                                ">
-                                    📋 Copiar Flyer al Portapapeles (1 Clic)
-                                </button>
-                                <div id="statusCopiarFlyer" style="font-size: 0.78rem; color: #128C7E; font-weight: 600; text-align: center; display: none;"></div>
-                            </div>
-                            <script>
-                            async function copiarFlyerAlPortapapeles() {{
-                                try {{
-                                    const b64 = "{b64_flyer}";
-                                    const byteCharacters = atob(b64);
-                                    const byteNumbers = new Array(byteCharacters.length);
-                                    for (let i = 0; i < byteCharacters.length; i++) {{
-                                        byteNumbers[i] = byteCharacters.charCodeAt(i);
-                                    }}
-                                    const byteArray = new Uint8Array(byteNumbers);
-                                    const blob = new Blob([byteArray], {{ type: "{mime_flyer}" }});
-                                    await navigator.clipboard.write([
-                                        new ClipboardItem({{ [blob.type]: blob }})
-                                    ]);
-                                    const el = document.getElementById('statusCopiarFlyer');
-                                    el.innerText = '✅ ¡Flyer copiado! Abre WhatsApp y presiona Ctrl + V';
-                                    el.style.display = 'block';
-                                }} catch (e) {{
-                                    const el = document.getElementById('statusCopiarFlyer');
-                                    el.innerHTML = '💡 <em>Para copiar: Clic derecho sobre la imagen abajo ➔ "Copiar imagen"</em>';
-                                    el.style.display = 'block';
-                                }}
-                            }}
-                            </script>
-                            """
-                            st.components.v1.html(copy_script_html, height=58)
-                        with col_btn_img2:
-                            st.download_button(
-                                "📥 Descargar Flyer",
-                                data=uploaded_flyer.getvalue(),
-                                file_name=uploaded_flyer.name,
-                                mime=mime_flyer,
-                                use_container_width=True
-                            )
-
-                        # Mockup visual de Simulación WhatsApp
-                        with st.expander("👁️ Vista Previa: ¿Cómo verá el mensaje la consultora en WhatsApp?", expanded=False):
-                            if not df_wa_target.empty:
-                                r_sample = df_wa_target.iloc[0]
-                                sample_nom = str(r_sample.get('Nombre', r_sample.get('Consultora', r_sample.get('Asesora / Consultora', 'María')))).strip()
-                                sample_p_nom = sample_nom.split()[0].title() if sample_nom else "Consultora"
-                                sample_dm = formato_cop(r_sample.get('Deuda Mora', 0))
-                                sample_dt = formato_cop(r_sample.get('Deuda Total', 0))
-                                sample_cr = formato_cop(r_sample.get('Credito Disponible', 0))
-                                sample_ped = int(limpiar_numero(r_sample.get('Ped. Pendientes', 0)))
-                                sample_pts = int(limpiar_numero(r_sample.get('Pts Acum', 0)))
-                                sample_niv = str(r_sample.get('Color', r_sample.get('Nivel / Color', 'Consultora')))
-
-                                txt_preview_sim = (
-                                    plantilla_txt
-                                    .replace("{primer_nombre}", sample_p_nom)
-                                    .replace("{nombre}", sample_nom.title())
-                                    .replace("{deuda_mora}", sample_dm)
-                                    .replace("{deuda_total}", sample_dt)
-                                    .replace("{credito_disp}", sample_cr)
-                                    .replace("{pedidos}", str(sample_ped))
-                                    .replace("{pts_acum}", str(sample_pts))
-                                    .replace("{nivel}", sample_niv)
-                                )
-                            else:
-                                txt_preview_sim = plantilla_txt.replace("{primer_nombre}", "María Cristina").replace("{deuda_mora}", "$150.000")
-
-                            txt_preview_sim_html = (
-                                re.sub(r'\*(.*?)\*', r'<strong>\1</strong>', txt_preview_sim)
-                                .replace('\n', '<br>')
-                            )
-                            hora_preview = datetime.now().strftime("%I:%M %p")
+                            # Asegurar persistencia del flyer en disco
+                            try:
+                                dir_campanas = os.path.join('data', 'campanas')
+                                os.makedirs(dir_campanas, exist_ok=True)
+                                with open(os.path.join(dir_campanas, uploaded_flyer.name), 'wb') as f_fly:
+                                    f_fly.write(uploaded_flyer.getvalue())
+                            except Exception:
+                                pass
 
                             st.markdown(f"""
-                            <div style="background: #EFEAE2; border-radius: 12px; padding: 14px; max-width: 440px; margin: 4px auto; border: 1px solid #D1D7DB; box-shadow: 0 4px 12px rgba(0,0,0,0.06);">
-                                <div style="font-size: 0.7rem; color: #667781; font-weight: 700; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">
-                                    🟢 SIMULACIÓN CHAT WHATSAPP
+                            <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.35); border-radius: 10px; padding: 10px 14px; margin-bottom: 8px;">
+                                <div style="font-weight: 700; color: #128C7E; font-size: 0.88rem; display: flex; align-items: center; justify-content: space-between;">
+                                    <span>🖼️ Flyer Listo: <strong>{uploaded_flyer.name}</strong> ({flyer_kb} KB)</span>
+                                    <span style="background: #25D366; color: white; padding: 2px 7px; border-radius: 8px; font-size: 0.70rem; font-weight: 700;">LISTO PARA WHATSAPP</span>
                                 </div>
-                                <div style="background: #FFFFFF; border-radius: 8px 8px 8px 0; overflow: hidden; box-shadow: 0 1px 2px rgba(11,20,26,0.15);">
-                                    <img src="data:{mime_flyer};base64,{b64_flyer}" style="width: 100%; max-height: 220px; object-fit: cover; display: block;" />
-                                    <div style="padding: 8px 10px 4px 10px; font-size: 0.85rem; color: #111B21; line-height: 1.45; word-break: break-word;">
-                                        {txt_preview_sim_html}
-                                        <div style="text-align: right; font-size: 0.65rem; color: #667781; margin-top: 4px;">
-                                            {hora_preview} <span style="color: #53BDEB;">✓✓</span>
-                                        </div>
-                                    </div>
+                                <div style="font-size: 0.78rem; color: #475569; margin-top: 3px;">
+                                    Pulsa <strong>Copiar Flyer</strong> y luego en WhatsApp presiona <strong>Ctrl + V</strong> para enviar imagen y mensaje juntos.
                                 </div>
                             </div>
                             """, unsafe_allow_html=True)
-                    else:
-                        st.markdown("""
-                        <div style="background: rgba(255, 107, 0, 0.05); border: 1px dashed rgba(255, 107, 0, 0.3); border-radius: 10px; padding: 10px 14px; margin-top: 8px;">
-                            <span style="font-size: 0.84rem; color: #64748B;">
-                                💡 <strong>Tip Comercial</strong>: Puedes subir un flyer promocional, kit o catálogo en el panel izquierdo (<strong>🖼️ Imagen o Flyer de Campaña</strong>) para acompañar tus mensajes y hacerlos mucho más atractivos.
-                            </span>
-                        </div>
-                        """, unsafe_allow_html=True)
+
+                            col_btn_img1, col_btn_img2 = st.columns([1.5, 1])
+                            with col_btn_img1:
+                                copy_script_html = f"""
+                                <div style="display: flex; flex-direction: column; gap: 4px; font-family: sans-serif;">
+                                    <button id="btnCopiarFlyerClip" onclick="copiarFlyerAlPortapapeles()" style="
+                                        background: linear-gradient(135deg, #25D366 0%, #128C7E 100%);
+                                        color: white; border: none; padding: 8px 12px; border-radius: 8px;
+                                        font-weight: 700; font-size: 0.82rem; cursor: pointer; width: 100%;
+                                        display: flex; align-items: center; justify-content: center; gap: 6px;
+                                        box-shadow: 0 2px 6px rgba(37, 211, 102, 0.25);
+                                    ">
+                                        📋 Copiar Flyer al Portapapeles (1 Clic)
+                                    </button>
+                                    <div id="statusCopiarFlyer" style="font-size: 0.75rem; color: #128C7E; font-weight: 600; text-align: center; display: none;"></div>
+                                </div>
+                                <script>
+                                async function copiarFlyerAlPortapapeles() {{
+                                    try {{
+                                        const b64 = "{b64_flyer}";
+                                        const byteCharacters = atob(b64);
+                                        const byteNumbers = new Array(byteCharacters.length);
+                                        for (let i = 0; i < byteCharacters.length; i++) {{
+                                            byteNumbers[i] = byteCharacters.charCodeAt(i);
+                                        }}
+                                        const byteArray = new Uint8Array(byteNumbers);
+                                        const blob = new Blob([byteArray], {{ type: "{mime_flyer}" }});
+                                        await navigator.clipboard.write([
+                                            new ClipboardItem({{ [blob.type]: blob }})
+                                        ]);
+                                        const el = document.getElementById('statusCopiarFlyer');
+                                        el.innerText = '✅ ¡Flyer copiado! Abre WhatsApp y presiona Ctrl + V';
+                                        el.style.display = 'block';
+                                    }} catch (e) {{
+                                        const el = document.getElementById('statusCopiarFlyer');
+                                        el.innerHTML = '💡 <em>Para copiar: Clic derecho sobre la imagen abajo ➔ "Copiar imagen"</em>';
+                                        el.style.display = 'block';
+                                    }}
+                                }}
+                                </script>
+                                """
+                                st.components.v1.html(copy_script_html, height=52)
+                            with col_btn_img2:
+                                st.download_button(
+                                    "📥 Descargar Flyer",
+                                    data=uploaded_flyer.getvalue(),
+                                    file_name=uploaded_flyer.name,
+                                    mime=mime_flyer,
+                                    use_container_width=True
+                                )
+                        else:
+                            st.caption("💡 **Sin imagen adjunta**: La campaña enviará mensajes de texto directos hiper-personalizados. Si deseas acompañarlos con una imagen, súbela a la izquierda.")
 
                 st.markdown("---")
 
                 if df_wa_target.empty:
                     st.info("ℹ️ No hay consultoras que cumplan con el criterio del segmento y filtros seleccionados.")
                 else:
-                    # --- CONTROL DE SELECCIÓN: TODAS O SOLO UNAS POCAS ---
+                    # --- CONTROL DE SELECCIÓN DIRECTA CON CASILLAS EN TABLA ---
                     c_col_cb = 'Código CB' if 'Código CB' in df_wa_target.columns else ('Codigo CB' if 'Codigo CB' in df_wa_target.columns else None)
                     c_col_nom = 'Consultora' if 'Consultora' in df_wa_target.columns else ('Nombre' if 'Nombre' in df_wa_target.columns else ('Asesora / Consultora' if 'Asesora / Consultora' in df_wa_target.columns else None))
                     c_col_cel = 'Celular' if 'Celular' in df_wa_target.columns else ('celular' if 'celular' in df_wa_target.columns else None)
+                    c_col_sit = 'Sit. Comercial' if 'Sit. Comercial' in df_wa_target.columns else None
+                    c_col_col = 'Color' if 'Color' in df_wa_target.columns else ('Nivel / Color' if 'Nivel / Color' in df_wa_target.columns else None)
+                    c_col_nota = 'Notas / Comentarios Líder' if 'Notas / Comentarios Líder' in df_wa_target.columns else ('Comentarios_Lider' if 'Comentarios_Lider' in df_wa_target.columns else None)
+                    c_col_ped = 'Ped. Pendientes' if 'Ped. Pendientes' in df_wa_target.columns else None
+                    c_col_mora = 'Deuda Mora' if 'Deuda Mora' in df_wa_target.columns else None
+                    c_col_pts = 'Pts Acum' if 'Pts Acum' in df_wa_target.columns else None
+                    c_col_grp = 'Grupo' if 'Grupo' in df_wa_target.columns else None
 
-                    mapa_cbs_camp = {}
-                    for _, r_w in df_wa_target.iterrows():
-                        k_cb = str(r_w.get(c_col_cb, '')).strip()
-                        n_nom = str(r_w.get(c_col_nom, '')).strip()
-                        n_col = str(r_w.get(c_col_key, '')) if c_col_key else ''
-                        n_sit = str(r_w.get(c_sit_key, '')) if c_sit_key else ''
-                        n_cel = str(r_w.get(c_col_cel, '')).strip() if c_col_cel else ''
-                        etiqueta = f"[{n_col}] [{n_sit}] {n_nom} (CB: {k_cb})"
-                        if n_cel and n_cel.lower() not in ['nan', 'none', '']:
-                            etiqueta += f" 📱 {n_cel.split('.')[0]}"
-                        mapa_cbs_camp[k_cb] = etiqueta
+                    # Subconjuntos rápidos para segmentación
+                    cbs_todas = [str(r.get(c_col_cb, '')).strip() for _, r in df_wa_target.iterrows() if str(r.get(c_col_cb, '')).strip()]
+                    cbs_inactivas = [str(r.get(c_col_cb, '')).strip() for _, r in df_wa_target.iterrows() if 'inactiva' in str(r.get(c_col_sit, '')).lower()] if c_col_sit else []
+                    cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_wa_target.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
+                    cbs_con_mora = [str(r.get(c_col_cb, '')).strip() for _, r in df_wa_target.iterrows() if float(limpiar_numero(r.get(c_col_mora, 0))) > 0] if c_col_mora else []
+                    cbs_con_notas = [str(r.get(c_col_cb, '')).strip() for _, r in df_wa_target.iterrows() if str(r.get(c_col_nota, '')).strip() and str(r.get(c_col_nota, '')).strip().lower() not in ['nan', 'none', '-']] if c_col_nota else []
 
-                    # Control dinámico de selección para permitir elegir "solo unas pocas"
+                    # Control de estado de casillas
                     hash_seg_camp = f"{tipo_camp}_{filt_sit_sub}_{filt_col_sub}_{len(df_wa_target)}"
                     if st.session_state.get('wa_camp_hash_prev') != hash_seg_camp:
                         st.session_state['wa_camp_hash_prev'] = hash_seg_camp
-                        st.session_state['cbs_sel_wa_camp'] = list(mapa_cbs_camp.keys())
+                        st.session_state['cbs_sel_wa_camp'] = set(cbs_todas)
+                        st.session_state['editor_ver_camp'] = st.session_state.get('editor_ver_camp', 0) + 1
 
-                    st.markdown("###### 👥 Selección de Consultoras Destinatarias (Enviar a Todas o Solo unas Pocas):")
-                    col_sel1, col_sel2, col_sel_status = st.columns([1.2, 1.6, 2.5])
-                    with col_sel1:
-                        if st.button(f"👥 Todas ({len(mapa_cbs_camp)})", key="btn_sel_todas_wa_camp", use_container_width=True):
-                            st.session_state['cbs_sel_wa_camp'] = list(mapa_cbs_camp.keys())
+                    if 'cbs_sel_wa_camp' not in st.session_state or st.session_state['cbs_sel_wa_camp'] is None:
+                        st.session_state['cbs_sel_wa_camp'] = set(cbs_todas)
+                    elif isinstance(st.session_state['cbs_sel_wa_camp'], list):
+                        st.session_state['cbs_sel_wa_camp'] = set(st.session_state['cbs_sel_wa_camp'])
+
+                    if 'editor_ver_camp' not in st.session_state:
+                        st.session_state['editor_ver_camp'] = 0
+
+                    st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 4px 0 2px 0;'>🎯 Segmentación Rápida con Casillas (O marca/desmarca directamente en la lista abajo):</p>", unsafe_allow_html=True)
+                    b_cols = st.columns(5)
+                    with b_cols[0]:
+                        if st.button(f"👥 Todas ({len(df_wa_target)})", key="btn_sel_todas_wa_camp", use_container_width=True):
+                            st.session_state['cbs_sel_wa_camp'] = set(cbs_todas)
+                            st.session_state['editor_ver_camp'] = st.session_state.get('editor_ver_camp', 0) + 1
                             st.rerun()
-                    with col_sel2:
-                        if st.button("🧹 Deseleccionar (Elegir Pocas)", key="btn_desel_wa_camp", use_container_width=True):
-                            st.session_state['cbs_sel_wa_camp'] = []
+                    with b_cols[1]:
+                        if st.button(f"🌸 Inactivas ({len(cbs_inactivas)})", key="btn_sel_inact_wa_camp", use_container_width=True):
+                            st.session_state['cbs_sel_wa_camp'] = set(cbs_inactivas)
+                            st.session_state['editor_ver_camp'] = st.session_state.get('editor_ver_camp', 0) + 1
                             st.rerun()
-                    with col_sel_status:
-                        cant_sel_ahora = len([c for c in st.session_state.get('cbs_sel_wa_camp', []) if c in mapa_cbs_camp])
-                        if cant_sel_ahora == len(mapa_cbs_camp):
-                            st.markdown(f"<div style='padding-top: 6px; font-weight: 700; color: #10B981;'>✅ Todas las {cant_sel_ahora:,} consultoras seleccionadas</div>".replace(",", "."), unsafe_allow_html=True)
-                        elif cant_sel_ahora > 0:
-                            st.markdown(f"<div style='padding-top: 6px; font-weight: 700; color: #38BDF8;'>🎯 {cant_sel_ahora:,} consultora(s) seleccionada(s) de {len(mapa_cbs_camp):,}</div>".replace(",", "."), unsafe_allow_html=True)
-                        else:
-                            st.markdown("<div style='padding-top: 6px; font-weight: 700; color: #F59E0B;'>⚠️ Ninguna seleccionada. Busca abajo para elegir solo a las que quieras.</div>", unsafe_allow_html=True)
+                    with b_cols[2]:
+                        if st.button(f"⌛ Con Pedidos ({len(cbs_con_ped)})", key="btn_sel_ped_wa_camp", use_container_width=True):
+                            st.session_state['cbs_sel_wa_camp'] = set(cbs_con_ped)
+                            st.session_state['editor_ver_camp'] = st.session_state.get('editor_ver_camp', 0) + 1
+                            st.rerun()
+                    with b_cols[3]:
+                        lbl_b4 = f"💳 Con Mora ({len(cbs_con_mora)})" if cbs_con_mora else (f"💬 Con Notas ({len(cbs_con_notas)})" if cbs_con_notas else "💳 Con Mora (0)")
+                        act_b4 = cbs_con_mora if cbs_con_mora else cbs_con_notas
+                        if st.button(lbl_b4, key="btn_sel_extra_wa_camp", use_container_width=True):
+                            st.session_state['cbs_sel_wa_camp'] = set(act_b4)
+                            st.session_state['editor_ver_camp'] = st.session_state.get('editor_ver_camp', 0) + 1
+                            st.rerun()
+                    with b_cols[4]:
+                        if st.button("🧹 Ninguna (0)", key="btn_desel_todas_wa_camp", use_container_width=True):
+                            st.session_state['cbs_sel_wa_camp'] = set()
+                            st.session_state['editor_ver_camp'] = st.session_state.get('editor_ver_camp', 0) + 1
+                            st.rerun()
 
-                    sel_cbs_elegidos = st.multiselect(
-                        "Busca por nombre o código CB para enviar solo a las consultoras elegidas:",
-                        options=list(mapa_cbs_camp.keys()),
-                        default=[c for c in st.session_state.get('cbs_sel_wa_camp', list(mapa_cbs_camp.keys())) if c in mapa_cbs_camp],
-                        format_func=lambda c: mapa_cbs_camp.get(c, c),
-                        placeholder="Escribe el nombre o código para elegir consultoras específicas...",
-                        key="multiselect_cbs_wa_camp_widget"
-                    )
-                    st.session_state['cbs_sel_wa_camp'] = sel_cbs_elegidos
+                    # Construir filas de la tabla interactiva
+                    filas_wa = []
+                    set_sel_actual = st.session_state.get('cbs_sel_wa_camp', set(cbs_todas))
 
-                    # Filtrar el DataFrame final a las destinatarias activas
-                    df_wa_destinatarias = df_wa_target[df_wa_target[c_col_cb].astype(str).str.strip().isin(sel_cbs_elegidos)].copy()
+                    for idx, r in df_wa_target.iterrows():
+                        cb_val = str(r.get(c_col_cb, '')).strip()
+                        nom_full = str(r.get('Nombre', r.get('Consultora', r.get('Asesora / Consultora', '')))).strip()
+                        primer_n = nom_full.split()[0].title() if nom_full else "Consultora"
+                        cel_raw = str(r.get('Celular', r.get('celular', ''))).strip().replace(' ', '').replace('-', '').replace('+', '')
+                        cel = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
 
-                    if df_wa_destinatarias.empty:
-                        st.warning("⚠️ No has seleccionado ninguna consultora para el envío. Pulsa **'👥 Todas'** o busca por nombre arriba para elegir.")
-                    else:
-                        st.markdown(f"###### 📋 Listado de Contacto ({len(df_wa_destinatarias)} Consultoras Listas)")
-                        if uploaded_flyer is not None:
-                            st.caption(f"Haz clic en el enlace verde **📲 Enviar WA** para abrir el chat con el mensaje listo. Luego presiona **Ctrl + V** para adjuntar el flyer *({uploaded_flyer.name})*, o usa el **Envío Automático** abajo:")
-                        else:
-                            st.caption("Haz clic en **📲 Enviar WA** para abrir el chat instantáneo 1 a 1, o usa el **Envío Masivo Automático** más abajo:")
+                        nota_val = str(r.get('Notas / Comentarios Líder', r.get('Comentarios_Lider', r.get('nota', '')))).strip()
+                        if not nota_val or nota_val.lower() in ['nan', 'none', '-']:
+                            nota_val = ""
 
-                        # Construir tabla con enlaces directos de WhatsApp
-                        filas_wa = []
-                        for idx, r in df_wa_destinatarias.iterrows():
-                            nom_full = str(r.get('Nombre', r.get('Consultora', r.get('Asesora / Consultora', '')))).strip()
-                            primer_n = nom_full.split()[0].title() if nom_full else "Consultora"
-                            cel_raw = str(r.get('Celular', r.get('celular', ''))).strip().replace(' ', '').replace('-', '').replace('+', '')
-                            cel = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
+                        deuda_m = formato_cop(r.get('Deuda Mora', 0))
+                        deuda_t = formato_cop(r.get('Deuda Total', 0))
+                        cred_d = formato_cop(r.get('Credito Disponible', 0))
+                        ped_val = int(limpiar_numero(r.get('Ped. Pendientes', 0)))
+                        pts_val = int(limpiar_numero(r.get('Pts Acum', 0)))
+                        col_nivel = str(r.get('Color', r.get('Nivel / Color', 'Consultora')))
+                        sit_val = str(r.get('Sit. Comercial', ''))
+                        grp_val = str(r.get('Grupo', ''))
+                        remitente_wa = user_nombre if user_nombre else "Tu Líder"
 
-                            nota_val = str(r.get('Notas / Comentarios Líder', r.get('Comentarios_Lider', r.get('nota', '')))).strip()
-                            if not nota_val or nota_val.lower() in ['nan', 'none']:
-                                nota_val = ""
-
-                            deuda_m = formato_cop(r.get('Deuda Mora', 0))
-                            deuda_t = formato_cop(r.get('Deuda Total', 0))
-                            cred_d = formato_cop(r.get('Credito Disponible', 0))
-                            ped_val = int(limpiar_numero(r.get('Ped. Pendientes', 0)))
-                            pts_val = int(limpiar_numero(r.get('Pts Acum', 0)))
-                            col_nivel = str(r.get('Color', r.get('Nivel / Color', 'Consultora')))
-                            remitente_wa = user_nombre if user_nombre else "Tu Líder"
-
-                            # Reemplazar variables en plantilla
-                            msg_personalizado = (
-                                plantilla_txt
-                                .replace("{primer_nombre}", primer_n)
-                                .replace("{nombre}", nom_full.title())
-                                .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
-                                .replace("{remitente}", remitente_wa)
-                                .replace("{deuda_mora}", deuda_m)
-                                .replace("{deuda_total}", deuda_t)
-                                .replace("{credito_disp}", cred_d)
-                                .replace("{pedidos}", str(ped_val))
-                                .replace("{pts_acum}", str(pts_val))
-                                .replace("{nivel}", col_nivel)
-                            )
-
-                            link_wa = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_personalizado)}" if cel and len(cel) >= 10 else ""
-
-                            filas_wa.append({
-                                'Código CB': str(r.get('Codigo CB', r.get('Código CB', ''))),
-                                'Consultora': nom_full,
-                                'Grupo': str(r.get('Grupo', '')),
-                                'Celular': cel if cel else "Sin registrar",
-                                'Sit. Comercial': str(r.get('Sit. Comercial', '')),
-                                'Nivel / Color': col_nivel,
-                                'Nota Líder': nota_val if nota_val else "-",
-                                'Deuda Mora': deuda_m,
-                                'Deuda Total': deuda_t,
-                                'Ped. Pendientes': ped_val,
-                                'Adjunto': '🖼️ Flyer Listo' if uploaded_flyer else 'Solo Texto',
-                                'Flyer Archivo': uploaded_flyer.name if uploaded_flyer else '',
-                                'Mensaje Generado': msg_personalizado,
-                                'Enlace WhatsApp': link_wa
-                            })
-
-                        df_wa_table = pd.DataFrame(filas_wa)
-
-                        # Columnas a mostrar según si hay imagen
-                        cols_mostrar_wa = ['Código CB', 'Consultora', 'Grupo', 'Celular', 'Sit. Comercial', 'Nivel / Color', 'Nota Líder', 'Deuda Mora']
-                        if "1. Cobro" in tipo_camp:
-                            cols_mostrar_wa.append('Deuda Total')
-                        cols_mostrar_wa.append('Ped. Pendientes')
-                        if uploaded_flyer is not None:
-                            cols_mostrar_wa.append('Adjunto')
-                        cols_mostrar_wa.append('Enlace WhatsApp')
-
-                        cfg_columnas_wa = {
-                            "Enlace WhatsApp": st.column_config.LinkColumn(
-                                "📲 Chat WhatsApp",
-                                help="Haz clic para abrir WhatsApp Web o App con el mensaje listo",
-                                display_text="📲 Enviar WA"
-                            )
-                        }
-                        if uploaded_flyer is not None:
-                            cfg_columnas_wa["Adjunto"] = st.column_config.TextColumn(
-                                "📎 Flyer",
-                                help="Flyer cargado listo para pegar con Ctrl + V",
-                                width="small"
-                            )
-
-                        # Mostrar con column_config LinkColumn
-                        st.dataframe(
-                            df_wa_table[cols_mostrar_wa],
-                            column_config=cfg_columnas_wa,
-                            use_container_width=True,
-                            hide_index=True
+                        # Reemplazar variables en plantilla
+                        msg_personalizado = (
+                            plantilla_txt
+                            .replace("{primer_nombre}", primer_n)
+                            .replace("{nombre}", nom_full.title())
+                            .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                            .replace("{remitente}", remitente_wa)
+                            .replace("{deuda_mora}", deuda_m)
+                            .replace("{deuda_total}", deuda_t)
+                            .replace("{credito_disp}", cred_d)
+                            .replace("{pedidos}", str(ped_val))
+                            .replace("{pts_acum}", str(pts_val))
+                            .replace("{nivel}", col_nivel)
                         )
 
-                        # Botones de Descarga Masiva (CSV y Excel)
-                        col_exp1, col_exp2, col_exp3 = st.columns([1.5, 1.5, 2])
-                        with col_exp1:
-                            csv_wa_bytes = df_wa_table.to_csv(index=False).encode('utf-8-sig')
-                            label_csv_exp = "📥 Exportar Base (CSV)"
-                            st.download_button(
-                                label=label_csv_exp,
-                                data=csv_wa_bytes,
-                                file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.csv",
-                                mime="text/csv",
-                                use_container_width=True,
-                                key="btn_descarga_csv_wa_camp"
-                            )
-                        with col_exp2:
-                            towrite_camp_xlsx = io.BytesIO()
-                            with pd.ExcelWriter(towrite_camp_xlsx, engine='openpyxl') as writer:
-                                df_wa_table.to_excel(writer, sheet_name="Campana_WhatsApp", index=False)
-                            towrite_camp_xlsx.seek(0)
-                            st.download_button(
-                                label=f"📥 Descargar en Excel ({len(df_wa_table)})",
-                                data=towrite_camp_xlsx,
-                                file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.xlsx",
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True,
-                                key="btn_descarga_xlsx_wa_camp"
-                            )
-                        with col_exp3:
-                            if uploaded_flyer is not None:
-                                st.caption(f"💡 **Campaña Multimedia**: Incluye flyer (*{uploaded_flyer.name}*) y {len(df_wa_table)} consultoras seleccionadas.")
-                            else:
-                                st.caption(f"💡 **Campaña de Texto**: Lista para enviar 1 a 1 o con el Robot Automático de abajo.")
+                        link_wa = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(msg_personalizado)}" if cel and len(cel) >= 10 else ""
 
-                        # --- DESPACHADOR AUTOMÁTICO EVOLUTION API ---
-                        st.markdown("---")
-                        with st.expander(f"🔌 Envío Masivo Automático por Evolution API ({len(df_wa_destinatarias)} Consultoras Seleccionadas)", expanded=(len(df_wa_destinatarias) <= 50)):
-                            st.markdown("##### 🚀 Envío Automático por WhatsApp (Robot de Despacho):")
-                            st.caption("Envía de forma automatizada los mensajes a las consultoras seleccionadas sin tocar tu teléfono una a una, usando la sesión de WhatsApp ya vinculada.")
+                        fila_item = {
+                            '✅ Enviar': cb_val in set_sel_actual,
+                            'Consultora': nom_full,
+                            'Código CB': cb_val,
+                            'Grupo': grp_val,
+                            'Celular': cel if cel else "Sin registrar",
+                            'Sit. Comercial': sit_val,
+                            'Nivel / Color': col_nivel,
+                            'Nota Líder': nota_val if nota_val else "-",
+                            'Deuda Mora': deuda_m,
+                            'Ped. Pendientes': ped_val,
+                            '📲 Chat WhatsApp': link_wa,
+                            'Mensaje Generado': msg_personalizado,
+                            'Deuda Total': deuda_t,
+                            'deuda_mora_num': float(limpiar_numero(r.get('Deuda Mora', 0)))
+                        }
+                        if uploaded_flyer is not None:
+                            fila_item['📎 Flyer'] = '🖼️ Flyer Listo'
+                        filas_wa.append(fila_item)
 
-                            import requests
-                            evo_url_camp = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
-                            inst_def_camp = obtener_instancia_evolution(current_user, user_rol, user_grupo)
-                            if 'in_evo_instance' in st.session_state:
-                                val_inst_prev = str(st.session_state['in_evo_instance'])
-                                if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
-                                    st.session_state['in_evo_instance'] = inst_def_camp
-                            evo_inst_camp = st.session_state.get('in_evo_instance', inst_def_camp)
-                            if '{' in str(evo_inst_camp) or 'password_hash' in str(evo_inst_camp):
-                                evo_inst_camp = inst_def_camp
+                    df_campana_out = pd.DataFrame(filas_wa)
+
+                    st.markdown(f"###### 📋 Listado de Contacto ({len(df_campana_out)} Consultoras Disponibles)")
+                    if uploaded_flyer is not None:
+                        st.caption(f"👇 **Marca o desmarca casillas '✅ Enviar'** para incluir o excluir destinatarias. Haz clic en **📲 Enviar WA** para chat 1 a 1, o usa el **Envío Automático** abajo:")
+                    else:
+                        st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para marcar o desmarcar a cada consultora, o pulsa **'📲 Enviar WA'** para chatear directamente:")
+
+                    cols_editor = ['✅ Enviar', 'Consultora', 'Código CB', 'Grupo', 'Celular', 'Sit. Comercial', 'Nivel / Color', 'Nota Líder', 'Deuda Mora', 'Ped. Pendientes']
+                    if uploaded_flyer is not None:
+                        cols_editor.append('📎 Flyer')
+                    cols_editor.extend(['📲 Chat WhatsApp', 'Mensaje Generado'])
+
+                    cfg_columnas_editor = {
+                        '✅ Enviar': st.column_config.CheckboxColumn(
+                            "✅ Enviar",
+                            help="Marca o desmarca la casilla para incluirla en el envío",
+                            default=True
+                        ),
+                        '📲 Chat WhatsApp': st.column_config.LinkColumn(
+                            "📲 Chat WhatsApp",
+                            help="Haz clic para abrir WhatsApp Web o App con el mensaje listo",
+                            display_text="📲 Enviar WA"
+                        )
+                    }
+                    if uploaded_flyer is not None:
+                        cfg_columnas_editor['📎 Flyer'] = st.column_config.TextColumn(
+                            "📎 Flyer",
+                            help="Flyer cargado listo para enviar",
+                            width="small"
+                        )
+
+                    cols_disabled = [c for c in cols_editor if c != '✅ Enviar']
+
+                    df_editado_camp = st.data_editor(
+                        df_campana_out[cols_editor],
+                        column_config=cfg_columnas_editor,
+                        disabled=cols_disabled,
+                        use_container_width=True,
+                        hide_index=True,
+                        key=f"editor_campana_wa_main_{st.session_state.get('editor_ver_camp', 0)}"
+                    )
+
+                    # Extraer las consultoras marcadas
+                    indices_marcados = df_editado_camp.index[df_editado_camp['✅ Enviar'] == True].tolist()
+                    df_marcadas = df_campana_out.iloc[indices_marcados].copy()
+                    n_marcadas = len(df_marcadas)
+                    n_act_m = len(df_marcadas[df_marcadas['Sit. Comercial'].astype(str).str.strip().str.lower() == 'activa']) if not df_marcadas.empty else 0
+                    n_inact_m = len(df_marcadas[df_marcadas['Sit. Comercial'].astype(str).str.contains('inactiva', case=False, na=False)]) if not df_marcadas.empty else 0
+                    n_mora_m = len(df_marcadas[df_marcadas['deuda_mora_num'] > 0]) if not df_marcadas.empty else 0
+
+                    # Tarjeta de resumen de seleccionadas
+                    st.markdown(f"""
+                    <div style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 10px 16px; margin-top: 8px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <div>
+                            <span style="font-size: 0.92rem; font-weight: 800; color: #0F172A;">🎯 Consultoras marcadas con casilla: </span>
+                            <span style="font-size: 1.12rem; font-weight: 800; color: #EA580C;">{n_marcadas}</span> 
+                            <span style="font-size: 0.78rem; color: #64748B;">de {len(df_campana_out)} en lista</span>
+                        </div>
+                        <div style="display: flex; gap: 8px; font-size: 0.74rem; font-weight: 700;">
+                            <span style="background: #F0FDF4; color: #166534; padding: 4px 10px; border-radius: 6px; border: 1px solid #BBF7D0;">🟢 {n_act_m} Activas</span>
+                            <span style="background: #FFF7ED; color: #C2410C; padding: 4px 10px; border-radius: 6px; border: 1px solid #FFEDD5;">🌸 {n_inact_m} Inactivas</span>
+                            <span style="background: #FEF2F2; color: #991B1B; padding: 4px 10px; border-radius: 6px; border: 1px solid #FECACA;">🚨 {n_mora_m} En Mora</span>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # Botones de Descarga Masiva (CSV y Excel)
+                    col_exp1, col_exp2, col_exp3 = st.columns([1.5, 1.5, 2])
+                    df_exp_target = df_marcadas if not df_marcadas.empty else df_campana_out
+                    with col_exp1:
+                        csv_wa_bytes = df_exp_target.to_csv(index=False).encode('utf-8-sig')
+                        st.download_button(
+                            label=f"📥 Exportar Base CSV ({len(df_exp_target)})",
+                            data=csv_wa_bytes,
+                            file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.csv",
+                            mime="text/csv",
+                            use_container_width=True,
+                            key="btn_descarga_csv_wa_camp"
+                        )
+                    with col_exp2:
+                        towrite_camp_xlsx = io.BytesIO()
+                        with pd.ExcelWriter(towrite_camp_xlsx, engine='openpyxl') as writer:
+                            df_exp_target.to_excel(writer, sheet_name="Campana_WhatsApp", index=False)
+                        towrite_camp_xlsx.seek(0)
+                        st.download_button(
+                            label=f"📥 Descargar Excel ({len(df_exp_target)})",
+                            data=towrite_camp_xlsx,
+                            file_name=f"Campana_WhatsApp_{tipo_camp[:6].strip().replace(' ', '_')}.xlsx",
+                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                            use_container_width=True,
+                            key="btn_descarga_xlsx_wa_camp"
+                        )
+                    with col_exp3:
+                        if uploaded_flyer is not None:
+                            st.caption(f"💡 **Campaña Multimedia**: Incluye flyer (*{uploaded_flyer.name}*) y {n_marcadas} consultoras marcadas.")
+                        else:
+                            st.caption(f"💡 **Campaña de Texto**: {n_marcadas} consultoras marcadas listas para despacho automático o 1 a 1.")
+
+                    # --- DESPACHADOR AUTOMÁTICO EVOLUTION API ---
+                    st.markdown("---")
+                    with st.expander(f"🔌 Envío Masivo Automático por Evolution API ({n_marcadas} Consultoras Marcadas)", expanded=(0 < n_marcadas <= 50)):
+                        st.markdown("##### 🚀 Envío Automático por WhatsApp (Robot de Despacho):")
+                        st.caption("Envía de forma automatizada los mensajes a las consultoras seleccionadas sin tocar tu teléfono una a una, usando la sesión de WhatsApp ya vinculada.")
+
+                        import requests
+                        evo_url_camp = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+                        inst_def_camp = obtener_instancia_evolution(current_user, user_rol, user_grupo)
+                        if 'in_evo_instance' in st.session_state:
+                            val_inst_prev = str(st.session_state['in_evo_instance'])
+                            if '{' in val_inst_prev or 'password_hash' in val_inst_prev:
                                 st.session_state['in_evo_instance'] = inst_def_camp
-                            evo_tok_camp = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+                        evo_inst_camp = st.session_state.get('in_evo_instance', inst_def_camp)
+                        if '{' in str(evo_inst_camp) or 'password_hash' in str(evo_inst_camp):
+                            evo_inst_camp = inst_def_camp
+                            st.session_state['in_evo_instance'] = inst_def_camp
+                        evo_tok_camp = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
 
-                            col_cfg_evo1, col_cfg_evo2 = st.columns([1.8, 1.2])
-                            with col_cfg_evo1:
-                                st.markdown(f"""
-                                <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
-                                    📡 Instancia WhatsApp Conectada: <strong style="color: #25D366;">{evo_inst_camp}</strong><br>
-                                    🌐 Servidor API: <code>{evo_url_camp}</code>
-                                </div>
-                                """, unsafe_allow_html=True)
-                            with col_cfg_evo2:
-                                delay_camp_wa = st.slider("⏱️ Pausa entre mensajes (segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_camp_subtab_wa")
+                        col_cfg_evo1, col_cfg_evo2 = st.columns([1.8, 1.2])
+                        with col_cfg_evo1:
+                            st.markdown(f"""
+                            <div style="background: rgba(37, 211, 102, 0.08); border: 1px solid rgba(37, 211, 102, 0.3); border-radius: 8px; padding: 10px 14px; font-size: 0.86rem;">
+                                📡 Instancia WhatsApp Conectada: <strong style="color: #25D366;">{evo_inst_camp}</strong><br>
+                                🌐 Servidor API: <code>{evo_url_camp}</code>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        with col_cfg_evo2:
+                            delay_camp_wa = st.slider("⏱️ Pausa entre mensajes (segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_camp_subtab_wa")
 
-                            tiene_flyer_camp = uploaded_flyer is not None
-                            adjuntar_flyer_api = st.checkbox(
-                                f"🖼️ Adjuntar imagen del Flyer ({uploaded_flyer.name if tiene_flyer_camp else 'Ninguno subido'}) junto con el mensaje",
-                                value=tiene_flyer_camp,
-                                disabled=not tiene_flyer_camp,
-                                key="chk_adjuntar_flyer_evo_subtab"
-                            )
+                        tiene_flyer_camp = uploaded_flyer is not None
+                        adjuntar_flyer_api = st.checkbox(
+                            f"🖼️ Adjuntar imagen del Flyer ({uploaded_flyer.name if tiene_flyer_camp else 'Ninguno subido'}) junto con el mensaje",
+                            value=tiene_flyer_camp,
+                            disabled=not tiene_flyer_camp,
+                            key="chk_adjuntar_flyer_evo_subtab"
+                        )
 
+                        if n_marcadas > 0:
                             btn_disparar_camp_api = st.button(
-                                f"🚀 Iniciar Envío Automático a las {len(df_wa_destinatarias)} Consultoras Seleccionadas",
+                                f"🚀 Iniciar Envío Automático a las {n_marcadas} Consultoras Marcadas",
                                 type="primary",
-                                disabled=(len(df_wa_destinatarias) == 0),
                                 use_container_width=True,
                                 key="btn_disparar_api_subtab_camp"
                             )
+                        else:
+                            st.info("👆 Marca al menos una casilla **'✅ Enviar'** en la tabla de arriba para habilitar el envío automático.")
+                            btn_disparar_camp_api = False
 
-                            if btn_disparar_camp_api and len(df_wa_destinatarias) > 0:
-                                prog_bar_camp = st.progress(0.0)
-                                stat_txt_camp = st.empty()
-                                ok_cnt_camp = 0
-                                err_cnt_camp = 0
-                                tot_camp_env = len(df_wa_table)
+                        if btn_disparar_camp_api and n_marcadas > 0:
+                            prog_bar_camp = st.progress(0.0)
+                            stat_txt_camp = st.empty()
+                            ok_cnt_camp = 0
+                            err_cnt_camp = 0
+                            tot_camp_env = len(df_marcadas)
 
-                                for i_c, (_, r_dest) in enumerate(df_wa_table.iterrows()):
-                                    c_num = str(r_dest['Celular']).strip()
-                                    c_nom = str(r_dest['Consultora']).strip()
-                                    c_cb = str(r_dest.get('Código CB', '') or r_dest.get('Codigo CB', '')).strip()
-                                    msg_body = r_dest['Mensaje Generado']
+                            for i_c, (_, r_dest) in enumerate(df_marcadas.iterrows()):
+                                c_num = str(r_dest['Celular']).strip()
+                                c_nom = str(r_dest['Consultora']).strip()
+                                c_cb = str(r_dest.get('Código CB', '') or r_dest.get('Codigo CB', '')).strip()
+                                msg_body = r_dest['Mensaje Generado']
 
-                                    if c_num and len(c_num) >= 10 and c_num != "Sin registrar":
-                                        try:
-                                            c_clean = f"57{c_num}" if not c_num.startswith('57') else c_num
-                                            e_headers = {"apikey": evo_tok_camp.strip(), "Content-Type": "application/json"}
-                                            enviado_ok = False
-                                            last_code = 0
-                                            last_resp = ""
+                                if c_num and len(c_num) >= 10 and c_num != "Sin registrar":
+                                    try:
+                                        c_clean = f"57{c_num}" if not c_num.startswith('57') else c_num
+                                        e_headers = {"apikey": evo_tok_camp.strip(), "Content-Type": "application/json"}
+                                        enviado_ok = False
+                                        last_code = 0
+                                        last_resp = ""
 
-                                            # Intento de envío multimedia si hay flyer
-                                            if adjuntar_flyer_api and tiene_flyer_camp and 'b64_flyer' in locals():
-                                                try:
-                                                    url_media = f"{evo_url_camp.strip().rstrip('/')}/message/sendMedia/{evo_inst_camp.strip()}"
-                                                    payload_media = {
-                                                        "number": c_clean,
-                                                        "mediatype": "image",
-                                                        "mimetype": mime_flyer,
-                                                        "caption": msg_body,
-                                                        "media": b64_flyer,
-                                                        "fileName": uploaded_flyer.name
-                                                    }
-                                                    res_m = requests.post(url_media, json=payload_media, headers=e_headers, timeout=18)
-                                                    last_code = res_m.status_code
-                                                    last_resp = res_m.text
-                                                    if res_m.status_code in [200, 201]:
-                                                        enviado_ok = True
-                                                except Exception as ex_m:
-                                                    last_resp = f"Error sendMedia: {ex_m}"
-                                                    enviado_ok = False
-
-                                            # Si no hay imagen o si sendMedia falló, envío de texto estándar
-                                            if not enviado_ok:
-                                                url_text = f"{evo_url_camp.strip().rstrip('/')}/message/sendText/{evo_inst_camp.strip()}"
-                                                payload_text = {
+                                        # Intento de envío multimedia si hay flyer
+                                        if adjuntar_flyer_api and tiene_flyer_camp and 'b64_flyer' in locals():
+                                            try:
+                                                url_media = f"{evo_url_camp.strip().rstrip('/')}/message/sendMedia/{evo_inst_camp.strip()}"
+                                                payload_media = {
                                                     "number": c_clean,
-                                                    "text": msg_body,
-                                                    "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                                    "mediatype": "image",
+                                                    "mimetype": mime_flyer,
+                                                    "caption": msg_body,
+                                                    "media": b64_flyer,
+                                                    "fileName": uploaded_flyer.name
                                                 }
-                                                res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
-                                                last_code = res_t.status_code
-                                                last_resp = res_t.text
-                                                if res_t.status_code in [200, 201]:
+                                                res_m = requests.post(url_media, json=payload_media, headers=e_headers, timeout=18)
+                                                last_code = res_m.status_code
+                                                last_resp = res_m.text
+                                                if res_m.status_code in [200, 201]:
                                                     enviado_ok = True
+                                            except Exception as ex_m:
+                                                last_resp = f"Error sendMedia: {ex_m}"
+                                                enviado_ok = False
 
-                                            if enviado_ok:
-                                                ok_cnt_camp += 1
-                                                registrar_log_whatsapp(
-                                                    modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_clean, estado="EXITOSO",
-                                                    http_codigo=last_code, respuesta_servidor=last_resp, remitente=current_user,
-                                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
-                                                    destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
-                                                )
-                                            else:
-                                                err_cnt_camp += 1
-                                                registrar_log_whatsapp(
-                                                    modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_clean, estado="FALLIDO",
-                                                    http_codigo=last_code, respuesta_servidor=last_resp, remitente=current_user,
-                                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
-                                                    destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
-                                                )
-                                        except Exception as ex_fl:
+                                        # Si no hay imagen o si sendMedia falló, envío de texto estándar
+                                        if not enviado_ok:
+                                            url_text = f"{evo_url_camp.strip().rstrip('/')}/message/sendText/{evo_inst_camp.strip()}"
+                                            payload_text = {
+                                                "number": c_clean,
+                                                "text": msg_body,
+                                                "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                            }
+                                            res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
+                                            last_code = res_t.status_code
+                                            last_resp = res_t.text
+                                            if res_t.status_code in [200, 201]:
+                                                enviado_ok = True
+
+                                        if enviado_ok:
+                                            ok_cnt_camp += 1
+                                            registrar_log_whatsapp(
+                                                modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_clean, estado="EXITOSO",
+                                                http_codigo=last_code, respuesta_servidor=last_resp, remitente=current_user,
+                                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
+                                                destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                            )
+                                        else:
                                             err_cnt_camp += 1
                                             registrar_log_whatsapp(
+                                                modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_clean, estado="FALLIDO",
+                                                http_codigo=last_code, respuesta_servidor=last_resp, remitente=current_user,
+                                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
+                                                destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                            )
+                                    except Exception as ex_fl:
+                                        err_cnt_camp += 1
+                                        registrar_log_whatsapp(
                                                 modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
                                                 http_codigo=0, respuesta_servidor=str(ex_fl), remitente=current_user,
                                                 rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
                                                 destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
-                                            )
-                                    else:
-                                        err_cnt_camp += 1
-                                        registrar_log_whatsapp(
-                                            modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
-                                            http_codigo=400, respuesta_servidor="Número celular no válido o no registrado", remitente=current_user,
-                                            rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
-                                            destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
                                         )
+                                else:
+                                    err_cnt_camp += 1
+                                    registrar_log_whatsapp(
+                                        modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_num, estado="FALLIDO",
+                                        http_codigo=400, respuesta_servidor="Número celular no válido o no registrado", remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_inst_camp,
+                                        destinatario_cb=c_cb, mensaje_snippet=msg_body[:100]
+                                    )
 
-                                    prog_bar_camp.progress((i_c + 1) / tot_camp_env)
-                                    stat_txt_camp.caption(f"Despachando {i_c + 1} de {tot_camp_env}: **{c_nom}** ({c_num})...")
-                                    if i_c < tot_camp_env - 1:
-                                        time.sleep(delay_camp_wa)
+                                prog_bar_camp.progress((i_c + 1) / tot_camp_env)
+                                stat_txt_camp.caption(f"Despachando {i_c + 1} de {tot_camp_env}: **{c_nom}** ({c_num})...")
+                                if i_c < tot_camp_env - 1:
+                                    time.sleep(delay_camp_wa)
 
                                 st.success(f"✅ ¡Campaña finalizada con éxito! Mensajes enviados: **{ok_cnt_camp}** | Fallidos o sin celular: **{err_cnt_camp}**")
                                 with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Tableau Flyer)", expanded=False):
@@ -7377,485 +8462,259 @@ if tab_geral is not None:
 
             # 5. SELECCIÓN MÚLTIPLE & DESPACHADOR MASIVO DE WHATSAPP
             st.markdown("##### 📢 Envío Masivo & Recordatorios de Cobranza por WhatsApp")
-            st.caption("Selecciona las consultoras específicas a las que deseas enviar recordatorios. Puedes usar los botones de lote rápido, buscar por nombre, o seleccionarlas directamente con las casillas:")
+            st.caption("Selecciona las consultoras a las que deseas enviar recordatorios marcando las casillas en la tabla o usando los botones de selección rápida:")
 
-            # Botones de Carga Rápida de Lotes
+            # Botones de Selección Rápida de Lotes
             col_btn_m1, col_btn_m2, col_btn_m3, col_btn_m4, col_btn_m5, col_btn_m6 = st.columns(6)
 
-            if 'titulos_seleccionados_masivo' not in st.session_state:
-                st.session_state['titulos_seleccionados_masivo'] = df_manana['titulo'].tolist() if not df_manana.empty else []
+            if 'titulos_sel_geral_wa' not in st.session_state:
+                st.session_state['titulos_sel_geral_wa'] = set(df_manana['titulo'].tolist() if not df_manana.empty else df_pendientes['titulo'].tolist())
 
             with col_btn_m1:
-                if st.button(f"🟡 Vencen Mañana ({len(df_manana)})", use_container_width=True):
-                    st.session_state['titulos_seleccionados_masivo'] = df_manana['titulo'].tolist()
+                if st.button(f"🟡 Vencen Mañana ({len(df_manana)})", use_container_width=True, key="btn_sel_manana_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_manana['titulo'].tolist())
+                    st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m2:
-                if st.button(f"🚨 En Mora ({len(df_mora)})", use_container_width=True):
-                    st.session_state['titulos_seleccionados_masivo'] = df_mora['titulo'].tolist()
+                if st.button(f"🚨 En Mora ({len(df_mora)})", use_container_width=True, key="btn_sel_mora_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_mora['titulo'].tolist())
+                    st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m3:
-                if st.button(f"🟢 Pasado Mañana ({len(df_pasado)})", use_container_width=True):
-                    st.session_state['titulos_seleccionados_masivo'] = df_pasado['titulo'].tolist()
+                if st.button(f"🟢 Pasado Mañana ({len(df_pasado)})", use_container_width=True, key="btn_sel_pasado_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_pasado['titulo'].tolist())
+                    st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m4:
-                if st.button(f"📅 Próximos 7d ({len(df_7d)})", use_container_width=True):
-                    st.session_state['titulos_seleccionados_masivo'] = df_7d['titulo'].tolist()
+                if st.button(f"📅 Próximos 7d ({len(df_7d)})", use_container_width=True, key="btn_sel_7d_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_7d['titulo'].tolist())
+                    st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m5:
-                if st.button(f"👥 Todas las Filtradas ({len(df_pendientes)})", use_container_width=True):
-                    st.session_state['titulos_seleccionados_masivo'] = df_pendientes['titulo'].tolist()
+                if st.button(f"👥 Todas ({len(df_pendientes)})", use_container_width=True, key="btn_sel_todas_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_pendientes['titulo'].tolist())
+                    st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m6:
-                if st.button("🧹 Deseleccionar Todas", use_container_width=True):
-                    st.session_state['titulos_seleccionados_masivo'] = []
+                if st.button("🧹 Ninguna (0)", use_container_width=True, key="btn_desel_todas_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set()
+                    st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
 
-            # Opciones para el multiselect enriquecidas con Nivel / Color y Sit. Comercial
-            mapa_titulos_dict = {
-                row['titulo']: f"[{row.get('color', 'Nivel')}] [{row.get('sit_comercial', 'Sit')}] {row['nombre']} — Fact. {row['numero_factura']} (${row['saldo_total']:,.0f}) [Días: {row.get('dias_para_vencer', 0)}]"
-                for _, row in df_pendientes.iterrows()
-            }
+            # Configuración de Plantilla de Mensaje
+            col_cfg1, col_cfg2 = st.columns([1.2, 1.8])
+            with col_cfg1:
+                tipo_camp_sel = st.selectbox(
+                    "Tipo de Plantilla de Mensaje:",
+                    options=['auto', 'manana', 'hoy', 'mora', 'general'],
+                    format_func=lambda x: {
+                        'auto': '⚡ Automático (Detecta si vence mañana, hoy o mora)',
+                        'manana': '🎁 Vence Mañana (Preventivo Cordial)',
+                        'hoy': '🚨 Vence Hoy (Urgente sin recargos)',
+                        'mora': '⚠️ En Mora (Cobranza con Recargos)',
+                        'general': '🌸 Recordatorio General'
+                    }.get(x, x),
+                    key="sel_tipo_camp_masivo"
+                )
+                nombre_remit_masivo = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_masivo")
 
-            # Multiselect de consultoras con buscador integrado
-            st.caption("💡 **Tip para enviar a una sola consultora:** Haz clic en **'🧹 Deseleccionar Todas'** y luego búscala por su nombre o código en el cuadro de abajo, o pulsa la **'✖️'** sobre las que desees quitar.")
-            sel_titulos_activos = st.multiselect(
-                "👥 Consultoras Seleccionadas para la Campaña (Busca por Nombre, Color o Situación):",
-                options=list(mapa_titulos_dict.keys()),
-                default=[t for t in st.session_state['titulos_seleccionados_masivo'] if t in mapa_titulos_dict],
-                format_func=lambda t: mapa_titulos_dict.get(t, t),
-                key="multiselect_geral_masivo"
+            with col_cfg2:
+                st.caption("Variables que se personalizan en cada mensaje: `{primer_nombre}`, `{nombre}`, `{factura}`, `{saldo_total}`, `{vencimiento}`")
+
+            # Generar tabla con casillas interactivas
+            filas_campana = []
+            set_sel_actual = st.session_state.get('titulos_sel_geral_wa', set(df_manana['titulo'].tolist() if not df_manana.empty else []))
+
+            for _, r in df_pendientes.iterrows():
+                tit_val = str(r.get('titulo', ''))
+                t_msg = tipo_camp_sel
+                if t_msg == 'auto':
+                    d_r = r.get('dias_para_vencer', 0)
+                    t_msg = 'manana' if d_r == 1 else ('hoy' if d_r == 0 else ('mora' if d_r < 0 else 'general'))
+
+                msg_ind = generar_mensaje_whatsapp_cobranza(r, tipo=t_msg, nombre_remitente=nombre_remit_masivo)
+                cel = str(r.get('telefono_movil', '')).strip()
+                cel_raw = cel.replace(' ', '').replace('-', '').replace('+', '')
+                cel_clean = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
+
+                link_w = f"https://api.whatsapp.com/send?phone=57{cel_clean}&text={urllib.parse.quote(str(msg_ind or ''))}" if cel_clean and len(cel_clean) >= 10 else ""
+                saldo_val = float(r.get('saldo_total', 0) or 0)
+
+                filas_campana.append({
+                    '✅ Enviar': tit_val in set_sel_actual,
+                    'Consultora': str(r.get('nombre', '')),
+                    'Código CB': str(r.get('codigo_cb', '')),
+                    'Grupo': str(r.get('grupo', '')),
+                    'Sit. Comercial': str(r.get('sit_comercial', 'Sin Definir')),
+                    'Nivel / Color': str(r.get('color', 'Sin Nivel')),
+                    'Celular': cel_clean if cel_clean else "Sin celular",
+                    'Factura': str(r.get('numero_factura', '')),
+                    'Vencimiento': str(r.get('fecha_vencimiento', '')),
+                    'Días Restantes': int(r.get('dias_para_vencer', 0)),
+                    'Saldo Total': f"${saldo_val:,.0f} COP".replace(",", "."),
+                    'saldo_num': saldo_val,
+                    'titulo': tit_val,
+                    '📲 Enviar WhatsApp': link_w,
+                    'Mensaje Personalizado': msg_ind
+                })
+
+            df_campana_out = pd.DataFrame(filas_campana)
+
+            st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para marcar o desmarcar a cada consultora, o pulsa **'Abrir WhatsApp'** para chatear directamente.")
+
+            df_editado_geral = st.data_editor(
+                df_campana_out[[
+                    '✅ Enviar', 'Consultora', 'Código CB', 'Grupo', 'Sit. Comercial', 
+                    'Nivel / Color', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 
+                    'Saldo Total', '📲 Enviar WhatsApp', 'Mensaje Personalizado'
+                ]],
+                column_config={
+                    '✅ Enviar': st.column_config.CheckboxColumn(
+                        "✅ Enviar",
+                        help="Marca o desmarca la casilla para incluirla en el envío",
+                        default=True
+                    ),
+                    '📲 Enviar WhatsApp': st.column_config.LinkColumn(
+                        "📲 Enviar WhatsApp",
+                        display_text="Abrir WhatsApp"
+                    )
+                },
+                disabled=[
+                    'Consultora', 'Código CB', 'Grupo', 'Sit. Comercial', 
+                    'Nivel / Color', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 
+                    'Saldo Total', '📲 Enviar WhatsApp', 'Mensaje Personalizado'
+                ],
+                use_container_width=True,
+                hide_index=True,
+                key=f"editor_campana_geral_{st.session_state.get('editor_ver_geral', 0)}"
             )
 
-            st.session_state['titulos_seleccionados_masivo'] = sel_titulos_activos
-            df_campana_out = pd.DataFrame()
+            # Extraer las consultoras marcadas
+            indices_marcados = df_editado_geral.index[df_editado_geral['✅ Enviar'] == True].tolist()
+            df_marcadas = df_campana_out.iloc[indices_marcados].copy()
+            n_marcadas = len(df_marcadas)
+            monto_marcado = df_marcadas['saldo_num'].sum() if not df_marcadas.empty else 0
+            n_mora = len(df_marcadas[df_marcadas['Días Restantes'] < 0]) if not df_marcadas.empty else 0
+            n_hoy_man = len(df_marcadas[df_marcadas['Días Restantes'].isin([0, 1])]) if not df_marcadas.empty else 0
 
-            if sel_titulos_activos:
-                df_target_masivo = df_pendientes[df_pendientes['titulo'].isin(sel_titulos_activos)].copy()
-                if len(df_target_masivo) == 1:
-                    row_u = df_target_masivo.iloc[0]
-                    st.success(f"🎯 **Envío Individual Seleccionado:** **{row_u['nombre']}** ({row_u.get('color', '')} · {row_u.get('sit_comercial', '')}) — Saldo pendiente: **${row_u['saldo_total']:,.0f} COP** · Factura #{row_u.get('numero_factura', '')}".replace(",", "."))
-                else:
-                    st.info(f"🎯 **{len(df_target_masivo)} consultoras seleccionadas** — Monto total de campaña: **${df_target_masivo['saldo_total'].sum():,.0f} COP**".replace(",", "."))
+            # Tarjeta de resumen de seleccionadas
+            st.markdown(f"""
+            <div style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 12px; padding: 10px 16px; margin-top: 8px; margin-bottom: 14px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                <div>
+                    <span style="font-size: 0.92rem; font-weight: 800; color: #0F172A;">🎯 Consultoras marcadas con casilla: </span>
+                    <span style="font-size: 1.12rem; font-weight: 800; color: #EA580C;">{n_marcadas}</span> 
+                    <span style="font-size: 0.78rem; color: #64748B;">de {len(df_campana_out)} en lista</span>
+                    <span style="margin-left: 10px; font-weight: 700; color: #047857;">• Cartera seleccionada: ${monto_marcado:,.0f} COP</span>
+                </div>
+                <div style="display: flex; gap: 8px; font-size: 0.74rem; font-weight: 700;">
+                    <span style="background: #FEF2F2; color: #991B1B; padding: 4px 10px; border-radius: 6px; border: 1px solid #FECACA;">🚨 {n_mora} En Mora</span>
+                    <span style="background: #FFFBEB; color: #92400E; padding: 4px 10px; border-radius: 6px; border: 1px solid #FDE68A;">🟡 {n_hoy_man} Vence Hoy/Mañana</span>
+                </div>
+            </div>
+            """.replace(",", "."), unsafe_allow_html=True)
 
-                col_cfg1, col_cfg2 = st.columns([1.2, 1.8])
-                with col_cfg1:
-                    tipo_camp_sel = st.selectbox(
-                        "Tipo de Plantilla de Mensaje:",
-                        options=['auto', 'manana', 'hoy', 'mora', 'general'],
-                        format_func=lambda x: {
-                            'auto': '⚡ Automático (Detecta si vence mañana, hoy o mora)',
-                            'manana': '🎁 Vence Mañana (Preventivo Cordial)',
-                            'hoy': '🚨 Vence Hoy (Urgente sin recargos)',
-                            'mora': '⚠️ En Mora (Cobranza con Recargos)',
-                            'general': '🌸 Recordatorio General'
-                        }.get(x, x),
-                        key="sel_tipo_camp_masivo"
-                    )
-                    nombre_remit_masivo = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_masivo")
+            # Despachador masivo conectado a las consultoras marcadas
+            st.markdown("##### 🚀 Envío Masivo Automático por WhatsApp")
+            if n_marcadas > 0:
+                inst_activa = st.session_state.get('in_evo_instance', obtener_instancia_evolution(current_user, user_rol, user_grupo))
+                url_activa = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+                prov_act = st.session_state.get('radio_proveedor_wa', '👑 Evolution API (Recomendada - Multi-Líder)')
 
-                with col_cfg2:
-                    st.caption("Variables que se personalizan en cada mensaje: `{primer_nombre}`, `{nombre}`, `{factura}`, `{saldo_total}`, `{vencimiento}`")
+                st.caption(f"📡 Proveedor: **`{prov_act.split()[1] if len(prov_act.split()) > 1 else prov_act}`** • Instancia: **`{inst_activa}`** • Pasarela activa vinculada desde la barra lateral.")
 
-                # Generar tabla de mensajes
-                filas_campana = []
-                for _, r in df_target_masivo.iterrows():
-                    t_msg = tipo_camp_sel
-                    if t_msg == 'auto':
-                        d_r = r['dias_para_vencer']
-                        t_msg = 'manana' if d_r == 1 else ('hoy' if d_r == 0 else ('mora' if d_r < 0 else 'general'))
+                delay_anti_ban = st.slider("⏱️ Pausa entre mensajes (Segundos - Protección Anti-Ban):", min_value=1, max_value=10, value=3, help="Meta/WhatsApp recomienda dejar al menos 3 a 5 segundos entre cada mensaje para evitar bloqueos por spam.", key="slider_delay_geral_masivo")
 
-                    msg_ind = generar_mensaje_whatsapp_cobranza(r, tipo=t_msg, nombre_remitente=nombre_remit_masivo)
-                    cel = str(r.get('telefono_movil', '')).strip()
-                    cel2 = str(r.get('telefono_movil_2', '')).strip()
+                btn_disparar_api = st.button(f"🚀 Iniciar Envío Automático a las {n_marcadas} Consultoras Marcadas", type="primary", use_container_width=True, key="btn_disparar_api_geral")
 
-                    link_w1 = f"https://api.whatsapp.com/send?phone=57{cel}&text={urllib.parse.quote(str(msg_ind or ''))}" if cel and len(cel) >= 10 else ""
-                    link_w2 = f"https://api.whatsapp.com/send?phone=57{cel2}&text={urllib.parse.quote(str(msg_ind or ''))}" if cel2 and len(cel2) >= 10 else ""
+                if btn_disparar_api:
+                    progress_bar = st.progress(0.0)
+                    status_txt = st.empty()
+                    enviados_ok = 0
+                    errores_cnt = 0
 
-                    filas_campana.append({
-                        'Consultora': r.get('nombre'),
-                        'Código CB': r.get('codigo_cb'),
-                        'Grupo': r.get('grupo'),
-                        'Sit. Comercial': r.get('sit_comercial', 'Sin Definir'),
-                        'Nivel / Color': r.get('color', 'Sin Nivel'),
-                        'Celular': cel if cel else "Sin celular",
-                        'Factura': r.get('numero_factura'),
-                        'Vencimiento': r.get('fecha_vencimiento'),
-                        'Días Restantes': r.get('dias_para_vencer'),
-                        'Saldo Total': f"${r.get('saldo_total'):,.0f} COP".replace(",", "."),
-                        'Enlace Directo WhatsApp': link_w1,
-                        'Mensaje Personalizado': msg_ind
-                    })
+                    for i, (_, r_c) in enumerate(df_marcadas.iterrows()):
+                        cel_num = str(r_c['Celular']).strip()
+                        c_nom = str(r_c.get('Consultora', '')).strip()
+                        c_cb = str(r_c.get('Código CB', '')).strip()
+                        msg_custom = str(r_c.get('Mensaje Personalizado', ''))
 
-                df_campana_out = pd.DataFrame(filas_campana)
-
-                # Vista previa del lote con LinkColumn directo para abrir WhatsApp
-                st.dataframe(
-                    df_campana_out[['Consultora', 'Grupo', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 'Saldo Total', 'Enlace Directo WhatsApp', 'Mensaje Personalizado']],
-                    column_config={
-                        "Enlace Directo WhatsApp": st.column_config.LinkColumn(
-                            "📲 Enviar WhatsApp",
-                            display_text="Abrir WhatsApp"
-                        )
-                    },
-                    use_container_width=True,
-                    hide_index=True
-                )
-
-                col_d1, col_d2 = st.columns([1.5, 1.5])
-                with col_d1:
-                    # Selector individual rápido dentro del lote
-                    st.markdown("###### 📲 Despachar Consultora Individual:")
-                    nom_sel_rapido = st.selectbox("Elige la consultora para enviar de inmediato:", options=df_campana_out['Consultora'].tolist(), key="sel_rapido_camp")
-                    row_sel_rap = df_campana_out[df_campana_out['Consultora'] == nom_sel_rapido].iloc[0]
-                    link_wa_enviar = row_sel_rap.get('Enlace Directo WhatsApp')
-                    if link_wa_enviar:
-                        st.link_button(f"📲 Abrir WhatsApp y Enviar a {str(nom_sel_rapido).split()[0].title()}", url=link_wa_enviar, use_container_width=True)
-                    else:
-                        st.warning("⚠️ Esta consultora no tiene un número celular válido de 10 dígitos registrado.")
-
-                with col_d2:
-                    st.markdown("###### 📥 Descargar Base de Campaña:")
-                    towrite_c = io.BytesIO()
-                    with pd.ExcelWriter(towrite_c, engine='openpyxl') as writer:
-                        df_campana_out.to_excel(writer, sheet_name="Campana_Cobranza", index=False)
-                    towrite_c.seek(0)
-                    st.download_button(
-                        label=f"📥 Descargar Campaña en Excel ({len(df_campana_out)} Mensajes)",
-                        data=towrite_c,
-                        file_name=f"Campana_Cobranza_WA_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                        use_container_width=True,
-                        key="btn_descargar_camp_wa_excel"
-                    )
-            else:
-                st.info("ℹ️ **No hay ninguna consultora seleccionada en este momento.** Haz clic en uno de los botones rápidos de arriba (por ejemplo: **🚨 En Mora**) o escribe el nombre de una consultora en el buscador para prepararle su mensaje de WhatsApp.")
-
-            # 6. INTEGRACIÓN Y PASARELAS PARA ENVÍOS AUTOMÁTICOS
-            with st.expander("🔌 Integración & Conexión con Pasarelas de WhatsApp (Envío Automático)", expanded=False):
-                    st.markdown("##### 🚀 Pasarela de Envíos Masivos Automáticos")
-                    st.markdown("""
-                    Para enviar mensajes masivos a cientos de consultoras sin tocar tu teléfono 1 a 1, te recomendamos conectar una **API de WhatsApp**:
-
-                    * 👑 **Evolution API (Recomendada - 100% Gratuita & Open Source)**:
-                      * Puedes montarla en Railway o Docker en 2 minutos.
-                      * Escaneas el código QR con el WhatsApp de la Líder o Gerente.
-                      * Envía mensajes con variables, texto en negrita y emojis sin coste por mensaje.
-                    * 🌐 **UltraMsg / Wassenger / Z-API (Cloud SaaS)**:
-                      * Plataforma en la nube lista para usar con API Key.
-                    * 🏢 **WhatsApp Cloud API Oficial (Meta Graph API)**:
-                      * La solución corporativa de Meta para grandes volúmenes.
-                    """)
-
-                    st.markdown("###### ⚙️ Despachador API en Vivo:")
-
-                    prov_opc = st.radio(
-                        "Selecciona el Proveedor de WhatsApp:",
-                        ["👑 Evolution API (Recomendada - Multi-Líder)", "🌐 UltraMsg (Cloud SaaS)", "⚙️ Endpoint Personalizado / Genérico"],
-                        index=0,
-                        horizontal=True,
-                        key="radio_proveedor_wa"
-                    )
-
-                    import requests
-                    import time
-
-                    if "Evolution API" in prov_opc:
-                        col_evo1, col_evo2, col_evo3 = st.columns([2, 1.2, 1.8])
-                        with col_evo1:
-                            evo_base_url = st.text_input("URL Base de Evolution API:", value="https://evolution-api-production-7a2f.up.railway.app", placeholder="https://mi-evolution.up.railway.app", key="in_evo_url")
-                        with col_evo2:
-                            instancia_default = obtener_instancia_evolution(current_user, user_rol, user_grupo)
-                            if 'in_evo_instance' in st.session_state:
-                                val_inst_prev2 = str(st.session_state['in_evo_instance'])
-                                if '{' in val_inst_prev2 or 'password_hash' in val_inst_prev2:
-                                    st.session_state['in_evo_instance'] = instancia_default
-                            evo_instance = st.text_input("Instancia (Única por Usuario):", value=instancia_default, placeholder="ej. lider_177", key="in_evo_instance")
-                        with col_evo3:
-                            evo_token = st.text_input("API Key (Global Token):", value="6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad", type="password", key="in_evo_token")
-
-                        # Botón para comprobar estado o ver QR de vinculación
-                        col_qr1, col_qr2 = st.columns(2)
-                        with col_qr1:
-                            btn_check_qr = st.button("🔄 Verificar Conexión / QR", key="btn_check_evo_qr", use_container_width=True)
-                        with col_qr2:
-                            btn_logout_qr = st.button("🔴 Desvincular Celular (Cerrar Sesión)", key="btn_logout_evo", use_container_width=True)
-
-                        if btn_logout_qr:
-                            if not evo_base_url.strip() or not evo_token.strip():
-                                st.warning("⚠️ Ingresa la URL Base y la API Key de Evolution API.")
-                            else:
-                                clean_base = evo_base_url.strip().rstrip('/')
-                                clean_inst = evo_instance.strip()
-                                headers_evo = {"apikey": evo_token.strip()}
-                                try:
-                                    r_l = requests.delete(f"{clean_base}/instance/logout/{clean_inst}", headers=headers_evo, timeout=10)
-                                    if r_l.status_code == 200:
-                                        st.success(f"✅ ¡Tu WhatsApp ha sido desvinculado exitosamente de la instancia '{clean_inst}'! Ya no enviará mensajes.")
-                                    else:
-                                        st.info(f"Aviso: {r_l.text}")
-                                except Exception as ex_l:
-                                    st.error(f"Error al desvincular: {ex_l}")
-
-                        if btn_check_qr:
-                            if not evo_base_url.strip() or not evo_token.strip():
-                                st.warning("⚠️ Ingresa la URL Base y la API Key de Evolution API.")
-                            else:
-                                clean_base = evo_base_url.strip().rstrip('/')
-                                clean_inst = evo_instance.strip()
-                                headers_evo = {"apikey": evo_token.strip()}
-                                try:
-                                    import base64
-                                    # 1. Chequear estado de conexion
-                                    res_state = requests.get(f"{clean_base}/instance/connectionState/{clean_inst}", headers=headers_evo, timeout=8)
-
-                                    # Si no existe la instancia (404), la creamos automáticamente
-                                    if res_state.status_code == 404:
-                                        st.info(f"⚙️ Creando nueva instancia '{clean_inst}' en tu Evolution API...")
-                                        payload_create = {
-                                            "instanceName": clean_inst,
-                                            "qrcode": True,
-                                            "integration": "WHATSAPP-BAILEYS"
-                                        }
-                                        res_create = requests.post(f"{clean_base}/instance/create", json=payload_create, headers=headers_evo, timeout=12)
-                                        if res_create.status_code in [200, 201]:
-                                            data_c = res_create.json()
-                                            b64_qr = data_c.get('qrcode', {}).get('base64') or data_c.get('base64', '')
-                                            if b64_qr:
-                                                st.success(f"✅ Instancia '{clean_inst}' creada exitosamente. ¡Escanea el QR abajo!")
-                                                clean_b64 = b64_qr.split(",")[-1]
-                                                st.image(base64.b64decode(clean_b64), caption=f"Escanea con tu WhatsApp (Instancia: {clean_inst})", width=280)
-                                                st.info("📲 Abre WhatsApp en tu celular > Menú (o Configuración) > Dispositivos vinculados > Vincular dispositivo.")
-                                            else:
-                                                st.info("Instancia creada. Generando QR...")
-                                                res_state = requests.get(f"{clean_base}/instance/connectionState/{clean_inst}", headers=headers_evo, timeout=8)
-                                        else:
-                                            st.error(f"Error al crear instancia: {res_create.status_code} - {res_create.text}")
-
-                                    if res_state.status_code == 200:
-                                        state_data = res_state.json()
-                                        curr_state = state_data.get('instance', {}).get('state', '') or state_data.get('state', '')
-
-                                        if curr_state == 'open':
-                                            st.success(f"🟢 ¡Instancia '{clean_inst}' CONECTADA y lista para enviar mensajes de WhatsApp!")
-                                        else:
-                                            st.info(f"🟡 Estado actual: '{curr_state or 'Esperando conexión'}'. Obteniendo código QR actualizado...")
-                                            res_qr = requests.get(f"{clean_base}/instance/connect/{clean_inst}", headers=headers_evo, timeout=10)
-                                            if res_qr.status_code == 200:
-                                                qr_json = res_qr.json()
-                                                b64_qr = qr_json.get('base64') or qr_json.get('qrcode', {}).get('base64', '')
-                                                if b64_qr:
-                                                    clean_b64 = b64_qr.split(",")[-1]
-                                                    st.image(base64.b64decode(clean_b64), caption=f"Escanea con tu WhatsApp (Instancia: {clean_inst})", width=280)
-                                                    st.info("📲 Abre WhatsApp en tu celular > Dispositivos vinculados > Vincular dispositivo.")
-                                                else:
-                                                    st.warning(f"La instancia está en proceso de inicialización. Por favor haz clic en Verificar nuevamente en unos segundos.")
-                                            else:
-                                                st.warning(f"No se pudo conectar a la instancia: {res_qr.status_code} - {res_qr.text}")
-                                except Exception as ex_evo:
-                                    st.error(f"❌ Error al consultar Evolution API: {ex_evo}")
-
-                    elif "UltraMsg" in prov_opc:
-                        col_um1, col_um2 = st.columns(2)
-                        with col_um1:
-                            um_instance = st.text_input("Instance ID de UltraMsg:", placeholder="ej. instance105423", key="in_um_instance")
-                        with col_um2:
-                            um_token = st.text_input("Token de UltraMsg:", type="password", placeholder="ej. b28h1v98x...", key="in_um_token")
-
-                    else: # Personalizado
-                        col_api1, col_api2 = st.columns(2)
-                        with col_api1:
-                            api_url_in = st.text_input("Endpoint Completo:", placeholder="ej. https://mi-api.com/send", key="in_api_url_geral")
-                        with col_api2:
-                            api_token_in = st.text_input("API Key / Bearer Token:", type="password", key="in_api_token_geral")
-
-                    st.markdown("---")
-
-                    # --- PRUEBA INDIVIDUAL A CELULAR DE LA LÍDER/GERENTE ---
-                    st.markdown("##### 📲 Enviar Mensaje de Prueba Unitaria a tu Celular:")
-                    col_test1, col_test2 = st.columns([2, 1])
-                    with col_test1:
-                        test_phone = st.text_input("Ingresa tu número de celular para la prueba (10 dígitos):", placeholder="ej. 3101234567", key="in_cel_test_unit")
-                    with col_test2:
-                        st.write("")
-                        st.write("")
-                        btn_send_test = st.button("📲 Probar con mi Celular", key="btn_send_test_unit", type="secondary", use_container_width=True)
-
-                    def resolver_datos_envio(cel_destino, texto_mensaje):
-                        """Retorna (url, payload, headers) según el proveedor seleccionado."""
-                        cel_clean = str(cel_destino).replace("+", "").replace(" ", "").replace("-", "").strip()
-                        if not cel_clean.startswith("57") and len(cel_clean) == 10:
-                            cel_clean = f"57{cel_clean}"
-
-                        if "Evolution API" in prov_opc:
-                            if not evo_base_url.strip():
-                                raise ValueError("La URL Base de Evolution API está vacía. Por favor escríbela arriba.")
-                            if not evo_token.strip():
-                                raise ValueError("La API Key de Evolution API está vacía. Por favor escríbela arriba.")
-                            c_url = f"{evo_base_url.strip().rstrip('/')}/message/sendText/{evo_instance.strip()}"
-                            c_payload = {
-                                "number": cel_clean,
-                                "text": texto_mensaje,
-                                "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
-                            }
-                            c_headers = {
-                                "apikey": evo_token.strip(),
-                                "Content-Type": "application/json"
-                            }
-                            return c_url, c_payload, c_headers, "json"
-
-                        elif "UltraMsg" in prov_opc:
-                            if not um_instance.strip() or not um_token.strip():
-                                raise ValueError("Ingresa el Instance ID y el Token de UltraMsg arriba.")
-                            inst_clean = um_instance.strip().replace("https://api.ultramsg.com/", "").strip("/")
-                            c_url = f"https://api.ultramsg.com/{inst_clean}/messages/chat"
-                            c_payload = {
-                                "token": um_token.strip(),
-                                "to": cel_clean,
-                                "body": texto_mensaje,
-                                "priority": 10
-                            }
-                            c_headers = {"content-type": "application/x-www-form-urlencoded"}
-                            return c_url, c_payload, c_headers, "data"
-
-                        else:
-                            if not api_url_in.strip() or not api_token_in.strip():
-                                raise ValueError("Ingresa el Endpoint y el Token de tu API arriba.")
-                            c_url = api_url_in.strip()
-                            c_payload = {"number": cel_clean, "text": texto_mensaje, "body": texto_mensaje}
-                            c_headers = {
-                                "apikey": api_token_in.strip(),
-                                "Authorization": f"Bearer {api_token_in.strip()}",
-                                "Content-Type": "application/json"
-                            }
-                            return c_url, c_payload, c_headers, "json"
-
-                    if btn_send_test:
-                        if not test_phone or len(test_phone.strip()) < 10:
-                            st.warning("⚠️ Por favor escribe un número celular válido de al menos 10 dígitos.")
-                        else:
-                            msg_test_body = (
-                                "✨ *Prueba de Conexión Exitosa - App Líderes & Gerentes* ✨\n\n"
-                                "¡Hola! Este es un mensaje de prueba en vivo desde tu pasarela de WhatsApp Evolution API.\n"
-                                f"📡 *Proveedor:* {prov_opc}\n"
-                                f"📅 *Fecha:* {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n"
-                                "Si estás leyendo esto, tu integración está 100% activa y lista para enviar a tus consultoras. 🚀"
-                            )
+                        if cel_num and len(cel_num) >= 10:
                             try:
-                                t_url, t_payload, t_headers, t_mode = resolver_datos_envio(test_phone, msg_test_body)
-                                if t_mode == "data":
-                                    t_res = requests.post(t_url, data=t_payload, headers=t_headers, timeout=15)
+                                cel_clean = cel_num.replace("+", "").replace(" ", "").replace("-", "").strip()
+                                if not cel_clean.startswith("57") and len(cel_clean) == 10:
+                                    cel_clean = f"57{cel_clean}"
+
+                                evo_base_url = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
+                                evo_token = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
+                                evo_instance = st.session_state.get('in_evo_instance', inst_activa)
+
+                                if "Evolution API" in prov_act:
+                                    d_url = f"{evo_base_url.strip().rstrip('/')}/message/sendText/{evo_instance.strip()}"
+                                    d_payload = {
+                                        "number": cel_clean,
+                                        "text": msg_custom,
+                                        "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                    }
+                                    d_headers = {"apikey": evo_token.strip(), "Content-Type": "application/json"}
+                                    res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=12)
+                                elif "UltraMsg" in prov_act:
+                                    um_inst = st.session_state.get('in_um_instance', '').strip().replace("https://api.ultramsg.com/", "").strip("/")
+                                    um_tok = st.session_state.get('in_um_token', '').strip()
+                                    d_url = f"https://api.ultramsg.com/{um_inst}/messages/chat"
+                                    d_payload = {"token": um_tok, "to": cel_clean, "body": msg_custom, "priority": 10}
+                                    d_headers = {"content-type": "application/x-www-form-urlencoded"}
+                                    res = requests.post(d_url, data=d_payload, headers=d_headers, timeout=12)
                                 else:
-                                    t_res = requests.post(t_url, json=t_payload, headers=t_headers, timeout=15)
+                                    d_url = st.session_state.get('in_api_url_geral', '').strip()
+                                    d_tok = st.session_state.get('in_api_token_geral', '').strip()
+                                    d_payload = {"number": cel_clean, "text": msg_custom, "body": msg_custom}
+                                    d_headers = {"apikey": d_tok, "Authorization": f"Bearer {d_tok}", "Content-Type": "application/json"}
+                                    res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=12)
 
-                                inst_g = st.session_state.get('in_evo_instance', '')
-                                if t_res.status_code in [200, 201]:
-                                    st.success(f"✅ ¡Mensaje de prueba enviado con éxito a {test_phone}! Revisa tu WhatsApp en tu celular.")
+                                if res.status_code in [200, 201]:
+                                    enviados_ok += 1
                                     registrar_log_whatsapp(
-                                        modulo="Cartera Gera (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="EXITOSO",
-                                        http_codigo=t_res.status_code, respuesta_servidor=t_res.text, remitente=current_user,
-                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
-                                        destinatario_cb="", mensaje_snippet=msg_test_body[:100]
+                                        modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="EXITOSO",
+                                        http_codigo=res.status_code, respuesta_servidor=res.text, remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_instance,
+                                        destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
                                     )
-                                elif "Connection Closed" in t_res.text or "not connected" in t_res.text.lower():
-                                    st.warning("⚠️ Tu WhatsApp aún no está vinculado a la instancia. Haz clic arriba en '🔄 Verificar Conexión / QR' y escanea el código QR con tu celular.")
-                                    registrar_log_whatsapp(
-                                        modulo="Cartera Gera (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="FALLIDO",
-                                        http_codigo=t_res.status_code, respuesta_servidor=t_res.text, remitente=current_user,
-                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
-                                        destinatario_cb="", mensaje_snippet=msg_test_body[:100]
-                                    )
-                                else:
-                                    st.error(f"❌ Error al enviar prueba (Código {t_res.status_code}): {t_res.text}")
-                                    registrar_log_whatsapp(
-                                        modulo="Cartera Gera (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="FALLIDO",
-                                        http_codigo=t_res.status_code, respuesta_servidor=t_res.text, remitente=current_user,
-                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
-                                        destinatario_cb="", mensaje_snippet=msg_test_body[:100]
-                                    )
-                            except Exception as ex_t:
-                                st.error(f"❌ Fallo de conexión: {ex_t}")
-                                registrar_log_whatsapp(
-                                    modulo="Cartera Gera (Prueba)", destinatario_nombre="Prueba Conexión", telefono=test_phone, estado="FALLIDO",
-                                    http_codigo=0, respuesta_servidor=str(ex_t), remitente=current_user,
-                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=st.session_state.get('in_evo_instance', ''),
-                                    destinatario_cb="", mensaje_snippet=msg_test_body[:100]
-                                )
-
-                    st.markdown("---")
-
-                    # --- DESPACHO MASIVO DE CAMPAÑA ---
-                    st.markdown("##### 🚀 Envío Masivo a Consultoras Seleccionadas:")
-                    if not df_campana_out.empty:
-                        delay_anti_ban = st.slider("⏱️ Pausa entre mensajes (Segundos - Protección Anti-Ban):", min_value=1, max_value=10, value=3, help="Meta/WhatsApp recomienda dejar al menos 3 a 5 segundos entre cada mensaje para evitar bloqueos por spam.")
-
-                        btn_disparar_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_campana_out)} Consultoras", type="primary", use_container_width=True, key="btn_disparar_api_geral")
-
-                        if btn_disparar_api:
-                            progress_bar = st.progress(0.0)
-                            status_txt = st.empty()
-                            enviados_ok = 0
-                            errores_cnt = 0
-
-                            for i, r_c in enumerate(df_campana_out.iterrows()):
-                                r_c = r_c[1]
-                                cel_num = str(r_c['Celular']).strip()
-                                c_nom = str(r_c.get('Consultora', '')).strip()
-                                c_cb = str(r_c.get('Código CB', '') or r_c.get('Codigo CB', '')).strip()
-                                msg_custom = str(r_c.get('Mensaje Personalizado', ''))
-                                inst_g = st.session_state.get('in_evo_instance', '')
-
-                                if cel_num and len(cel_num) >= 10:
-                                    try:
-                                        d_url, d_payload, d_headers, d_mode = resolver_datos_envio(cel_num, msg_custom)
-                                        if d_mode == "data":
-                                            res = requests.post(d_url, data=d_payload, headers=d_headers, timeout=12)
-                                        else:
-                                            res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=12)
-
-                                        if res.status_code in [200, 201]:
-                                            enviados_ok += 1
-                                            registrar_log_whatsapp(
-                                                modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="EXITOSO",
-                                                http_codigo=res.status_code, respuesta_servidor=res.text, remitente=current_user,
-                                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
-                                                destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
-                                            )
-                                        else:
-                                            errores_cnt += 1
-                                            registrar_log_whatsapp(
-                                                modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="FALLIDO",
-                                                http_codigo=res.status_code, respuesta_servidor=res.text, remitente=current_user,
-                                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
-                                                destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
-                                            )
-                                    except Exception as ex_g:
-                                        errores_cnt += 1
-                                        registrar_log_whatsapp(
-                                            modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="FALLIDO",
-                                            http_codigo=0, respuesta_servidor=str(ex_g), remitente=current_user,
-                                            rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
-                                            destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
-                                        )
                                 else:
                                     errores_cnt += 1
                                     registrar_log_whatsapp(
                                         modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="FALLIDO",
-                                        http_codigo=400, respuesta_servidor="Número celular no válido o menor a 10 dígitos", remitente=current_user,
-                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_g,
+                                        http_codigo=res.status_code, respuesta_servidor=res.text, remitente=current_user,
+                                        rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=evo_instance,
                                         destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
                                     )
+                            except Exception as ex_g:
+                                errores_cnt += 1
+                                registrar_log_whatsapp(
+                                    modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="FALLIDO",
+                                    http_codigo=0, respuesta_servidor=str(ex_g), remitente=current_user,
+                                    rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_activa,
+                                    destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
+                                )
+                        else:
+                            errores_cnt += 1
+                            registrar_log_whatsapp(
+                                modulo="Cartera Gera", destinatario_nombre=c_nom, telefono=cel_num, estado="FALLIDO",
+                                http_codigo=400, respuesta_servidor="Número celular no válido o menor a 10 dígitos", remitente=current_user,
+                                rol=user_rol, sector=user_sector, grupo=user_grupo, instancia_evo=inst_activa,
+                                destinatario_cb=c_cb, mensaje_snippet=msg_custom[:100]
+                            )
 
-                                progress_bar.progress((i + 1) / len(df_campana_out))
-                                status_txt.caption(f"Despachando {i+1} de {len(df_campana_out)}: {r_c['Consultora']}...")
-                                if i < len(df_campana_out) - 1:
-                                    time.sleep(delay_anti_ban)
+                        progress_bar.progress((i + 1) / n_marcadas)
+                        status_txt.caption(f"Despachando {i+1} de {n_marcadas}: {c_nom}...")
+                        if i < n_marcadas - 1:
+                            time.sleep(delay_anti_ban)
 
-                            st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {enviados_ok} | Fallidos: {errores_cnt}")
-                    else:
-                        st.info("👆 Selecciona al menos una consultora arriba o pulsa un botón de carga rápida (por ejemplo: **🚨 En Mora**) para habilitar el envío masivo automático por API.")
+                    st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {enviados_ok} | Fallidos: {errores_cnt}")
+            else:
+                st.info("👆 Marca al menos una casilla **'✅ Enviar'** en la tabla de arriba o pulsa un botón rápido (por ejemplo: **🚨 En Mora**) para habilitar el envío automático.")
 
-                    with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Cartera Gera)", expanded=False):
-                        renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Cartera Gera", key_suffix="geral")
+            with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Cartera Gera)", expanded=False):
+                renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Cartera Gera", key_suffix="geral")
 
             st.markdown("---")
 
@@ -9386,6 +10245,14 @@ if tab_diagnostico is not None:
 
                         sal_num = int(round(limpiar_numero(row_l.get('Saldo', 0), 0)))
                         sal_str = f"{sal_num:+d}" if sal_num != 0 else "0"
+
+                        disp_num = int(round(limpiar_numero(row_l.get('Disponibles', 0), 0)))
+                        inicios_num = int(round(limpiar_numero(row_l.get('Inicios', 0), 0)))
+                        reinicios_num = int(round(limpiar_numero(row_l.get('Reinicios', 0), 0)))
+                        tot_inicios_reinicios = inicios_num + reinicios_num
+                        meta_ir_num = int(round(limpiar_numero(row_l.get('Meta Inicios + Reinicios', 0), 0)))
+                        meta_ir_suffix = f" (Meta: {meta_ir_num})" if meta_ir_num > 0 else ""
+
                         gan_l = formato_cop(row_l.get('Ganancia estimada', 0))
                         sector_l = str(row_l.get('Nombre Setor', 'General')).strip()
 
@@ -9400,15 +10267,19 @@ if tab_diagnostico is not None:
                             f"⚡ *Falta para 95% (Mínimo):* {falta_95_fact_str}\n"
                             f"💵 *Falta para 100%:* {falta_100_fact_str}\n"
                             f"🚀 *Falta para 110%:* {falta_110_fact_str}\n\n"
-                            f"👥 *--- ACTIVAS & RED ---*\n"
+                            f"👥 *--- ACTIVAS & DISPONIBLES ---*\n"
                             f"👥 *Activas Reales:* {int(r_act_num)}\n"
                             f"🎯 *Objetivo Activas:* {int(o_act_num)}\n"
                             f"📈 *Cumplimiento Activas:* {c_act_str}\n"
                             f"⚡ *Falta para 95% (Mínimo):* {falta_95_act_str}\n"
                             f"🌱 *Falta para 100%:* {falta_100_act_str}\n"
-                            f"🚀 *Falta para 110%:* {falta_110_act_str}\n\n"
-                            f"⚖️ *--- SALDO & GANANCIA ---*\n"
-                            f"⚠️ *Saldo Comercial:* {sal_str}\n"
+                            f"🚀 *Falta para 110%:* {falta_110_act_str}\n"
+                            f"📋 *Disponibles en Red:* {disp_num} consultoras\n\n"
+                            f"🚀 *--- INICIOS, REINICIOS & SALDO ---*\n"
+                            f"🌱 *Inicios:* {inicios_num}\n"
+                            f"🔄 *Reinicios:* {reinicios_num}\n"
+                            f"✨ *Total Inicios + Reinicios:* {tot_inicios_reinicios}{meta_ir_suffix}\n"
+                            f"⚖️ *Saldo Comercial:* {sal_str}\n"
                             f"💵 *Ganancia Estimada:* {gan_l}\n"
                         )
 
@@ -10503,6 +11374,72 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                     st.warning("⚠️ **Permisos Abiertos**: Las Líderes tienen acceso a subir archivos.")
                 else:
                     st.info("🔒 **Modo Protegido (Predeterminado)**: Las Líderes y Consultoras tienen bloqueadas las opciones de subida de archivos.")
+
+            st.markdown("---")
+            st.markdown("#### 🔄 Sincronización y Respaldo de Base de Datos (Nube ⟷ Local)")
+            st.markdown("Descarga copias de seguridad de producción o actualiza este entorno local arrastrando directamente el archivo descargado:")
+
+            col_sync1, col_sync2 = st.columns(2)
+
+            with col_sync1:
+                st.markdown("##### 📥 1. Descargar Respaldo")
+                st.caption("Obtén una réplica exacta de la base de datos o de todos los archivos del sistema:")
+                
+                col_d1, col_d2 = st.columns(2)
+                with col_d1:
+                    ruta_db_sql = ruta_persistente('base_matices.db')
+                    if os.path.exists(ruta_db_sql):
+                        with open(ruta_db_sql, "rb") as f_db_full:
+                            st.download_button(
+                                label="📥 Base SQLite (.db)",
+                                data=f_db_full,
+                                file_name="base_matices_nube.db",
+                                mime="application/x-sqlite3",
+                                help="Descarga el archivo exacto base_matices.db",
+                                use_container_width=True,
+                                key="btn_descarga_db_tab_perm"
+                            )
+                with col_d2:
+                    zip_bytes_tab = generar_backup_completo_zip()
+                    if zip_bytes_tab:
+                        st.download_button(
+                            label="📦 Backup Todo (.zip)",
+                            data=zip_bytes_tab,
+                            file_name=f"backup_sistema_matices_{datetime.now().strftime('%Y%m%d_%H%M')}.zip",
+                            mime="application/zip",
+                            help="Descarga base SQLite + usuarios + configuraciones + excels en un solo ZIP",
+                            use_container_width=True,
+                            key="btn_descarga_zip_tab_perm"
+                        )
+
+            with col_sync2:
+                st.markdown("##### 📤 2. Restaurar / Actualizar con 1 Clic (Drag & Drop)")
+                st.caption("Arrastra aquí el archivo `.db` o `.zip` descargado para actualizar automáticamente tu entorno:")
+                archivo_subido_sync = st.file_uploader(
+                    "Arrastra tu archivo aquí (.db o .zip)",
+                    type=["db", "sqlite", "sqlite3", "zip"],
+                    key="uploader_sync_db_tab_perm",
+                    help="Sube el archivo 'base_matices_nube.db' o un archivo '.zip' de respaldo."
+                )
+                if archivo_subido_sync is not None:
+                    if st.button("🚀 Aplicar y Restaurar Base de Datos Ahora", type="primary", use_container_width=True, key="btn_ejecutar_sync_tab_perm"):
+                        with st.spinner("Restaurando base de datos y verificando registros..."):
+                            ok_s, msg_s = restaurar_base_datos_o_backup(archivo_subido_sync, current_user=current_user)
+                            if ok_s:
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="🔄 Sincronización",
+                                    accion="Restauración Base de Datos",
+                                    detalle=msg_s[:150],
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                st.success(f"✅ {msg_s}")
+                                st.cache_data.clear()
+                                st.cache_resource.clear()
+                                time.sleep(1.5)
+                                st.rerun()
+                            else:
+                                st.error(f"❌ {msg_s}")
 
             st.markdown("---")
             st.markdown("#### 🧹 Mantenimiento & Limpieza de Base de Datos")

@@ -8285,6 +8285,150 @@ def vaciar_base_datos_completa(vaciar_usuarios=False, eliminar_archivos_excel=Tr
     return res
 
 # ---------------------------------------------------------
+# MOTOR DE RESPALDO Y SINCRONIZACIÓN (NUBE ⟷ LOCAL)
+# ---------------------------------------------------------
+def generar_backup_completo_zip():
+    """
+    Empaqueta la base de datos SQLite y los archivos de configuración y datos en un ZIP en memoria.
+    Retorna bytes listos para descarga con st.download_button.
+    """
+    import zipfile
+    buf = io.BytesIO()
+    archivos_clave = [
+        'base_matices.db',
+        'usuarios.json',
+        'configuracion.json',
+        'auditoria_logs.json',
+        'log_whatsapp.json',
+        'sectores_historico.json',
+        'comentarios_lideres.json',
+        'objetivos_arte.json',
+        'Base de Datos.xlsx',
+        'Base para el como vamos.xlsx',
+        'Objetivos Arte.xlsx'
+    ]
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as z:
+        agregados = set()
+        for arch in archivos_clave:
+            p_arch = ruta_persistente(arch)
+            if not os.path.exists(p_arch) and os.path.exists(arch):
+                p_arch = arch
+            if os.path.exists(p_arch) and arch not in agregados:
+                z.write(p_arch, arcname=arch)
+                agregados.add(arch)
+    buf.seek(0)
+    return buf.getvalue()
+
+
+def restaurar_base_datos_o_backup(archivo_subido, current_user="admin"):
+    """
+    Restaura una base de datos SQLite (.db, .sqlite) o un backup comprimido (.zip).
+    Valida la integridad, crea un respaldo local de seguridad antes de sobrescribir,
+    y sincroniza tanto en la ruta persistente como en la raíz del proyecto.
+    Retorna (bool_exito, mensaje_detalle).
+    """
+    import zipfile
+    import sqlite3
+    import shutil
+    
+    if archivo_subido is None:
+        return False, "No se ha proporcionado ningún archivo."
+        
+    nombre = archivo_subido.name.lower()
+    
+    if hasattr(archivo_subido, "getbuffer"):
+        bytes_data = bytes(archivo_subido.getbuffer())
+    elif hasattr(archivo_subido, "read"):
+        bytes_data = archivo_subido.read()
+    else:
+        return False, "Formato de archivo ilegible."
+        
+    if len(bytes_data) == 0:
+        return False, "El archivo subido está vacío."
+        
+    # CASO 1: Archivo de Base de Datos SQLite (.db, .sqlite, .sqlite3 o con 'base_matices')
+    if nombre.endswith(('.db', '.sqlite', '.sqlite3')) or 'base_matices' in nombre:
+        # Validar cabecera oficial de SQLite (16 bytes: b'SQLite format 3\x00')
+        if len(bytes_data) < 100 or bytes_data[:16] != b'SQLite format 3\x00':
+            return False, "El archivo no es una base de datos SQLite válida (cabecera corrupta o formato incorrecto)."
+            
+        ruta_dest = ruta_persistente('base_matices.db')
+        
+        # 1. Respaldo preventivo de seguridad de la base local previa
+        if os.path.exists(ruta_dest):
+            try:
+                shutil.copy2(ruta_dest, f"{ruta_dest}.bak")
+            except Exception:
+                pass
+                
+        # 2. Guardar en ruta persistente
+        try:
+            with open(ruta_dest, "wb") as f:
+                f.write(bytes_data)
+        except Exception as e_w:
+            return False, f"Error al escribir en {ruta_dest}: {e_w}"
+            
+        # 3. Guardar también en la raíz local para redundancia
+        if os.path.exists("base_matices.db") or not os.path.exists(ruta_dest):
+            try:
+                with open("base_matices.db", "wb") as f_r:
+                    f_r.write(bytes_data)
+            except Exception:
+                pass
+                
+        # 4. Inspeccionar tablas restauradas
+        info_tablas = []
+        total_regs = 0
+        try:
+            conn = sqlite3.connect(ruta_dest)
+            cur = conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tablas = [r[0] for r in cur.fetchall() if not r[0].startswith('sqlite_')]
+            for t in tablas:
+                cur.execute(f"SELECT count(*) FROM {t}")
+                cnt = cur.fetchone()[0]
+                total_regs += cnt
+                info_tablas.append(f"**{t}**: {cnt:,}")
+            conn.close()
+        except Exception as e_sq:
+            safe_print(f"Nota inspección SQLite post-restore: {e_sq}")
+            
+        resumen_txt = " • ".join(info_tablas) if info_tablas else "Tablas verificadas correctamente"
+        return True, f"Base de datos SQLite restaurada con éxito ({total_regs:,} registros totales en base de datos). {resumen_txt}"
+        
+    # CASO 2: Archivo de Respaldo Comprimido ZIP (.zip)
+    elif nombre.endswith('.zip'):
+        try:
+            with zipfile.ZipFile(io.BytesIO(bytes_data)) as z:
+                archivos_restaurados = []
+                for file_info in z.infolist():
+                    f_name = os.path.basename(file_info.filename)
+                    if not f_name or f_name.startswith('.'):
+                        continue
+                    dest_p = ruta_persistente(f_name)
+                    if os.path.exists(dest_p):
+                        try:
+                            shutil.copy2(dest_p, f"{dest_p}.bak")
+                        except Exception:
+                            pass
+                    with z.open(file_info) as source, open(dest_p, 'wb') as target:
+                        shutil.copyfileobj(source, target)
+                    if f_name == 'base_matices.db':
+                        try:
+                            with open('base_matices.db', 'wb') as f_r:
+                                f_r.write(open(dest_p, 'rb').read())
+                        except Exception:
+                            pass
+                    archivos_restaurados.append(f_name)
+                    
+            return True, f"Backup ZIP restaurado con éxito ({len(archivos_restaurados)} archivos actualizados: {', '.join(archivos_restaurados)})."
+        except Exception as e_zip:
+            return False, f"Error al procesar archivo ZIP: {e_zip}"
+            
+    else:
+        return False, "Formato no compatible. Por favor sube un archivo de base de datos **.db** o un archivo de respaldo **.zip**."
+
+# ---------------------------------------------------------
 # MÓDULO DE CUMPLEAÑOS Y RECONOCIMIENTO DE ASESORAS / LÍDERES
 # ---------------------------------------------------------
 MESES_ESPANOL = {
