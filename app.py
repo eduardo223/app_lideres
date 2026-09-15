@@ -383,6 +383,63 @@ def renderizar_preview_chat_whatsapp(mensaje, b64_img=None, mime_img="image/png"
     else:
         st.markdown(card_html, unsafe_allow_html=True)
 
+def renderizar_guia_seguridad_envios_wa(destinatarios="Líderes"):
+    """
+    Renderiza el banner instructivo oficial de seguridad anti-bloqueo para envíos masivos de WhatsApp
+    con las 3 modalidades: Texto Puro, Imágenes/Flyers y Acompañamiento con Audio.
+    """
+    nom_upper = str(destinatarios).strip().upper()
+    es_lider = ("LÍDER" in nom_upper or "LIDER" in nom_upper)
+    
+    if es_lider:
+        titulo = "GUÍA DE SEGURIDAD PARA ENVÍOS A LÍDERES (EVITAR RESTRICCIONES DE WHATSAPP)"
+        subtitulo = "Para proteger la línea telefónica de la Gerente y garantizar que los reportes lleguen completos a cada Líder:"
+        tip_txt = "• Como cada reporte tiene números y metas diferentes, WhatsApp lo considera dinámico.<br>• Asegúrate de que las Líderes tengan guardado tu contacto."
+        tip_img = "• Despacha en tandas de <strong>máximo 8 a 10 líderes</strong>.<br>• Deja enfriar la conexión 15 minutos entre tandas."
+        tip_aud = "• Duración: <strong>15 a 30 seg</strong> motivando a la Líder.<br>• Genera cercanía y compromiso comercial inmediato.<br>• 0% de reportes de spam."
+    else:
+        singular_dest = "Consultora" if "CONSULTORA" in nom_upper else ("Cumpleañera" if "CUMPLEAÑ" in nom_upper else destinatarios)
+        titulo = f"GUÍA DE SEGURIDAD PARA ENVÍOS MASIVOS A {nom_upper} (EVITAR RESTRICCIONES DE WHATSAPP)"
+        subtitulo = f"Para proteger la línea telefónica y garantizar que los mensajes lleguen completos a cada {singular_dest}:"
+        tip_txt = "• Como cada mensaje tiene datos personalizados, WhatsApp lo considera dinámico.<br>• Asegúrate de que las destinatarias tengan guardado tu contacto."
+        tip_img = "• Despacha en tandas de <strong>máximo 8 a 10 personas</strong>.<br>• Deja enfriar la conexión 15 minutos entre tandas."
+        tip_aud = f"• Duración: <strong>15 a 30 seg</strong> motivando a la {singular_dest.lower()}.<br>• Genera cercanía y compromiso comercial inmediato.<br>• 0% de reportes de spam."
+
+    banner_html = (
+        '<div style="background: #FFFBEB; border: 1.5px solid #F59E0B; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">'
+        '<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">'
+        '<span style="font-size: 1.25rem;">🛡️</span>'
+        f'<strong style="color: #92400E; font-size: 0.95rem;">{titulo}</strong>'
+        '</div>'
+        '<div style="font-size: 0.83rem; color: #78350F; line-height: 1.45;">'
+        f'<p style="margin: 0 0 8px 0;">{subtitulo}</p>'
+        '<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 6px;">'
+        '<div style="background: #FFFFFF; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 10px 12px;">'
+        '<strong style="color: #1E293B; font-size: 0.84rem;">💬 1. Despacho en Texto Puro</strong><br>'
+        '<span style="font-size: 0.78rem; color: #475569;">'
+        '• Pausa recomendada: <strong>15 a 30 seg</strong>.<br>'
+        f'{tip_txt}'
+        '</span>'
+        '</div>'
+        '<div style="background: #FFF1F2; border: 1px solid rgba(244, 63, 94, 0.4); border-radius: 8px; padding: 10px 12px;">'
+        '<strong style="color: #9F1239; font-size: 0.84rem;">🖼️ 2. Si Adjuntas Capturas o Flyers</strong><br>'
+        '<span style="font-size: 0.78rem; color: #881337;">'
+        '• Pausa recomendada: <strong>40 a 55 seg</strong>.<br>'
+        f'{tip_img}'
+        '</span>'
+        '</div>'
+        '<div style="background: #F0FDF4; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 10px 12px;">'
+        '<strong style="color: #166534; font-size: 0.84rem;">🎙️ 3. Acompañamiento con Audio</strong><br>'
+        '<span style="font-size: 0.78rem; color: #14532D;">'
+        f'{tip_aud}'
+        '</span>'
+        '</div>'
+        '</div>'
+        '</div>'
+        '</div>'
+    )
+    st.markdown(banner_html, unsafe_allow_html=True)
+
 def obtener_instancia_evolution(current_user, user_rol, user_grupo):
     """
     Genera un identificador de instancia limpio y válido para Evolution API:
@@ -2140,6 +2197,7 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
             with st.expander(f"🔌 Envío Automático por Evolution API ({len(lista_cumple)} Cumpleañeras de {label_periodo})", expanded=True if (label_periodo == "Hoy" and esta_vinculado_evo) else (True if label_periodo == "Hoy" else False)):
                 st.markdown(f"##### 🚀 Felicitar Automáticamente por WhatsApp ({label_periodo}):")
                 st.caption("Envía el saludo de cumpleaños personalizado a todas las consultoras con un solo clic usando tu WhatsApp vinculado.")
+                renderizar_guia_seguridad_envios_wa("Cumpleañeras")
 
                 col_c_info1, col_c_info2 = st.columns([1.7, 1.3])
                 with col_c_info1:
@@ -7107,6 +7165,7 @@ if tab_tableau is not None:
                         # Envío automático por Evolution API
                         with st.expander("🔌 Envío Masivo Automático por Evolution API (Opcional)", expanded=False):
                             st.markdown("##### 🚀 Envío Automático a Consultoras Seleccionadas:")
+                            renderizar_guia_seguridad_envios_wa("Consultoras")
                             import requests
                             evo_url_tab = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
                             inst_def_tab = obtener_instancia_evolution(current_user, user_rol, user_grupo)
@@ -8341,44 +8400,7 @@ if tab_tableau is not None:
                         st.caption("Envía de forma automatizada los mensajes a las consultoras seleccionadas sin tocar tu teléfono una a una, usando la sesión de WhatsApp ya vinculada.")
 
                         # Banner de instrucciones específicas y advertencias anti-bloqueo
-                        st.markdown("""
-                        <div style="background: #FFFBEB; border: 1.5px solid #F59E0B; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
-                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                <span style="font-size: 1.25rem;">🛡️</span>
-                                <strong style="color: #92400E; font-size: 0.95rem;">GUÍA OBLIGATORIA ANTI-BLOQUEO DE WHATSAPP (POLÍTICAS DE META)</strong>
-                            </div>
-                            <div style="font-size: 0.83rem; color: #78350F; line-height: 1.45;">
-                                <p style="margin: 0 0 8px 0;">Meta restringe por <strong>24 horas</strong> las cuentas que envían mensajes masivos con intervalos rápidos. Sigue estrictamente estas pautas según tu tipo de envío:</p>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 6px;">
-                                    <div style="background: #FFFFFF; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 10px 12px;">
-                                        <strong style="color: #1E293B; font-size: 0.84rem;">💬 1. Envío Solo Texto</strong><br>
-                                        <span style="font-size: 0.78rem; color: #475569;">
-                                        • Pausa sugerida: <strong>20 a 35 seg</strong>.<br>
-                                        • Lotes: <strong>15 a 20 personas</strong>.<br>
-                                        • Mensajes cálidos, sin mayúsculas sostenidas.<br>
-                                        • Cierra siempre con una pregunta abierta.
-                                        </span>
-                                    </div>
-                                    <div style="background: #FFF1F2; border: 1px solid rgba(244, 63, 94, 0.4); border-radius: 8px; padding: 10px 12px;">
-                                        <strong style="color: #9F1239; font-size: 0.84rem;">🖼️ 2. Envío Con Imagen / Flyer</strong><br>
-                                        <span style="font-size: 0.78rem; color: #881337;">
-                                        • Pausa sugerida: <strong>40 a 60 seg</strong>.<br>
-                                        • Lotes: <strong>Máximo 10 personas</strong>.<br>
-                                        • ⚠️ <em>Disparador #1 de bloqueos</em> si se mandan ráfagas seguidas. Si es posible, envía el flyer solo a quien responda.
-                                        </span>
-                                    </div>
-                                    <div style="background: #F0FDF4; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 10px 12px;">
-                                        <strong style="color: #166534; font-size: 0.84rem;">🎙️ 3. Envío Con Audio (Voz)</strong><br>
-                                        <span style="font-size: 0.78rem; color: #14532D;">
-                                        • Duración: <strong>20 a 30 seg máximo</strong>.<br>
-                                        • Pausa sugerida: <strong>30 a 45 seg</strong>.<br>
-                                        • ⭐ <em>La opción más segura y efectiva</em>. Nadie reporta como spam una nota de voz de su Líder.
-                                        </span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        renderizar_guia_seguridad_envios_wa("Consultoras")
 
                         import requests
                         evo_url_camp = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
@@ -9075,6 +9097,7 @@ if tab_geral is not None:
 
             # Despachador masivo conectado a las consultoras marcadas
             st.markdown("##### 🚀 Envío Masivo Automático por WhatsApp")
+            renderizar_guia_seguridad_envios_wa("Consultoras (Cartera)")
             if n_marcadas > 0:
                 inst_activa = st.session_state.get('in_evo_instance', obtener_instancia_evolution(current_user, user_rol, user_grupo))
                 url_activa = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
@@ -10948,43 +10971,7 @@ if tab_diagnostico is not None:
                             st.caption("Envía el reporte oficial de 'Cómo Vamos' personalizado a cada una de tus Líderes con un solo clic usando tu WhatsApp vinculado.")
 
                             # Banner de instrucciones específicas y advertencias anti-bloqueo
-                            st.markdown("""
-                            <div style="background: #FFFBEB; border: 1.5px solid #F59E0B; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
-                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                                    <span style="font-size: 1.25rem;">🛡️</span>
-                                    <strong style="color: #92400E; font-size: 0.95rem;">GUÍA DE SEGURIDAD PARA ENVÍOS A LÍDERES (EVITAR RESTRICCIONES DE WHATSAPP)</strong>
-                                </div>
-                                <div style="font-size: 0.83rem; color: #78350F; line-height: 1.45;">
-                                    <p style="margin: 0 0 8px 0;">Para proteger la línea telefónica de la Gerente y garantizar que los reportes lleguen completos a cada Líder:</p>
-                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 6px;">
-                                        <div style="background: #FFFFFF; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 10px 12px;">
-                                            <strong style="color: #1E293B; font-size: 0.84rem;">💬 1. Despacho en Texto Puro</strong><br>
-                                            <span style="font-size: 0.78rem; color: #475569;">
-                                            • Pausa recomendada: <strong>15 a 30 seg</strong>.<br>
-                                            • Como cada reporte tiene números y metas diferentes, WhatsApp lo considera dinámico.<br>
-                                            • Asegúrate de que las Líderes tengan guardado tu contacto.
-                                            </span>
-                                        </div>
-                                        <div style="background: #FFF1F2; border: 1px solid rgba(244, 63, 94, 0.4); border-radius: 8px; padding: 10px 12px;">
-                                            <strong style="color: #9F1239; font-size: 0.84rem;">🖼️ 2. Si Adjuntas Capturas o Flyers</strong><br>
-                                            <span style="font-size: 0.78rem; color: #881337;">
-                                            • Pausa recomendada: <strong>40 a 55 seg</strong>.<br>
-                                            • Despacha en tandas de <strong>máximo 8 a 10 líderes</strong>.<br>
-                                            • Deja enfriar la conexión 15 minutos entre tandas.
-                                            </span>
-                                        </div>
-                                        <div style="background: #F0FDF4; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 10px 12px;">
-                                            <strong style="color: #166534; font-size: 0.84rem;">🎙️ 3. Acompañamiento con Audio</strong><br>
-                                            <span style="font-size: 0.78rem; color: #14532D;">
-                                            • Duración: <strong>15 a 30 seg</strong> motivando a la Líder.<br>
-                                            • Genera cercanía y compromiso comercial inmediato.<br>
-                                            • 0% de reportes de spam.
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
+                            renderizar_guia_seguridad_envios_wa("Líderes")
 
                             col_d_info1, col_d_info2 = st.columns([1.7, 1.3])
                             with col_d_info1:
