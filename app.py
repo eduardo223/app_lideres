@@ -3398,7 +3398,7 @@ if st.session_state['user'] is None:
         if st.session_state.get('msg_timeout'):
             st.warning(st.session_state['msg_timeout'])
 
-        tab_login_tab, tab_recuperar_tab, tab_registro_tab = st.tabs(["🔑 Iniciar Sesión", "🆘 ¿Olvidaste tu Usuario o Clave?", "🚀 Probar Gratis (15 Días)"])
+        tab_login_tab, tab_recuperar_tab, tab_registro_tab = st.tabs(["🔑 Iniciar Sesión", "🆘 ¿Olvidaste tu Usuario o Clave?", "🚀 Probar Gratis (5 Días)"])
         
         with tab_login_tab:
             st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
@@ -3665,7 +3665,7 @@ if st.session_state['user'] is None:
         with tab_registro_tab:
             st.markdown('<div class="login-form-card">', unsafe_allow_html=True)
             st.markdown("#### 🚀 Registro para Gerentes de Sector")
-            st.caption("Activa tu prueba gratuita de 15 días con acceso total para ti y todo tu equipo de líderes.")
+            st.caption("Activa tu prueba gratuita de 5 días con acceso total para ti y todo tu equipo de líderes.")
 
             catalogo_sectores = cargar_catalogo_sectores()
             opciones_sector = ["-- Selecciona tu Sector --"]
@@ -3715,7 +3715,7 @@ if st.session_state['user'] is None:
                     reg_sec_cod = default_cod_sec
                     reg_sec_nom = default_nom_sec
                 
-                btn_registro = st.form_submit_button("🎉 Comenzar Mi Prueba Gratis de 15 Días", type="primary", use_container_width=True)
+                btn_registro = st.form_submit_button("🎉 Comenzar Mi Prueba Gratis de 5 Días", type="primary", use_container_width=True)
                 
                 if btn_registro:
                     if not reg_sec_cod or not reg_sec_nom:
@@ -3736,7 +3736,7 @@ if st.session_state['user'] is None:
                                 u_data,
                                 categoria="🎉 Registro",
                                 accion="Registro Nueva Gerente",
-                                detalle=f"Activación prueba 15 días ({reg_sec_nom} - Cód: {reg_sec_cod})",
+                                detalle=f"Activación prueba 5 días ({reg_sec_nom} - Cód: {reg_sec_cod})",
                                 dispositivo="🖥️ PC / Escritorio"
                             )
                             st.success("✅ " + msg_reg)
@@ -3773,7 +3773,7 @@ if not info_suscripcion.get("permitido", True):
             <div style="font-size: 3.5rem; margin-bottom: 12px;">🔒</div>
             <h2 style="color: #F8FAFC; margin-bottom: 8px;">Periodo de Prueba Finalizado</h2>
             <p style="color: #CBD5E1; font-size: 1.05rem; line-height: 1.6; margin-bottom: 20px;">
-                {info_suscripcion.get("motivo", "Tu acceso temporal de prueba de 15 días ha concluido.")}
+                {info_suscripcion.get("motivo", "Tu acceso temporal de prueba de 5 días ha concluido.")}
             </p>
             <div style="background: rgba(30, 41, 59, 0.8); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 18px; margin-bottom: 24px; text-align: left;">
                 <p style="color: #10B981; font-weight: 700; margin-bottom: 6px;">🛡️ Tu información y notas están 100% a salvo</p>

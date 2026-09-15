@@ -3975,10 +3975,11 @@ def refrescar_perfil_usuario_en_sesion(user_dict):
         return fresco
     return user_dict
 
-# --- MÓDULO DE SUSCRIPCIONES, PRUEBAS GRATIS (15 DÍAS) Y CONTROL ANTI-FRAUDE ---
+# --- MÓDULO DE SUSCRIPCIONES, PRUEBAS GRATIS (5 DÍAS) Y CONTROL ANTI-FRAUDE ---
 RUTA_HISTORICO_SECTORES = ruta_persistente('sectores_historico.json')
 RUTA_MARCA_AGUA_TIEMPO = ruta_persistente('marca_agua_sistema.json')
 RUTA_AUDITORIA_JSON = ruta_persistente('auditoria_logs.json')
+DIAS_PRUEBA_GRATIS = 5
 
 def cargar_historico_sectores():
     """
@@ -4141,7 +4142,7 @@ def verificar_estado_suscripcion(user_info_o_sector):
     - fecha_vencimiento_str: str
     - motivo: str
     """
-    from datetime import datetime
+    from datetime import datetime, timedelta
 
     if isinstance(user_info_o_sector, dict):
         rol = user_info_o_sector.get("rol", "")
@@ -4210,6 +4211,20 @@ def verificar_estado_suscripcion(user_info_o_sector):
         dt_vence = datetime.fromisoformat(str(vence_iso))
         dt_now = datetime.now()
         
+        # Si está en modo prueba, garantizar que la prueba sea de máximo DIAS_PRUEBA_GRATIS (5 días)
+        if estado == "prueba":
+            reg_iso = sec_info.get("primera_prueba_fecha") or (user_info_o_sector.get("fecha_registro") if isinstance(user_info_o_sector, dict) else None)
+            if reg_iso:
+                try:
+                    dt_reg = datetime.fromisoformat(str(reg_iso))
+                    max_prueba = dt_reg + timedelta(days=DIAS_PRUEBA_GRATIS)
+                    if dt_vence > max_prueba:
+                        dt_vence = max_prueba
+                except Exception:
+                    pass
+            elif (dt_vence - dt_now).total_seconds() > (DIAS_PRUEBA_GRATIS * 86400):
+                dt_vence = dt_now + timedelta(days=DIAS_PRUEBA_GRATIS)
+
         diff = (dt_vence - dt_now).total_seconds()
         dias_restantes = max(0, int(diff // 86400) + 1)
         fecha_str = dt_vence.strftime("%d/%m/%Y a las %H:%M")
@@ -4228,7 +4243,7 @@ def verificar_estado_suscripcion(user_info_o_sector):
                 "estado": "vencido",
                 "dias_restantes": 0,
                 "fecha_vencimiento_str": fecha_str,
-                "motivo": f"Tu periodo de {'prueba de 15 días' if estado == 'prueba' else 'suscripción'} ha finalizado el {fecha_str}."
+                "motivo": f"Tu periodo de {'prueba de ' + str(DIAS_PRUEBA_GRATIS) + ' días' if estado == 'prueba' else 'suscripción'} ha finalizado el {fecha_str}."
             }
     except Exception as e:
         return {
@@ -4426,7 +4441,7 @@ def auto_aprovisionar_lideres_sector(cod_sector, nombre_sector=""):
 
 def registrar_nueva_gerente(nombre, correo, password, telefono, cod_sector, nombre_sector=""):
     """
-    Registra a una nueva Gerente de forma autónoma con 15 días de prueba gratis.
+    Registra a una nueva Gerente de forma autónoma con 5 días de prueba gratis.
     Valida que el correo no exista y que el código de sector no haya usado ya la prueba gratuita.
     Además, aprovisiona automáticamente las cuentas de todas las líderes de su sector.
     """
@@ -4457,13 +4472,13 @@ def registrar_nueva_gerente(nombre, correo, password, telefono, cod_sector, nomb
         sec_reg = historico[sec_clean]
         if sec_reg.get("ha_consumido_prueba", False) and not sec_reg.get("ha_pagado", False):
             return False, (
-                f"⚠️ **El Código de Sector {sec_clean} ({sec_reg.get('nombre_sector', '')}) ya utilizó su periodo de prueba gratuita de 15 días.**\n\n"
+                f"⚠️ **El Código de Sector {sec_clean} ({sec_reg.get('nombre_sector', '')}) ya utilizó su periodo de prueba gratuita de {DIAS_PRUEBA_GRATIS} días.**\n\n"
                 f"Para activar la suscripción de este sector y habilitar a todo tu equipo de líderes, "
                 f"comunícate con Soporte Administrativo al WhatsApp **3057939537**."
             ), None
 
     now = datetime.now()
-    vencimiento = now + timedelta(days=15)
+    vencimiento = now + timedelta(days=DIAS_PRUEBA_GRATIS)
     
     nuevo_usuario = {
         "nombre": nom_clean,
@@ -4504,7 +4519,7 @@ def registrar_nueva_gerente(nombre, correo, password, telefono, cod_sector, nomb
     user_session_info = nuevo_usuario.copy()
     user_session_info["username"] = u_clean
 
-    return True, f"¡Bienvenida {nom_clean}! Tu cuenta de Gerente y tu prueba gratis de 15 días han sido activadas exitosamente{msg_lideres}.", user_session_info
+    return True, f"¡Bienvenida {nom_clean}! Tu cuenta de Gerente y tu prueba gratis de {DIAS_PRUEBA_GRATIS} días han sido activadas exitosamente{msg_lideres}.", user_session_info
 
 def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es_pago=False):
     """
@@ -4605,6 +4620,19 @@ def obtener_resumen_suscripciones():
         if vence_iso:
             try:
                 dt_vence = datetime.fromisoformat(vence_iso)
+                if estado == "prueba":
+                    reg_iso = info.get("primera_prueba_fecha")
+                    if reg_iso:
+                        try:
+                            dt_reg = datetime.fromisoformat(str(reg_iso))
+                            max_prueba = dt_reg + timedelta(days=DIAS_PRUEBA_GRATIS)
+                            if dt_vence > max_prueba:
+                                dt_vence = max_prueba
+                        except Exception:
+                            pass
+                    elif (dt_vence - now).total_seconds() > (DIAS_PRUEBA_GRATIS * 86400):
+                        dt_vence = now + timedelta(days=DIAS_PRUEBA_GRATIS)
+
                 diff = (dt_vence - now).total_seconds()
                 dias_num = max(0, int(diff // 86400) + 1)
                 vence_str = dt_vence.strftime("%d/%m/%Y")
