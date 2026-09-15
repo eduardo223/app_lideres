@@ -9,6 +9,8 @@ import io
 import os
 import time
 import urllib.parse
+import re
+import unicodedata
 import importlib
 import contextlib
 import requests
@@ -46,6 +48,7 @@ from procesador import (
     guardar_configuracion,
     DEFAULT_PERMISOS_PESTANAS,
     inicializar_db_sqlite,
+    obtener_conexion_db,
     verificar_seeding_inicial_geral,
     consultar_tableau_sql,
     sincronizar_excel_tableau_a_sqlite,
@@ -282,6 +285,115 @@ def verificar_conexion_evolution(evo_url, evo_token, evo_instance):
         pass
     return False
 
+def renderizar_indicador_ondulado(mensaje="Procesando datos en el servidor...", subtexto="Por favor espera un momento mientras completamos las operaciones sin cerrar esta pestaña...", icono="⏳"):
+    """
+    Renderiza un componente animado premium 'Wavy Circular Progress Indicator' (Squiggly Progress Ring)
+    con ondas circulares sinusoidales giratorias, brillo degradado Natura/Avon y efecto de pulso.
+    """
+    st.markdown(f"""
+    <div class="wavy-loader-card">
+        <div class="wavy-ring-wrapper">
+            <svg class="wavy-ring-svg" viewBox="0 0 100 100">
+                <defs>
+                    <linearGradient id="gradWavy" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#FF6B00" />
+                        <stop offset="50%" stop-color="#F97316" />
+                        <stop offset="100%" stop-color="#E3007B" />
+                    </linearGradient>
+                    <linearGradient id="gradWavyTrack" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="rgba(255, 107, 0, 0.15)" />
+                        <stop offset="100%" stop-color="rgba(227, 0, 123, 0.15)" />
+                    </linearGradient>
+                </defs>
+                <!-- Pista estática ondulada de fondo -->
+                <path class="wavy-track-path" d="M 92.00,50.00 C 91.73,47.64 83.67,56.39 82.34,60.51 C 81.00,64.62 86.04,71.85 83.98,74.69 C 81.92,77.52 73.48,74.96 69.98,77.51 C 66.48,80.05 66.31,88.86 62.98,89.94 C 59.65,91.03 54.33,84.00 50.00,84.00 C 45.67,84.00 40.35,91.03 37.02,89.94 C 33.69,88.86 33.52,80.05 30.02,77.51 C 26.52,74.96 18.08,77.52 16.02,74.69 C 13.96,71.85 19.00,64.62 17.66,60.51 C 16.33,56.39 8.00,53.50 8.00,50.00 C 8.00,46.50 16.33,43.61 17.66,39.49 C 19.00,35.38 13.96,28.15 16.02,25.31 C 18.08,22.48 26.52,25.04 30.02,22.49 C 33.52,19.95 33.69,11.14 37.02,10.06 C 40.35,8.97 45.67,16.00 50.00,16.00 C 54.33,16.00 59.65,8.97 62.98,10.06 C 66.31,11.14 66.48,19.95 69.98,22.49 C 73.48,25.04 81.92,22.48 83.98,25.31 C 86.04,28.15 81.00,35.38 82.34,39.49 C 83.67,43.61 92.00,46.50 92.00,50.00 Z" />
+                <!-- Anillo activo ondulado giratorio -->
+                <path class="wavy-active-path" d="M 92.00,50.00 C 91.73,47.64 83.67,56.39 82.34,60.51 C 81.00,64.62 86.04,71.85 83.98,74.69 C 81.92,77.52 73.48,74.96 69.98,77.51 C 66.48,80.05 66.31,88.86 62.98,89.94 C 59.65,91.03 54.33,84.00 50.00,84.00 C 45.67,84.00 40.35,91.03 37.02,89.94 C 33.69,88.86 33.52,80.05 30.02,77.51 C 26.52,74.96 18.08,77.52 16.02,74.69 C 13.96,71.85 19.00,64.62 17.66,60.51 C 16.33,56.39 8.00,53.50 8.00,50.00 C 8.00,46.50 16.33,43.61 17.66,39.49 C 19.00,35.38 13.96,28.15 16.02,25.31 C 18.08,22.48 26.52,25.04 30.02,22.49 C 33.52,19.95 33.69,11.14 37.02,10.06 C 40.35,8.97 45.67,16.00 50.00,16.00 C 54.33,16.00 59.65,8.97 62.98,10.06 C 66.31,11.14 66.48,19.95 69.98,22.49 C 73.48,25.04 81.92,22.48 83.98,25.31 C 86.04,28.15 81.00,35.38 82.34,39.49 C 83.67,43.61 92.00,46.50 92.00,50.00 Z" />
+            </svg>
+            <div class="wavy-ring-core">
+                <span class="wavy-core-icon">{icono}</span>
+            </div>
+        </div>
+        <div class="wavy-text-wrapper">
+            <div class="wavy-loader-title">{mensaje}</div>
+            <div class="wavy-loader-subtitle">{subtexto}</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+def renderizar_preview_chat_whatsapp(mensaje, b64_img=None, mime_img="image/png", nombre_destinatario="Consultora Ejemplo", telefono_destinatario="", titulo="📱 Vista Previa del Mensaje en WhatsApp", expanded=True):
+    """
+    Renderiza una simulación visual fiel de la burbuja de chat de WhatsApp con imagen adjunta,
+    texto formateado (negritas, cursivas, emojis), hora actual y confirmación de lectura azul (✓✓).
+    """
+    if not mensaje and not b64_img:
+        return
+
+    txt_html = str(mensaje or '').strip()
+    # Formatear negritas de WhatsApp (*texto*) a <strong>texto</strong>
+    txt_html = re.sub(r'\*(.*?)\*', r'<strong>\1</strong>', txt_html)
+    # Formatear cursivas de WhatsApp (_texto_) a <em>texto</em>
+    txt_html = re.sub(r'_(.*?)_', r'<em>\1</em>', txt_html)
+    # Formatear tachado (~texto~) a <del>texto</del>
+    txt_html = re.sub(r'~(.*?)~', r'<del>\1</del>', txt_html)
+    # Saltos de línea
+    txt_html = txt_html.replace('\n', '<br>')
+
+    hora_actual = datetime.now().strftime("%I:%M %p").lower()
+    tel_str = f" • +57 {telefono_destinatario}" if telefono_destinatario else ""
+
+    img_tag = ""
+    if b64_img:
+        img_tag = f"""
+        <div style="width: 100%; max-height: 290px; overflow: hidden; border-radius: 8px 8px 0 0; background: #1E293B; text-align: center;">
+            <img src="data:{mime_img};base64,{b64_img}" style="width: 100%; max-height: 290px; object-fit: contain; display: block; margin: 0 auto;" alt="Flyer adjunto" />
+        </div>
+        """
+
+    card_html = f"""
+    <div style="max-width: 440px; margin: 6px auto 14px auto; background: #EFEAE2; border-radius: 16px; border: 1px solid #D1D7DB; box-shadow: 0 4px 18px rgba(0,0,0,0.09); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+        <!-- Cabecera de WhatsApp -->
+        <div style="background: #075E54; padding: 10px 14px; display: flex; align-items: center; gap: 10px; color: #FFFFFF;">
+            <div style="width: 34px; height: 34px; border-radius: 50%; background: #25D366; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: white;">
+                👤
+            </div>
+            <div style="flex: 1; overflow: hidden;">
+                <div style="font-weight: 700; font-size: 0.88rem; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #FFFFFF;">
+                    {nombre_destinatario}{tel_str}
+                </div>
+                <div style="font-size: 0.70rem; color: #C8E6C9;">en línea</div>
+            </div>
+            <div style="font-size: 1rem; opacity: 0.85;">📞  ⋮</div>
+        </div>
+
+        <!-- Cuerpo del Chat con fondo doodle de WhatsApp -->
+        <div style="padding: 14px 12px; background-color: #EFEAE2; background-image: radial-gradient(#CBD5E1 1px, transparent 1px); background-size: 16px 16px;">
+            <!-- Burbuja saliente -->
+            <div style="background: #DCF8C6; border-radius: {'0 8px 8px 8px' if not b64_img else '8px'}; max-width: 92%; margin-left: auto; box-shadow: 0 1.5px 3px rgba(11,20,26,0.18); overflow: hidden; border: 1px solid rgba(0,0,0,0.04);">
+                {img_tag}
+                <div style="padding: 8px 10px 4px 10px; font-size: 0.84rem; color: #111B21; line-height: 1.42; word-break: break-word;">
+                    {txt_html}
+                    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 0.64rem; color: #667781; margin-top: 4px;">
+                        <span>{hora_actual}</span>
+                        <span style="color: #53BDEB; font-weight: bold;">✓✓</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Pie informativo de la simulación -->
+        <div style="background: #F0F2F5; padding: 6px 12px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 0.72rem; color: #64748B;">
+            👁️ <em>Esta es la vista exacta en tiempo real que verá la destinataria en su WhatsApp.</em>
+        </div>
+    </div>
+    """
+
+    if titulo:
+        with st.expander(titulo, expanded=expanded):
+            st.markdown(card_html, unsafe_allow_html=True)
+    else:
+        st.markdown(card_html, unsafe_allow_html=True)
+
 def obtener_instancia_evolution(current_user, user_rol, user_grupo):
     """
     Genera un identificador de instancia limpio y válido para Evolution API:
@@ -437,6 +549,141 @@ st.markdown("""
     html, body, [class*="css"] {
         font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
     }
+
+    /* ========================================================================= */
+    /* WAVY CIRCULAR PROGRESS INDICATOR (SQUIGGLY PROGRESS RING)                 */
+    /* ========================================================================= */
+    .wavy-loader-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 26px 22px;
+        margin: 18px auto;
+        max-width: 520px;
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.98) 0%, rgba(255, 247, 237, 0.94) 100%);
+        border: 1.5px solid rgba(249, 115, 22, 0.28);
+        border-radius: 22px;
+        box-shadow: 0 14px 38px -4px rgba(249, 115, 22, 0.16), 0 6px 16px rgba(227, 0, 123, 0.08);
+        backdrop-filter: blur(12px);
+        text-align: center;
+        animation: wavyFadeIn 0.3s ease-out;
+    }
+
+    .wavy-ring-wrapper {
+        position: relative;
+        width: 104px;
+        height: 104px;
+        margin-bottom: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .wavy-ring-svg {
+        width: 100%;
+        height: 100%;
+        overflow: visible;
+    }
+
+    .wavy-track-path {
+        fill: none;
+        stroke: url(#gradWavyTrack);
+        stroke-width: 4.5;
+        stroke-linecap: round;
+    }
+
+    .wavy-active-path {
+        fill: none;
+        stroke: url(#gradWavy);
+        stroke-width: 5;
+        stroke-linecap: round;
+        stroke-dasharray: 65 190;
+        transform-origin: 50px 50px;
+        animation: wavyRingSpin 2.4s linear infinite, wavyRingGlow 2s ease-in-out infinite alternate;
+    }
+
+    .wavy-ring-core {
+        position: absolute;
+        width: 46px;
+        height: 46px;
+        background: radial-gradient(circle, rgba(255, 247, 237, 0.98) 0%, rgba(255, 237, 213, 0.85) 100%);
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: inset 0 2px 6px rgba(249, 115, 22, 0.25), 0 2px 8px rgba(0, 0, 0, 0.06);
+        animation: wavyPulseCore 1.8s ease-in-out infinite alternate;
+    }
+
+    .wavy-core-icon {
+        font-size: 1.3rem;
+        animation: wavyIconRotate 4s ease-in-out infinite;
+    }
+
+    .wavy-loader-title {
+        font-size: 1.08rem;
+        font-weight: 800;
+        color: #1E293B;
+        letter-spacing: -0.01em;
+        margin-bottom: 4px;
+        background: linear-gradient(135deg, #EA580C 0%, #BE185D 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+    }
+
+    .wavy-loader-subtitle {
+        font-size: 0.86rem;
+        font-weight: 500;
+        color: #64748B;
+        line-height: 1.4;
+    }
+
+    @keyframes wavyFadeIn {
+        from { opacity: 0; transform: scale(0.96); }
+        to { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes wavyRingSpin {
+        0% { transform: rotate(0deg); stroke-dashoffset: 0; }
+        50% { stroke-dashoffset: -120; }
+        100% { transform: rotate(360deg); stroke-dashoffset: -255; }
+    }
+
+    @keyframes wavyRingGlow {
+        0% { filter: drop-shadow(0 0 4px rgba(249, 115, 22, 0.45)) drop-shadow(0 0 10px rgba(227, 0, 123, 0.25)); }
+        100% { filter: drop-shadow(0 0 12px rgba(249, 115, 22, 0.85)) drop-shadow(0 0 22px rgba(227, 0, 123, 0.55)); }
+    }
+
+    @keyframes wavyPulseCore {
+        0% { transform: scale(0.92); opacity: 0.85; }
+        100% { transform: scale(1.08); opacity: 1; }
+    }
+
+    @keyframes wavyIconRotate {
+        0%, 100% { transform: rotate(-8deg); }
+        50% { transform: rotate(8deg); }
+    }
+
+    /* Enhancing default Streamlit Spinner to Wavy Ring Look */
+    div[data-testid="stSpinner"] {
+        background: linear-gradient(135deg, rgba(255, 247, 237, 0.85) 0%, rgba(255, 241, 242, 0.85) 100%) !important;
+        border: 1.5px solid rgba(249, 115, 22, 0.35) !important;
+        border-radius: 14px !important;
+        padding: 14px 20px !important;
+        box-shadow: 0 4px 18px rgba(249, 115, 22, 0.12) !important;
+        margin: 10px 0 !important;
+    }
+    div[data-testid="stSpinner"] > div {
+        border-top-color: #F97316 !important;
+        border-right-color: #E3007B !important;
+        border-bottom-color: rgba(249, 115, 22, 0.2) !important;
+        border-left-color: rgba(227, 0, 123, 0.2) !important;
+        border-width: 4px !important;
+        animation: wavyRingSpin 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite !important;
+        filter: drop-shadow(0 0 8px rgba(249, 115, 22, 0.5)) !important;
+    }
+
 
     
     /* ========================================================================= */
@@ -1961,6 +2208,34 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
 
                 items_a_enviar = [it for it in lista_cumple if str(it['codigo_cb']) in sel_cbs_elegidos]
 
+                # Adjuntar imagen/tarjeta de felicitación opcional
+                uploaded_flyer_cumple = st.file_uploader(
+                    "🖼️ Adjuntar Tarjeta de Felicitación o Flyer de Regalo (Opcional):",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key=f"uploader_flyer_cumple_{key_pfx}_{key_suffix}",
+                    help="Sube una tarjeta o flyer festivo para enviarlo junto con el saludo de cumpleaños."
+                )
+                b64_flyer_cumple = None
+                mime_flyer_cumple = "image/png"
+                if uploaded_flyer_cumple is not None:
+                    import base64
+                    b64_flyer_cumple = base64.b64encode(uploaded_flyer_cumple.getvalue()).decode('utf-8')
+                    mime_flyer_cumple = uploaded_flyer_cumple.type or "image/png"
+                    st.success(f"🖼️ Tarjeta cargada: **{uploaded_flyer_cumple.name}** ({len(uploaded_flyer_cumple.getvalue())//1024} KB)")
+
+                # Previsualización interactiva del saludo de cumpleaños
+                if lista_cumple:
+                    sample_cumple = items_a_enviar[0] if items_a_enviar else lista_cumple[0]
+                    renderizar_preview_chat_whatsapp(
+                        mensaje=sample_cumple.get('msg_wa', ''),
+                        b64_img=b64_flyer_cumple if uploaded_flyer_cumple is not None else None,
+                        mime_img=mime_flyer_cumple if uploaded_flyer_cumple is not None else "image/png",
+                        nombre_destinatario=f"🌸 {sample_cumple.get('nombre', 'Consultora')}".title(),
+                        telefono_destinatario=sample_cumple.get('celular', ''),
+                        titulo="📱 Vista Previa del Saludo de Cumpleaños en WhatsApp (Simulación en Vivo)",
+                        expanded=(uploaded_flyer_cumple is not None)
+                    )
+
                 btn_enviar_cumple_api = st.button(
                     f"🚀 Iniciar Envío Automático a las {len(items_a_enviar)} Cumpleañeras",
                     type="primary",
@@ -1986,13 +2261,25 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                             try:
                                 c_clean = f"57{c_num}" if not c_num.startswith('57') else c_num
                                 e_headers = {"apikey": evo_tok_c.strip(), "Content-Type": "application/json"}
-                                url_text = f"{evo_url_c.strip().rstrip('/')}/message/sendText/{instancia_evo.strip()}"
-                                payload_text = {
-                                    "number": c_clean,
-                                    "text": msg_body,
-                                    "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
-                                }
-                                res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
+                                if b64_flyer_cumple and uploaded_flyer_cumple is not None:
+                                    url_media = f"{evo_url_c.strip().rstrip('/')}/message/sendMedia/{instancia_evo.strip()}"
+                                    payload_media = {
+                                        "number": c_clean,
+                                        "mediatype": "image",
+                                        "mimetype": mime_flyer_cumple,
+                                        "caption": msg_body,
+                                        "media": b64_flyer_cumple,
+                                        "fileName": uploaded_flyer_cumple.name
+                                    }
+                                    res_t = requests.post(url_media, json=payload_media, headers=e_headers, timeout=18)
+                                else:
+                                    url_text = f"{evo_url_c.strip().rstrip('/')}/message/sendText/{instancia_evo.strip()}"
+                                    payload_text = {
+                                        "number": c_clean,
+                                        "text": msg_body,
+                                        "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                    }
+                                    res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
                                 if res_t.status_code in [200, 201]:
                                     ok_c += 1
                                     registrar_log_whatsapp(
@@ -2121,6 +2408,24 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                     st.session_state['plantilla_wa_cumpleanos'] = PLANTILLA_CUMPLEANOS_DEFAULT
                     st.success("✅ Mensaje restaurado al original.")
                     st.rerun()
+
+            # Previsualización en tiempo real de la plantilla con datos de prueba
+            sample_nom_c = "María Rodríguez"
+            sample_msg_c = (
+                nueva_plantilla
+                .replace("{primer_nombre}", "María")
+                .replace("{nombre}", sample_nom_c)
+                .replace("{nivel}", "Oro")
+                .replace("{lider}", user_nombre if user_nombre else "Tu Líder")
+            )
+            renderizar_preview_chat_whatsapp(
+                mensaje=sample_msg_c,
+                b64_img=None,
+                nombre_destinatario=f"🌸 {sample_nom_c}",
+                telefono_destinatario="3001234567",
+                titulo="📱 Vista Previa en Vivo de la Plantilla de WhatsApp",
+                expanded=True
+            )
 
 # --- COMPONENTES GRÁFICOS INTERACTIVOS (LA JOYA DEL PASTEL) ---
 def crear_tacometro_360(titulo, valor_pct, meta_val, real_val):
@@ -6369,6 +6674,14 @@ if tab_tableau is not None:
                     # Si es una columna numérica (Pts, Crédito, Pedidos, Ciclos), formatear como número entero limpio sin $
                     elif 'Pts' in col_name or 'Ped.' in col_name or 'Ciclos' in col_name or 'Credito' in col_name or 'Crédito' in col_name:
                         col_config[col_name] = st.column_config.NumberColumn(col_name, format="%d", disabled=True)
+                    elif 'Dirección' in col_name or 'Direccion' in col_name:
+                        col_config[col_name] = st.column_config.TextColumn("🏠 Dirección - Entrega", disabled=True)
+                    elif 'Ciudad' in col_name:
+                        col_config[col_name] = st.column_config.TextColumn("📍 Ciudad - Entrega", disabled=True)
+                    elif 'Barrio' in col_name:
+                        col_config[col_name] = st.column_config.TextColumn("🏘️ Barrio - Entrega", disabled=True)
+                    elif 'Complemento' in col_name:
+                        col_config[col_name] = st.column_config.TextColumn("🏢 Complemento - Entrega", disabled=True)
                     else:
                         col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
 
@@ -6729,6 +7042,22 @@ if tab_tableau is not None:
                             filas_wa_tab.append(fila_bm_item)
 
                         df_campana_tab_out = pd.DataFrame(filas_wa_tab)
+
+                        # Vista previa en vivo del mensaje con flyer en Base Maestra
+                        if not df_campana_tab_out.empty:
+                            r_s_bm = df_campana_tab_out.iloc[0]
+                            nom_bm = str(r_s_bm.get('Consultora', 'Consultora')).strip()
+                            cel_bm = str(r_s_bm.get('Celular', '')).strip()
+                            msg_bm = str(r_s_bm.get('Mensaje Personalizado', ''))
+                            renderizar_preview_chat_whatsapp(
+                                mensaje=msg_bm,
+                                b64_img=b64_flyer_tab if (uploaded_flyer_tab is not None and 'b64_flyer_tab' in locals()) else None,
+                                mime_img=mime_flyer_tab if (uploaded_flyer_tab is not None and 'mime_flyer_tab' in locals()) else "image/png",
+                                nombre_destinatario=nom_bm.title(),
+                                telefono_destinatario=cel_bm,
+                                titulo="📱 Vista Previa del Mensaje en WhatsApp (Base Maestra)",
+                                expanded=(uploaded_flyer_tab is not None)
+                            )
 
                         st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para marcar o desmarcar a cada consultora, o pulsa **'Abrir WhatsApp'** para chatear directamente.")
 
@@ -7741,10 +8070,52 @@ if tab_tableau is not None:
                                     mime=mime_flyer,
                                     use_container_width=True
                                 )
-                        else:
-                            st.caption("💡 **Sin imagen adjunta**: La campaña enviará mensajes de texto directos hiper-personalizados. Si deseas acompañarlos con una imagen, súbela a la izquierda.")
-
                 st.markdown("---")
+
+                # --- VISTA PREVIA INTERACTIVA DE WHATSAPP (SIMULACIÓN CHAT) ---
+                if not df_wa_target.empty:
+                    c_col_nom_prev = 'Consultora' if 'Consultora' in df_wa_target.columns else ('Nombre' if 'Nombre' in df_wa_target.columns else ('Asesora / Consultora' if 'Asesora / Consultora' in df_wa_target.columns else None))
+                    c_col_cb_prev = 'Código CB' if 'Código CB' in df_wa_target.columns else ('Codigo CB' if 'Codigo CB' in df_wa_target.columns else None)
+                    c_col_cel_prev = 'Celular' if 'Celular' in df_wa_target.columns else ('celular' if 'celular' in df_wa_target.columns else None)
+
+                    r_sample_camp = df_wa_target.iloc[0]
+                    nom_s = str(r_sample_camp.get(c_col_nom_prev, 'Consultora')).strip() if c_col_nom_prev else "Consultora"
+                    cb_s = str(r_sample_camp.get(c_col_cb_prev, '')).strip() if c_col_cb_prev else ""
+                    cel_s = str(r_sample_camp.get(c_col_cel_prev, '')).strip() if c_col_cel_prev else ""
+
+                    p_nom_s = nom_s.split()[0].title() if nom_s else "Consultora"
+                    nota_s = str(r_sample_camp.get('Notas / Comentarios Líder', r_sample_camp.get('Comentarios_Lider', ''))).strip()
+                    dm_s = formato_cop(r_sample_camp.get('Deuda Mora', 0))
+                    dt_s = formato_cop(r_sample_camp.get('Deuda Total', 0))
+                    cr_s = formato_cop(r_sample_camp.get('Credito Disponible', 0))
+                    ped_s = int(limpiar_numero(r_sample_camp.get('Ped. Pendientes', 0)))
+                    pts_s = int(limpiar_numero(r_sample_camp.get('Pts Acum', 0)))
+                    niv_s = str(r_sample_camp.get('Color', r_sample_camp.get('Nivel / Color', 'Consultora')))
+                    rem_s = user_nombre if user_nombre else "Tu Líder"
+
+                    msg_prev_sim = (
+                        plantilla_txt
+                        .replace("{primer_nombre}", p_nom_s)
+                        .replace("{nombre}", nom_s.title())
+                        .replace("{nota}", nota_s if nota_s else "tenemos novedades especiales para ti")
+                        .replace("{remitente}", rem_s)
+                        .replace("{deuda_mora}", dm_s)
+                        .replace("{deuda_total}", dt_s)
+                        .replace("{credito_disp}", cr_s)
+                        .replace("{pedidos}", str(ped_s))
+                        .replace("{pts_acum}", str(pts_s))
+                        .replace("{nivel}", niv_s)
+                    )
+
+                    renderizar_preview_chat_whatsapp(
+                        mensaje=msg_prev_sim,
+                        b64_img=b64_flyer if (uploaded_flyer is not None and 'b64_flyer' in locals()) else None,
+                        mime_img=mime_flyer if (uploaded_flyer is not None and 'mime_flyer' in locals()) else "image/png",
+                        nombre_destinatario=nom_s.title(),
+                        telefono_destinatario=cel_s,
+                        titulo="📱 Vista Previa del Mensaje en WhatsApp (Burbuja de Chat con Imagen en Vivo)",
+                        expanded=(uploaded_flyer is not None)
+                    )
 
                 if df_wa_target.empty:
                     st.info("ℹ️ No hay consultoras que cumplan con el criterio del segmento y filtros seleccionados.")
@@ -7980,6 +8351,46 @@ if tab_tableau is not None:
                         st.markdown("##### 🚀 Envío Automático por WhatsApp (Robot de Despacho):")
                         st.caption("Envía de forma automatizada los mensajes a las consultoras seleccionadas sin tocar tu teléfono una a una, usando la sesión de WhatsApp ya vinculada.")
 
+                        # Banner de instrucciones específicas y advertencias anti-bloqueo
+                        st.markdown("""
+                        <div style="background: #FFFBEB; border: 1.5px solid #F59E0B; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <span style="font-size: 1.25rem;">🛡️</span>
+                                <strong style="color: #92400E; font-size: 0.95rem;">GUÍA OBLIGATORIA ANTI-BLOQUEO DE WHATSAPP (POLÍTICAS DE META)</strong>
+                            </div>
+                            <div style="font-size: 0.83rem; color: #78350F; line-height: 1.45;">
+                                <p style="margin: 0 0 8px 0;">Meta restringe por <strong>24 horas</strong> las cuentas que envían mensajes masivos con intervalos rápidos. Sigue estrictamente estas pautas según tu tipo de envío:</p>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 6px;">
+                                    <div style="background: #FFFFFF; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 10px 12px;">
+                                        <strong style="color: #1E293B; font-size: 0.84rem;">💬 1. Envío Solo Texto</strong><br>
+                                        <span style="font-size: 0.78rem; color: #475569;">
+                                        • Pausa sugerida: <strong>20 a 35 seg</strong>.<br>
+                                        • Lotes: <strong>15 a 20 personas</strong>.<br>
+                                        • Mensajes cálidos, sin mayúsculas sostenidas.<br>
+                                        • Cierra siempre con una pregunta abierta.
+                                        </span>
+                                    </div>
+                                    <div style="background: #FFF1F2; border: 1px solid rgba(244, 63, 94, 0.4); border-radius: 8px; padding: 10px 12px;">
+                                        <strong style="color: #9F1239; font-size: 0.84rem;">🖼️ 2. Envío Con Imagen / Flyer</strong><br>
+                                        <span style="font-size: 0.78rem; color: #881337;">
+                                        • Pausa sugerida: <strong>40 a 60 seg</strong>.<br>
+                                        • Lotes: <strong>Máximo 10 personas</strong>.<br>
+                                        • ⚠️ <em>Disparador #1 de bloqueos</em> si se mandan ráfagas seguidas. Si es posible, envía el flyer solo a quien responda.
+                                        </span>
+                                    </div>
+                                    <div style="background: #F0FDF4; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 10px 12px;">
+                                        <strong style="color: #166534; font-size: 0.84rem;">🎙️ 3. Envío Con Audio (Voz)</strong><br>
+                                        <span style="font-size: 0.78rem; color: #14532D;">
+                                        • Duración: <strong>20 a 30 seg máximo</strong>.<br>
+                                        • Pausa sugerida: <strong>30 a 45 seg</strong>.<br>
+                                        • ⭐ <em>La opción más segura y efectiva</em>. Nadie reporta como spam una nota de voz de su Líder.
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
                         import requests
                         evo_url_camp = st.session_state.get('in_evo_url', 'https://evolution-api-production-7a2f.up.railway.app')
                         inst_def_camp = obtener_instancia_evolution(current_user, user_rol, user_grupo)
@@ -8002,7 +8413,7 @@ if tab_tableau is not None:
                             </div>
                             """, unsafe_allow_html=True)
                         with col_cfg_evo2:
-                            delay_camp_wa = st.slider("⏱️ Pausa entre mensajes (segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_camp_subtab_wa")
+                            delay_camp_wa = st.slider("⏱️ Pausa entre mensajes (segundos anti-ban):", min_value=5, max_value=60, value=25, key="slider_delay_camp_subtab_wa", help="Recomendado: mínimo 25s para texto y 45s para imágenes para evitar restricciones de 24h.")
 
                         tiene_flyer_camp = uploaded_flyer is not None
                         adjuntar_flyer_api = st.checkbox(
@@ -8117,9 +8528,10 @@ if tab_tableau is not None:
                                 if i_c < tot_camp_env - 1:
                                     time.sleep(delay_camp_wa)
 
-                                st.success(f"✅ ¡Campaña finalizada con éxito! Mensajes enviados: **{ok_cnt_camp}** | Fallidos o sin celular: **{err_cnt_camp}**")
-                                with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Tableau Flyer)", expanded=False):
-                                    renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Tableau Flyer", key_suffix="tab_flyer")
+                            st.success(f"✅ ¡Campaña finalizada con éxito! Mensajes enviados: **{ok_cnt_camp}** | Fallidos o sin celular: **{err_cnt_camp}**")
+                            with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Tableau Flyer)", expanded=False):
+                                renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Tableau Flyer", key_suffix="tab_flyer")
+
 
             # --- SUBPESTAÑA 5: CUMPLEAÑOS Y RECONOCIMIENTO ---
             with tab_tab_cumple:
@@ -8548,7 +8960,21 @@ if tab_geral is not None:
                 nombre_remit_masivo = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_masivo")
 
             with col_cfg2:
-                st.caption("Variables que se personalizan en cada mensaje: `{primer_nombre}`, `{nombre}`, `{factura}`, `{saldo_total}`, `{vencimiento}`")
+                uploaded_flyer_geral = st.file_uploader(
+                    "🖼️ Adjuntar Imagen o Recordatorio de Pago (Opcional):",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    key="uploader_flyer_geral_cobranza",
+                    help="Sube un flyer de medios de pago, QR de Bancolombia/Efecty o recordatorio comercial."
+                )
+                b64_flyer_geral = None
+                mime_flyer_geral = "image/png"
+                if uploaded_flyer_geral is not None:
+                    import base64
+                    b64_flyer_geral = base64.b64encode(uploaded_flyer_geral.getvalue()).decode('utf-8')
+                    mime_flyer_geral = uploaded_flyer_geral.type or "image/png"
+                    st.success(f"🖼️ Flyer listo: **{uploaded_flyer_geral.name}** ({len(uploaded_flyer_geral.getvalue())//1024} KB)")
+                else:
+                    st.caption("💡 Variables automáticas: `{primer_nombre}`, `{nombre}`, `{factura}`, `{saldo_total}`, `{vencimiento}`. Puedes adjuntar un flyer con convenios de pago (Efecty, Bancolombia, PSE).")
 
             # Generar tabla con casillas interactivas
             filas_campana = []
@@ -8569,7 +8995,7 @@ if tab_geral is not None:
                 link_w = f"https://api.whatsapp.com/send?phone=57{cel_clean}&text={urllib.parse.quote(str(msg_ind or ''))}" if cel_clean and len(cel_clean) >= 10 else ""
                 saldo_val = float(r.get('saldo_total', 0) or 0)
 
-                filas_campana.append({
+                fila_geral_item = {
                     '✅ Enviar': tit_val in set_sel_actual,
                     'Consultora': str(r.get('nombre', '')),
                     'Código CB': str(r.get('codigo_cb', '')),
@@ -8585,9 +9011,25 @@ if tab_geral is not None:
                     'titulo': tit_val,
                     '📲 Enviar WhatsApp': link_w,
                     'Mensaje Personalizado': msg_ind
-                })
+                }
+                if uploaded_flyer_geral is not None:
+                    fila_geral_item['📎 Flyer'] = '🖼️ Flyer Listo'
+                filas_campana.append(fila_geral_item)
 
             df_campana_out = pd.DataFrame(filas_campana)
+
+            # --- VISTA PREVIA INTERACTIVA DE WHATSAPP (CARTERA / COBRANZA) ---
+            if not df_campana_out.empty:
+                r_sample_g = df_campana_out.iloc[0]
+                renderizar_preview_chat_whatsapp(
+                    mensaje=str(r_sample_g.get('Mensaje Personalizado', '')),
+                    b64_img=b64_flyer_geral if uploaded_flyer_geral is not None else None,
+                    mime_img=mime_flyer_geral if uploaded_flyer_geral is not None else "image/png",
+                    nombre_destinatario=str(r_sample_g.get('Consultora', 'Consultora')).title(),
+                    telefono_destinatario=str(r_sample_g.get('Celular', '')),
+                    titulo="📱 Vista Previa del Mensaje de Cobranza en WhatsApp (Simulación en Vivo)",
+                    expanded=(uploaded_flyer_geral is not None)
+                )
 
             st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para marcar o desmarcar a cada consultora, o pulsa **'Abrir WhatsApp'** para chatear directamente.")
 
@@ -8678,14 +9120,27 @@ if tab_geral is not None:
                                 evo_instance = st.session_state.get('in_evo_instance', inst_activa)
 
                                 if "Evolution API" in prov_act:
-                                    d_url = f"{evo_base_url.strip().rstrip('/')}/message/sendText/{evo_instance.strip()}"
-                                    d_payload = {
-                                        "number": cel_clean,
-                                        "text": msg_custom,
-                                        "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
-                                    }
-                                    d_headers = {"apikey": evo_token.strip(), "Content-Type": "application/json"}
-                                    res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=12)
+                                    if b64_flyer_geral and uploaded_flyer_geral is not None:
+                                        d_url = f"{evo_base_url.strip().rstrip('/')}/message/sendMedia/{evo_instance.strip()}"
+                                        d_payload = {
+                                            "number": cel_clean,
+                                            "mediatype": "image",
+                                            "mimetype": mime_flyer_geral,
+                                            "caption": msg_custom,
+                                            "media": b64_flyer_geral,
+                                            "fileName": uploaded_flyer_geral.name
+                                        }
+                                        d_headers = {"apikey": evo_token.strip(), "Content-Type": "application/json"}
+                                        res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=18)
+                                    else:
+                                        d_url = f"{evo_base_url.strip().rstrip('/')}/message/sendText/{evo_instance.strip()}"
+                                        d_payload = {
+                                            "number": cel_clean,
+                                            "text": msg_custom,
+                                            "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                        }
+                                        d_headers = {"apikey": evo_token.strip(), "Content-Type": "application/json"}
+                                        res = requests.post(d_url, json=d_payload, headers=d_headers, timeout=12)
                                 elif "UltraMsg" in prov_act:
                                     um_inst = st.session_state.get('in_um_instance', '').strip().replace("https://api.ultramsg.com/", "").strip("/")
                                     um_tok = st.session_state.get('in_um_token', '').strip()
@@ -10312,27 +10767,31 @@ if tab_diagnostico is not None:
                             f"💵 *Ganancia Estimada:* {gan_l}\n"
                         )
 
-                    # Mapa inteligente de celulares de líderes desde consultoras_tableau y usuarios
+                    # Mapa inteligente multi-fuente de celulares de líderes (Tableau, Usuarios y Catálogo de Sectores)
                     mapa_celulares_lideres = {}
+                    
+                    # 1. Extracción desde la base relacional SQLite consultoras_tableau
                     try:
-                        conn_cel = obtener_conexion_db(timeout=5.0)
+                        conn_cel = procesador.obtener_conexion_db(timeout=10.0)
                         cursor_cel = conn_cel.cursor()
                         cursor_cel.execute("SELECT codigo_cb, nombre, celular, grupo FROM consultoras_tableau WHERE celular IS NOT NULL AND TRIM(celular) != ''")
                         for r_c in cursor_cel.fetchall():
                             cb_c = str(r_c[0]).strip().split('.')[0]
                             nom_c = str(r_c[1]).strip().upper()
                             cel_val = str(r_c[2]).strip()
-                            grp_c = str(r_c[3]).strip().split('.')[0] if r_c[3] else ""
                             if cb_c and cb_c != '0':
                                 mapa_celulares_lideres[f"cb_{cb_c}"] = cel_val
                             if nom_c:
                                 mapa_celulares_lideres[f"nom_{nom_c}"] = cel_val
-                            if grp_c and grp_c != '0' and f"grp_{grp_c}" not in mapa_celulares_lideres:
-                                mapa_celulares_lideres[f"grp_{grp_c}"] = cel_val
+                                # Versión sin acentos
+                                nom_sin_acento = unicodedata.normalize('NFKD', nom_c).encode('ASCII', 'ignore').decode('utf-8')
+                                if nom_sin_acento != nom_c:
+                                    mapa_celulares_lideres[f"nom_{nom_sin_acento}"] = cel_val
                         conn_cel.close()
                     except Exception:
                         pass
 
+                    # 2. Extracción desde cuentas de usuario activas (usuarios.json)
                     try:
                         usuarios_cat_cel = cargar_usuarios()
                         for _, u_val in usuarios_cat_cel.items():
@@ -10342,21 +10801,70 @@ if tab_diagnostico is not None:
                                 t_val = str(u_val.get('telefono')).strip()
                                 if u_nom and t_val:
                                     mapa_celulares_lideres[f"nom_{u_nom}"] = t_val
-                                if u_grp and t_val and f"grp_{u_grp}" not in mapa_celulares_lideres:
+                                    u_nom_norm = unicodedata.normalize('NFKD', u_nom).encode('ASCII', 'ignore').decode('utf-8')
+                                    if u_nom_norm != u_nom:
+                                        mapa_celulares_lideres[f"nom_{u_nom_norm}"] = t_val
+                                if u_grp and t_val:
                                     mapa_celulares_lideres[f"grp_{u_grp}"] = t_val
+                    except Exception:
+                        pass
+
+                    # 3. Extracción y cruce con Catálogo Oficial de Sectores (catalogo_sectores.json)
+                    # Permite vincular de forma infalible el Código de Grupo con el Teléfono mediante el CB de la Líder
+                    try:
+                        cat_sectores_cel = cargar_catalogo_sectores()
+                        for s_code, s_info in cat_sectores_cel.items():
+                            for lid_entry in s_info.get('lideres', []):
+                                g_lid = str(lid_entry.get('codigo_grupo') or '').strip().split('.')[0]
+                                cb_lid_cat = str(lid_entry.get('codigo_consultora') or '').strip().split('.')[0]
+                                nom_lid_cat = str(lid_entry.get('nombre_lider') or '').strip().upper()
+                                
+                                # Si ya tenemos el celular por CB o Nombre, asignamos al grupo
+                                cel_encontrado = (mapa_celulares_lideres.get(f"cb_{cb_lid_cat}") or 
+                                                  mapa_celulares_lideres.get(f"nom_{nom_lid_cat}") or 
+                                                  mapa_celulares_lideres.get(f"grp_{g_lid}"))
+                                if cel_encontrado:
+                                    if g_lid and f"grp_{g_lid}" not in mapa_celulares_lideres:
+                                        mapa_celulares_lideres[f"grp_{g_lid}"] = cel_encontrado
+                                    if cb_lid_cat and f"cb_{cb_lid_cat}" not in mapa_celulares_lideres:
+                                        mapa_celulares_lideres[f"cb_{cb_lid_cat}"] = cel_encontrado
+                                    if nom_lid_cat and f"nom_{nom_lid_cat}" not in mapa_celulares_lideres:
+                                        mapa_celulares_lideres[f"nom_{nom_lid_cat}"] = cel_encontrado
                     except Exception:
                         pass
 
                     def _resolver_celular_lider(cb_in, nom_in, grp_in):
                         cb_clean = str(cb_in or '').strip().split('.')[0]
-                        nom_clean = str(nom_in or '').strip().upper()
+                        if cb_clean == '0':
+                            cb_clean = ''
+                        nom_raw = str(nom_in or '').strip().upper()
+                        # Limpiar prefijos de grupo como "177 - " o "Grupo 177 - "
+                        nom_clean = re.sub(r'^(?:grupo\s*)?\d+\s*[-–—:]\s*', '', nom_raw, flags=re.IGNORECASE).strip()
                         grp_clean = str(grp_in or '').strip().split('.')[0]
-                        cel = mapa_celulares_lideres.get(f"cb_{cb_clean}") or mapa_celulares_lideres.get(f"nom_{nom_clean}") or mapa_celulares_lideres.get(f"grp_{grp_clean}")
+                        
+                        # 1. Búsqueda directa por Grupo (garantizada y única para cada Líder)
+                        cel = mapa_celulares_lideres.get(f"grp_{grp_clean}") if grp_clean else None
+                        
+                        # 2. Búsqueda por Código de Consultora (CB)
+                        if not cel and cb_clean:
+                            cel = mapa_celulares_lideres.get(f"cb_{cb_clean}")
+                            
+                        # 3. Búsqueda por Nombre exacto, sin prefijo o crudo
                         if not cel:
+                            cel = (mapa_celulares_lideres.get(f"nom_{nom_clean}") or 
+                                   mapa_celulares_lideres.get(f"nom_{nom_raw}"))
+                            
+                        # 4. Búsqueda por Nombre sin acentos
+                        if not cel:
+                            nom_norm = unicodedata.normalize('NFKD', nom_clean).encode('ASCII', 'ignore').decode('utf-8')
+                            cel = mapa_celulares_lideres.get(f"nom_{nom_norm}")
+                            
+                        # 5. Coincidencia por tokens / palabras clave
+                        if not cel:
+                            tokens = [t for t in nom_clean.split() if len(t) >= 3]
                             for k_m, v_m in mapa_celulares_lideres.items():
-                                if k_m.startswith("nom_") and len(nom_clean) >= 6:
-                                    sub_n = nom_clean[:12]
-                                    if sub_n in k_m[4:] or k_m[4:16] in nom_clean:
+                                if k_m.startswith("nom_") and len(tokens) >= 2:
+                                    if all(t in k_m[4:] for t in tokens):
                                         cel = v_m
                                         break
                         return str(cel or '').strip()
@@ -10417,6 +10925,16 @@ if tab_diagnostico is not None:
                             else:
                                 st.caption("⚠️ Celular no detectado. Se abrirá WhatsApp para elegir contacto.")
 
+                        # Vista previa interactiva de la burbuja de chat para el reporte individual
+                        renderizar_preview_chat_whatsapp(
+                            mensaje=msg_wa,
+                            b64_img=None,
+                            nombre_destinatario=f"👑 Líder {item_sel_indiv['nombre']}",
+                            telefono_destinatario=cel_indiv,
+                            titulo="📱 Vista Previa del Reporte de WhatsApp (Simulación en Vivo)",
+                            expanded=False
+                        )
+
                     # --- SECCIÓN B: DESPACHADOR AUTOMÁTICO EVOLUTION API (ESTILO CUMPLEAÑOS) ---
                     if lista_lideres_evo:
                         st.markdown("---")
@@ -10440,6 +10958,45 @@ if tab_diagnostico is not None:
                             st.markdown("##### 🚀 Enviar Reporte Automáticamente por WhatsApp a Líderes:")
                             st.caption("Envía el reporte oficial de 'Cómo Vamos' personalizado a cada una de tus Líderes con un solo clic usando tu WhatsApp vinculado.")
 
+                            # Banner de instrucciones específicas y advertencias anti-bloqueo
+                            st.markdown("""
+                            <div style="background: #FFFBEB; border: 1.5px solid #F59E0B; border-radius: 12px; padding: 14px 18px; margin-bottom: 16px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                    <span style="font-size: 1.25rem;">🛡️</span>
+                                    <strong style="color: #92400E; font-size: 0.95rem;">GUÍA DE SEGURIDAD PARA ENVÍOS A LÍDERES (EVITAR RESTRICCIONES DE WHATSAPP)</strong>
+                                </div>
+                                <div style="font-size: 0.83rem; color: #78350F; line-height: 1.45;">
+                                    <p style="margin: 0 0 8px 0;">Para proteger la línea telefónica de la Gerente y garantizar que los reportes lleguen completos a cada Líder:</p>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; margin-top: 6px;">
+                                        <div style="background: #FFFFFF; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 8px; padding: 10px 12px;">
+                                            <strong style="color: #1E293B; font-size: 0.84rem;">💬 1. Despacho en Texto Puro</strong><br>
+                                            <span style="font-size: 0.78rem; color: #475569;">
+                                            • Pausa recomendada: <strong>15 a 30 seg</strong>.<br>
+                                            • Como cada reporte tiene números y metas diferentes, WhatsApp lo considera dinámico.<br>
+                                            • Asegúrate de que las Líderes tengan guardado tu contacto.
+                                            </span>
+                                        </div>
+                                        <div style="background: #FFF1F2; border: 1px solid rgba(244, 63, 94, 0.4); border-radius: 8px; padding: 10px 12px;">
+                                            <strong style="color: #9F1239; font-size: 0.84rem;">🖼️ 2. Si Adjuntas Capturas o Flyers</strong><br>
+                                            <span style="font-size: 0.78rem; color: #881337;">
+                                            • Pausa recomendada: <strong>40 a 55 seg</strong>.<br>
+                                            • Despacha en tandas de <strong>máximo 8 a 10 líderes</strong>.<br>
+                                            • Deja enfriar la conexión 15 minutos entre tandas.
+                                            </span>
+                                        </div>
+                                        <div style="background: #F0FDF4; border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 8px; padding: 10px 12px;">
+                                            <strong style="color: #166534; font-size: 0.84rem;">🎙️ 3. Acompañamiento con Audio</strong><br>
+                                            <span style="font-size: 0.78rem; color: #14532D;">
+                                            • Duración: <strong>15 a 30 seg</strong> motivando a la Líder.<br>
+                                            • Genera cercanía y compromiso comercial inmediato.<br>
+                                            • 0% de reportes de spam.
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+
                             col_d_info1, col_d_info2 = st.columns([1.7, 1.3])
                             with col_d_info1:
                                 if esta_vinculado_evo_diag:
@@ -10457,7 +11014,7 @@ if tab_diagnostico is not None:
                                     </div>
                                     """, unsafe_allow_html=True)
                             with col_d_info2:
-                                delay_diag_wa = st.slider("⏱️ Pausa anti-ban (seg):", min_value=1, max_value=8, value=3, key=f"slider_delay_mis_lideres_wa_{key_prefix}")
+                                delay_diag_wa = st.slider("⏱️ Pausa anti-ban (seg):", min_value=5, max_value=45, value=15, key=f"slider_delay_mis_lideres_wa_{key_prefix}", help="Recomendado: mínimo 15s para reportes de texto y 35s si se envían archivos.")
                                 sim_val_diag = st.checkbox(
                                     "🧪 Simular WhatsApp Vinculado (Prueba Local)",
                                     value=esta_vinculado_evo_diag,
@@ -10498,6 +11055,34 @@ if tab_diagnostico is not None:
 
                             items_a_enviar_lideres = [it for it in lista_lideres_evo if it['key'] in sel_keys_elegidas]
 
+                            # Adjuntar imagen/flyer de reconocimiento o reporte opcional
+                            uploaded_flyer_lideres = st.file_uploader(
+                                "🖼️ Adjuntar Imagen o Flyer de Reconocimiento / Reporte (Opcional):",
+                                type=["png", "jpg", "jpeg", "webp"],
+                                key=f"uploader_flyer_lideres_{key_prefix}",
+                                help="Sube una imagen o flyer de reconocimiento para enviarla junto al reporte de Cómo Vamos."
+                            )
+                            b64_flyer_lideres = None
+                            mime_flyer_lideres = "image/png"
+                            if uploaded_flyer_lideres is not None:
+                                import base64
+                                b64_flyer_lideres = base64.b64encode(uploaded_flyer_lideres.getvalue()).decode('utf-8')
+                                mime_flyer_lideres = uploaded_flyer_lideres.type or "image/png"
+                                st.success(f"🖼️ Flyer cargado: **{uploaded_flyer_lideres.name}** ({len(uploaded_flyer_lideres.getvalue())//1024} KB)")
+
+                            # Previsualización interactiva del reporte oficial
+                            if items_a_enviar_lideres:
+                                sample_lid_prev = items_a_enviar_lideres[0]
+                                renderizar_preview_chat_whatsapp(
+                                    mensaje=sample_lid_prev.get('mensaje', ''),
+                                    b64_img=b64_flyer_lideres if uploaded_flyer_lideres is not None else None,
+                                    mime_img=mime_flyer_lideres if uploaded_flyer_lideres is not None else "image/png",
+                                    nombre_destinatario=f"👑 Líder {sample_lid_prev.get('nombre', '')}",
+                                    telefono_destinatario=sample_lid_prev.get('celular', ''),
+                                    titulo="📱 Vista Previa del Reporte de WhatsApp para Líderes (Simulación en Vivo)",
+                                    expanded=(uploaded_flyer_lideres is not None)
+                                )
+
                             btn_enviar_lideres_api = st.button(
                                 f"🚀 Iniciar Envío Automático a las {len(items_a_enviar_lideres)} Líderes",
                                 type="primary",
@@ -10524,13 +11109,25 @@ if tab_diagnostico is not None:
                                         try:
                                             c_clean = f"57{c_num}" if not c_num.startswith('57') else c_num
                                             e_headers = {"apikey": evo_tok_diag.strip(), "Content-Type": "application/json"}
-                                            url_text = f"{evo_url_diag.strip().rstrip('/')}/message/sendText/{evo_inst_diag.strip()}"
-                                            payload_text = {
-                                                "number": c_clean,
-                                                "text": msg_body,
-                                                "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
-                                            }
-                                            res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
+                                            if b64_flyer_lideres and uploaded_flyer_lideres is not None:
+                                                url_media = f"{evo_url_diag.strip().rstrip('/')}/message/sendMedia/{evo_inst_diag.strip()}"
+                                                payload_media = {
+                                                    "number": c_clean,
+                                                    "mediatype": "image",
+                                                    "mimetype": mime_flyer_lideres,
+                                                    "caption": msg_body,
+                                                    "media": b64_flyer_lideres,
+                                                    "fileName": uploaded_flyer_lideres.name
+                                                }
+                                                res_t = requests.post(url_media, json=payload_media, headers=e_headers, timeout=18)
+                                            else:
+                                                url_text = f"{evo_url_diag.strip().rstrip('/')}/message/sendText/{evo_inst_diag.strip()}"
+                                                payload_text = {
+                                                    "number": c_clean,
+                                                    "text": msg_body,
+                                                    "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
+                                                }
+                                                res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
                                             if res_t.status_code in [200, 201]:
                                                 ok_l += 1
                                                 registrar_log_whatsapp(

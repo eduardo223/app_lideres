@@ -2114,7 +2114,11 @@ COLUMNAS_ORDEN_TABLEAU = [
     'Ped. Pendientes',
     'Celular',
     'Líder / Grupo',
-    'Notas / Comentarios Líder'
+    'Notas / Comentarios Líder',
+    'Dirección - Entrega',
+    'Ciudad - Entrega',
+    'Barrio - Entrega',
+    'Complemento - Entrega'
 ]
 
 def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None, es_lider=False):
@@ -2223,15 +2227,33 @@ def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None, es_lider=False
         c_nl = next((c for c in ['Comentarios_Lider', 'notas_lider', 'Notas / Comentarios'] if c in df.columns), None)
         if c_nl: rename_dict[c_nl] = 'Notas / Comentarios Líder'
 
+    # Dirección - Entrega
+    if 'Dirección - Entrega' not in df.columns:
+        c_de = next((c for c in ['direccion_entrega', 'Direccion de Entrega', 'Dirección de Entrega', 'Direccion Entrega', 'Dirección Entrega', 'Dirección - Entrega', 'Direccion - Entrega', 'Direccion', 'Dirección'] if c in df.columns), None)
+        if c_de: rename_dict[c_de] = 'Dirección - Entrega'
+
+    # Ciudad - Entrega
+    if 'Ciudad - Entrega' not in df.columns:
+        c_ce = next((c for c in ['ciudad_entrega', 'Ciudad de Entrega', 'Ciudad Entrega', 'Ciudad - Entrega', 'Ciudad'] if c in df.columns), None)
+        if c_ce: rename_dict[c_ce] = 'Ciudad - Entrega'
+
+    # Barrio - Entrega
+    if 'Barrio - Entrega' not in df.columns:
+        c_be = next((c for c in ['barrio_entrega', 'Barrio de Entrega', 'Barrio Entrega', 'Barrio - Entrega', 'Barrio'] if c in df.columns), None)
+        if c_be: rename_dict[c_be] = 'Barrio - Entrega'
+
+    # Complemento - Entrega
+    if 'Complemento - Entrega' not in df.columns:
+        c_co = next((c for c in ['complemento_entrega', 'Complemento de Entrega', 'Complemento Entrega', 'Complemento - Entrega', 'Complemento'] if c in df.columns), None)
+        if c_co: rename_dict[c_co] = 'Complemento - Entrega'
+
     if rename_dict:
         df = df.rename(columns=rename_dict)
 
-    # Limpiar formato de texto para DocumentoGPP y Celular
-    if 'DocumentoGPP' in df.columns:
-        df['DocumentoGPP'] = df['DocumentoGPP'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace({'nan': '', 'None': ''})
-
-    if 'Celular' in df.columns:
-        df['Celular'] = df['Celular'].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace({'nan': '', 'None': ''})
+    # Limpiar formato de texto para DocumentoGPP, Celular y campos de entrega
+    for c_clean_str in ['DocumentoGPP', 'Celular', 'Dirección - Entrega', 'Ciudad - Entrega', 'Barrio - Entrega', 'Complemento - Entrega']:
+        if c_clean_str in df.columns:
+            df[c_clean_str] = df[c_clean_str].astype(str).str.replace(r'\.0$', '', regex=True).str.strip().replace({'nan': '', 'None': '', '<NA>': ''})
 
     # Eliminar duplicados de columnas
     df = df.loc[:, ~df.columns.duplicated()].copy()
