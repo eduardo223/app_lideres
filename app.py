@@ -344,49 +344,38 @@ def renderizar_preview_chat_whatsapp(mensaje, b64_img=None, mime_img="image/png"
 
     img_tag = ""
     if b64_img:
-        img_tag = f"""
-        <div style="width: 100%; max-height: 290px; overflow: hidden; border-radius: 8px 8px 0 0; background: #1E293B; text-align: center;">
-            <img src="data:{mime_img};base64,{b64_img}" style="width: 100%; max-height: 290px; object-fit: contain; display: block; margin: 0 auto;" alt="Flyer adjunto" />
-        </div>
-        """
+        img_tag = f'<div style="width: 100%; max-height: 290px; overflow: hidden; border-radius: 8px 8px 0 0; background: #1E293B; text-align: center;"><img src="data:{mime_img};base64,{b64_img}" style="width: 100%; max-height: 290px; object-fit: contain; display: block; margin: 0 auto;" alt="Flyer adjunto" /></div>'
 
-    card_html = f"""
-    <div style="max-width: 440px; margin: 6px auto 14px auto; background: #EFEAE2; border-radius: 16px; border: 1px solid #D1D7DB; box-shadow: 0 4px 18px rgba(0,0,0,0.09); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
-        <!-- Cabecera de WhatsApp -->
-        <div style="background: #075E54; padding: 10px 14px; display: flex; align-items: center; gap: 10px; color: #FFFFFF;">
-            <div style="width: 34px; height: 34px; border-radius: 50%; background: #25D366; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: white;">
-                👤
-            </div>
-            <div style="flex: 1; overflow: hidden;">
-                <div style="font-weight: 700; font-size: 0.88rem; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #FFFFFF;">
-                    {nombre_destinatario}{tel_str}
-                </div>
-                <div style="font-size: 0.70rem; color: #C8E6C9;">en línea</div>
-            </div>
-            <div style="font-size: 1rem; opacity: 0.85;">📞  ⋮</div>
-        </div>
+    radius_burbuja = '8px' if b64_img else '0 8px 8px 8px'
 
-        <!-- Cuerpo del Chat con fondo doodle de WhatsApp -->
-        <div style="padding: 14px 12px; background-color: #EFEAE2; background-image: radial-gradient(#CBD5E1 1px, transparent 1px); background-size: 16px 16px;">
-            <!-- Burbuja saliente -->
-            <div style="background: #DCF8C6; border-radius: {'0 8px 8px 8px' if not b64_img else '8px'}; max-width: 92%; margin-left: auto; box-shadow: 0 1.5px 3px rgba(11,20,26,0.18); overflow: hidden; border: 1px solid rgba(0,0,0,0.04);">
-                {img_tag}
-                <div style="padding: 8px 10px 4px 10px; font-size: 0.84rem; color: #111B21; line-height: 1.42; word-break: break-word;">
-                    {txt_html}
-                    <div style="display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 0.64rem; color: #667781; margin-top: 4px;">
-                        <span>{hora_actual}</span>
-                        <span style="color: #53BDEB; font-weight: bold;">✓✓</span>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Pie informativo de la simulación -->
-        <div style="background: #F0F2F5; padding: 6px 12px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 0.72rem; color: #64748B;">
-            👁️ <em>Esta es la vista exacta en tiempo real que verá la destinataria en su WhatsApp.</em>
-        </div>
-    </div>
-    """
+    # Construcción limpia sin espacios iniciales para que Markdown no lo interprete como código <pre>
+    card_html = (
+        f'<div style="max-width: 440px; margin: 6px auto 14px auto; background: #EFEAE2; border-radius: 16px; border: 1px solid #D1D7DB; box-shadow: 0 4px 18px rgba(0,0,0,0.09); overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, \'Segoe UI\', Roboto, Helvetica, Arial, sans-serif;">'
+        f'<div style="background: #075E54; padding: 10px 14px; display: flex; align-items: center; gap: 10px; color: #FFFFFF;">'
+        f'<div style="width: 34px; height: 34px; border-radius: 50%; background: #25D366; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; color: white;">👤</div>'
+        f'<div style="flex: 1; overflow: hidden;">'
+        f'<div style="font-weight: 700; font-size: 0.88rem; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; color: #FFFFFF;">{nombre_destinatario}{tel_str}</div>'
+        f'<div style="font-size: 0.70rem; color: #C8E6C9;">en línea</div>'
+        f'</div>'
+        f'<div style="font-size: 1rem; opacity: 0.85;">📞  ⋮</div>'
+        f'</div>'
+        f'<div style="padding: 14px 12px; background-color: #EFEAE2; background-image: radial-gradient(#CBD5E1 1px, transparent 1px); background-size: 16px 16px;">'
+        f'<div style="background: #DCF8C6; border-radius: {radius_burbuja}; max-width: 92%; margin-left: auto; box-shadow: 0 1.5px 3px rgba(11,20,26,0.18); overflow: hidden; border: 1px solid rgba(0,0,0,0.04);">'
+        f'{img_tag}'
+        f'<div style="padding: 8px 10px 4px 10px; font-size: 0.84rem; color: #111B21; line-height: 1.42; word-break: break-word;">'
+        f'{txt_html}'
+        f'<div style="display: flex; justify-content: flex-end; align-items: center; gap: 4px; font-size: 0.64rem; color: #667781; margin-top: 4px;">'
+        f'<span>{hora_actual}</span>'
+        f'<span style="color: #53BDEB; font-weight: bold;">✓✓</span>'
+        f'</div>'
+        f'</div>'
+        f'</div>'
+        f'</div>'
+        f'<div style="background: #F0F2F5; padding: 6px 12px; border-top: 1px solid #E2E8F0; text-align: center; font-size: 0.72rem; color: #64748B;">'
+        f'👁️ <em>Esta es la vista exacta en tiempo real que verá la destinataria en su WhatsApp.</em>'
+        f'</div>'
+        f'</div>'
+    )
 
     if titulo:
         with st.expander(titulo, expanded=expanded):
