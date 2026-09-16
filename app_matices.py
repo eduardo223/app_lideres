@@ -41,6 +41,8 @@ from procesador import (
     obtener_cumpleanos_equipo,
     obtener_conexion_db
 )
+from ui_suscripcion import modal_pago_suscripcion_gerente, banner_alerta_suscripcion_gerente
+
 
 # Funciones de formato y styler para tablas dinámicas
 def formato_cop(val):
@@ -410,6 +412,9 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             """, unsafe_allow_html=True)
         with col_h2:
             st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
+            if user_rol in ['gerente', 'superadmin']:
+                if st.button("💳 Pagos", key="btn_pagos_mob_standalone", use_container_width=True, help="Ver cuota, QRs de pago y referidas"):
+                    modal_pago_suscripcion_gerente(current_user, user_sector, user_nombre)
             if st.button("🚪 Salir", key="btn_logout_mob_standalone", use_container_width=True):
                 st.session_state['user'] = None
                 st.query_params.clear()
@@ -438,6 +443,13 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 st.session_state['sb_segmented_vista'] = "💻 Escritorio"
                 st.query_params['vista'] = 'escritorio'
                 st.rerun()
+            if user_rol in ['gerente', 'superadmin']:
+                if st.button("💳 Pagos", key="btn_pagos_mob_top", use_container_width=True, help="Ver cuota, QRs de pago y referidas"):
+                    modal_pago_suscripcion_gerente(current_user, user_sector, user_nombre)
+
+    # Aviso no invasivo de suscripción en móvil (solo si faltan <= 3 días o está vencido)
+    if user_rol in ['gerente', 'superadmin']:
+        banner_alerta_suscripcion_gerente(current_user, user_sector, user_nombre, es_movil=True)
 
     # Si es Gerente o Admin, permitir seleccionar qué grupo auditar
     grupo_activo = user_grupo
@@ -1055,12 +1067,12 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 # Si es una columna de dinero (Deuda o Facturación), formatear con $
                 if 'Deuda' in col_name or 'Fact.' in col_name:
                     col_config[col_name] = st.column_config.NumberColumn(col_name, format="$%d", disabled=True)
-                # Inmovilizar permanentemente Código CB
+                # Código CB (sin inmovilizar en móvil para permitir desplazamiento horizontal cómodo)
                 elif col_name in ['Código CB', 'Codigo CB']:
-                    col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True, pinned=True)
-                # Inmovilizar permanentemente Asesora / Consultora
+                    col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
+                # Asesora / Consultora (sin inmovilizar en móvil)
                 elif col_name in ['Asesora / Consultora', 'Consultora', 'Nombre']:
-                    col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True, pinned=True)
+                    col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)
                 # Si es DocumentoGPP o Celular, formatear como texto limpio sin comas
                 elif col_name in ['DocumentoGPP', 'Celular']:
                     col_config[col_name] = st.column_config.TextColumn(str(col_name), disabled=True)

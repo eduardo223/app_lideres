@@ -93,6 +93,13 @@ from procesador import (
     registrar_nueva_gerente,
     actualizar_suscripcion_sector,
     obtener_resumen_suscripciones,
+    obtener_tarifa_gerente,
+    obtener_codigo_referido_gerente,
+    vincular_referida,
+    registrar_reporte_pago,
+    cargar_pagos_reportados,
+    aprobar_reporte_pago,
+    rechazar_reporte_pago,
     eliminar_usuario_perfil,
     obtener_nombre_sector_usuario,
     obtener_nombre_corto_sector,
@@ -4088,6 +4095,16 @@ else:
 
 
 # =========================================================================
+# MODAL GLOBAL: SUSCRIPCIÓN, PAGOS MULTICANAL Y REFERIDAS DINÁMICAS (NIVEL 10)
+# =========================================================================
+from ui_suscripcion import (
+    renderizar_contenido_pago_gerente,
+    modal_pago_suscripcion_gerente,
+    banner_alerta_suscripcion_gerente
+)
+
+
+# =========================================================================
 # MODAL GLOBAL: INTEGRACIÓN & CONEXIÓN CON PASARELAS DE WHATSAPP (QR / API)
 # =========================================================================
 @st.dialog("💬 Integración & Conexión con Pasarelas de WhatsApp", width="large")
@@ -5469,6 +5486,10 @@ else:
     </div>
     """, unsafe_allow_html=True)
 
+# AVISO PRUDENTE DE SUSCRIPCIÓN (Solo para Gerente en sus últimos 3 días o vencido)
+if user_rol == 'gerente' and not (user_rol == 'superadmin' and not admin_sector_audit):
+    banner_alerta_suscripcion_gerente(current_user, user_sector, user_nombre, es_movil=False)
+
 # Grid de Clasificación reubicado abajo de los Desafíos y Cumpleaños
 
 # Diagnóstico informativo si no hay datos de metas en "Cómo Vamos" para el sector o rol activo
@@ -6390,6 +6411,11 @@ else:
     # POSICIONES 1 Y 2: ACCIONES GLOBALES EN LA PARTE INFERIOR DEL SIDEBAR
     # =========================================================================
     st.sidebar.markdown("<div style='margin-top: 14px; border-top: 1px solid #E2E8F0; padding-top: 12px;'></div>", unsafe_allow_html=True)
+
+    # Suscripción & Pagos (Para Gerente o SuperAdmin)
+    if user_rol in ['gerente', 'superadmin']:
+        if st.sidebar.button("💳 Suscripción & Pagos", key="sb_btn_suscripcion_pagos", use_container_width=True, help="Consulta tu cuota actual con descuentos por referidas, canales de pago QR y reporta transferencias"):
+            modal_pago_suscripcion_gerente(current_user, user_sector, user_nombre)
 
     # Posición 1: Cargar Datos (Solo si tiene permisos)
     if puede_subir_archivos and (user_rol == 'gerente' or (user_rol == 'superadmin' and admin_sector_audit)):
@@ -11503,21 +11529,86 @@ if tab_detalle is not None:
         st.subheader("📑 Generador de Informes Personalizados")
         st.caption("Configura y visualiza tablas y reportes a medida seleccionando las columnas y métricas exactas que necesitas analizar.")
 
-        # Selector de columnas para personalizar la vista
-        columnas_disponibles = list(df_filtrado.columns)
-        columnas_predeterminadas = [
-            c for c in ['Nombre Gerencia', 'Nombre Setor', 'Código de consultora', 'Nombre de consultora', 'Color', 'Real Activas', 'Objetivo Facturación', 'Real Facturación', 'Cumplimiento Facturación', 'Falta para el 100%', 'Avance % Facturación', 'Ganancia estimada']
-            if c in columnas_disponibles
+        # Golpe de vista: métricas de Situación Comercial en orden descendente
+        tot_act = int(df_filtrado['Real Activas'].apply(lambda v: limpiar_numero(v, 0)).sum()) if 'Real Activas' in df_filtrado.columns else 0
+        tot_i1 = int(df_filtrado['Inactiva 1'].apply(lambda v: limpiar_numero(v, 0)).sum()) if 'Inactiva 1' in df_filtrado.columns else 0
+        tot_i2 = int(df_filtrado['Inactiva 2'].apply(lambda v: limpiar_numero(v, 0)).sum()) if 'Inactiva 2' in df_filtrado.columns else 0
+        tot_i3 = int(df_filtrado['Inactiva 3'].apply(lambda v: limpiar_numero(v, 0)).sum()) if 'Inactiva 3' in df_filtrado.columns else 0
+        tot_i4 = int(df_filtrado['Inactiva 4'].apply(lambda v: limpiar_numero(v, 0)).sum()) if 'Inactiva 4' in df_filtrado.columns else 0
+        tot_i5 = int(df_filtrado['Inactiva 5'].apply(lambda v: limpiar_numero(v, 0)).sum()) if 'Inactiva 5' in df_filtrado.columns else 0
+        tot_i6 = int(df_filtrado['Inactiva 6'].apply(lambda v: limpiar_numero(v, 0)).sum()) if 'Inactiva 6' in df_filtrado.columns else 0
+
+        st.markdown("<div style='margin: 4px 0 10px 0; font-weight: 700; font-size: 0.90rem; color: #475569;'>⚡ <b>Golpe de Vista — Situación Comercial de la Red (Orden Descendente):</b></div>", unsafe_allow_html=True)
+        kpi_cols = st.columns(7)
+        metricas_sit = [
+            ("👥 Activas", tot_act, "Mayor actividad comercial"),
+            ("🌸 Inactivas 1", tot_i1, "1 ciclo sin pedido"),
+            ("🌼 Inactivas 2", tot_i2, "2 ciclos sin pedido"),
+            ("🌿 Inactivas 3", tot_i3, "3 ciclos sin pedido"),
+            ("🍂 Inactivas 4", tot_i4, "4 ciclos sin pedido"),
+            ("🍁 Inactivas 5", tot_i5, "5 ciclos sin pedido"),
+            ("🥀 Inactivas 6", tot_i6, "6 ciclos sin pedido"),
+        ]
+        for idx, (lbl, val, help_txt) in enumerate(metricas_sit):
+            with kpi_cols[idx]:
+                st.metric(lbl, f"{val:,}".replace(",", "."), help=help_txt)
+
+        st.markdown("---")
+
+        # Lista canónica de campos de situación comercial en orden descendente
+        orden_sit_comercial = [
+            'Real Activas', 'Inactiva 1', 'Inactiva 2', 'Inactiva 3', 'Inactiva 4', 'Inactiva 5', 'Inactiva 6'
+        ]
+        cols_sit_presentes = [c for c in orden_sit_comercial if c in df_filtrado.columns]
+
+        # Columnas de identificación del grupo / líder
+        cols_ident_base = [
+            c for c in ['Código de grupo', 'Nombre de consultora', 'Nombre Setor', 'Color']
+            if c in df_filtrado.columns
+        ]
+
+        # Columnas predeterminadas como golpe de vista: identificación + situación comercial en orden descendente
+        columnas_predeterminadas = cols_ident_base + cols_sit_presentes
+
+        # Ordenar todas las columnas disponibles colocando las predeterminadas al principio
+        columnas_disponibles = columnas_predeterminadas + [
+            c for c in df_filtrado.columns if c not in columnas_predeterminadas
         ]
 
         cols_seleccionadas = st.multiselect(
-            "Selecciona las columnas que deseas visualizar:",
+            "Selecciona las columnas que deseas visualizar en tu informe:",
             options=columnas_disponibles,
             default=columnas_predeterminadas
         )
 
         if cols_seleccionadas:
-            st.dataframe(df_filtrado[cols_seleccionadas], use_container_width=True, hide_index=True)
+            df_gen_view = df_filtrado[cols_seleccionadas].copy()
+            cfg_gen = {}
+            for col in df_gen_view.columns:
+                if col in cols_sit_presentes or 'Activa' in col or 'Inactiva' in col or col in ['Saldo', 'Disponibles', 'Inicios', 'Reinicios', 'Recuperos']:
+                    df_gen_view[col] = pd.to_numeric(df_gen_view[col], errors='coerce').fillna(0).round().astype(int)
+                    cfg_gen[col] = st.column_config.NumberColumn(col, format="%d")
+                elif 'Facturación' in col or 'Ganancia' in col or 'Deuda' in col:
+                    cfg_gen[col] = st.column_config.NumberColumn(col, format="$%d")
+                elif 'Código' in col or col in ['DocumentoGPP', 'Celular']:
+                    cfg_gen[col] = st.column_config.TextColumn(str(col))
+
+            st.dataframe(df_gen_view, use_container_width=True, hide_index=True, column_config=cfg_gen)
+
+            # Botón de Descarga
+            try:
+                out_gen = io.BytesIO()
+                with pd.ExcelWriter(out_gen, engine='openpyxl') as wr:
+                    df_gen_view.to_excel(wr, index=False, sheet_name='Informe_Personalizado')
+                st.download_button(
+                    label="📥 Descargar Informe Personalizado (.xlsx)",
+                    data=out_gen.getvalue(),
+                    file_name=f"Informe_Generado_SituacionComercial_{datetime.now().strftime('%Y%m%d')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+            except Exception as e_desc:
+                pass
         else:
             st.warning("Selecciona al menos una columna para mostrar.")
 
@@ -11673,8 +11764,93 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                         "💡 **¿Cómo funciona el desbloqueo?**\n\n"
                         "- Al seleccionar **Activar Plan Pagado**, la Gerente y **todas sus líderes** recuperan acceso inmediato.\n"
                         "- Toda la data previa, comentarios y notas de consultoras quedan disponibles al instante.\n"
-                        "- El sistema audita y actualiza las cuentas en cascada."
+                        "- El sistema audita y actualiza las cuentas en cascada.\n"
+                        "- **Fechas Acumulativas:** Si apruebas un pago antes de que venza el ciclo, los 30 días se suman a partir de la fecha de vencimiento actual."
                     )
+
+            # =========================================================================
+            # BANDEJA DE APROBACIÓN DE PAGOS REPORTADOS (SUPER ADMIN)
+            # =========================================================================
+            st.markdown("---")
+            st.markdown("#### 📥 Bandeja de Pagos Reportados por Gerentes")
+            st.caption("Verifica las transferencias reportadas (Nequi, Daviplata, Bancolombia, Bre-B) y aprueba con 1 clic para extender automáticamente +30 días acumulativos sin restar días previos:")
+
+            pagos_data = cargar_pagos_reportados()
+            pagos_pendientes = [p for p in pagos_data if p.get('estado') == 'pendiente']
+            pagos_historico = [p for p in pagos_data if p.get('estado') != 'pendiente']
+
+            if pagos_pendientes:
+                st.warning(f"🔔 **Tienes {len(pagos_pendientes)} pago(s) pendiente(s) por verificar y aprobar.**")
+                for p_item in pagos_pendientes:
+                    t_id = p_item.get('id_pago') or p_item.get('id')
+                    s_cod = p_item.get('codigo_sector')
+                    s_nom = p_item.get('nombre_gerente')
+                    metodo = p_item.get('metodo') or p_item.get('metodo_pago')
+                    monto = p_item.get('valor') or p_item.get('monto_reportado', 0)
+                    ref = p_item.get('referencia') or p_item.get('referencia_comprobante')
+                    f_rep = p_item.get('fecha_str') or p_item.get('fecha_reporte', '')
+                    notas_p = p_item.get('notas', '')
+                    comp_file = p_item.get('comprobante_nombre') or p_item.get('comprobante_archivo')
+                    qr_leido = p_item.get('codigo_qr_detectado')
+
+                    with st.container():
+                        st.markdown(f"""
+                        <div style="background: #FFFFFF; border: 1.5px solid #F59E0B; border-radius: 12px; padding: 14px 18px; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);">
+                            <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                <span style="font-size: 1.05rem; font-weight: 800; color: #1E293B;">🏢 Sector {s_cod} — {s_nom}</span>
+                                <span style="background: #FEF3C7; color: #B45309; font-weight: 800; font-size: 0.8rem; padding: 3px 10px; border-radius: 20px; border: 1px solid #FCD34D;">⏳ PENDIENTE VERIFICACIÓN</span>
+                            </div>
+                            <div style="margin-top: 8px; font-size: 0.9rem; color: #475569;">
+                                <b>Canal:</b> {metodo} &nbsp;|&nbsp; <b>ID / Ref:</b> <code>#{ref}</code> &nbsp;|&nbsp; <b>Monto Reportado:</b> <span style="font-weight: 800; color: #0F172A;">${monto:,.0f} COP</span><br>
+                                <span style="font-size: 0.82rem; color: #64748B;">📅 Reportado el: {f_rep}</span>
+                                {f'<br><span style="font-size: 0.85rem; color: #334155;">💬 <i>"{notas_p}"</i></span>' if notas_p else ''}
+                                {f'<br><span style="font-size: 0.88rem; color: #0284C7;">🔍 <b>QR Leído del Comprobante:</b> <code>{qr_leido[:50]}...</code></span>' if qr_leido else ''}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        if comp_file:
+                            comp_path = os.path.join("data/comprobantes", comp_file)
+                            if os.path.exists(comp_path):
+                                with st.expander("🖼️ Ver Comprobante Adjunto", expanded=True):
+                                    st.image(comp_path, width=380)
+
+                        col_btn1, col_btn2, col_btn3 = st.columns([1.5, 1.2, 2])
+                        with col_btn1:
+                            if st.button("✅ Aprobar (+30 Días)", key=f"btn_aprob_pago_{t_id}", type="primary", use_container_width=True, help="Aprueba el pago y suma 30 días acumulativos al sector"):
+                                ok_ap, msg_ap = aprobar_reporte_pago(t_id, admin_user=current_user)
+                                if ok_ap:
+                                    st.success(f"🎉 {msg_ap}")
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {msg_ap}")
+                        with col_btn2:
+                            if st.button("❌ Rechazar", key=f"btn_rech_pago_{t_id}", use_container_width=True, help="Rechaza el comprobante con un motivo"):
+                                st.session_state[f'mostrar_rechazo_{t_id}'] = True
+                        with col_btn3:
+                            if comp_file:
+                                comp_path = os.path.join("data/comprobantes", comp_file)
+                                if os.path.exists(comp_path):
+                                    with open(comp_path, "rb") as f_img:
+                                        st.download_button("📎 Ver/Descargar Soporte", data=f_img.read(), file_name=comp_file, key=f"dl_sop_{t_id}", use_container_width=True)
+
+                        if st.session_state.get(f'mostrar_rechazo_{t_id}'):
+                            with st.form(f"form_rechazar_{t_id}"):
+                                motivo_r = st.text_input("Motivo del rechazo:", placeholder="ej. Comprobante no coincide o ilegible", key=f"motivo_in_{t_id}")
+                                if st.form_submit_button("Confirmar Rechazo", type="secondary"):
+                                    ok_rc, msg_rc = rechazar_reporte_pago(t_id, motivo=motivo_r or "Comprobante no verificado", admin_user=current_user)
+                                    if ok_rc:
+                                        st.warning(f"Ticket rechazado: {msg_rc}")
+                                        st.session_state[f'mostrar_rechazo_{t_id}'] = False
+                                        st.rerun()
+            else:
+                st.success("✨ ¡Al día! No hay pagos pendientes por verificar en este momento.")
+
+            if pagos_historico:
+                with st.expander(f"📋 Ver Historial de Pagos Verificados ({len(pagos_historico)})", expanded=False):
+                    df_hist_p = pd.DataFrame(pagos_historico)
+                    cols_p_show = [c for c in ["id", "codigo_sector", "nombre_gerente", "metodo_pago", "monto_reportado", "referencia_comprobante", "estado", "fecha_reporte", "fecha_procesado", "procesado_por", "motivo_rechazo"] if c in df_hist_p.columns]
+                    st.dataframe(df_hist_p[cols_p_show], use_container_width=True, hide_index=True)
 
         with sub_tab_users:
             st.markdown("#### 👥 Gestión de Cuentas, Directorio & Restablecimiento de Claves")

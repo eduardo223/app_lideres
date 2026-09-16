@@ -4670,6 +4670,294 @@ def obtener_resumen_suscripciones():
 
     return pd.DataFrame(filas)
 
+# =========================================================================
+# MOTOR DE SUSCRIPCIONES, PAGOS MULTICANAL Y REFERIDAS DINÁMICAS (NIVEL 10)
+# =========================================================================
+TARIFA_MENSUAL_BASE = 100000.0
+DCTO_POR_REFERIDA_ACTIVA_PCT = 5.0
+MAX_DCTO_REFERIDAS_PCT = 50.0
+
+def obtener_ruta_pagos_reportados():
+    p = ruta_persistente("pagos_reportados.json")
+    if p:
+        return p
+    return os.path.join("data", "pagos_reportados.json")
+
+def cargar_pagos_reportados():
+    p_path = obtener_ruta_pagos_reportados()
+    if os.path.exists(p_path):
+        try:
+            with open(p_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            return []
+    return []
+
+def guardar_pagos_reportados(lista_pagos):
+    p_path = obtener_ruta_pagos_reportados()
+    os.makedirs(os.path.dirname(p_path) if os.path.dirname(p_path) else "data", exist_ok=True)
+    try:
+        with open(p_path, "w", encoding="utf-8") as f:
+            json.dump(lista_pagos, f, indent=2, ensure_ascii=False)
+        p_raiz = "pagos_reportados.json"
+        if p_path != p_raiz:
+            try:
+                with open(p_raiz, "w", encoding="utf-8") as f2:
+                    json.dump(lista_pagos, f2, indent=2, ensure_ascii=False)
+            except Exception:
+                pass
+        return True
+    except Exception as e:
+        safe_print(f"Error al guardar pagos reportados: {e}")
+        return False
+
+def obtener_codigo_referido_gerente(codigo_sector, user_info=None):
+    """
+    Genera o recupera el código embajadora de una gerente.
+    Ejemplo: REF-700000459 o alias si existe en histórico.
+    """
+    sec_clean = str(codigo_sector or "").strip().replace(".0", "")
+    if not sec_clean:
+        return "REF-GENERAL"
+    historico = cargar_historico_sectores()
+    sec_info = historico.get(sec_clean, {})
+    if sec_info.get("codigo_referido"):
+        return str(sec_info.get("codigo_referido")).strip().upper()
+    
+    # Generar código amigable por defecto
+    nom_ger = ""
+    if user_info and isinstance(user_info, dict):
+        raw_n = str(user_info.get("nombre", "") or user_info.get("nombre_gerente", "")).strip()
+        parts = raw_n.split()
+        if parts:
+            nom_ger = parts[0].upper()
+    elif sec_info.get("nombre_gerente"):
+        parts = str(sec_info.get("nombre_gerente", "")).strip().split()
+        if parts:
+            nom_ger = parts[0].upper()
+    
+    nom_clean = "".join(c for c in nom_ger if c.isalnum())
+    if nom_clean:
+        return f"REF-{nom_clean}{sec_clean[-3:]}"
+    return f"REF-{sec_clean}"
+
+def vincular_referida(codigo_sector_nueva, codigo_referido_madre):
+    """
+    Vincula un sector nuevo con el sector de la gerente que la refirió.
+    Aplica candados estrictos:
+    - No permite auto-referido
+    - Valida existencia real del sector patrocinador
+    """
+    sec_nueva = str(codigo_sector_nueva or "").strip().replace(".0", "")
+    cod_madre = str(codigo_referido_madre or "").strip().upper()
+    if not sec_nueva or not cod_madre:
+        return False, "Código o sector vacío."
+        
+    historico = cargar_historico_sectores()
+    
+    # Buscar el sector de la madre por su código de referido o por su sector directo
+    sector_madre_encontrado = None
+    for s_id, s_data in historico.items():
+        ref_s = obtener_codigo_referido_gerente(s_id, s_data).upper()
+        if cod_madre in [ref_s, f"REF-{s_id}", str(s_id)]:
+            sector_madre_encontrado = s_id
+            break
+            
+    if not sector_madre_encontrado:
+        return False, f"El código de embajadora '{cod_madre}' no existe o no corresponde a una Gerente del sistema."
+        
+    if str(sector_madre_encontrado).strip() == sec_nueva:
+        return False, "Candado de seguridad: No puedes auto-referirte a tu propio sector."
+        
+    # Guardar la vinculación
+    if sec_nueva not in historico:
+        historico[sec_nueva] = {
+            "codigo_sector": sec_nueva,
+            "nombre_sector": f"Sector {sec_nueva}",
+            "estado": "activo",
+            "ha_pagado": False
+        }
+    historico[sec_nueva]["referido_por"] = sector_madre_encontrado
+    guardar_historico_sectores(historico)
+    return True, f"Sector {sec_nueva} vinculado exitosamente a la embajadora del Sector {sector_madre_encontrado}."
+
+def obtener_tarifa_gerente(codigo_sector_o_user):
+    """
+    Cálculo en vivo de Nivel 10 para la liquidación mensual:
+    1. Base: $100.000 COP
+    2. Cuenta cuántas colegas referidas están actualmente al día y pagadas.
+    3. Aplica 5% de descuento por cada colega activa.
+    4. Si alguna referida cae en mora o deja de pagar, se restaura la cuota automáticamente.
+    """
+    from datetime import datetime
+    if isinstance(codigo_sector_o_user, dict):
+        sec_id = str(codigo_sector_o_user.get("codigo_sector") or "").strip().replace(".0", "")
+        u_info = codigo_sector_o_user
+    else:
+        sec_id = str(codigo_sector_o_user or "").strip().replace(".0", "")
+        u_info = None
+
+    historico = cargar_historico_sectores()
+    sec_info = historico.get(sec_id, {})
+    codigo_embajadora = obtener_codigo_referido_gerente(sec_id, u_info or sec_info)
+
+    # Buscar todas las gerentes que fueron referidas por este sector
+    referidas_detalle = []
+    num_activas_al_dia = 0
+    now = datetime.now()
+
+    for s_id, s_data in historico.items():
+        if s_id == sec_id:
+            continue # Anti auto-referido
+        madre_ref = str(s_data.get("referido_por") or "").strip().replace(".0", "")
+        if madre_ref and madre_ref == sec_id:
+            est = str(s_data.get("estado", "")).strip().lower()
+            ha_pag = bool(s_data.get("ha_pagado", False))
+            f_venc = s_data.get("fecha_vencimiento")
+            
+            al_dia = False
+            if est == "activo" and ha_pag:
+                if not f_venc:
+                    al_dia = True
+                else:
+                    try:
+                        dt_v = datetime.fromisoformat(str(f_venc))
+                        if dt_v >= now:
+                            al_dia = True
+                    except Exception:
+                        al_dia = True
+
+            if al_dia:
+                num_activas_al_dia += 1
+
+            referidas_detalle.append({
+                "codigo_sector": s_id,
+                "nombre_sector": s_data.get("nombre_sector", f"Sector {s_id}"),
+                "nombre_gerente": s_data.get("nombre_gerente", "Gerente"),
+                "al_dia": al_dia,
+                "estado_str": "🟢 Al Día (+5% activo)" if al_dia else "🔴 En Mora (0% hasta pago)",
+                "descuento_pct": 5.0 if al_dia else 0.0
+            })
+
+    pct_descuento = min(MAX_DCTO_REFERIDAS_PCT, float(num_activas_al_dia * DCTO_POR_REFERIDA_ACTIVA_PCT))
+    monto_descuento = (TARIFA_MENSUAL_BASE * pct_descuento) / 100.0
+    total_pagar = max(0.0, TARIFA_MENSUAL_BASE - monto_descuento)
+
+    return {
+        "codigo_sector": sec_id,
+        "cuota_base": TARIFA_MENSUAL_BASE,
+        "codigo_embajadora": codigo_embajadora,
+        "num_referidas_totales": len(referidas_detalle),
+        "num_referidas_activas": num_activas_al_dia,
+        "porcentaje_descuento": pct_descuento,
+        "monto_descuento": monto_descuento,
+        "total_a_pagar": int(total_pagar),
+        "referidas_detalle": referidas_detalle
+    }
+
+def registrar_reporte_pago(codigo_sector, nombre_gerente, metodo, referencia="", valor=100000.0, notas="", comprobante_nombre=None, codigo_qr_detectado=None):
+    from datetime import datetime
+    import uuid
+    sec_clean = str(codigo_sector).strip()
+    pagos = cargar_pagos_reportados()
+    tid = str(uuid.uuid4())[:8]
+    
+    ref_final = str(referencia).strip()
+    if not ref_final:
+        if codigo_qr_detectado:
+            ref_final = f"QR-{str(codigo_qr_detectado)[:16]}"
+        else:
+            ref_final = f"CMP-{datetime.now().strftime('%m%d%H%M')}"
+
+    nuevo_pago = {
+        "id_pago": tid,
+        "id": tid,
+        "fecha_hora": datetime.now().isoformat(),
+        "fecha_str": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "fecha_reporte": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "codigo_sector": sec_clean,
+        "nombre_gerente": nombre_gerente,
+        "metodo": metodo,
+        "metodo_pago": metodo,
+        "referencia": ref_final,
+        "referencia_comprobante": ref_final,
+        "codigo_qr_detectado": codigo_qr_detectado,
+        "valor": float(valor),
+        "monto_reportado": float(valor),
+        "notas": str(notas).strip(),
+        "comprobante_nombre": comprobante_nombre,
+        "comprobante_archivo": comprobante_nombre,
+        "estado": "pendiente"
+    }
+    pagos.insert(0, nuevo_pago)
+    guardar_pagos_reportados(pagos)
+    return True, nuevo_pago
+
+def aprobar_reporte_pago(id_pago, usuario_admin="SuperAdmin", admin_user=None):
+    from datetime import datetime
+    if admin_user is not None:
+        usuario_admin = admin_user.get("username", "SuperAdmin") if isinstance(admin_user, dict) else str(admin_user)
+    elif isinstance(usuario_admin, dict):
+        usuario_admin = usuario_admin.get("username", "SuperAdmin")
+    else:
+        usuario_admin = str(usuario_admin)
+
+    pagos = cargar_pagos_reportados()
+    pago_target = None
+    for p in pagos:
+        if p.get("id_pago") == id_pago or p.get("id") == id_pago:
+            pago_target = p
+            break
+            
+    if not pago_target:
+        return False, "Pago no encontrado."
+        
+    sec_target = pago_target.get("codigo_sector")
+    # Aplicar renovación acumulativa de 30 días
+    ok, msg = actualizar_suscripcion_sector(sec_target, nuevo_estado="activo", dias_extension=30, es_pago=True)
+    if ok:
+        pago_target["estado"] = "aprobado"
+        pago_target["aprobado_por"] = usuario_admin
+        pago_target["procesado_por"] = usuario_admin
+        pago_target["fecha_aprobacion"] = datetime.now().isoformat()
+        pago_target["fecha_procesado"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+        guardar_pagos_reportados(pagos)
+        registrar_evento_auditoria(
+            {"username": usuario_admin, "rol": "superadmin"},
+            categoria="💳 Pagos & Suscripciones",
+            accion="Aprobación Pago",
+            detalle=f"Aprobado pago {pago_target.get('metodo')} ${pago_target.get('valor'):,.0f} para Sector {sec_target}",
+            dispositivo="🖥️ PC / Escritorio"
+        )
+        return True, f"Pago de Sector {sec_target} aprobado con éxito. {msg}"
+    return False, msg
+
+def rechazar_reporte_pago(id_pago, usuario_admin="SuperAdmin", motivo="Comprobante no verificado", admin_user=None):
+    from datetime import datetime
+    if admin_user is not None:
+        usuario_admin = admin_user.get("username", "SuperAdmin") if isinstance(admin_user, dict) else str(admin_user)
+    elif isinstance(usuario_admin, dict):
+        usuario_admin = usuario_admin.get("username", "SuperAdmin")
+    else:
+        usuario_admin = str(usuario_admin)
+
+    pagos = cargar_pagos_reportados()
+    pago_target = None
+    for p in pagos:
+        if p.get("id_pago") == id_pago or p.get("id") == id_pago:
+            pago_target = p
+            break
+    if not pago_target:
+        return False, "Pago no encontrado."
+    pago_target["estado"] = "rechazado"
+    pago_target["motivo_rechazo"] = motivo
+    pago_target["rechazado_por"] = usuario_admin
+    pago_target["procesado_por"] = usuario_admin
+    pago_target["fecha_rechazo"] = datetime.now().isoformat()
+    pago_target["fecha_procesado"] = datetime.now().strftime("%d/%m/%Y %H:%M")
+    guardar_pagos_reportados(pagos)
+    return True, f"Pago {id_pago} marcado como rechazado."
+
 def buscar_cuenta_usuario(identificador):
     """
     Busca una cuenta en usuarios.json o en el histórico de sectores por:

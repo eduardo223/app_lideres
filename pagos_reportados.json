@@ -1,0 +1,42 @@
+[
+  {
+    "id_pago": "5fbc7dcf",
+    "id": "5fbc7dcf",
+    "fecha_hora": "2026-09-15T21:56:36.050765",
+    "fecha_str": "15/09/2026 21:56",
+    "fecha_reporte": "15/09/2026 21:56",
+    "codigo_sector": "__TEST_SEC_CUM__",
+    "nombre_gerente": "Test Gerente",
+    "metodo": "Nequi",
+    "metodo_pago": "Nequi",
+    "referencia": "TEST123456",
+    "referencia_comprobante": "TEST123456",
+    "valor": 95000.0,
+    "monto_reportado": 95000.0,
+    "notas": "Pago anticipado",
+    "comprobante_nombre": null,
+    "comprobante_archivo": null,
+    "estado": "aprobado",
+    "aprobado_por": "admin",
+    "procesado_por": "admin",
+    "fecha_aprobacion": "2026-09-15T21:56:36.191236",
+    "fecha_procesado": "15/09/2026 21:56"
+  },
+  {
+    "id_pago": "b052cd54",
+    "fecha_hora": "2026-09-15T21:55:59.202967",
+    "fecha_str": "15/09/2026 21:55",
+    "codigo_sector": "__TEST_SEC_CUM__",
+    "nombre_gerente": "Test Gerente",
+    "metodo": "Nequi",
+    "referencia": "TEST123456",
+    "valor": 95000.0,
+    "notas": "Pago anticipado",
+    "comprobante_nombre": null,
+    "estado": "aprobado",
+    "aprobado_por": "admin",
+    "procesado_por": "admin",
+    "fecha_aprobacion": "2026-09-15T22:48:29.548213",
+    "fecha_procesado": "15/09/2026 22:48"
+  }
+]
