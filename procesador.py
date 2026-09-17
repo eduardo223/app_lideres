@@ -890,6 +890,79 @@ def procesar_archivo_ajustes_desafios(origen_archivo, current_user=None, campana
 # ---------------------------------------------------------
 RUTA_GANANCIA_ARTE_EXCEL = ruta_persistente('informe_ganancia_arte.xlsx')
 RUTA_GANANCIA_ARTE_JSON = ruta_persistente('informe_ganancia_arte.json')
+RUTA_AJUSTES_CE_PLUS_JSON = ruta_persistente('ajustes_ce_plus.json')
+
+def cargar_ajustes_ce_plus():
+    """
+    Carga el diccionario de ajustes manuales de Activas Hoy para Consultoras Emprende+ (CE+).
+    Estructura: { 'codigo_o_grupo': { 'activas_hoy': int, 'fecha': str, 'usuario': str } }
+    """
+    if os.path.exists(RUTA_AJUSTES_CE_PLUS_JSON):
+        try:
+            with open(RUTA_AJUSTES_CE_PLUS_JSON, 'r', encoding='utf-8') as f:
+                d = json.load(f)
+                if isinstance(d, dict):
+                    return d
+        except Exception as e:
+            safe_print(f"Nota al cargar {RUTA_AJUSTES_CE_PLUS_JSON}: {e}")
+    return {}
+
+def guardar_ajuste_ce_plus(cod_ce, activas_hoy, grupo_ce=None, nombre_ce=None, user=None):
+    """
+    Guarda o actualiza de forma persistente el valor manual de Activas Hoy para una CE+
+    y sincroniza automáticamente con el JSON de Ganancia Arte.
+    """
+    try:
+        ajustes = cargar_ajustes_ce_plus()
+        val_act = int(limpiar_numero(activas_hoy, 0))
+        entry = {
+            'activas_hoy': val_act,
+            'fecha': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'usuario': str(user or 'gerente'),
+            'nombre_ce': str(nombre_ce or '')
+        }
+        k_cod = str(cod_ce).strip().split('.')[0] if cod_ce else ''
+        k_grp = str(grupo_ce).strip().split('.')[0] if grupo_ce else ''
+        if k_cod and k_cod not in ['-', 'nan', 'none', '']:
+            ajustes[k_cod] = entry
+        if k_grp and k_grp not in ['-', 'nan', 'none', '']:
+            ajustes[k_grp] = entry
+
+        p_dir = os.path.dirname(RUTA_AJUSTES_CE_PLUS_JSON)
+        if p_dir and not os.path.exists(p_dir):
+            os.makedirs(p_dir, exist_ok=True)
+        with open(RUTA_AJUSTES_CE_PLUS_JSON, 'w', encoding='utf-8') as f:
+            json.dump(ajustes, f, ensure_ascii=False, indent=2)
+
+        # Sincronizar con informe_ganancia_arte.json si existe
+        data_ga = cargar_datos_ganancia_arte()
+        if data_ga and 'ce_plus' in data_ga:
+            hubo_mod = False
+            for it in data_ga.get('ce_plus', []):
+                it_cod = str(it.get('cod_ce', '')).strip().split('.')[0]
+                it_grp = str(it.get('grupo_ce', '')).strip().split('.')[0]
+                if (k_cod and it_cod == k_cod) or (k_grp and it_grp == k_grp):
+                    it['activas_hoy'] = val_act
+                    it['meta_1plus'] = val_act + 1
+                    it['meta_3plus'] = val_act + 3
+                    it['meta_5plus'] = val_act + 5
+                    it['meta_7plus'] = val_act + 7
+                    it['meta_9plus'] = val_act + 9
+                    act_a_raw = it.get('activas_ant', 0)
+                    if str(act_a_raw).strip().lower() not in ['no aplica', 'nan', '']:
+                        try:
+                            n_ant = int(limpiar_numero(act_a_raw, 0))
+                            it['crecimiento_activas'] = val_act - n_ant
+                        except Exception:
+                            pass
+                    hubo_mod = True
+            if hubo_mod:
+                guardar_datos_ganancia_arte(data_ga)
+
+        return True
+    except Exception as e:
+        safe_print(f"Error al guardar ajuste CE+: {e}")
+        return False
 
 def cargar_datos_ganancia_arte():
     """
@@ -1183,6 +1256,29 @@ def consultar_ce_plus_df(sector=None, grupo_ln_mentora=None, df_como_vamos=None)
             'Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)',
             'Ganancia CE+', 'Bono Mentora LN'
         ])
+
+    # Aplicar ajustes manuales de Activas Hoy si existen
+    ajustes_ce = cargar_ajustes_ce_plus()
+    if ajustes_ce and not df_ce.empty:
+        for idx in df_ce.index:
+            k_cod = str(df_ce.at[idx, 'cod_ce'] if 'cod_ce' in df_ce.columns else '').strip().split('.')[0]
+            k_grp = str(df_ce.at[idx, 'grupo_ce'] if 'grupo_ce' in df_ce.columns else '').strip().split('.')[0]
+            ajuste = ajustes_ce.get(k_cod) or ajustes_ce.get(k_grp)
+            if ajuste is not None and isinstance(ajuste, dict):
+                act_nueva = int(limpiar_numero(ajuste.get('activas_hoy', 0), 0))
+                df_ce.at[idx, 'activas_hoy'] = act_nueva
+                df_ce.at[idx, 'meta_1plus'] = act_nueva + 1
+                df_ce.at[idx, 'meta_3plus'] = act_nueva + 3
+                df_ce.at[idx, 'meta_5plus'] = act_nueva + 5
+                df_ce.at[idx, 'meta_7plus'] = act_nueva + 7
+                df_ce.at[idx, 'meta_9plus'] = act_nueva + 9
+                act_ant_raw = df_ce.at[idx, 'activas_ant'] if 'activas_ant' in df_ce.columns else 'No aplica'
+                if str(act_ant_raw).strip().lower() not in ['no aplica', 'nan', '']:
+                    try:
+                        n_ant = int(limpiar_numero(act_ant_raw, 0))
+                        df_ce.at[idx, 'crecimiento_activas'] = act_nueva - n_ant
+                    except Exception:
+                        pass
 
     if grupo_ln_mentora:
         g_clean = str(grupo_ln_mentora).strip().split('.')[0]

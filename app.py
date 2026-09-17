@@ -136,7 +136,9 @@ from procesador import (
     cargar_datos_ganancia_arte,
     consultar_ce_plus_df,
     contar_ce_plus_sector,
-    eliminar_ce_plus_sector
+    eliminar_ce_plus_sector,
+    cargar_ajustes_ce_plus,
+    guardar_ajuste_ce_plus
 )
 
 # 1. Configuración de la página
@@ -11388,9 +11390,9 @@ if tab_diagnostico is not None:
 
                     st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
 
-                    # Preparar tabla final de CE+
+                    # Preparar tabla final de CE+ (sin Grupo CE+)
                     cols_deseadas_ce = [
-                        'Cód. Grupo LN', 'Grupo CE+', 'Cód. CE+', 'Consultora Emprende+',
+                        'Cód. Grupo LN', 'Cód. CE+', 'Consultora Emprende+',
                         'Activas Hoy', 'Activas Ant.', 'Crecimiento Activas',
                         'Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)',
                         'Ganancia CE+', 'Bono Mentora LN'
@@ -11398,10 +11400,13 @@ if tab_diagnostico is not None:
                     cols_presentes_ce = [c for c in cols_deseadas_ce if c in df_ce_tab.columns]
                     df_ce_render = df_ce_tab[cols_presentes_ce].copy()
 
-                    cols_int_ce = ['Activas Hoy', 'Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)']
+                    if 'Activas Hoy' in df_ce_render.columns:
+                        df_ce_render['Activas Hoy'] = df_ce_render['Activas Hoy'].apply(lambda v: int(limpiar_numero(v, 0)))
+
+                    cols_int_ce = ['Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)']
                     for c_int in cols_int_ce:
                         if c_int in df_ce_render.columns:
-                            df_ce_render[c_int] = df_ce_render[c_int].apply(lambda v: f"{int(limpiar_numero(v, 0))}")
+                            df_ce_render[c_int] = df_ce_render[c_int].apply(lambda v: int(limpiar_numero(v, 0)))
 
                     if 'Crecimiento Activas' in df_ce_render.columns:
                         def _formato_crec_signo_tab(v):
@@ -11409,36 +11414,91 @@ if tab_diagnostico is not None:
                             return f"{'+' if n > 0 else ''}{n}"
                         df_ce_render['Crecimiento Activas'] = df_ce_render['Crecimiento Activas'].apply(_formato_crec_signo_tab)
 
-                    def _estilo_crec_ce_tab(val_str):
-                        try:
-                            num = int(str(val_str).replace('+', '').strip())
-                            if num > 0:
-                                return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
-                            elif num == 0:
-                                return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
-                            else:
-                                return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
-                        except Exception:
-                            return ''
+                    col_config_subce = {
+                        'Activas Hoy': st.column_config.NumberColumn(
+                            "⚡ Activas Hoy",
+                            help="✏️ Haz clic y digita el número de activas reales hoy. Se autoguarda automáticamente.",
+                            min_value=0,
+                            step=1,
+                            format="%d",
+                            required=True
+                        ),
+                        'Cód. Grupo LN': st.column_config.TextColumn("Cód. Grupo LN"),
+                        'Cód. CE+': st.column_config.TextColumn("Cód. CE+"),
+                        'Consultora Emprende+': st.column_config.TextColumn("Consultora Emprende+"),
+                        'Activas Ant.': st.column_config.TextColumn("Activas Ant."),
+                        'Crecimiento Activas': st.column_config.TextColumn("Crecimiento Activas"),
+                        'Meta 1+ (+150k)': st.column_config.NumberColumn("Meta 1+ (+150k)", format="%d"),
+                        'Meta 3+ (+200k)': st.column_config.NumberColumn("Meta 3+ (+200k)", format="%d"),
+                        'Meta 5+ (+300k)': st.column_config.NumberColumn("Meta 5+ (+300k)", format="%d"),
+                        'Meta 7+ (+500k)': st.column_config.NumberColumn("Meta 7+ (+500k)", format="%d"),
+                        'Meta 9+ (+750k)': st.column_config.NumberColumn("Meta 9+ (+750k)", format="%d"),
+                        'Ganancia CE+': st.column_config.TextColumn("Ganancia CE+"),
+                        'Bono Mentora LN': st.column_config.TextColumn("Bono Mentora LN")
+                    }
 
-                    def _estilo_tramos_ce_tab(val):
-                        return 'background-color: #e0f2fe; color: #0369a1; font-weight: bold;'
+                    if user_rol in ['gerente', 'superadmin']:
+                        disabled_subce = [c for c in df_ce_render.columns if c != 'Activas Hoy']
+                        st.caption("💡 **Edición Activa:** Puedes modificar directamente el número en **'⚡ Activas Hoy'**. Al presionar Enter o cambiar de celda se autoguardará y recalculará de inmediato.")
+                    else:
+                        disabled_subce = list(df_ce_render.columns)
 
-                    styler_ce_tab = df_ce_render.style
-                    if 'Crecimiento Activas' in df_ce_render.columns:
-                        styler_ce_tab = aplicar_mapa_styler(styler_ce_tab, _estilo_crec_ce_tab, subset=['Crecimiento Activas'])
+                    editor_subce_key = f"editor_subtab_ce_{st.session_state.get('editor_ver_subtab_ce', 0)}"
 
-                    tramos_ce_p = [c for c in ['Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)'] if c in df_ce_render.columns]
-                    if tramos_ce_p:
-                        styler_ce_tab = aplicar_mapa_styler(styler_ce_tab, _estilo_tramos_ce_tab, subset=tramos_ce_p)
+                    df_editado_subce = st.data_editor(
+                        df_ce_render,
+                        column_config=col_config_subce,
+                        disabled=disabled_subce,
+                        use_container_width=True,
+                        hide_index=True,
+                        key=editor_subce_key
+                    )
 
-                    st.dataframe(styler_ce_tab, use_container_width=True, hide_index=True)
+                    state_subce = st.session_state.get(editor_subce_key, {})
+                    edited_rows_sub = state_subce.get("edited_rows", {})
+
+                    if edited_rows_sub and user_rol in ['gerente', 'superadmin']:
+                        hubo_cambios_sub = False
+                        for row_idx_str, row_changes in edited_rows_sub.items():
+                            if "Activas Hoy" in row_changes:
+                                try:
+                                    row_idx = int(row_idx_str)
+                                    if row_idx < len(df_ce_render):
+                                        fila_r = df_ce_render.iloc[row_idx]
+                                        c_ce = str(fila_r.get('Cód. CE+', '')).strip().split('.')[0]
+                                        g_ce = str(df_ce_tab.iloc[row_idx].get('Grupo CE+', '')).strip().split('.')[0] if 'Grupo CE+' in df_ce_tab.columns else ''
+                                        nom_ce = str(fila_r.get('Consultora Emprende+', ''))
+                                        nueva_val = int(limpiar_numero(row_changes["Activas Hoy"], 0))
+
+                                        guardar_ajuste_ce_plus(
+                                            cod_ce=c_ce,
+                                            activas_hoy=nueva_val,
+                                            grupo_ce=g_ce,
+                                            nombre_ce=nom_ce,
+                                            user=current_user
+                                        )
+                                        registrar_evento_auditoria(
+                                            current_user,
+                                            categoria="🎯 Metas CE+",
+                                            accion="Ajuste Activas Hoy",
+                                            detalle=f"CE+ {c_ce} ({nom_ce}): Activas Hoy ajustadas a {nueva_val}",
+                                            dispositivo="🖥️ PC / Escritorio"
+                                        )
+                                        hubo_cambios_sub = True
+                                except Exception as e_ed:
+                                    safe_print(f"Error procesando auto-guardado subtab CE+: {e_ed}")
+
+                        if hubo_cambios_sub:
+                            st.session_state['editor_ver_subtab_ce'] = st.session_state.get('editor_ver_subtab_ce', 0) + 1
+                            st.toast("💾 Activas Hoy actualizadas y guardadas con éxito", icon="✅")
+                            st.rerun()
 
                     # Botón descarga Excel
                     try:
                         out_ce = io.BytesIO()
+                        cols_excel_sub = [c for c in cols_deseadas_ce if c in df_ce_tab.columns]
                         with pd.ExcelWriter(out_ce, engine='openpyxl') as writer:
-                            df_ce_tab.to_excel(writer, index=False, sheet_name='Metas_CE_Plus')
+                            df_ce_tab[cols_excel_sub].to_excel(writer, index=False, sheet_name='Metas_CE_Plus')
                         st.download_button(
                             label="📥 Descargar Metas CE+ en Excel (.xlsx)",
                             data=out_ce.getvalue(),
@@ -11549,9 +11609,9 @@ if tab_metas is not None:
 
             st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
 
-            # Preparar tabla final con las columnas requeridas (sin nombre de líder ni sector)
+            # Preparar tabla final con las columnas requeridas (sin Grupo CE+)
             cols_deseadas = [
-                'Cód. Grupo LN', 'Grupo CE+', 'Cód. CE+', 'Consultora Emprende+',
+                'Cód. Grupo LN', 'Cód. CE+', 'Consultora Emprende+',
                 'Activas Hoy', 'Activas Ant.', 'Crecimiento Activas',
                 'Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)',
                 'Ganancia CE+', 'Bono Mentora LN'
@@ -11559,11 +11619,15 @@ if tab_metas is not None:
             cols_presentes = [c for c in cols_deseadas if c in df_ce_view.columns]
             df_render = df_ce_view[cols_presentes].copy()
 
-            # Formatear números enteros limpios
-            cols_int_ce = ['Activas Hoy', 'Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)']
+            # Asegurar que Activas Hoy sea entero para permitir edición numérica fluida
+            if 'Activas Hoy' in df_render.columns:
+                df_render['Activas Hoy'] = df_render['Activas Hoy'].apply(lambda v: int(limpiar_numero(v, 0)))
+
+            # Formatear números enteros de metas
+            cols_int_ce = ['Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)']
             for c_int in cols_int_ce:
                 if c_int in df_render.columns:
-                    df_render[c_int] = df_render[c_int].apply(lambda v: f"{int(limpiar_numero(v, 0))}")
+                    df_render[c_int] = df_render[c_int].apply(lambda v: int(limpiar_numero(v, 0)))
 
             # Formatear Crecimiento Activas con signo (+/-)
             if 'Crecimiento Activas' in df_render.columns:
@@ -11572,43 +11636,93 @@ if tab_metas is not None:
                     return f"{'+' if n > 0 else ''}{n}"
                 df_render['Crecimiento Activas'] = df_render['Crecimiento Activas'].apply(_formato_crec_signo)
 
-            # Estilo condicional
-            def _estilo_crec_ce(val_str):
-                try:
-                    num = int(str(val_str).replace('+', '').strip())
-                    if num > 0:
-                        return 'background-color: #d1fae5; color: #065f46; font-weight: bold;'
-                    elif num == 0:
-                        return 'background-color: #fef3c7; color: #92400e; font-weight: bold;'
-                    else:
-                        return 'background-color: #fee2e2; color: #991b1b; font-weight: bold;'
-                except Exception:
-                    return ''
+            # Configuración de columnas para st.data_editor
+            col_config_metas = {
+                'Activas Hoy': st.column_config.NumberColumn(
+                    "⚡ Activas Hoy",
+                    help="✏️ Haz clic y digita el número de activas reales. Se autoguarda y recalcula inmediatamente.",
+                    min_value=0,
+                    step=1,
+                    format="%d",
+                    required=True
+                ),
+                'Cód. Grupo LN': st.column_config.TextColumn("Cód. Grupo LN"),
+                'Cód. CE+': st.column_config.TextColumn("Cód. CE+"),
+                'Consultora Emprende+': st.column_config.TextColumn("Consultora Emprende+"),
+                'Activas Ant.': st.column_config.TextColumn("Activas Ant."),
+                'Crecimiento Activas': st.column_config.TextColumn("Crecimiento Activas"),
+                'Meta 1+ (+150k)': st.column_config.NumberColumn("Meta 1+ (+150k)", format="%d"),
+                'Meta 3+ (+200k)': st.column_config.NumberColumn("Meta 3+ (+200k)", format="%d"),
+                'Meta 5+ (+300k)': st.column_config.NumberColumn("Meta 5+ (+300k)", format="%d"),
+                'Meta 7+ (+500k)': st.column_config.NumberColumn("Meta 7+ (+500k)", format="%d"),
+                'Meta 9+ (+750k)': st.column_config.NumberColumn("Meta 9+ (+750k)", format="%d"),
+                'Ganancia CE+': st.column_config.TextColumn("Ganancia CE+"),
+                'Bono Mentora LN': st.column_config.TextColumn("Bono Mentora LN")
+            }
 
-            def _estilo_tramos_ce(val):
-                return 'background-color: #e0f2fe; color: #0369a1; font-weight: bold;'
+            if user_rol in ['gerente', 'superadmin']:
+                disabled_cols_ce = [c for c in df_render.columns if c != 'Activas Hoy']
+                st.caption("💡 **Edición Activa:** Puedes modificar directamente el valor en la columna **'⚡ Activas Hoy'**. Al presionar Enter o cambiar de celda se autoguarda y recalcula automáticamente.")
+            else:
+                disabled_cols_ce = list(df_render.columns)
 
-            styler_ce = df_render.style
-            if 'Crecimiento Activas' in df_render.columns:
-                if hasattr(styler_ce, 'map'):
-                    styler_ce = styler_ce.map(_estilo_crec_ce, subset=['Crecimiento Activas'])
-                elif hasattr(styler_ce, 'applymap'):
-                    styler_ce = styler_ce.applymap(_estilo_crec_ce, subset=['Crecimiento Activas'])
+            editor_ce_key = f"editor_metas_ce_{st.session_state.get('editor_ver_ce', 0)}"
 
-            tramos_ce_presentes = [c for c in ['Meta 1+ (+150k)', 'Meta 3+ (+200k)', 'Meta 5+ (+300k)', 'Meta 7+ (+500k)', 'Meta 9+ (+750k)'] if c in df_render.columns]
-            if tramos_ce_presentes:
-                if hasattr(styler_ce, 'map'):
-                    styler_ce = styler_ce.map(_estilo_tramos_ce, subset=tramos_ce_presentes)
-                elif hasattr(styler_ce, 'applymap'):
-                    styler_ce = styler_ce.applymap(_estilo_tramos_ce, subset=tramos_ce_presentes)
+            df_editado_ce = st.data_editor(
+                df_render,
+                column_config=col_config_metas,
+                disabled=disabled_cols_ce,
+                use_container_width=True,
+                hide_index=True,
+                key=editor_ce_key
+            )
 
-            st.dataframe(styler_ce, use_container_width=True, hide_index=True)
+            # Auto-guardado inteligente en segundo plano al modificar Activas Hoy
+            state_editor = st.session_state.get(editor_ce_key, {})
+            edited_rows = state_editor.get("edited_rows", {})
+
+            if edited_rows and user_rol in ['gerente', 'superadmin']:
+                hubo_cambios = False
+                for row_idx_str, row_changes in edited_rows.items():
+                    if "Activas Hoy" in row_changes:
+                        try:
+                            row_idx = int(row_idx_str)
+                            if row_idx < len(df_render):
+                                fila_r = df_render.iloc[row_idx]
+                                c_ce = str(fila_r.get('Cód. CE+', '')).strip().split('.')[0]
+                                g_ce = str(df_ce_view.iloc[row_idx].get('Grupo CE+', '')).strip().split('.')[0] if 'Grupo CE+' in df_ce_view.columns else ''
+                                nom_ce = str(fila_r.get('Consultora Emprende+', ''))
+                                nueva_val = int(limpiar_numero(row_changes["Activas Hoy"], 0))
+
+                                guardar_ajuste_ce_plus(
+                                    cod_ce=c_ce,
+                                    activas_hoy=nueva_val,
+                                    grupo_ce=g_ce,
+                                    nombre_ce=nom_ce,
+                                    user=current_user
+                                )
+                                registrar_evento_auditoria(
+                                    current_user,
+                                    categoria="🎯 Metas CE+",
+                                    accion="Ajuste Activas Hoy",
+                                    detalle=f"CE+ {c_ce} ({nom_ce}): Activas Hoy ajustadas a {nueva_val}",
+                                    dispositivo="🖥️ PC / Escritorio"
+                                )
+                                hubo_cambios = True
+                        except Exception as e_ed:
+                            safe_print(f"Error procesando auto-guardado CE+: {e_ed}")
+
+                if hubo_cambios:
+                    st.session_state['editor_ver_ce'] = st.session_state.get('editor_ver_ce', 0) + 1
+                    st.toast("💾 Activas Hoy actualizadas y guardadas con éxito", icon="✅")
+                    st.rerun()
 
             # Botón de Descarga en Excel
             try:
                 output_ce = io.BytesIO()
+                cols_excel = [c for c in cols_deseadas if c in df_ce_view.columns]
                 with pd.ExcelWriter(output_ce, engine='openpyxl') as writer:
-                    df_ce_view.to_excel(writer, index=False, sheet_name='Metas_CE_Plus')
+                    df_ce_view[cols_excel].to_excel(writer, index=False, sheet_name='Metas_CE_Plus')
                 excel_data_ce = output_ce.getvalue()
 
                 st.download_button(
