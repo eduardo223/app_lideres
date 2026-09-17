@@ -11335,7 +11335,34 @@ if tab_diagnostico is not None:
                 if df_ce_tab.empty:
                     st.info("ℹ️ No se encontraron registros de Consultoras Emprende+ (CE+) para este sector o filtro. Puedes cargar el archivo **'Informe Ganancia Arte.xlsx'** en el menú lateral izquierdo para calibrar las metas y ganancias de las CE+.")
                 else:
-                    # Tarjetas KPIs
+                    # Filtros interactivos dentro de la subpestaña (enfocados en Líderes Mentoras)
+                    if user_rol in ['gerente', 'superadmin']:
+                        f_col1, f_col2 = st.columns([2, 2])
+                        with f_col1:
+                            mentoras_disp = sorted(list(set(
+                                str(x).strip() for x in df_ce_tab['Cód. Grupo LN'].unique() 
+                                if str(x).strip() and str(x).strip() not in ['-', 'nan', 'None', '']
+                            )))
+                            mapa_noms_sub = obtener_mapa_lideres()
+                            opc_ment = ["Todas las Líderes Mentoras"] + [
+                                f"{m} - {mapa_noms_sub.get(m, '')}".strip(' -') if mapa_noms_sub.get(m) else m
+                                for m in mentoras_disp
+                            ]
+                            sel_ment = st.selectbox("👩‍🏫 Filtrar por Líder Mentora:", opc_ment, key="sel_mentora_subtab_ce")
+                        with f_col2:
+                            opc_enfoque_sub = ["👩‍🏫 Solo Mentoras (con CE+ asignadas)", "🌐 Todas las CE+ (con y sin Mentora)"]
+                            sel_enfoque_sub = st.selectbox("🎯 Filtro de Acompañamiento:", opc_enfoque_sub, index=0, key="sel_enfoque_subtab_ce")
+
+                        if sel_enfoque_sub == "👩‍🏫 Solo Mentoras (con CE+ asignadas)":
+                            df_ce_tab = df_ce_tab[~df_ce_tab['Cód. Grupo LN'].astype(str).str.strip().str.lower().isin(['-', 'nan', 'none', '', 'sin referido'])]
+
+                        if sel_ment != "Todas las Líderes Mentoras":
+                            cod_m = sel_ment.split(' - ')[0].strip()
+                            df_ce_tab = df_ce_tab[df_ce_tab['Cód. Grupo LN'].astype(str).str.strip() == cod_m]
+                    else:
+                        st.caption(f"Líder: **{user_grupo}**")
+
+                    # Tarjetas KPIs calculadas con el DataFrame filtrado
                     tot_ce = len(df_ce_tab)
                     tot_act_ce = sum(int(limpiar_numero(x, 0)) for x in df_ce_tab['Activas Hoy']) if 'Activas Hoy' in df_ce_tab.columns else 0
                     tot_crec_ce = sum(int(limpiar_numero(x, 0)) for x in df_ce_tab['Crecimiento Activas']) if 'Crecimiento Activas' in df_ce_tab.columns else 0
@@ -11360,34 +11387,6 @@ if tab_diagnostico is not None:
                         st.metric("🎁 BONOS MENTORAS LN", formato_cop(tot_bono_ln))
 
                     st.markdown("<div style='margin-bottom: 12px;'></div>", unsafe_allow_html=True)
-
-                    # Filtros interactivos dentro de la subpestaña
-                    f_col1, f_col2 = st.columns([2, 2])
-                    with f_col1:
-                        if user_rol in ['gerente', 'superadmin']:
-                            mentoras_disp = sorted(list(set(
-                                str(x).strip() for x in df_ce_tab['Cód. Grupo LN'].unique() 
-                                if str(x).strip() and str(x).strip() not in ['-', 'nan', 'None', '']
-                            )))
-                            if mentoras_disp:
-                                opc_ment = ["Todas las Líderes Mentoras"] + mentoras_disp
-                                sel_ment = st.selectbox("Filtrar por Cód. Grupo LN (Mentora):", opc_ment, key="sel_mentora_subtab_ce")
-                                if sel_ment != "Todas las Líderes Mentoras":
-                                    df_ce_tab = df_ce_tab[df_ce_tab['Cód. Grupo LN'] == sel_ment]
-                        else:
-                            st.caption(f"Líder: **{user_grupo}**")
-                    with f_col2:
-                        txt_buscar_ce = st.text_input("🔎 Buscar CE+ (código o nombre):", key="txt_buscar_subtab_ce")
-                        if txt_buscar_ce.strip():
-                            tb_ce = txt_buscar_ce.strip().lower()
-                            m_filtro = False
-                            if 'Consultora Emprende+' in df_ce_tab.columns:
-                                m_filtro = m_filtro | df_ce_tab['Consultora Emprende+'].astype(str).str.lower().str.contains(tb_ce, na=False)
-                            if 'Cód. CE+' in df_ce_tab.columns:
-                                m_filtro = m_filtro | df_ce_tab['Cód. CE+'].astype(str).str.lower().str.contains(tb_ce, na=False)
-                            if 'Grupo CE+' in df_ce_tab.columns:
-                                m_filtro = m_filtro | df_ce_tab['Grupo CE+'].astype(str).str.lower().str.contains(tb_ce, na=False)
-                            df_ce_tab = df_ce_tab[m_filtro]
 
                     # Preparar tabla final de CE+
                     cols_deseadas_ce = [
@@ -11481,31 +11480,22 @@ if tab_metas is not None:
             # Filtros interactivos
             if user_rol == 'lider':
                 grp_usr = str(user_grupo).strip().split('.')[0] if user_grupo else ''
-                ce_mias = df_ce_total[df_ce_total['Cód. Grupo LN'] == grp_usr] if 'Cód. Grupo LN' in df_ce_total.columns else pd.DataFrame()
+                ce_mias = df_ce_total[df_ce_total['Cód. Grupo LN'].astype(str).str.strip() == grp_usr] if 'Cód. Grupo LN' in df_ce_total.columns else pd.DataFrame()
                 tiene_ce = not ce_mias.empty
 
                 f_col1, f_col2 = st.columns([2, 2])
                 with f_col1:
                     if tiene_ce:
-                        ver_solo_mias = st.checkbox("🔍 Ver únicamente mis CE+ acompañadas", value=True, key="chk_ce_solo_mias")
+                        opc_lider = ["👩‍🏫 Únicamente mis CE+ acompañadas", "🌐 Todas las CE+ del sector"]
+                        sel_lider = st.selectbox("🎯 Filtro de Acompañamiento:", opc_lider, index=0, key="sel_enfoque_ce_lider")
+                        ver_solo_mias = (sel_lider == "👩‍🏫 Únicamente mis CE+ acompañadas")
                     else:
                         ver_solo_mias = False
                         st.caption(f"ℹ️ Tu grupo **{grp_usr}** actualmente no tiene CE+ referidas asignadas. Mostrando todas las CE+ de tu sector:")
                 with f_col2:
-                    txt_buscar_ce = st.text_input("🔎 Buscar CE+ (código o nombre):", key="txt_buscar_ce_lider")
+                    st.info(f"👩‍🏫 Líder Mentora: **{user_grupo}** | CE+ acompañadas: **{len(ce_mias)}**")
 
                 df_ce_view = ce_mias.copy() if ver_solo_mias else df_ce_total.copy()
-
-                if txt_buscar_ce.strip():
-                    tb = txt_buscar_ce.strip().lower()
-                    m_filtro = False
-                    if 'Consultora Emprende+' in df_ce_view.columns:
-                        m_filtro = m_filtro | df_ce_view['Consultora Emprende+'].astype(str).str.lower().str.contains(tb, na=False)
-                    if 'Cód. CE+' in df_ce_view.columns:
-                        m_filtro = m_filtro | df_ce_view['Cód. CE+'].astype(str).str.lower().str.contains(tb, na=False)
-                    if 'Grupo CE+' in df_ce_view.columns:
-                        m_filtro = m_filtro | df_ce_view['Grupo CE+'].astype(str).str.lower().str.contains(tb, na=False)
-                    df_ce_view = df_ce_view[m_filtro]
 
             else:
                 # Gerente y Superadmin
@@ -11515,25 +11505,23 @@ if tab_metas is not None:
                         str(x).strip() for x in df_ce_total['Cód. Grupo LN'].unique() 
                         if str(x).strip() and str(x).strip() not in ['-', 'nan', 'None', '']
                     )))
-                    opc_mentoras = ["Todas las Líderes Mentoras"] + mentoras_disponibles
-                    sel_mentora = st.selectbox("Filtrar por Cód. Grupo LN (Mentora):", opc_mentoras, key="sel_mentora_ce_adm")
+                    mapa_nombres_lideres = obtener_mapa_lideres()
+                    opc_mentoras = ["Todas las Líderes Mentoras"] + [
+                        f"{m} - {mapa_nombres_lideres.get(m, '')}".strip(' -') if mapa_nombres_lideres.get(m) else m
+                        for m in mentoras_disponibles
+                    ]
+                    sel_mentora = st.selectbox("👩‍🏫 Filtrar por Líder Mentora:", opc_mentoras, key="sel_mentora_ce_adm")
                 with f_col2:
-                    txt_buscar_ce = st.text_input("🔎 Buscar CE+ (código o nombre):", key="txt_buscar_ce_adm")
+                    opc_enfoque = ["👩‍🏫 Solo Mentoras (con CE+ asignadas)", "🌐 Todas las CE+ (con y sin Mentora)"]
+                    sel_enfoque = st.selectbox("🎯 Filtro de Acompañamiento:", opc_enfoque, index=0, key="sel_enfoque_ce_adm")
 
                 df_ce_view = df_ce_total.copy()
-                if sel_mentora != "Todas las Líderes Mentoras":
-                    df_ce_view = df_ce_view[df_ce_view['Cód. Grupo LN'] == sel_mentora]
+                if sel_enfoque == "👩‍🏫 Solo Mentoras (con CE+ asignadas)":
+                    df_ce_view = df_ce_view[~df_ce_view['Cód. Grupo LN'].astype(str).str.strip().str.lower().isin(['-', 'nan', 'none', '', 'sin referido'])]
 
-                if txt_buscar_ce.strip():
-                    tb = txt_buscar_ce.strip().lower()
-                    m_filtro = False
-                    if 'Consultora Emprende+' in df_ce_view.columns:
-                        m_filtro = m_filtro | df_ce_view['Consultora Emprende+'].astype(str).str.lower().str.contains(tb, na=False)
-                    if 'Cód. CE+' in df_ce_view.columns:
-                        m_filtro = m_filtro | df_ce_view['Cód. CE+'].astype(str).str.lower().str.contains(tb, na=False)
-                    if 'Grupo CE+' in df_ce_view.columns:
-                        m_filtro = m_filtro | df_ce_view['Grupo CE+'].astype(str).str.lower().str.contains(tb, na=False)
-                    df_ce_view = df_ce_view[m_filtro]
+                if sel_mentora != "Todas las Líderes Mentoras":
+                    cod_sel = sel_mentora.split(' - ')[0].strip()
+                    df_ce_view = df_ce_view[df_ce_view['Cód. Grupo LN'].astype(str).str.strip() == cod_sel]
 
             # Tarjetas KPIs
             tot_ce = len(df_ce_view)
