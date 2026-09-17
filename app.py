@@ -6937,15 +6937,86 @@ if tab_tableau is not None:
                         cbs_con_ped = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_ped, 0))) > 0] if c_col_ped else []
                         cbs_con_mora = [str(r.get(c_col_cb, '')).strip() for _, r in df_edit_view.iterrows() if float(limpiar_numero(r.get(c_col_mora, 0))) > 0] if c_col_mora else []
 
-                        # Inicializar estado de selección de casillas
+                        # Inicializar estado en memoria de envíos y lotes anti-ban
+                        if 'cbs_enviadas_hoy' not in st.session_state or not isinstance(st.session_state['cbs_enviadas_hoy'], set):
+                            st.session_state['cbs_enviadas_hoy'] = set()
+                        if 'tam_lote_wa' not in st.session_state:
+                            st.session_state['tam_lote_wa'] = 40
+
+                        cbs_enviadas_set = st.session_state['cbs_enviadas_hoy']
+                        cbs_pendientes_view = [cb for cb in cbs_todas if cb not in cbs_enviadas_set]
+                        cbs_enviadas_view = [cb for cb in cbs_todas if cb in cbs_enviadas_set]
+                        tam_lote_actual = int(st.session_state.get('tam_lote_wa', 40))
+
+                        # Detección inteligente de cambio de filtro en Tableau para sugerir el primer lote de 40 pendientes
+                        view_fingerprint = f"{len(cbs_todas)}_{cbs_todas[0] if cbs_todas else ''}_{cbs_todas[-1] if cbs_todas else ''}"
+                        if st.session_state.get('prev_view_fp_tab_wa') != view_fingerprint:
+                            st.session_state['prev_view_fp_tab_wa'] = view_fingerprint
+                            if len(cbs_pendientes_view) > tam_lote_actual:
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_pendientes_view[:tam_lote_actual])
+                            else:
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_pendientes_view) if cbs_pendientes_view else set(cbs_todas)
+
                         if 'cbs_sel_tab_wa' not in st.session_state or st.session_state.get('cbs_sel_tab_wa') is None:
-                            st.session_state['cbs_sel_tab_wa'] = set(cbs_todas)
+                            if len(cbs_pendientes_view) > tam_lote_actual:
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_pendientes_view[:tam_lote_actual])
+                            else:
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_pendientes_view) if cbs_pendientes_view else set(cbs_todas)
                         elif isinstance(st.session_state['cbs_sel_tab_wa'], list):
                             st.session_state['cbs_sel_tab_wa'] = set(st.session_state['cbs_sel_tab_wa'])
                         if 'editor_ver_tab' not in st.session_state:
                             st.session_state['editor_ver_tab'] = 0
 
-                        st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 4px 0 2px 0;'>🎯 Segmentación Rápida con Casillas (O marca/desmarca directamente en la lista abajo):</p>", unsafe_allow_html=True)
+                        # --- PANEL DE CONTROL DE LOTES ANTI-BAN ---
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, #F8FAFC 0%, #EFF6FF 100%); border: 1.5px solid #BFDBFE; border-radius: 12px; padding: 10px 14px; margin: 6px 0 10px 0;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                                <div>
+                                    <span style="font-size: 0.90rem; font-weight: 800; color: #1E3A8A;">📦 Despacho por Lotes Anti-Ban (Protección de Línea WhatsApp)</span>
+                                    <div style="font-size: 0.77rem; color: #475569; margin-top: 1px;">
+                                        Envía en bloques seguros (20, 30, 40 o 50) para prevenir bloqueos en Meta sin desmarcar casillas a mano.
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; font-size: 0.76rem; font-weight: 700;">
+                                    <span style="background: #FFFFFF; color: #1E40AF; padding: 3px 8px; border-radius: 7px; border: 1px solid #DBEAFE;">👥 Total: {len(df_edit_view)}</span>
+                                    <span style="background: #F0FDF4; color: #166534; padding: 3px 8px; border-radius: 7px; border: 1px solid #BBF7D0;">🟢 Enviadas: {len(cbs_enviadas_view)}</span>
+                                    <span style="background: #FFF7ED; color: #C2410C; padding: 3px 8px; border-radius: 7px; border: 1px solid #FFEDD5;">⚪ Pendientes: {len(cbs_pendientes_view)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        c_lote1, c_lote2, c_lote3 = st.columns([1.5, 2.3, 1.2])
+                        with c_lote1:
+                            tams_disp = [20, 30, 40, 50]
+                            idx_t_cur = tams_disp.index(tam_lote_actual) if tam_lote_actual in tams_disp else 2
+                            sel_tam_radio = st.radio(
+                                "Tamaño de Lote:",
+                                options=tams_disp,
+                                index=idx_t_cur,
+                                horizontal=True,
+                                key="radio_tam_lote_bm_wa",
+                                help="Recomendamos lotes de 30 o 40 mensajes para prevenir suspensiones"
+                            )
+                            if sel_tam_radio != tam_lote_actual:
+                                st.session_state['tam_lote_wa'] = sel_tam_radio
+                                tam_lote_actual = sel_tam_radio
+                        with c_lote2:
+                            cant_sig_lote = min(tam_lote_actual, len(cbs_pendientes_view))
+                            lbl_btn_lote = f"🎯 Seleccionar Próximo Lote ({cant_sig_lote} de {len(cbs_pendientes_view)} pendientes)" if cbs_pendientes_view else "✅ ¡Todas las consultoras ya fueron enviadas!"
+                            if st.button(lbl_btn_lote, type="primary", key="btn_sel_prox_lote_bm_wa", use_container_width=True, disabled=(len(cbs_pendientes_view) == 0)):
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_pendientes_view[:cant_sig_lote])
+                                st.session_state['editor_ver_tab'] = st.session_state.get('editor_ver_tab', 0) + 1
+                                st.rerun()
+                        with c_lote3:
+                            if st.button("🔄 Reiniciar Enviados", key="btn_reset_enviados_bm_wa", use_container_width=True, help="Limpia el semáforo verde de enviadas en esta sesión si deseas reiniciar la campaña"):
+                                st.session_state['cbs_enviadas_hoy'] = set()
+                                cant_ini = min(tam_lote_actual, len(cbs_todas))
+                                st.session_state['cbs_sel_tab_wa'] = set(cbs_todas[:cant_ini])
+                                st.session_state['editor_ver_tab'] = st.session_state.get('editor_ver_tab', 0) + 1
+                                st.rerun()
+
+                        st.markdown("<p style='font-size: 0.84rem; font-weight: 700; color: #334155; margin: 6px 0 2px 0;'>🎯 Segmentación Tradicional con Casillas:</p>", unsafe_allow_html=True)
                         b_cols = st.columns(5)
                         with b_cols[0]:
                             if st.button(f"👥 Todas ({len(df_edit_view)})", key="btn_sel_todas_tab_wa", use_container_width=True):
@@ -7129,6 +7200,8 @@ if tab_tableau is not None:
                         # Generar filas de mensajes para todo el grupo filtrado con casilla de selección
                         filas_wa_tab = []
                         set_sel_actual = st.session_state.get('cbs_sel_tab_wa', set(cbs_todas))
+                        set_env_actual = st.session_state.get('cbs_enviadas_hoy', set())
+
                         for _, r_t in df_edit_view.iterrows():
                             cb_val = str(r_t.get(c_col_cb, '')).strip()
                             n_full = str(r_t.get(c_col_nom, '')).strip()
@@ -7157,8 +7230,12 @@ if tab_tableau is not None:
 
                             link_t = f"https://api.whatsapp.com/send?phone=57{cel_val}&text={urllib.parse.quote(msg_t)}" if cel_val and len(cel_val) >= 10 else ""
 
+                            esta_enviada_t = cb_val in set_env_actual
+                            estado_lbl_t = "🟢 Enviado" if esta_enviada_t else "⚪ Pendiente"
+
                             fila_bm_item = {
                                 '✅ Enviar': cb_val in set_sel_actual,
+                                'Estado': estado_lbl_t,
                                 'Consultora': n_full,
                                 'Código CB': cb_val,
                                 'Sit. Comercial': sit_val,
@@ -7192,7 +7269,7 @@ if tab_tableau is not None:
 
                         st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para marcar o desmarcar a cada consultora, o pulsa **'Abrir WhatsApp'** para chatear directamente.")
 
-                        cols_editor_tab = ['✅ Enviar', 'Consultora', 'Código CB', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Nota Líder']
+                        cols_editor_tab = ['✅ Enviar', 'Estado', 'Consultora', 'Código CB', 'Sit. Comercial', 'Nivel / Color', 'Celular', 'Nota Líder']
                         if uploaded_flyer_tab is not None:
                             cols_editor_tab.append('📎 Flyer')
                         cols_editor_tab.extend(['📲 Enviar WhatsApp', 'Mensaje Personalizado'])
@@ -7202,6 +7279,11 @@ if tab_tableau is not None:
                                 "✅ Enviar",
                                 help="Marca o desmarca la casilla para incluirla en el envío",
                                 default=True
+                            ),
+                            'Estado': st.column_config.TextColumn(
+                                "Estado",
+                                help="🟢 Ya enviado con éxito en esta sesión | ⚪ Pendiente por despachar",
+                                width="small"
                             ),
                             '📲 Enviar WhatsApp': st.column_config.LinkColumn(
                                 "📲 Enviar WhatsApp",
@@ -7231,17 +7313,19 @@ if tab_tableau is not None:
                         n_marcadas = len(df_marcadas)
                         n_act_m = len(df_marcadas[df_marcadas['Sit. Comercial'].astype(str).str.strip().str.lower() == 'activa']) if not df_marcadas.empty else 0
                         n_inact_m = len(df_marcadas[df_marcadas['Sit. Comercial'].astype(str).str.contains('inactiva', case=False, na=False)]) if not df_marcadas.empty else 0
+                        n_env_m = len(df_marcadas[df_marcadas['Estado'] == '🟢 Enviado']) if not df_marcadas.empty else 0
 
                         st.markdown(f"""
-                        <div style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 8px 14px; margin-top: 6px; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="background: #F8FAFC; border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 8px 14px; margin-top: 6px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
                             <div>
-                                <span style="font-size: 0.90rem; font-weight: 800; color: #0F172A;">🎯 Consultoras marcadas con casilla: </span>
+                                <span style="font-size: 0.90rem; font-weight: 800; color: #0F172A;">🎯 Consultoras marcadas para enviar en este lote: </span>
                                 <span style="font-size: 1.05rem; font-weight: 800; color: #EA580C;">{n_marcadas}</span> 
                                 <span style="font-size: 0.75rem; color: #64748B;">de {len(df_campana_tab_out)} en lista</span>
                             </div>
                             <div style="display: flex; gap: 6px; font-size: 0.72rem; font-weight: 700;">
                                 <span style="background: #F0FDF4; color: #166534; padding: 3px 8px; border-radius: 6px; border: 1px solid #BBF7D0;">🟢 {n_act_m} Activas</span>
                                 <span style="background: #FFF7ED; color: #C2410C; padding: 3px 8px; border-radius: 6px; border: 1px solid #FFEDD5;">🌸 {n_inact_m} Inactivas</span>
+                                {"<span style='background: #FEF3C7; color: #92400E; padding: 3px 8px; border-radius: 6px; border: 1px solid #FDE68A;'>⚠️ " + str(n_env_m) + " ya enviadas</span>" if n_env_m > 0 else ""}
                             </div>
                         </div>
                         """, unsafe_allow_html=True)
@@ -7264,7 +7348,7 @@ if tab_tableau is not None:
                             evo_tok_tab = st.session_state.get('in_evo_token', '6c1b7a489b2bcb93d736e3a549dbd289719b8d2ee203cf39cfa6d197e23877ad')
 
                             st.caption(f"📡 Conectando a instancia: **`{evo_inst_tab}`** en `{evo_url_tab}`")
-                            delay_tab_wa = st.slider("⏱️ Pausa entre mensajes (Segundos anti-ban):", min_value=1, max_value=10, value=3, key="slider_delay_tab_wa")
+                            delay_tab_wa = st.slider("⏱️ Pausa base entre mensajes (Segundos anti-ban):", min_value=2, max_value=15, value=4, key="slider_delay_tab_wa", help="Se agrega una micro-variación humana aleatoria (+0.3s a +1.5s) para que Meta no detecte patrones robóticos.")
 
                             tiene_flyer_bm = uploaded_flyer_tab is not None
                             adjuntar_flyer_api_bm = st.checkbox(
@@ -7333,6 +7417,8 @@ if tab_tableau is not None:
 
                                             if enviado_ok_bm:
                                                 ok_cnt_tab += 1
+                                                if c_cb:
+                                                    st.session_state['cbs_enviadas_hoy'].add(c_cb)
                                                 registrar_log_whatsapp(
                                                     modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="EXITOSO",
                                                     http_codigo=last_code_bm, respuesta_servidor=last_resp_bm, remitente=current_user,
@@ -7367,9 +7453,36 @@ if tab_tableau is not None:
                                     prog_bar_tab.progress((i_t + 1) / len(df_marcadas))
                                     stat_txt_tab.caption(f"Despachando {i_t+1} de {len(df_marcadas)}: {r_ct['Consultora']}...")
                                     if i_t < len(df_marcadas) - 1:
-                                        time.sleep(delay_tab_wa)
+                                        import random
+                                        jitter_wa = random.uniform(0.3, 1.5)
+                                        time.sleep(delay_tab_wa + jitter_wa)
 
                                 st.success(f"✅ ¡Proceso finalizado! Enviados con éxito: {ok_cnt_tab} | Fallidos: {err_cnt_tab}")
+                                
+                                # Botón reactivo para cargar el siguiente lote de inmediato sin desmarcar a mano
+                                cbs_pend_post = [cb for cb in cbs_todas if cb not in st.session_state['cbs_enviadas_hoy']]
+                                if cbs_pend_post:
+                                    tam_post = int(st.session_state.get('tam_lote_wa', 40))
+                                    cant_post = min(tam_post, len(cbs_pend_post))
+                                    st.markdown(f"""
+                                    <div style="background: #F0FDF4; border: 1.5px solid #86EFAC; border-radius: 10px; padding: 10px 14px; margin: 8px 0;">
+                                        <div style="font-weight: 800; color: #166534; font-size: 0.90rem;">
+                                            🎉 ¡Lote despachado exitosamente! ({ok_cnt_tab} enviados)
+                                        </div>
+                                        <div style="font-size: 0.78rem; color: #374151; margin-top: 2px;">
+                                            Aún quedan <strong>{len(cbs_pend_post)}</strong> consultoras pendientes en esta lista.
+                                            Pausa sugerida: 3 a 5 minutos antes del siguiente lote para proteger la salud de la línea.
+                                        </div>
+                                    </div>
+                                    """, unsafe_allow_html=True)
+                                    if st.button(f"➡️ Cargar y Marcar Siguiente Lote de {cant_post} Pendientes (Restan {len(cbs_pend_post)}) ➔", type="primary", key="btn_cargar_sig_lote_fin", use_container_width=True):
+                                        st.session_state['cbs_sel_tab_wa'] = set(cbs_pend_post[:cant_post])
+                                        st.session_state['editor_ver_tab'] = st.session_state.get('editor_ver_tab', 0) + 1
+                                        st.rerun()
+                                else:
+                                    st.balloons()
+                                    st.info("🎊 ¡Felicidades! Se ha completado el 100% de los envíos de la base filtrada.")
+
                                 with st.expander("📜 Bitácora & Rastreo de Envíos WhatsApp en Vivo (Tableau Campaña)", expanded=False):
                                     renderizar_visor_logs_whatsapp(user_rol=user_rol, user_sector=user_sector, user_grupo=user_grupo, modulo_default="Tableau Campaña", key_suffix="tab_camp")
                     else:
