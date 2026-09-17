@@ -1358,7 +1358,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                             "📦 4. Pedido Pendiente / Retenido",
                             "🚨 5. Cobro Amable / Recordatorio de Pago",
                             "⏰ 6. Cierre de Campaña Urgente",
-                            "🌸 7. Saludo & Seguimiento General",
+                            "🌸 7. Saludo & Acompañamiento General",
                             "✍️ 8. Mensaje Libre / Personalizado"
                         ],
                         index=0 if cbs_con_notas else 1,
@@ -1696,7 +1696,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                 st.dataframe(df_g_view, use_container_width=True, hide_index=True)
 
     # ==============================================================================
-    # TAB 4: MIS LÍDERES (TODAS LAS TABLAS Y SEGUIMIENTO COMPARATIVO)
+    # TAB 4: MIS LÍDERES (TODAS LAS TABLAS Y AVANCE COMPARATIVO)
     # ==============================================================================
     with tab_lideres:
         st.markdown("##### 👑 Mis Líderes - Diagnóstico y Comparativo")

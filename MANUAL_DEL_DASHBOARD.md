@@ -49,7 +49,7 @@ El sistema unifica 6 fuentes de información comercial y financiera. Cada archiv
 | **1** | **`Base de Datos.xlsx`** (Tableau) | Portal Tableau Natura (Reporte de Consultoras) | Directorio 1 a 1 de consultoras, pestaña *Informe Tableau Cam*, datos de contacto, cumpleaños, niveles de carrera. | Inicio de campaña y semanal. |
 | **2** | **`mi_grupo.xls`** o **`activas`** | Portal Mi Negocio / Reporte operativo diario | Pestaña *Tableau*: actualiza en caliente quién ya facturó hoy sin esperar a descargar toda la base pesada. | Diario (en los días de alta facturación). |
 | **3** | **`Base para el como vamos.xlsx`** | Reporte Comercial "Cómo Vamos" | **Cuadro de mando superior**: Activas Reales, Facturación Real, Metas, Brechas al 100%/110%, Tacómetros 360°, Ganancia estimada LN. | Cada 2 a 3 días durante el ciclo. |
-| **4** | **`Gera.xlsx` / `Geral.xlsx`** | Módulo de Crédito y Cobranza Gera | Pestaña *Gera_Credito&Cobranza*: Títulos vencidos, saldo en mora, riesgo crediticio, seguimiento de facturas impagas. | 2 veces por semana (clave antes de cierre). |
+| **4** | **`Gera.xlsx` / `Geral.xlsx`** | Módulo de Crédito y Cobranza Gera | Pestaña *Gera_Credito&Cobranza*: Títulos vencidos, saldo en mora, riesgo crediticio, gestión de facturas impagas. | 2 veces por semana (clave antes de cierre). |
 | **5** | **`Objetivos Arte.xlsx`** | Hoja oficial *Desafíos LNN* | Metas de **Inicios, Reinicios y Recuperos** de cada líder y consolidado de sector. | Al inicio del ciclo (una sola vez). |
 | **6** | **`Ajustes Desafíos`** (Excel Zona) | Plantilla de Gerencia de Zona | Conciliación de metas calibradas por zona vs Objetivos Arte corporativos. | Inicio de ciclo si hubo negociación de metas. |
 
@@ -149,7 +149,7 @@ En el bloque inferior del cuadro de mando encontrarás 5 tarjetas con la identid
   * **Monitor de Cumpleaños:** Banner superior para felicitar a consultoras en su fecha especial como herramienta de relacionamiento.
 
 ### 🔄 Pestaña 2: Cómo Vamos / Tacómetros 360°
-* **Finalidad:** Seguimiento de metas financieras y comerciales.
+* **Finalidad:** Avance y monitoreo de metas financieras y comerciales.
 * **Herramientas Clave:**
   * **Tacómetros de Velocidad:** Visualizadores circulares estilo velocímetro con zonas de color (Rojo: <95%, Amarillo: 95-99%, Verde: >=100%).
   * **Tabla de Ranking de Desempeño:** Ordenada de mayor a menor cumplimiento de facturación, calculando la brecha en pesos COP para el 100%.

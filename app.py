@@ -2758,7 +2758,7 @@ def renderizar_modulo_rankings_360(df_filtrado, df_tableau=None, key_suffix="mai
         st.info("ℹ️ No hay datos de líderes disponibles para calcular los rankings.")
         return
 
-    st.markdown("##### 🏆 Ranking 360° de Red (Seguimiento Integral de Desempeño)")
+    st.markdown("##### 🏆 Ranking 360° de Red (Visión y Avance Integral de Desempeño)")
     st.caption("Selecciona cualquier indicador para visualizar el ordenamiento comparativo de todas las Líderes de Negocio al instante.")
 
     cat_ranking = st.radio(
@@ -2805,7 +2805,7 @@ def renderizar_modulo_rankings_360(df_filtrado, df_tableau=None, key_suffix="mai
             st.plotly_chart(fig_in, use_container_width=True)
 
         # 2. Monitor Ejecutivo de Retención (Formato Oficial Gerencia Dolly Natura)
-        with st.expander(f"📋 Ver Monitor Detallado de Seguimiento IN{num_in_ciclo} (% Máximo sobre Disponibles = {tope_pct_actual}%)", expanded=True):
+        with st.expander(f"📋 Ver Monitor Detallado de Avance IN{num_in_ciclo} (% Máximo sobre Disponibles = {tope_pct_actual}%)", expanded=True):
             col_nom_in = 'Nombre de consultora' if 'Nombre de consultora' in df_filtrado.columns else ('Nombre Consultora' if 'Nombre Consultora' in df_filtrado.columns else df_filtrado.columns[0])
             col_grp_in = next((c for c in df_filtrado.columns if any(k in str(c).lower() for k in ['código de grupo', 'codigo de grupo', 'grupo'])), None)
             
@@ -3438,7 +3438,7 @@ if st.session_state['user'] is None:
         <div class="login-hero-card">
             <div class="login-badge">✨ SISTEMA DE GESTIÓN Y LIDERAZGO EMPRESARIAL</div>
             <h1 class="login-title">Portal de Acceso Corporativo</h1>
-            <p class="login-subtitle">Gestión estratégica de metas de ciclo, indicadores de facturación y seguimiento privado por Líder de Negocio.</p>
+            <p class="login-subtitle">Gestión estratégica de metas de ciclo, indicadores de facturación y avance comercial por Líder de Negocio.</p>
         </div>
     </div>
     """, unsafe_allow_html=True)
@@ -6924,7 +6924,7 @@ if tab_tableau is not None:
                                     "🎁 2. Reactivación Comercial (Inactivas)",
                                     "🌟 3. Impulso de Puntos & Nivel",
                                     "📦 4. Pedido Pendiente / Retenido",
-                                    "🌸 5. Saludo & Seguimiento General",
+                                    "🌸 5. Saludo & Acompañamiento General",
                                     "✍️ 6. Mensaje Libre / Personalizado"
                                 ],
                                 index=0 if cbs_con_notas else 1,
@@ -8570,7 +8570,7 @@ if tab_tableau is not None:
             # --- SUBPESTAÑA 5: CUMPLEAÑOS Y RECONOCIMIENTO ---
             with tab_tab_cumple:
                 st.subheader("🎂 Calendario & Reconocimiento de Cumpleaños")
-                st.markdown("Seguimiento de fechas especiales para fortalecer el vínculo comercial y humano con las consultoras de tu red.")
+                st.markdown("Acompañamiento en fechas especiales para fortalecer el vínculo comercial y humano con las consultoras de tu red.")
                 if user_rol == 'superadmin' and ('lider_sel_t' in locals() and lider_sel_t == "Todas las Líderes (Consolidado Zona)"):
                     st.info("💡 **Vista Corporativa Consolidada**: Para consultar y gestionar los cumpleaños con botones de WhatsApp, selecciona un **Grupo o Líder** en el filtro superior.")
                 else:
@@ -9307,7 +9307,7 @@ if tab_geral is not None:
 if tab_resumen is not None:
     with tab_resumen:
         st.subheader("💎 Tablero Estadístico Interactivo & Métricas de Rendimiento")
-        st.markdown("Visualizaciones ejecutivas dinámicas para el seguimiento del ciclo en tiempo real.")
+        st.markdown("Visualizaciones ejecutivas dinámicas para el avance del ciclo en tiempo real.")
 
         # 1. Tacómetros de Cumplimiento Global (Gauge Charts 360°)
         st.markdown("##### ⏱️ Tacómetros de Cumplimiento Global del Ciclo")
@@ -9779,7 +9779,7 @@ if tab_ganancia is not None:
 if tab_diagnostico is not None:
     with tab_diagnostico:
         st.subheader("👑 Mis Líderes")
-        st.markdown("Generación de tablas dinámicas automatizadas para medición y seguimiento comparativo entre todas las Líderes de Negocio.")
+        st.markdown("Generación de tablas dinámicas automatizadas para medición y avance comparativo entre todas las Líderes de Negocio.")
 
         # Tablero Ejecutivo de Conciliación (Objetivos Arte vs Ajustes Desafíos de Zona)
         if user_rol in ['gerente', 'superadmin']:
@@ -10381,7 +10381,7 @@ if tab_diagnostico is not None:
 
                 # --- 6. CUADRO RESUMEN DE RETENCIÓN I2 (Meta 8% Fuga / Retención I2) ---
                 st.markdown("---")
-                st.markdown("#### 🔄 6. Seguimiento IN2 — % Máximo sobre Disponibles = 8%")
+                st.markdown("#### 🔄 6. Avance IN2 — % Máximo sobre Disponibles = 8%")
                 st.caption("Fórmulas del modelo oficial: `IN2 Dejar en Panel = Disponibles * 8%`, `Te Faltan Activar = Llevas Panel - Dejar en Panel`, `% Sobre Dispon = (Llevas Panel / Disponibles) * 100`.")
 
                 if col_lider and col_lider in df_diag.columns:
@@ -10487,7 +10487,7 @@ if tab_diagnostico is not None:
 
                 # --- 7. CUADRO RESUMEN DE RETENCIÓN I3 (Meta 6% Fuga / Retención I3) ---
                 st.markdown("---")
-                st.markdown("#### 🚨 7. Seguimiento IN3 — % Máximo sobre Disponibles = 6%")
+                st.markdown("#### 🚨 7. Avance IN3 — % Máximo sobre Disponibles = 6%")
                 st.caption("Fórmulas del modelo oficial: `IN3 Dejar en Panel = Disponibles * 6%`, `Te Faltan Activar = Llevas Panel - Dejar en Panel`, `% Sobre Dispon = (Llevas Panel / Disponibles) * 100`.")
 
                 if col_lider and col_lider in df_diag.columns:
@@ -10586,7 +10586,7 @@ if tab_diagnostico is not None:
 
                 # --- 7.1 CUADRO RESUMEN DE RETENCIÓN I1 (Meta 12% Fuga / Retención I1) ---
                 st.markdown("---")
-                st.markdown("#### 🟡 7.1 Seguimiento IN1 — % Máximo sobre Disponibles = 12%")
+                st.markdown("#### 🟡 7.1 Avance IN1 — % Máximo sobre Disponibles = 12%")
                 st.caption("Fórmulas del modelo oficial: `IN1 Dejar en Panel = Disponibles * 12%`, `Te Faltan Activar = Llevas Panel - Dejar en Panel`, `% Sobre Dispon = (Llevas Panel / Disponibles) * 100`.")
 
                 if col_lider and col_lider in df_diag.columns:
@@ -11236,7 +11236,7 @@ if tab_diagnostico is not None:
             ])
 
             with subtab_ln:
-                st.markdown("#### 👑 Medición y Seguimiento — Líderes de Negocio (LN)")
+                st.markdown("#### 👑 Medición y Avance — Líderes de Negocio (LN)")
                 st.caption("Tableros dinámicos comparativos para las Líderes de Negocio oficiales registradas en Objetivos Arte Corporativo.")
 
                 df_ln = df_diag[df_diag['Tipo_Red'] == '👑 LN'].copy()
@@ -11254,7 +11254,7 @@ if tab_diagnostico is not None:
 
             with subtab_ce:
                 st.markdown("#### 🌱 Metas de Crecimiento (CE+) & Acompañamiento LN")
-                st.caption("Seguimiento a Consultoras Emprende+ (CE+), metas escalonadas (+1, +3, +5, +7, +9), desempeño de activas y bonos de acompañamiento para Líderes Mentoras.")
+                st.caption("Avance y desarrollo a Consultoras Emprende+ (CE+), metas escalonadas (+1, +3, +5, +7, +9), desempeño de activas y bonos de acompañamiento para Líderes Mentoras.")
 
                 sec_target = user_sector if user_rol in ['gerente', 'lider'] else None
                 df_ce_tab = consultar_ce_plus_df(sector=sec_target, df_como_vamos=df_diag)
@@ -12086,8 +12086,8 @@ if tab_usuarios is not None and user_rol == 'superadmin':
 
             # 2. Semáforo Comercial / Alertas de Inactividad
             if metricas_uso.get('sectores_alerta'):
-                st.markdown("##### 🚨 Seguimiento Comercial — Sectores con Inactividad")
-                st.caption("Sectores que no han ingresado recientemente (oportunidad para contactar por WhatsApp y brindar soporte o seguimiento):")
+                st.markdown("##### 🚨 Acompañamiento Comercial — Sectores con Inactividad")
+                st.caption("Sectores que no han ingresado recientemente (oportunidad para contactar por WhatsApp y brindar soporte o acompañamiento):")
                 df_alerta_s = pd.DataFrame(metricas_uso['sectores_alerta'])
                 st.dataframe(df_alerta_s, use_container_width=True, hide_index=True)
                 st.markdown("---")
