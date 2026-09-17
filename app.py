@@ -9587,7 +9587,7 @@ if tab_ganancia is not None:
                 bm_act_real = st.number_input("Activas Reales Logradas:", value=int(val_a_real), min_value=0, step=1, key=f"bm_act_r_{leader_key}")
                 bm_act_obj = st.number_input("Activas Meta / Desafío:", value=int(val_a_obj if val_a_obj > 0 else 100), min_value=1, step=1, key=f"bm_act_o_{leader_key}")
             with col_bm_in2:
-                bm_saldo_real = st.number_input("Saldo Comercial Real:", value=int(val_saldo), min_value=-50, max_value=100, step=1, key=f"bm_sal_r_{leader_key}")
+                bm_saldo_real = st.number_input("Saldo Comercial Real:", value=int(val_saldo), step=1, key=f"bm_sal_r_{leader_key}")
                 st.caption("💡 **Meta Saldo**: Debe ser mayor o igual a **2**.")
             with col_bm_in3:
                 nom_lider_display = df_filtrado.iloc[0].get('Nombre de consultora', user_nombre) if not df_filtrado.empty else user_nombre
@@ -9736,7 +9736,7 @@ if tab_ganancia is not None:
                 with cols_ciclos[i]:
                     st.markdown(f"**Ciclo {c_name}**" + (" 📍 *(Actual)*" if i == 0 else ""))
                     s_def = st.session_state[f'saldos_conv_{leader_key}'][i] if i < len(st.session_state[f'saldos_conv_{leader_key}']) else 3
-                    s_val = st.number_input(f"Saldo {c_name}:", value=int(s_def), min_value=-20, max_value=50, step=1, key=f"conv_s_{c_name}_{leader_key}")
+                    s_val = st.number_input(f"Saldo {c_name}:", value=int(s_def), step=1, key=f"conv_s_{c_name}_{leader_key}")
                     saldos_ingresados.append(s_val)
                     pts, r_txt = calcular_puntos_convencion_ciclo(s_val)
                     puntos_ciclos.append(pts)
