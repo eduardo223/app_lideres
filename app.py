@@ -86,6 +86,9 @@ from procesador import (
     validar_sector_archivo,
     validar_archivo_como_vamos,
     inspeccionar_preflight_como_vamos,
+    validar_audio_whatsapp,
+    obtener_duracion_audio_segundos,
+    despachar_audio_whatsapp_evolution,
     auto_crear_usuarios_lideres_desde_bases,
     obtener_mapa_lideres,
     cargar_historico_sectores,
@@ -451,6 +454,104 @@ def renderizar_guia_seguridad_envios_wa(destinatarios="Líderes"):
         '</div>'
     )
     st.markdown(banner_html, unsafe_allow_html=True)
+
+
+def renderizar_modulo_audio_whatsapp(key_suffix="general"):
+    """
+    Renderiza el módulo interactivo oficial de Acompañamiento con Audio (Nota de voz WhatsApp PTT):
+    1. Permite grabar directamente con el micrófono (st.audio_input) o subir un archivo de audio (.mp3, .ogg, .wav, .m4a).
+    2. Aplica la regla del piso/techo límite estricto: 50 segundos. Si dura más de 50 seg, rechaza y bloquea el envío.
+    3. Muestra la insignia verde oficial: 🟢 15 a 30 segundos (Recomendado): "Duración ideal: Máxima cercanía y 0% spam".
+    4. Proporciona reproductor previo (st.audio) para que la líder escuche antes de enviar.
+    5. Codifica en memoria a Base64 una sola vez para rendimiento ultra-rápido.
+    Retorna dict con { 'activo': bool, 'valido': bool, 'b64': str, 'mime': str, 'duracion': float, 'mensaje': str }
+    """
+    import base64
+    resultado = {
+        'activo': False,
+        'valido': True,
+        'b64': None,
+        'mime': 'audio/ogg; codecs=opus',
+        'duracion': 0.0,
+        'mensaje': ''
+    }
+
+    with st.expander("🎙️ Acompañamiento con Audio (Nota de Voz WhatsApp PTT - Opcional)", expanded=False):
+        c_mode1, c_mode2 = st.columns([1.1, 1.9])
+        with c_mode1:
+            modo_audio = st.radio(
+                "Fuente del audio:",
+                ["🎙️ Grabar con Micrófono ahora", "📁 Subir archivo de audio"],
+                key=f"rad_modo_audio_{key_suffix}"
+            )
+        with c_mode2:
+            st.caption("💡 **Efecto Nota de Voz Humana:** Tu audio se enviará a cada consultora como una **nota de voz oficial** (con ondas de audio y micrófono verde), generando cercanía y 0% reportes de spam.")
+
+        audio_captured = None
+        if "Grabar" in modo_audio:
+            if hasattr(st, 'audio_input'):
+                audio_captured = st.audio_input(
+                    "Pulsa el micrófono para grabar tu mensaje de voz (15 a 30 seg, máx 50 seg):",
+                    key=f"audio_input_{key_suffix}"
+                )
+            else:
+                st.info("🎙️ Para grabar audio en vivo, actualiza tu navegador o sube un archivo grabado a continuación.")
+                audio_captured = st.file_uploader(
+                    "Sube tu nota de voz grabada:",
+                    type=["ogg", "mp3", "wav", "m4a", "opus"],
+                    key=f"audio_uploader_fallback_{key_suffix}"
+                )
+        else:
+            audio_captured = st.file_uploader(
+                "Sube tu archivo de audio (.mp3, .ogg, .wav, .m4a):",
+                type=["mp3", "ogg", "wav", "m4a", "opus"],
+                key=f"audio_uploader_file_{key_suffix}",
+                help="Recomendado: archivo de audio de 15 a 30 segundos (máximo 50 segundos)"
+            )
+
+        if audio_captured is not None:
+            raw_bytes = audio_captured.getvalue()
+            if raw_bytes and len(raw_bytes) > 100:
+                resultado['activo'] = True
+                es_val, dur_seg, cat_dur, msg_dur = validar_audio_whatsapp(raw_bytes, max_segundos=50.0)
+                resultado['valido'] = es_val
+                resultado['duracion'] = dur_seg
+                resultado['mensaje'] = msg_dur
+
+                c_aud_p1, c_aud_p2 = st.columns([1.3, 1.7])
+                with c_aud_p1:
+                    fname = getattr(audio_captured, 'name', '').lower()
+                    mime_det = getattr(audio_captured, 'type', '') or ''
+                    if 'ogg' in fname or 'ogg' in mime_det or 'opus' in mime_det:
+                        mime_final = "audio/ogg; codecs=opus"
+                    elif 'wav' in fname or 'wav' in mime_det:
+                        mime_final = "audio/wav"
+                    elif 'm4a' in fname or 'mp4' in mime_det:
+                        mime_final = "audio/mp4"
+                    else:
+                        mime_final = "audio/mp3"
+                    resultado['mime'] = mime_final
+
+                    st.markdown("**🎧 Escucha previa:**")
+                    st.audio(raw_bytes, format=mime_final)
+
+                with c_aud_p2:
+                    if not es_val:
+                        st.error(msg_dur)
+                    elif cat_dur == "ideal":
+                        st.success(
+                            f"🟢 **Duración ideal ({dur_seg:.1f} seg)**\n\n"
+                            "🌟 *Máxima cercanía y 0% de spam.* Este rango es el más escuchado por las consultoras."
+                        )
+                    else:
+                        st.info(msg_dur)
+
+                    if es_val:
+                        resultado['b64'] = base64.b64encode(raw_bytes).decode('utf-8')
+                        st.caption(f"⚡ Audio procesado ({len(raw_bytes)//1024} KB) listo para despacho masivo.")
+
+    return resultado
+
 
 def obtener_instancia_evolution(current_user, user_rol, user_grupo):
     """
@@ -2335,6 +2436,9 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                     mime_flyer_cumple = uploaded_flyer_cumple.type or "image/png"
                     st.success(f"🖼️ Tarjeta cargada: **{uploaded_flyer_cumple.name}** ({len(uploaded_flyer_cumple.getvalue())//1024} KB)")
 
+                # Módulo de Audio / Nota de voz WhatsApp PTT
+                audio_cfg_cump = renderizar_modulo_audio_whatsapp(key_suffix=f"cumple_{key_pfx}_{key_suffix}")
+
                 # Previsualización interactiva del saludo de cumpleaños
                 if lista_cumple:
                     sample_cumple = items_a_enviar[0] if items_a_enviar else lista_cumple[0]
@@ -2348,13 +2452,16 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                         expanded=(uploaded_flyer_cumple is not None)
                     )
 
+                bloqueado_audio_cump = (audio_cfg_cump.get('activo') and not audio_cfg_cump.get('valido'))
                 btn_enviar_cumple_api = st.button(
                     f"🚀 Iniciar Envío Automático a las {len(items_a_enviar)} Cumpleañeras",
                     type="primary",
-                    disabled=(len(items_a_enviar) == 0),
+                    disabled=(len(items_a_enviar) == 0 or bloqueado_audio_cump),
                     use_container_width=True,
                     key=f"btn_send_api_{key_pfx}_{key_suffix}"
                 )
+                if bloqueado_audio_cump:
+                    st.warning("⚠️ El envío está bloqueado porque el audio supera los 50 segundos. Graba o sube un audio más corto.")
 
                 if btn_enviar_cumple_api and items_a_enviar:
                     prog_bar_c = st.progress(0.0)
@@ -2392,8 +2499,20 @@ def renderizar_banner_cumpleanos(df_tableau, user_rol, user_nombre, user_grupo, 
                                         "options": {"delay": 1200, "presence": "composing", "linkPreview": False}
                                     }
                                     res_t = requests.post(url_text, json=payload_text, headers=e_headers, timeout=12)
+
                                 if res_t.status_code in [200, 201]:
                                     ok_c += 1
+                                    # Despachar Nota de Voz PTT si está activa y válida
+                                    if audio_cfg_cump.get('activo') and audio_cfg_cump.get('valido') and audio_cfg_cump.get('b64'):
+                                        despachar_audio_whatsapp_evolution(
+                                            evo_url=evo_url_c,
+                                            evo_inst=instancia_evo,
+                                            evo_tok=evo_tok_c,
+                                            numero_destino=c_clean,
+                                            b64_audio=audio_cfg_cump['b64'],
+                                            mime_audio=audio_cfg_cump['mime'],
+                                            timeout=18
+                                        )
                                     registrar_log_whatsapp(
                                         modulo="Cumpleaños", destinatario_nombre=c_nom, telefono=c_clean, estado="EXITOSO",
                                         http_codigo=res_t.status_code, respuesta_servidor=res_t.text, remitente=cur_u,
@@ -7257,6 +7376,9 @@ if tab_tableau is not None:
                                 else:
                                     st.caption("💡 **Sin imagen adjunta**: El envío será únicamente de texto. Si deseas compartir una imagen promocional o kit, súbela a la izquierda.")
 
+                        # Acompañamiento con Audio (Nota de voz WhatsApp PTT)
+                        audio_cfg_tab = renderizar_modulo_audio_whatsapp(key_suffix="tab_maestra")
+
                         # Generar filas de mensajes para todo el grupo filtrado con casilla de selección
                         filas_wa_tab = []
                         set_sel_actual = st.session_state.get('cbs_sel_tab_wa', set(cbs_todas))
@@ -7418,7 +7540,24 @@ if tab_tableau is not None:
                                 key="chk_adjuntar_flyer_evo_bm"
                             )
 
-                            btn_disparar_tab_api = st.button(f"🚀 Iniciar Envío Automático a las {len(df_marcadas)} Consultoras Marcadas", type="primary", use_container_width=True, key="btn_disparar_api_tab", disabled=(len(df_marcadas) == 0))
+                            adjuntar_audio_bm = False
+                            bloqueado_audio_tab = (audio_cfg_tab.get('activo') and not audio_cfg_tab.get('valido'))
+                            if audio_cfg_tab.get('activo') and audio_cfg_tab.get('valido'):
+                                adjuntar_audio_bm = st.checkbox(
+                                    f"🎙️ Adjuntar Nota de Voz PTT ({audio_cfg_tab['duracion']:.1f} seg) junto con el mensaje",
+                                    value=True,
+                                    key="chk_adjuntar_audio_evo_bm"
+                                )
+                            elif bloqueado_audio_tab:
+                                st.warning("⚠️ El envío está bloqueado porque el audio supera los 50 segundos. Graba o sube un audio más corto.")
+
+                            btn_disparar_tab_api = st.button(
+                                f"🚀 Iniciar Envío Automático a las {len(df_marcadas)} Consultoras Marcadas",
+                                type="primary",
+                                use_container_width=True,
+                                key="btn_disparar_api_tab",
+                                disabled=(len(df_marcadas) == 0 or bloqueado_audio_tab)
+                            )
 
                             if btn_disparar_tab_api:
                                 prog_bar_tab = st.progress(0.0)
@@ -7479,6 +7618,18 @@ if tab_tableau is not None:
                                                 ok_cnt_tab += 1
                                                 if c_cb:
                                                     st.session_state['cbs_enviadas_hoy'].add(c_cb)
+
+                                                # Despachar Nota de Voz PTT si está activa y marcada
+                                                if audio_cfg_tab.get('activo') and audio_cfg_tab.get('valido') and adjuntar_audio_bm and audio_cfg_tab.get('b64'):
+                                                    despachar_audio_whatsapp_evolution(
+                                                        evo_url=evo_url_tab,
+                                                        evo_inst=evo_inst_tab,
+                                                        evo_tok=evo_tok_tab,
+                                                        numero_destino=c_clean_t,
+                                                        b64_audio=audio_cfg_tab['b64'],
+                                                        mime_audio=audio_cfg_tab['mime'],
+                                                        timeout=18
+                                                    )
                                                 registrar_log_whatsapp(
                                                     modulo="Tableau Campaña", destinatario_nombre=c_nom, telefono=c_clean_t, estado="EXITOSO",
                                                     http_codigo=last_code_bm, respuesta_servidor=last_resp_bm, remitente=current_user,
@@ -8377,6 +8528,9 @@ if tab_tableau is not None:
                                 )
                 st.markdown("---")
 
+                # Acompañamiento con Audio (Nota de voz WhatsApp PTT) en Campañas
+                audio_cfg_camp = renderizar_modulo_audio_whatsapp(key_suffix="tab_campanas")
+
                 # --- VISTA PREVIA INTERACTIVA DE WHATSAPP (SIMULACIÓN CHAT) ---
                 if not df_wa_target.empty:
                     c_col_nom_prev = 'Consultora' if 'Consultora' in df_wa_target.columns else ('Nombre' if 'Nombre' in df_wa_target.columns else ('Asesora / Consultora' if 'Asesora / Consultora' in df_wa_target.columns else None))
@@ -8691,12 +8845,24 @@ if tab_tableau is not None:
                             key="chk_adjuntar_flyer_evo_subtab"
                         )
 
+                        adjuntar_audio_api_camp = False
+                        bloqueado_audio_camp = (audio_cfg_camp.get('activo') and not audio_cfg_camp.get('valido'))
+                        if audio_cfg_camp.get('activo') and audio_cfg_camp.get('valido'):
+                            adjuntar_audio_api_camp = st.checkbox(
+                                f"🎙️ Adjuntar Nota de Voz PTT ({audio_cfg_camp['duracion']:.1f} seg) junto con el mensaje",
+                                value=True,
+                                key="chk_adjuntar_audio_evo_camp"
+                            )
+                        elif bloqueado_audio_camp:
+                            st.warning("⚠️ El envío está bloqueado porque el audio supera los 50 segundos. Graba o sube un audio más corto.")
+
                         if n_marcadas > 0:
                             btn_disparar_camp_api = st.button(
                                 f"🚀 Iniciar Envío Automático a las {n_marcadas} Consultoras Marcadas",
                                 type="primary",
                                 use_container_width=True,
-                                key="btn_disparar_api_subtab_camp"
+                                key="btn_disparar_api_subtab_camp",
+                                disabled=bloqueado_audio_camp
                             )
                         else:
                             st.info("👆 Marca al menos una casilla **'✅ Enviar'** en la tabla de arriba para habilitar el envío automático.")
@@ -8760,6 +8926,18 @@ if tab_tableau is not None:
 
                                         if enviado_ok:
                                             ok_cnt_camp += 1
+
+                                            # Despachar Nota de Voz PTT si está activa y marcada
+                                            if audio_cfg_camp.get('activo') and audio_cfg_camp.get('valido') and adjuntar_audio_api_camp and audio_cfg_camp.get('b64'):
+                                                despachar_audio_whatsapp_evolution(
+                                                    evo_url=evo_url_camp,
+                                                    evo_inst=evo_inst_camp,
+                                                    evo_tok=evo_tok_camp,
+                                                    numero_destino=c_clean,
+                                                    b64_audio=audio_cfg_camp['b64'],
+                                                    mime_audio=audio_cfg_camp['mime'],
+                                                    timeout=18
+                                                )
                                             registrar_log_whatsapp(
                                                 modulo="Tableau Flyer", destinatario_nombre=c_nom, telefono=c_clean, estado="EXITOSO",
                                                 http_codigo=last_code, respuesta_servidor=last_resp, remitente=current_user,

@@ -5926,6 +5926,135 @@ def inspeccionar_preflight_como_vamos(origen_file, sector_esperado=None):
     return resultado
 
 
+def obtener_duracion_audio_segundos(audio_bytes, filename=""):
+    """
+    Inspecciona la duración exacta en segundos de un buffer de audio en memoria.
+    Soporta WAV (nativo de st.audio_input), MP3, OGG/Opus y M4A mediante wave y mutagen.
+    """
+    import io
+    if not audio_bytes:
+        return 0.0
+
+    bio = io.BytesIO(audio_bytes)
+
+    # 1. Probar con wave (formato habitual de navegadores y st.audio_input)
+    try:
+        import wave
+        bio.seek(0)
+        with wave.open(bio, 'rb') as w:
+            frames = w.getnframes()
+            rate = w.getframerate()
+            if rate > 0:
+                return round(float(frames) / float(rate), 1)
+    except Exception:
+        pass
+
+    # 2. Probar con mutagen
+    try:
+        import mutagen
+        bio.seek(0)
+        m = mutagen.File(bio)
+        if m is not None and hasattr(m, 'info') and hasattr(m.info, 'length') and m.info.length:
+            return round(float(m.info.length), 1)
+    except Exception:
+        pass
+
+    # 3. Estimación por tamaño (para audio de voz comprimido ~64-96 kbps: ~8-12 KB/seg)
+    kb = len(audio_bytes) / 1024.0
+    if kb > 0:
+        return round(kb / 10.0, 1)
+
+    return 0.0
+
+
+def validar_audio_whatsapp(audio_bytes, max_segundos=50.0):
+    """
+    Valida las reglas de audio para envíos masivos de WhatsApp:
+    - Piso/Techo límite estricto: 50 segundos. Si lo supera, se rechaza.
+    - Duración recomendada: 15 a 30 segundos (insignia verde oficial).
+    Retorna: (es_valido: bool, duracion_seg: float, categoria: str, mensaje: str)
+    """
+    duracion = obtener_duracion_audio_segundos(audio_bytes)
+    if duracion > max_segundos:
+        return (
+            False,
+            duracion,
+            "excedido",
+            f"⛔ El audio dura {duracion:.1f} segundos y excede el límite máximo permitido ({max_segundos:.0f} segundos). "
+            f"Por seguridad de tu línea WhatsApp y para garantizar la atención de la consultora, graba un audio de máximo 50 segundos."
+        )
+    elif 15.0 <= duracion <= 30.0:
+        return (
+            True,
+            duracion,
+            "ideal",
+            f"🟢 Duración ideal ({duracion:.1f} seg): Máxima cercanía y 0% spam."
+        )
+    elif duracion < 15.0:
+        return (
+            True,
+            duracion,
+            "valido",
+            f"ℹ️ Duración: {duracion:.1f} seg (Audio breve)."
+        )
+    else:
+        # Entre 30.1 y 50.0 segundos
+        return (
+            True,
+            duracion,
+            "valido",
+            f"🟡 Duración: {duracion:.1f} seg (Audio un poco extenso, pero dentro del límite de 50 seg)."
+        )
+
+
+def despachar_audio_whatsapp_evolution(evo_url, evo_inst, evo_tok, numero_destino, b64_audio, mime_audio="audio/ogg; codecs=opus", timeout=18):
+    """
+    Envía un audio como nota de voz nativa (PTT) a través de Evolution API:
+    1. Intenta primero /message/sendWhatsAppAudio con encoding=True (onda de voz nativa y micro verde).
+    2. Si falla o no está disponible, intenta /message/sendMedia con mediatype='audio'.
+    Retorna (exito: bool, http_code: int, respuesta: str)
+    """
+    import requests
+    url_base = str(evo_url or '').strip().rstrip('/')
+    inst = str(evo_inst or '').strip()
+    headers = {"apikey": str(evo_tok or '').strip(), "Content-Type": "application/json"}
+    num_clean = str(numero_destino or '').strip()
+    if num_clean and not num_clean.startswith('57') and len(num_clean) == 10:
+        num_clean = f"57{num_clean}"
+
+    audio_data_uri = f"data:{mime_audio};base64,{b64_audio}" if not b64_audio.startswith('data:') else b64_audio
+
+    # Intento 1: sendWhatsAppAudio (Nota de voz oficial PTT)
+    try:
+        url_aud = f"{url_base}/message/sendWhatsAppAudio/{inst}"
+        payload_aud = {
+            "number": num_clean,
+            "audio": audio_data_uri,
+            "delay": 1200,
+            "encoding": True
+        }
+        res = requests.post(url_aud, json=payload_aud, headers=headers, timeout=timeout)
+        if res.status_code in [200, 201]:
+            return True, res.status_code, res.text
+    except Exception:
+        pass
+
+    # Intento 2: sendMedia como fallback
+    try:
+        url_media = f"{url_base}/message/sendMedia/{inst}"
+        payload_media = {
+            "number": num_clean,
+            "mediatype": "audio",
+            "mimetype": mime_audio,
+            "media": b64_audio,
+            "fileName": "nota_de_voz.mp3"
+        }
+        res2 = requests.post(url_media, json=payload_media, headers=headers, timeout=timeout)
+        return (res2.status_code in [200, 201]), res2.status_code, res2.text
+    except Exception as ex2:
+        return False, 0, str(ex2)
+
+
 def generar_password_aleatoria(longitud=8):
     import random, string
     chars = string.ascii_letters + string.digits
