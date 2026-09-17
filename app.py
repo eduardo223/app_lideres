@@ -8632,6 +8632,8 @@ if tab_geral is not None:
             analisis_g = procesar_analisis_geral_cobranza(df_geral_filt)
             kpis_g = analisis_g['kpis']
             df_pendientes = analisis_g['df_pendientes']
+            df_hoy = analisis_g.get('df_vence_hoy', pd.DataFrame())
+            df_ayer = analisis_g.get('df_ayer_reciente', pd.DataFrame())
             df_manana = analisis_g['df_vence_manana']
             df_pasado = analisis_g['df_pasado_manana']
             df_mora = analisis_g['df_en_mora']
@@ -8639,7 +8641,7 @@ if tab_geral is not None:
             heatmap_df = analisis_g['heatmap_data']
 
             # 2. FILA DE KPIS EJECUTIVOS FINANCIEROS (ARRIBA COMO CUADRO DE MANDO)
-            kg1, kg2, kg3, kg4, kg5 = st.columns(5)
+            kg1, kg2, kg3, kg4, kg5, kg6 = st.columns(6)
             with kg1:
                 st.metric(
                     "💰 Cartera Total Viva",
@@ -8648,25 +8650,33 @@ if tab_geral is not None:
                 )
             with kg2:
                 st.metric(
+                    "🚨 Vence HOY",
+                    f"${kpis_g.get('total_hoy', 0)/1e6:.2f}M COP" if kpis_g.get('total_hoy', 0) >= 1e6 else f"${kpis_g.get('total_hoy', 0):,.0f}".replace(",", "."),
+                    f"{kpis_g.get('facturas_hoy', 0)} Facturas (Urgente)",
+                    delta_color="inverse" if kpis_g.get('facturas_hoy', 0) > 0 else "off"
+                )
+            with kg3:
+                st.metric(
+                    "⏳ Venció Ayer / 1-3d",
+                    f"${kpis_g.get('total_ayer_reciente', 0)/1e6:.2f}M COP" if kpis_g.get('total_ayer_reciente', 0) >= 1e6 else f"${kpis_g.get('total_ayer_reciente', 0):,.0f}".replace(",", "."),
+                    f"{kpis_g.get('facturas_ayer_reciente', 0)} Facturas (Rescate)",
+                    delta_color="normal" if kpis_g.get('facturas_ayer_reciente', 0) == 0 else "off"
+                )
+            with kg4:
+                st.metric(
                     "🟡 Vence MAÑANA",
                     f"${kpis_g['total_manana']/1e6:.2f}M COP" if kpis_g['total_manana'] >= 1e6 else f"${kpis_g['total_manana']:,.0f}".replace(",", "."),
                     f"{kpis_g['facturas_manana']} Facturas (Prioridad)",
                     delta_color="normal"
                 )
-            with kg3:
-                st.metric(
-                    "🟢 Próximos 7 Días",
-                    f"${kpis_g['total_7d']/1e6:.2f}M COP" if kpis_g['total_7d'] >= 1e6 else f"${kpis_g['total_7d']:,.0f}".replace(",", "."),
-                    f"{kpis_g['facturas_7d']} Facturas"
-                )
-            with kg4:
+            with kg5:
                 st.metric(
                     "🚨 Cartera en Mora",
                     f"${kpis_g['total_mora']/1e6:.2f}M COP" if kpis_g['total_mora'] >= 1e6 else f"${kpis_g['total_mora']:,.0f}".replace(",", "."),
                     f"{kpis_g['facturas_mora']} Vencidas",
                     delta_color="inverse"
                 )
-            with kg5:
+            with kg6:
                 st.metric(
                     "👥 Consultoras con Deuda",
                     f"{kpis_g['consultoras_unicas']}",
@@ -8730,7 +8740,9 @@ if tab_geral is not None:
             st.markdown("<div style='margin-bottom: 6px;'></div>", unsafe_allow_html=True)
             st.caption(r"Ordenado de mayor a menor deuda con semáforo armónico: 🔴 **Deuda Alta / Mora** (>= \$300.000 COP) | 🟠 **Deuda Media** (\$150.000 - \$300.000 COP) | 🟢 **Deuda Controlada** (< \$150.000 COP)")
 
-            tab_v_manana, tab_v_pasado, tab_v_mora, tab_v_7d, tab_v_todas, tab_v_pagadas = st.tabs([
+            tab_v_hoy, tab_v_ayer, tab_v_manana, tab_v_pasado, tab_v_mora, tab_v_7d, tab_v_todas, tab_v_pagadas = st.tabs([
+                f"🚨 Vencen Hoy ({len(df_hoy)})",
+                f"⏳ Vencieron Ayer/Recientes ({len(df_ayer)})",
                 f"🟡 Vencen Mañana ({len(df_manana)})",
                 f"🟢 Pasado Mañana (+2 a +3d) ({len(df_pasado)})",
                 f"🚨 En Mora ({len(df_mora)})",
@@ -8777,8 +8789,10 @@ if tab_geral is not None:
                 val_str = str(val)
                 if 'Mora' in val_str or '-' in val_str or '🔴' in val_str:
                     return 'background-color: rgba(239, 68, 68, 0.20); color: #DC2626; font-weight: 700;'
+                elif 'Venció' in val_str or '⏳' in val_str:
+                    return 'background-color: rgba(249, 115, 22, 0.22); color: #C2410C; font-weight: 700;'
                 elif 'Hoy' in val_str or '🚨' in val_str:
-                    return 'background-color: rgba(249, 115, 22, 0.20); color: #EA580C; font-weight: 700;'
+                    return 'background-color: rgba(239, 68, 68, 0.22); color: #DC2626; font-weight: 800;'
                 elif 'Mañana' in val_str or '🟡' in val_str:
                     return 'background-color: rgba(234, 179, 8, 0.20); color: #D97706; font-weight: 700;'
                 elif 'Pagado' in val_str or '✅' in val_str:
@@ -8823,8 +8837,12 @@ if tab_geral is not None:
                         return "✅ Al Día"
                     if 'dias_para_vencer' in r:
                         d = int(limpiar_numero(r.get('dias_para_vencer', 0)))
-                        if d < 0:
+                        if d < -3:
                             return f"🔴 {abs(d)} d. mora"
+                        elif d == -1:
+                            return "⏳ Venció Ayer"
+                        elif d in [-2, -3]:
+                            return f"⏳ Venció hace {abs(d)}d"
                         elif d == 0:
                             return "🚨 Vence Hoy"
                         elif d == 1:
@@ -8894,6 +8912,20 @@ if tab_geral is not None:
                 else:
                     return df_disp
 
+            with tab_v_hoy:
+                st.markdown("###### 🚨 Facturas que Vencen HOY (Atención Prioritaria)")
+                st.caption("Fecha límite de pago hoy sin recargos. Recuerda a la consultora pagar antes del cierre del sistema.")
+                df_h_disp = _formatear_tabla_geral(df_hoy)
+                if df_h_disp is not None:
+                    st.dataframe(df_h_disp, use_container_width=True, hide_index=True)
+
+            with tab_v_ayer:
+                st.markdown("###### ⏳ Facturas que Vencieron Ayer o Recientes (1 a 3 Días)")
+                st.caption("Cobro de rescate cordial e inmediato para consultoras que no alcanzaron a pagar ayer.")
+                df_ay_disp = _formatear_tabla_geral(df_ayer)
+                if df_ay_disp is not None:
+                    st.dataframe(df_ay_disp, use_container_width=True, hide_index=True)
+
             with tab_v_manana:
                 st.markdown("###### 🟡 Facturas que Vencen Mañana (Recordatorio Preventivo)")
                 st.caption("Envía el recordatorio preventivo con mucho cariño para que la consultora pague a tiempo y mantenga su crédito activo.")
@@ -8940,38 +8972,49 @@ if tab_geral is not None:
             st.caption("Selecciona las consultoras a las que deseas enviar recordatorios marcando las casillas en la tabla o usando los botones de selección rápida:")
 
             # Botones de Selección Rápida de Lotes
-            col_btn_m1, col_btn_m2, col_btn_m3, col_btn_m4, col_btn_m5, col_btn_m6 = st.columns(6)
+            col_btn_m1, col_btn_m2, col_btn_m3, col_btn_m4, col_btn_m5, col_btn_m6, col_btn_m7 = st.columns(7)
 
             if 'titulos_sel_geral_wa' not in st.session_state:
-                st.session_state['titulos_sel_geral_wa'] = set(df_manana['titulo'].tolist() if not df_manana.empty else df_pendientes['titulo'].tolist())
+                def_tits = (
+                    df_hoy['titulo'].tolist() if not df_hoy.empty 
+                    else (df_ayer['titulo'].tolist() if not df_ayer.empty 
+                    else (df_manana['titulo'].tolist() if not df_manana.empty 
+                    else df_pendientes['titulo'].tolist()))
+                )
+                st.session_state['titulos_sel_geral_wa'] = set(def_tits)
 
             with col_btn_m1:
-                if st.button(f"🟡 Vencen Mañana ({len(df_manana)})", use_container_width=True, key="btn_sel_manana_geral"):
-                    st.session_state['titulos_sel_geral_wa'] = set(df_manana['titulo'].tolist())
+                if st.button(f"🚨 Hoy ({len(df_hoy)})", use_container_width=True, key="btn_sel_hoy_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_hoy['titulo'].tolist())
                     st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m2:
-                if st.button(f"🚨 En Mora ({len(df_mora)})", use_container_width=True, key="btn_sel_mora_geral"):
-                    st.session_state['titulos_sel_geral_wa'] = set(df_mora['titulo'].tolist())
+                if st.button(f"⏳ Ayer ({len(df_ayer)})", use_container_width=True, key="btn_sel_ayer_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_ayer['titulo'].tolist())
                     st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m3:
-                if st.button(f"🟢 Pasado Mañana ({len(df_pasado)})", use_container_width=True, key="btn_sel_pasado_geral"):
-                    st.session_state['titulos_sel_geral_wa'] = set(df_pasado['titulo'].tolist())
+                if st.button(f"🟡 Mañana ({len(df_manana)})", use_container_width=True, key="btn_sel_manana_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_manana['titulo'].tolist())
                     st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m4:
-                if st.button(f"📅 Próximos 7d ({len(df_7d)})", use_container_width=True, key="btn_sel_7d_geral"):
-                    st.session_state['titulos_sel_geral_wa'] = set(df_7d['titulo'].tolist())
+                if st.button(f"🟢 +2 a +3d ({len(df_pasado)})", use_container_width=True, key="btn_sel_pasado_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_pasado['titulo'].tolist())
                     st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
             with col_btn_m5:
+                if st.button(f"⚠️ Mora ({len(df_mora)})", use_container_width=True, key="btn_sel_mora_geral"):
+                    st.session_state['titulos_sel_geral_wa'] = set(df_mora['titulo'].tolist())
+                    st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
+                    st.rerun()
+            with col_btn_m6:
                 if st.button(f"👥 Todas ({len(df_pendientes)})", use_container_width=True, key="btn_sel_todas_geral"):
                     st.session_state['titulos_sel_geral_wa'] = set(df_pendientes['titulo'].tolist())
                     st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
-            with col_btn_m6:
-                if st.button("🧹 Ninguna (0)", use_container_width=True, key="btn_desel_todas_geral"):
+            with col_btn_m7:
+                if st.button("🧹 Ninguna", use_container_width=True, key="btn_desel_todas_geral"):
                     st.session_state['titulos_sel_geral_wa'] = set()
                     st.session_state['editor_ver_geral'] = st.session_state.get('editor_ver_geral', 0) + 1
                     st.rerun()
@@ -8981,11 +9024,12 @@ if tab_geral is not None:
             with col_cfg1:
                 tipo_camp_sel = st.selectbox(
                     "Tipo de Plantilla de Mensaje:",
-                    options=['auto', 'manana', 'hoy', 'mora', 'general'],
+                    options=['auto', 'hoy', 'ayer', 'manana', 'mora', 'general'],
                     format_func=lambda x: {
-                        'auto': '⚡ Automático (Detecta si vence mañana, hoy o mora)',
-                        'manana': '🎁 Vence Mañana (Preventivo Cordial)',
+                        'auto': '⚡ Automático (Detecta si es Hoy, Ayer/Reciente, Mañana o Mora)',
                         'hoy': '🚨 Vence Hoy (Urgente sin recargos)',
+                        'ayer': '⏳ Venció Ayer / Reciente (Cobro cordial de rescate)',
+                        'manana': '🎁 Vence Mañana (Preventivo Cordial)',
                         'mora': '⚠️ En Mora (Cobranza con Recargos)',
                         'general': '🌸 Recordatorio General'
                     }.get(x, x),
@@ -9012,14 +9056,23 @@ if tab_geral is not None:
 
             # Generar tabla con casillas interactivas
             filas_campana = []
-            set_sel_actual = st.session_state.get('titulos_sel_geral_wa', set(df_manana['titulo'].tolist() if not df_manana.empty else []))
+            set_sel_actual = st.session_state.get('titulos_sel_geral_wa', set(df_hoy['titulo'].tolist() if not df_hoy.empty else (df_manana['titulo'].tolist() if not df_manana.empty else [])))
 
             for _, r in df_pendientes.iterrows():
                 tit_val = str(r.get('titulo', ''))
                 t_msg = tipo_camp_sel
                 if t_msg == 'auto':
                     d_r = r.get('dias_para_vencer', 0)
-                    t_msg = 'manana' if d_r == 1 else ('hoy' if d_r == 0 else ('mora' if d_r < 0 else 'general'))
+                    if d_r == 1:
+                        t_msg = 'manana'
+                    elif d_r == 0:
+                        t_msg = 'hoy'
+                    elif d_r in [-1, -2, -3]:
+                        t_msg = 'ayer'
+                    elif d_r < -3:
+                        t_msg = 'mora'
+                    else:
+                        t_msg = 'general'
 
                 msg_ind = generar_mensaje_whatsapp_cobranza(r, tipo=t_msg, nombre_remitente=nombre_remit_masivo)
                 cel = str(r.get('telefono_movil', '')).strip()

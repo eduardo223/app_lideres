@@ -8227,6 +8227,8 @@ def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
         return {
             'df_completo': pd.DataFrame(),
             'df_pendientes': pd.DataFrame(),
+            'df_vence_hoy': pd.DataFrame(),
+            'df_ayer_reciente': pd.DataFrame(),
             'df_vence_manana': pd.DataFrame(),
             'df_pasado_manana': pd.DataFrame(),
             'df_en_mora': pd.DataFrame(),
@@ -8234,6 +8236,10 @@ def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
             'kpis': {
                 'total_cartera': 0.0,
                 'total_facturas_pendientes': 0,
+                'total_hoy': 0.0,
+                'facturas_hoy': 0,
+                'total_ayer_reciente': 0.0,
+                'facturas_ayer_reciente': 0,
                 'total_mora': 0.0,
                 'facturas_mora': 0,
                 'total_manana': 0.0,
@@ -8271,8 +8277,10 @@ def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
         if pd.isna(d):
             return "Sin Fecha"
         d = int(d)
-        if d < 0:
+        if d < -3:
             return "Vencida / En Mora"
+        elif d in [-1, -2, -3]:
+            return "Venció Reciente (1 a 3d)"
         elif d == 0:
             return "Vence Hoy"
         elif d == 1:
@@ -8292,6 +8300,8 @@ def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
     df_pendientes = df[(df['situacion'] == 'Pendiente') & (df['saldo_total'] > 0)].copy()
     
     # Sub-segmentos
+    df_hoy = df_pendientes[df_pendientes['dias_para_vencer'] == 0].copy()
+    df_ayer_reciente = df_pendientes[df_pendientes['dias_para_vencer'].isin([-1, -2, -3])].copy()
     df_manana = df_pendientes[df_pendientes['dias_para_vencer'] == 1].copy()
     df_pasado = df_pendientes[df_pendientes['dias_para_vencer'].isin([2, 3])].copy()
     df_mora = df_pendientes[df_pendientes['dias_para_vencer'] < 0].copy()
@@ -8301,6 +8311,10 @@ def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
     kpis = {
         'total_cartera': float(df_pendientes['saldo_total'].sum()),
         'total_facturas_pendientes': len(df_pendientes),
+        'total_hoy': float(df_hoy['saldo_total'].sum()),
+        'facturas_hoy': len(df_hoy),
+        'total_ayer_reciente': float(df_ayer_reciente['saldo_total'].sum()),
+        'facturas_ayer_reciente': len(df_ayer_reciente),
         'total_mora': float(df_mora['saldo_total'].sum()),
         'facturas_mora': len(df_mora),
         'total_manana': float(df_manana['saldo_total'].sum()),
@@ -8324,6 +8338,8 @@ def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
     return {
         'df_completo': df,
         'df_pendientes': df_pendientes,
+        'df_vence_hoy': df_hoy,
+        'df_ayer_reciente': df_ayer_reciente,
         'df_vence_manana': df_manana,
         'df_pasado_manana': df_pasado,
         'df_en_mora': df_mora,
@@ -8358,6 +8374,15 @@ def generar_mensaje_whatsapp_cobranza(row, tipo='manana', nombre_remitente='Tu L
             f"🚨 ¡Hola {nombre}! Te recordamos que *HOY ({f_venc})* es la fecha límite para el pago de tu factura *N° {factura}* por un valor de *{saldo_fmt}*.\n\n"
             f"Evita recargos financieros y bloqueos en tus próximos pedidos pagando hoy antes de las 9:00 PM. ✨\n\n"
             f"Cualquier duda con tu pago, con gusto te apoyo. — {nombre_remitente} 📲"
+        )
+    elif tipo in ['ayer', 'reciente']:
+        dias_abs = abs(dias_ret) if dias_ret != 0 else 1
+        msg_tiempo = "el día de ayer" if dias_abs == 1 else f"hace {dias_abs} días"
+        msg = (
+            f"🌸 ¡Hola {nombre}! Te saluda {nombre_remitente} de Natura & Avon.\n\n"
+            f"Te escribo con mucho cariño porque {msg_tiempo} ({f_venc}) fue la fecha de pago de tu factura *N° {factura}* por un valor de *{saldo_fmt}*.\n\n"
+            f"💡 ¿Tuviste algún inconveniente con el pago o necesitas que te comparta los canales de Nequi, Daviplata o PSE para apoyarte hoy mismo? ✨\n\n"
+            f"Quedo muy atenta para ayudarte a normalizar tu pedido y mantener tu crédito activo. ¡Un abrazo! — {nombre_remitente} 📲"
         )
     elif tipo == 'mora':
         msg = (
