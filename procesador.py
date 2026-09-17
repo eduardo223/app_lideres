@@ -5798,6 +5798,127 @@ def validar_archivo_como_vamos(origen_file, sector_esperado):
 
     return True, sec_enc, nom_sec, "Validación de sector y estructura exitosa."
 
+
+def inspeccionar_preflight_como_vamos(origen_file, sector_esperado=None):
+    """
+    Inspección preliminar integral (Pre-flight Audit) para archivos 'Cómo Vamos':
+    1. Valida correspondencia de sector.
+    2. Valida estructura de columnas y que no sea reporte de niveles.
+    3. Cuantifica líderes, facturación real, activas reales, inicios y reinicios.
+    4. Detecta si el archivo viene en $0 (preliminar de inicio de ciclo).
+    Retorna un diccionario con los resultados del diagnóstico.
+    """
+    resultado = {
+        "valido": False,
+        "sector_codigo": None,
+        "sector_nombre": None,
+        "total_lideres": 0,
+        "facturacion_real": 0.0,
+        "facturacion_objetivo": 0.0,
+        "activas_reales": 0,
+        "activas_objetivo": 0,
+        "inicios": 0,
+        "reinicios": 0,
+        "es_preliminar_ceros": False,
+        "mensaje": "",
+        "error": None
+    }
+
+    # 1. Validación de sector y estructura base
+    valido_base, sec_enc, nom_sec, msg_base = validar_archivo_como_vamos(origen_file, sector_esperado)
+    resultado["sector_codigo"] = sec_enc
+    resultado["sector_nombre"] = nom_sec
+    if not valido_base:
+        resultado["valido"] = False
+        resultado["mensaje"] = msg_base
+        resultado["error"] = msg_base
+        return resultado
+
+    # 2. Cargar datos para auditoría de totales
+    try:
+        if hasattr(origen_file, 'seek'):
+            try:
+                origen_file.seek(0)
+            except Exception:
+                pass
+
+        xl = pd.ExcelFile(origen_file)
+        hoja_target = xl.sheet_names[0]
+        for s in xl.sheet_names:
+            if 'como vamos' in s.lower() or 'base' in s.lower() or 'metas' in s.lower():
+                hoja_target = s
+                break
+
+        if hasattr(origen_file, 'seek'):
+            try:
+                origen_file.seek(0)
+            except Exception:
+                pass
+
+        df = pd.read_excel(origen_file, sheet_name=hoja_target)
+
+        if hasattr(origen_file, 'seek'):
+            try:
+                origen_file.seek(0)
+            except Exception:
+                pass
+
+        df = normalizar_columnas(df)
+
+        # Filtrar por sector si se especificó
+        col_sec = next((c for c in df.columns if 'setor' in str(c).lower() or 'sector' in str(c).lower()), None)
+        if col_sec and sector_esperado:
+            s_vals = df[col_sec].astype(str).str.strip().str.replace('.0', '', regex=False)
+            df_sec = df[s_vals == str(sector_esperado).strip()]
+            if not df_sec.empty:
+                df = df_sec
+
+        # Limpiar filas vacías o inválidas
+        col_nom = 'Nombre de consultora' if 'Nombre de consultora' in df.columns else ('Consultora' if 'Consultora' in df.columns else None)
+        if col_nom:
+            df_lids = df[df[col_nom].notna() & (~df[col_nom].astype(str).str.strip().str.lower().isin(['none', 'nan', '', 'null', '0']))]
+            resultado["total_lideres"] = len(df_lids)
+        else:
+            resultado["total_lideres"] = len(df)
+
+        # Cuantificar métricas financieras y comerciales
+        if 'Real Facturación' in df.columns:
+            resultado["facturacion_real"] = float(pd.to_numeric(df['Real Facturación'], errors='coerce').fillna(0.0).sum())
+        if 'Objetivo Facturación' in df.columns:
+            resultado["facturacion_objetivo"] = float(pd.to_numeric(df['Objetivo Facturación'], errors='coerce').fillna(0.0).sum())
+        if 'Real Activas' in df.columns:
+            resultado["activas_reales"] = int(pd.to_numeric(df['Real Activas'], errors='coerce').fillna(0).sum())
+        if 'Objetivo Activas' in df.columns:
+            resultado["activas_objetivo"] = int(pd.to_numeric(df['Objetivo Activas'], errors='coerce').fillna(0).sum())
+        if 'Inicios' in df.columns:
+            resultado["inicios"] = int(pd.to_numeric(df['Inicios'], errors='coerce').fillna(0).sum())
+        if 'Reinicios' in df.columns:
+            resultado["reinicios"] = int(pd.to_numeric(df['Reinicios'], errors='coerce').fillna(0).sum())
+
+        # Evaluar si es preliminar en ceros
+        if resultado["facturacion_real"] == 0.0 and resultado["activas_reales"] == 0:
+            resultado["es_preliminar_ceros"] = True
+            resultado["valido"] = True
+            resultado["mensaje"] = (
+                f"El archivo contiene {resultado['total_lideres']} líderes y {resultado['inicios']} inicios, "
+                f"pero los campos de facturación y activas vienen en $000.00 desde Natura (Ciclo Preliminar)."
+            )
+        else:
+            resultado["es_preliminar_ceros"] = False
+            resultado["valido"] = True
+            resultado["mensaje"] = (
+                f"Archivo comercial con {resultado['total_lideres']} líderes, "
+                f"${resultado['facturacion_real']/1e6:.1f}M en ventas y {resultado['activas_reales']} activas."
+            )
+
+    except Exception as ex:
+        resultado["valido"] = False
+        resultado["error"] = str(ex)
+        resultado["mensaje"] = f"Error al procesar la auditoría previa: {ex}"
+
+    return resultado
+
+
 def generar_password_aleatoria(longitud=8):
     import random, string
     chars = string.ascii_letters + string.digits

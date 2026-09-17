@@ -85,6 +85,7 @@ from procesador import (
     limpiar_numero,
     validar_sector_archivo,
     validar_archivo_como_vamos,
+    inspeccionar_preflight_como_vamos,
     auto_crear_usuarios_lideres_desde_bases,
     obtener_mapa_lideres,
     cargar_historico_sectores,
@@ -4662,31 +4663,87 @@ def modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user):
             st.caption("Sube el Excel del nuevo ciclo ('Cómo Vamos') para actualizar las metas y convertir el actual en histórico.")
             nuevo_ciclo_file = st.file_uploader("Cargar Nuevo Ciclo ('Cómo Vamos')", type=["xlsx"], key="uploader_nuevo_ciclo")
             if nuevo_ciclo_file is not None:
-                if st.button("🚀 Rotar Ciclo y Actualizar Histórico", type="primary", use_container_width=True, key="btn_rotar_ciclo_sb"):
-                    try:
-                        valido, sec_enc, nom_sec, msg_val = validar_archivo_como_vamos(nuevo_ciclo_file, user_sector)
-                        if not valido:
-                            st.error(msg_val)
-                        else:
+                # Pre-flight audit del archivo cargado
+                diag_cv = inspeccionar_preflight_como_vamos(nuevo_ciclo_file, user_sector)
+                if not diag_cv.get("valido", False):
+                    st.error(diag_cv.get("mensaje", "Error en la estructura del archivo."))
+                else:
+                    nom_sec_disp = diag_cv.get("sector_nombre") or user_sector_nombre
+                    es_ceros = diag_cv.get("es_preliminar_ceros", False)
+                    bg_card = "#FEF3C7" if es_ceros else "#F0FDF4"
+                    border_card = "#F59E0B" if es_ceros else "#86EFAC"
+                    title_card = "⚠️ Archivo Preliminar Detectado (Ventas en $0)" if es_ceros else "✅ Archivo Comercial Consolidado Listo"
+                    color_title = "#92400E" if es_ceros else "#166534"
+                    color_fact = "#DC2626" if es_ceros else "#16A34A"
+                    color_act = "#DC2626" if es_ceros else "#2563EB"
+
+                    st.markdown(f"""
+                    <div style="background: {bg_card}; border: 1.5px solid {border_card}; border-radius: 12px; padding: 12px 16px; margin: 10px 0;">
+                        <div style="font-weight: 800; color: {color_title}; font-size: 0.90rem; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                            <span>{title_card}</span>
+                            <span style="font-size: 0.74rem; background: white; padding: 2px 8px; border-radius: 8px; border: 1px solid {border_card};">Sector {diag_cv.get('sector_codigo') or user_sector}</span>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 8px; text-align: center;">
+                            <div style="background: white; border-radius: 8px; padding: 6px 2px; border: 1px solid #E2E8F0;">
+                                <div style="font-size: 0.68rem; color: #64748B; font-weight: 700;">LÍDERES</div>
+                                <div style="font-size: 1.05rem; font-weight: 900; color: #0F172A;">{diag_cv.get('total_lideres', 0)}</div>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 6px 2px; border: 1px solid #E2E8F0;">
+                                <div style="font-size: 0.68rem; color: #64748B; font-weight: 700;">FACTURACIÓN</div>
+                                <div style="font-size: 1.05rem; font-weight: 900; color: {color_fact};">${diag_cv.get('facturacion_real', 0)/1e6:.1f}M</div>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 6px 2px; border: 1px solid #E2E8F0;">
+                                <div style="font-size: 0.68rem; color: #64748B; font-weight: 700;">ACTIVAS</div>
+                                <div style="font-size: 1.05rem; font-weight: 900; color: {color_act};">{diag_cv.get('activas_reales', 0)}</div>
+                            </div>
+                            <div style="background: white; border-radius: 8px; padding: 6px 2px; border: 1px solid #E2E8F0;">
+                                <div style="font-size: 0.68rem; color: #64748B; font-weight: 700;">INICIOS</div>
+                                <div style="font-size: 1.05rem; font-weight: 900; color: #7C3AED;">{diag_cv.get('inicios', 0)}</div>
+                            </div>
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    puedo_rotar = True
+                    btn_label = "🚀 Rotar Ciclo y Actualizar Histórico"
+                    if es_ceros:
+                        st.warning(
+                            "💡 **¿Por qué Facturación y Activas vienen en $0?**\n\n"
+                            f"El archivo contiene a tus **{diag_cv.get('total_lideres', 0)} líderes** y **{diag_cv.get('inicios', 0)} inicios**, pero las casillas de ventas vienen en `$000.00` desde Natura. "
+                            "Esto ocurre comúnmente en archivos preliminares de apertura de ciclo antes de que Natura liquide el primer corte de facturación.\n\n"
+                            "Si continúas, las tarjetas de tu dashboard mostrarán **$0 en ventas** y **0 activas** hasta que subas el consolidado con ventas ya facturadas."
+                        )
+                        confirma_preliminar = st.checkbox(
+                            f"Entiendo que las ventas vienen en $0 y deseo cargar este archivo como ciclo preliminar para mi sector ({nom_sec_disp})",
+                            key="chk_confirma_cv_ceros"
+                        )
+                        puedo_rotar = confirma_preliminar
+                        btn_label = "🚀 Cargar como Ciclo Preliminar (con ventas en $0)"
+
+                    if st.button(btn_label, type="primary", use_container_width=True, key="btn_rotar_ciclo_sb", disabled=not puedo_rotar):
+                        try:
                             with st.spinner("Rotando hojas y guardando nuevo ciclo..."):
                                 rotar_y_guardar_nuevo_ciclo(nuevo_ciclo_file)
                                 st.cache_data.clear()
                                 registrar_evento_auditoria(
                                     current_user,
                                     categoria="🔄 Rotación Ciclo",
-                                    accion="Carga Nuevo Ciclo ('Cómo Vamos')",
-                                    detalle=f"Ciclo actualizado ({nom_sec or user_sector_nombre})",
+                                    accion="Carga Ciclo Preliminar" if es_ceros else "Carga Nuevo Ciclo ('Cómo Vamos')",
+                                    detalle=f"Ciclo actualizado ({nom_sec_disp}) - Facturación: ${diag_cv.get('facturacion_real', 0)/1e6:.1f}M",
                                     dispositivo="🖥️ PC / Escritorio"
                                 )
-                                st.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
+                                if es_ceros:
+                                    st.warning("⚠️ ¡Ciclo preliminar registrado con éxito! Recuerda cargar el reporte liquidado cuando Natura procese la facturación.")
+                                else:
+                                    st.success("✅ ¡Ciclo rotado con éxito! El nuevo ciclo ya es el activo.")
                                 lideres_creadas = auto_crear_usuarios_lideres_desde_bases()
                                 if lideres_creadas:
                                     st.session_state['lideres_creadas_log'] = lideres_creadas
                                 st.rerun()
-                    except PermissionError:
-                        st.error("⚠️ El archivo está abierto en Excel. Ciérralo y reintenta.")
-                    except Exception as ex:
-                        st.error(f"❌ Error al rotar el ciclo: {ex}")
+                        except PermissionError:
+                            st.error("⚠️ El archivo está abierto en Excel. Ciérralo y reintenta.")
+                        except Exception as ex:
+                            st.error(f"❌ Error al rotar el ciclo: {ex}")
 
         # 3. GERA (CRÉDITO & COBRANZA)
     with t_gera:
