@@ -7483,12 +7483,83 @@ def sincronizar_excel_metas_a_sqlite(df_metas, conn=None):
             except Exception:
                 pass
 
+def verificar_seeding_inicial_tableau(conn=None):
+    """
+    Verifica automáticamente si la tabla consultoras_tableau en SQLite está vacía (0 registros).
+    Si está vacía, busca 'Base de Datos.xlsx' (en volumen persistente o en la raíz del proyecto)
+    y sincroniza automáticamente los datos a SQLite sin requerir que ninguna gerente ni administrador
+    tenga que subirla manualmente tras un nuevo despliegue en Railway o reinicio de contenedor.
+    """
+    close_at_end = False
+    if conn is None:
+        try:
+            conn = obtener_conexion_db(timeout=60.0)
+            close_at_end = True
+        except Exception:
+            return False
+
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='consultoras_tableau'")
+        if not cursor.fetchone():
+            inicializar_db_sqlite(conn=conn, forzar=True)
+
+        cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
+        row_count = cursor.fetchone()[0]
+
+        if row_count == 0:
+            rutas_candidatas = [
+                ruta_persistente("Base de Datos.xlsx"),
+                "Base de Datos.xlsx",
+                os.path.join("data", "Base de Datos.xlsx")
+            ]
+            ruta_encontrada = next((r for r in rutas_candidatas if r and os.path.exists(r) and os.path.getsize(r) > 1000), None)
+
+            if ruta_encontrada:
+                safe_print(f"🌱 [Auto-Seeding Tableau] Tabla vacía detectada. Sincronizando automáticamente desde '{ruta_encontrada}'...")
+                ok = sincronizar_excel_tableau_a_sqlite(ruta_encontrada, conn=conn)
+                if ok:
+                    cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
+                    total_cargadas = cursor.fetchone()[0]
+                    safe_print(f"✅ [Auto-Seeding Tableau] Sincronización exitosa: {total_cargadas} consultoras cargadas a SQLite.")
+                    try:
+                        auto_crear_usuarios_lideres_desde_bases(ruta_tableau=ruta_encontrada)
+                    except Exception as e_l:
+                        safe_print(f"Nota auto-crear líderes en seeding: {e_l}")
+                    return True
+            else:
+                safe_print("⚠️ [Auto-Seeding Tableau] Tabla vacía y no se encontró 'Base de Datos.xlsx' en disco.")
+        return False
+    except Exception as e_seed:
+        safe_print(f"Error en verificar_seeding_inicial_tableau: {e_seed}")
+        return False
+    finally:
+        if close_at_end and conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
 def consultar_tableau_sql(grupo=None, sector=None):
     """
     Ejecuta consulta SQL ultra-rápida indexada sobre consultoras_tableau en base_matices.db,
     filtrando por grupo de líder o sector de gerencia.
     """
     conn = obtener_conexion_db()
+
+    # Auto-recuperación de seguridad: si la tabla está completamente vacía, ejecutar auto-seeding
+    try:
+        cur_chk = conn.cursor()
+        cur_chk.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='consultoras_tableau'")
+        if not cur_chk.fetchone():
+            inicializar_db_sqlite(conn=conn, forzar=True)
+            verificar_seeding_inicial_tableau(conn=conn)
+        else:
+            cur_chk.execute("SELECT COUNT(*) FROM consultoras_tableau")
+            if cur_chk.fetchone()[0] == 0:
+                verificar_seeding_inicial_tableau(conn=conn)
+    except Exception:
+        pass
     query = """
     SELECT 
         codigo_cb AS 'Código CB',

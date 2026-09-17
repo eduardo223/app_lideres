@@ -49,6 +49,7 @@ from procesador import (
     DEFAULT_PERMISOS_PESTANAS,
     inicializar_db_sqlite,
     obtener_conexion_db,
+    verificar_seeding_inicial_tableau,
     verificar_seeding_inicial_geral,
     consultar_tableau_sql,
     sincronizar_excel_tableau_a_sqlite,
@@ -238,6 +239,7 @@ components.html(
 # Inicializar y verificar tablas relacionales de SQLite
 try:
     inicializar_db_sqlite()
+    verificar_seeding_inicial_tableau()
     verificar_seeding_inicial_geral()
 except Exception as _e_init:
     print(f"Nota de inicialización SQLite: {_e_init}")
