@@ -1411,25 +1411,26 @@ st.markdown("""
     }
 
     /* ========================================================================= */
+    /* ========================================================================= */
     /* TARJETAS DE MÉTRICAS CLICKEABLES 100% INMERSAS (DRILL-DOWN MODAL)         */
     /* ========================================================================= */
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(button),
-    div[data-testid="column"]:has([data-testid="stMetric"]):has(button) {
+    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"]),
+    div[data-testid="column"]:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"]) {
         position: relative !important;
         cursor: pointer !important;
     }
 
     /* Efecto hover interactivo: la tarjeta se eleva y resalta */
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(button):hover [data-testid="stMetric"],
-    div[data-testid="column"]:has([data-testid="stMetric"]):has(button):hover [data-testid="stMetric"] {
+    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"]):hover [data-testid="stMetric"],
+    div[data-testid="column"]:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"]):hover [data-testid="stMetric"] {
         transform: translateY(-2px) !important;
         border-color: #E3007B !important;
         box-shadow: 0 10px 24px -4px rgba(227, 0, 123, 0.3) !important;
     }
 
     /* Lupita elegante inmersa en la esquina superior derecha de la tarjeta */
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(button)::after,
-    div[data-testid="column"]:has([data-testid="stMetric"]):has(button)::after {
+    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"])::after,
+    div[data-testid="column"]:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"])::after {
         content: "🔍";
         position: absolute !important;
         top: 10px !important;
@@ -1441,25 +1442,20 @@ st.markdown("""
         opacity: 0.75 !important;
     }
 
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(button):hover::after,
-    div[data-testid="column"]:has([data-testid="stMetric"]):has(button):hover::after {
+    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"]):hover::after,
+    div[data-testid="column"]:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"]):hover::after {
         transform: scale(1.3) rotate(12deg) !important;
         opacity: 1 !important;
     }
 
     /* Espacio en el label para que no choque con la lupita */
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(button) [data-testid="stMetricLabel"] p,
-    div[data-testid="column"]:has([data-testid="stMetric"]):has(button) [data-testid="stMetricLabel"] p {
+    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"]) [data-testid="stMetricLabel"] p,
+    div[data-testid="column"]:has([data-testid="stMetric"]):has(div[class*="st-key-btn_drill_"]) [data-testid="stMetricLabel"] p {
         padding-right: 32px !important;
     }
 
-    /* El botón se estira como un overlay 100% invisible sobre toda la tarjeta */
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]) div:has(> button),
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]) [data-testid="stButton"],
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]) div.stElementContainer:has(button),
-    div[data-testid="column"]:has([data-testid="stMetric"]) div:has(> button),
-    div[data-testid="column"]:has([data-testid="stMetric"]) [data-testid="stButton"],
-    div[data-testid="column"]:has([data-testid="stMetric"]) div.stElementContainer:has(button) {
+    /* El botón se estira como un overlay 100% invisible sobre toda la tarjeta únicamente para btn_drill_ */
+    div[class*="st-key-btn_drill_"] {
         position: absolute !important;
         top: 0 !important;
         left: 0 !important;
@@ -1472,8 +1468,7 @@ st.markdown("""
         z-index: 20 !important;
     }
 
-    div[data-testid="stHorizontalBlock"] > div:has([data-testid="stMetric"]) button,
-    div[data-testid="column"]:has([data-testid="stMetric"]) button {
+    div[class*="st-key-btn_drill_"] button {
         position: absolute !important;
         top: 0 !important;
         left: 0 !important;
@@ -9619,12 +9614,13 @@ if tab_ganancia is not None:
 
             with col_ret_sim:
                 st.markdown("###### 🎯 Simular Ciclo a Proyectar")
-                col_ciclo_sel, col_inicios_rei = st.columns(2)
-                with col_ciclo_sel:
-                    ciclo_proy_sel = st.selectbox("¿Qué ciclo vas a proyectar?", options=["202613", "202614", "202615", "202616", "202617", "202618"], key=f"sel_ciclo_ret_{leader_key}")
-                with col_inicios_rei:
-                    sim_ret_inicios = st.number_input("Inicios Nuevos Proyectados:", value=int(val_inicios), min_value=0, step=1, key=f"ret_ini_{leader_key}")
-                    sim_ret_reinicios = st.number_input("Reinicios Proyectados:", value=2, min_value=0, step=1, key=f"ret_rei_{leader_key}")
+                c_proy_ciclo, c_proy_ini, c_proy_rei = st.columns([1.2, 1, 1])
+                with c_proy_ciclo:
+                    ciclo_proy_sel = st.selectbox("¿Ciclo a proyectar?", options=["202613", "202614", "202615", "202616", "202617", "202618"], key=f"sel_ciclo_ret_{leader_key}")
+                with c_proy_ini:
+                    sim_ret_inicios = st.number_input("Inicios Nuevos:", value=int(val_inicios), min_value=0, step=1, key=f"ret_ini_{leader_key}")
+                with c_proy_rei:
+                    sim_ret_reinicios = st.number_input("Reinicios:", value=2, min_value=0, step=1, key=f"ret_rei_{leader_key}")
 
                 st.markdown("###### Proyección de Activación por Tramo:")
                 col_sl1, col_sl2 = st.columns(2)
