@@ -2354,15 +2354,22 @@ def limpiar_y_ordenar_columnas_tableau(df_raw, mapa_lideres=None, es_lider=False
     # Eliminar duplicados de columnas
     df = df.loc[:, ~df.columns.duplicated()].copy()
 
-    # Detectar dinámicamente columnas de puntos históricos de cierre anterior (ej: 'Pts Natura (C-13)', 'Pts AVON (C-13)')
+    # Detectar dinámicamente columnas de puntos y situación histórica de cierre anterior (ej: 'Pts Natura (C-13)', 'Pts AVON (C-13)', 'Sit. Comercial (C-13)')
     cols_pts_nat_ant = [c for c in df.columns if 'pts natura' in str(c).lower() and any(k in str(c).lower() for k in ['(c-', 'ant', 'cierre'])]
     cols_pts_avo_ant = [c for c in df.columns if 'pts avon' in str(c).lower() and any(k in str(c).lower() for k in ['(c-', 'ant', 'cierre'])]
+    cols_sit_ant = [c for c in df.columns if any(k in str(c).lower() for k in ['sit. comercial (c-', 'sit.comercial (c-', 'situacion (c-', 'situación (c-'])]
 
-    # Seleccionar orden de columnas objetivo intercalando puntos históricos antes de Pts Natura
+    # Seleccionar orden de columnas objetivo:
+    # - Sit. Comercial histórica se ubica a la IZQUIERDA de la situación comercial actual
+    # - Puntos históricos se ubican antes de Pts Natura
     cols_objetivo = []
     for c in COLUMNAS_ORDEN_TABLEAU:
         if es_lider and c == 'Líder / Grupo':
             continue
+        if c == 'Sit. Comercial':
+            for h in cols_sit_ant:
+                if h not in cols_objetivo:
+                    cols_objetivo.append(h)
         if c == 'Pts Natura':
             for h in cols_pts_nat_ant:
                 if h not in cols_objetivo:
@@ -6307,11 +6314,12 @@ def inicializar_db_sqlite(conn=None, forzar=False):
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_codigo_cb ON consultoras_tableau (codigo_cb)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_tableau_codigo_cb_txt ON consultoras_tableau (CAST(codigo_cb AS TEXT))")
 
-    # Columnas de puntos anteriores en consultoras_tableau
+    # Columnas de puntos y situación anterior en consultoras_tableau
     for col_add in [
         ("pts_natura_ant", "INTEGER DEFAULT 0"),
         ("pts_avon_ant", "INTEGER DEFAULT 0"),
-        ("ciclo_ant", "INTEGER DEFAULT 0")
+        ("ciclo_ant", "INTEGER DEFAULT 0"),
+        ("sit_comercial_ant", "TEXT DEFAULT ''")
     ]:
         try:
             cursor.execute(f"ALTER TABLE consultoras_tableau ADD COLUMN {col_add[0]} {col_add[1]}")
@@ -7453,7 +7461,8 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
     for col_add in [
         ("pts_natura_ant", "INTEGER DEFAULT 0"),
         ("pts_avon_ant", "INTEGER DEFAULT 0"),
-        ("ciclo_ant", "INTEGER DEFAULT 0")
+        ("ciclo_ant", "INTEGER DEFAULT 0"),
+        ("sit_comercial_ant", "TEXT DEFAULT ''")
     ]:
         try:
             cursor.execute(f"ALTER TABLE consultoras_tableau ADD COLUMN {col_add[0]} {col_add[1]}")
@@ -7505,9 +7514,9 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         r_max_ant = cursor.fetchone()
         if r_max_ant and r_max_ant[0]:
             ciclo_ant_ref = int(r_max_ant[0])
-            cursor.execute(f"SELECT codigo_cb, pts_natura, pts_avon FROM historico_puntos_cierre WHERE {where_sec_h} AND ciclo = ?", p_sec_h + [ciclo_ant_ref])
+            cursor.execute(f"SELECT codigo_cb, pts_natura, pts_avon, sit_comercial FROM historico_puntos_cierre WHERE {where_sec_h} AND ciclo = ?", p_sec_h + [ciclo_ant_ref])
             for r in cursor.fetchall():
-                mapa_pts_ant[str(r[0]).strip()] = (int(r[1] or 0), int(r[2] or 0), ciclo_ant_ref)
+                mapa_pts_ant[str(r[0]).strip()] = (int(r[1] or 0), int(r[2] or 0), ciclo_ant_ref, str(r[3] or ''))
     except Exception as e_m_ant:
         safe_print(f"Nota mapa puntos anteriores: {e_m_ant}")
 
@@ -7525,10 +7534,11 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
         nom = str(row.get('Asesora / Consultora') if 'Asesora / Consultora' in df.columns else row.get('Nombre', ''))
         col = str(row.get('Nivel / Color') if 'Nivel / Color' in df.columns else row.get('Color', ''))
         
-        info_ant = mapa_pts_ant.get(cb, (0, 0, ciclo_ant_ref))
+        info_ant = mapa_pts_ant.get(cb, (0, 0, ciclo_ant_ref, ''))
         pts_nat_ant = int(info_ant[0])
         pts_avo_ant = int(info_ant[1])
         ciclo_ant_val = int(info_ant[2])
+        sit_com_ant_val = str(info_ant[3] or '')
 
         cursor.execute("""
         INSERT OR REPLACE INTO consultoras_tableau (
@@ -7542,7 +7552,7 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             dpto_residencia, ciudad_residencia, barrio_residencia, direccion_residencia, complemento_residencia, referencia_residencia,
             dpto_entrega, ciudad_entrega, barrio_entrega, direccion_entrega, complemento_entrega, referencia_entrega,
             tiempo_casa, origen_cb, notas_lider, indicador,
-            pts_natura_ant, pts_avon_ant, ciclo_ant
+            pts_natura_ant, pts_avon_ant, ciclo_ant, sit_comercial_ant
         ) VALUES (
             ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
@@ -7554,7 +7564,7 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?, ?, ?,
             ?, ?, ?, ?,
-            ?, ?, ?
+            ?, ?, ?, ?
         )
         """, (
             cb,
@@ -7616,7 +7626,8 @@ def sincronizar_excel_tableau_a_sqlite(ruta_excel='Base de Datos.xlsx', conn=Non
             str(row.get('Indicador', '')),
             pts_nat_ant,
             pts_avo_ant,
-            ciclo_ant_val
+            ciclo_ant_val,
+            sit_com_ant_val
         ))
     
     conn.commit()
@@ -7772,6 +7783,20 @@ def consultar_tableau_sql(grupo=None, sector=None):
             inicializar_db_sqlite(conn=conn, forzar=True)
             verificar_seeding_inicial_tableau(conn=conn)
         else:
+            cur_chk.execute("PRAGMA table_info(consultoras_tableau)")
+            cols_exist = [r[1] for r in cur_chk.fetchall()]
+            for c_add, t_add in [
+                ("pts_natura_ant", "INTEGER DEFAULT 0"),
+                ("pts_avon_ant", "INTEGER DEFAULT 0"),
+                ("ciclo_ant", "INTEGER DEFAULT 0"),
+                ("sit_comercial_ant", "TEXT DEFAULT ''")
+            ]:
+                if c_add not in cols_exist:
+                    try:
+                        cur_chk.execute(f"ALTER TABLE consultoras_tableau ADD COLUMN {c_add} {t_add}")
+                        conn.commit()
+                    except Exception:
+                        pass
             cur_chk.execute("SELECT COUNT(*) FROM consultoras_tableau")
             if cur_chk.fetchone()[0] == 0:
                 verificar_seeding_inicial_tableau(conn=conn)
@@ -7838,7 +7863,8 @@ def consultar_tableau_sql(grupo=None, sector=None):
         indicador AS 'Indicador',
         COALESCE(pts_natura_ant, 0) AS '__pts_natura_ant__',
         COALESCE(pts_avon_ant, 0) AS '__pts_avon_ant__',
-        COALESCE(ciclo_ant, 0) AS '__ciclo_ant__'
+        COALESCE(ciclo_ant, 0) AS '__ciclo_ant__',
+        COALESCE(sit_comercial_ant, '') AS '__sit_comercial_ant__'
     FROM consultoras_tableau
     """
     where_clauses = []
@@ -7868,24 +7894,36 @@ def consultar_tableau_sql(grupo=None, sector=None):
     try:
         df = pd.read_sql_query(query, conn, params=params)
 
-        # Enriquecer con los puntos del ciclo inmediatamente anterior si existen
+        # Enriquecer con los puntos y la situación comercial del ciclo inmediatamente anterior si existen
         if not df.empty:
             ciclo_ant_val = 0
             if '__ciclo_ant__' in df.columns and (df['__ciclo_ant__'] > 0).any():
                 ciclo_ant_val = int(df['__ciclo_ant__'].max())
             elif 'Ciclo' in df.columns and (df['Ciclo'] > 0).any():
-                ciclo_act = int(df['Ciclo'].max())
                 try:
+                    ciclo_act = int(df['Ciclo'].max())
                     cur_ant = conn.cursor()
                     cur_ant.execute("SELECT MAX(ciclo) FROM historico_puntos_cierre WHERE ciclo < ?", (ciclo_act,))
                     r_c_ant = cur_ant.fetchone()
                     if r_c_ant and r_c_ant[0]:
                         ciclo_ant_val = int(r_c_ant[0])
-                        if df['__pts_natura_ant__'].sum() == 0 and df['__pts_avon_ant__'].sum() == 0:
-                            cur_ant.execute("SELECT codigo_cb, pts_natura, pts_avon FROM historico_puntos_cierre WHERE ciclo = ?", (ciclo_ant_val,))
-                            dict_ant = {str(r[0]).strip(): (int(r[1] or 0), int(r[2] or 0)) for r in cur_ant.fetchall()}
-                            df['__pts_natura_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0))[0])
-                            df['__pts_avon_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0))[1])
+                except Exception:
+                    pass
+
+            # Si alguna de las métricas históricas viene en ceros o vacía, enriquecer directamente desde historico_puntos_cierre
+            if ciclo_ant_val > 0:
+                try:
+                    need_pts = ('__pts_natura_ant__' not in df.columns) or (df['__pts_natura_ant__'].sum() == 0 and df['__pts_avon_ant__'].sum() == 0)
+                    need_sit = ('__sit_comercial_ant__' not in df.columns) or (df['__sit_comercial_ant__'].astype(str).str.strip() == '').all()
+                    if need_pts or need_sit:
+                        cur_ant = conn.cursor()
+                        cur_ant.execute("SELECT codigo_cb, pts_natura, pts_avon, sit_comercial FROM historico_puntos_cierre WHERE ciclo = ?", (ciclo_ant_val,))
+                        dict_ant = {str(r[0]).strip(): (int(r[1] or 0), int(r[2] or 0), str(r[3] or '')) for r in cur_ant.fetchall()}
+                        if need_pts:
+                            df['__pts_natura_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0, ''))[0])
+                            df['__pts_avon_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0, ''))[1])
+                        if need_sit:
+                            df['__sit_comercial_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0, ''))[2])
                 except Exception:
                     pass
 
@@ -7893,10 +7931,12 @@ def consultar_tableau_sql(grupo=None, sector=None):
                 c_label = str(ciclo_ant_val)[-2:] if len(str(ciclo_ant_val)) >= 2 else str(ciclo_ant_val)
                 col_nat_ant_name = f"Pts Natura (C-{c_label})"
                 col_avo_ant_name = f"Pts AVON (C-{c_label})"
+                col_sit_ant_name = f"Sit. Comercial (C-{c_label})"
                 df[col_nat_ant_name] = df['__pts_natura_ant__'].fillna(0).astype('int64')
                 df[col_avo_ant_name] = df['__pts_avon_ant__'].fillna(0).astype('int64')
+                df[col_sit_ant_name] = df['__sit_comercial_ant__'].fillna('').astype(str).str.strip()
 
-            df = df.drop(columns=[c for c in ['__pts_natura_ant__', '__pts_avon_ant__', '__ciclo_ant__'] if c in df.columns])
+            df = df.drop(columns=[c for c in ['__pts_natura_ant__', '__pts_avon_ant__', '__ciclo_ant__', '__sit_comercial_ant__'] if c in df.columns])
     except Exception as e_sql:
         safe_print(f"Error al consultar Tableau en SQLite: {e_sql}")
         df = pd.DataFrame()

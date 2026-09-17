@@ -6834,12 +6834,14 @@ if tab_tableau is not None:
                     if c not in ['DocumentoGPP', 'Celular', 'Código CB', 'Codigo CB'] and pd.api.types.is_float_dtype(df_edit_view[c]):
                         df_edit_view[c] = df_edit_view[c].fillna(0).round().astype('int64')
 
-                # Detectar columnas de puntos históricos del ciclo anterior
+                # Detectar columnas de puntos y situación histórica del ciclo anterior
                 cols_pts_hist = [c for c in df_edit_view.columns if any(k in str(c).lower() for k in ['(c-', 'ant', 'cierre']) and 'pts' in str(c).lower()]
+                cols_sit_hist = [c for c in df_edit_view.columns if any(k in str(c).lower() for k in ['(c-', 'ant', 'cierre']) and ('sit' in str(c).lower() or 'comercial' in str(c).lower())]
                 c_bar1, c_bar2 = st.columns([3.5, 6.5])
                 with c_bar1:
-                    if cols_pts_hist:
-                        tag_cierre = cols_pts_hist[0].split('(')[-1].replace(')', '').strip() if '(' in cols_pts_hist[0] else "Cierre"
+                    if cols_pts_hist or cols_sit_hist:
+                        ref_col = cols_pts_hist[0] if cols_pts_hist else cols_sit_hist[0]
+                        tag_cierre = ref_col.split('(')[-1].replace(')', '').strip() if '(' in ref_col else "Cierre"
                         resaltar_cierre_pc = st.toggle(f"🎨 Resaltar Puntos Ciclo Anterior ({tag_cierre})", value=True, key="pc_toggle_resaltar_cierre")
                     else:
                         resaltar_cierre_pc = False
@@ -6892,10 +6894,11 @@ if tab_tableau is not None:
                 num_celdas = len(df_data_render) * len(df_data_render.columns)
                 if num_celdas <= 250_000:
                     try:
+                        subsets_sit = [c for c in df_data_render.columns if ('sit' in str(c).lower() or 'situación' in str(c).lower()) and 'inactividad' not in str(c).lower()]
                         styler_editor = df_data_render.style.map(
                             color_nivel, subset=['Nivel / Color'] if 'Nivel / Color' in df_data_render.columns else []
                         ).map(
-                            color_situacion, subset=['Sit. Comercial'] if 'Sit. Comercial' in df_data_render.columns else []
+                            color_situacion, subset=subsets_sit
                         ).map(
                             color_deuda_mora, subset=['Deuda Mora'] if 'Deuda Mora' in df_data_render.columns else []
                         )
