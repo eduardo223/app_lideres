@@ -385,6 +385,62 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
             font-size: 0.80rem !important;
             padding: 5px 8px !important;
         }
+
+        /* ========================================================================= */
+        /* RUEDA ONDULADA DINÁMICA DE CARGA (CUSTOM WAVY LOADER SPINNER MÓVIL)       */
+        /* ========================================================================= */
+        div[data-testid="stSpinner"],
+        div.stSpinner {
+            display: flex !important;
+            justify-content: center !important;
+            align-items: center !important;
+            margin: 1rem auto !important;
+            width: 100% !important;
+        }
+
+        div[data-testid="stSpinner"] > div,
+        div.stSpinner > div {
+            display: inline-flex !important;
+            flex-direction: row !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 14px !important;
+            background: #FFFFFF !important;
+            padding: 12px 20px !important;
+            border-radius: 16px !important;
+            box-shadow: 0 10px 25px -5px rgba(11, 87, 208, 0.15) !important;
+            border: 1.5px solid rgba(96, 165, 250, 0.35) !important;
+            color: #0F172A !important;
+            font-weight: 600 !important;
+            font-size: 0.88rem !important;
+        }
+
+        div[data-testid="stSpinner"] svg,
+        div.stSpinner svg,
+        div[data-testid="stSpinner"] i,
+        div.stSpinner i {
+            display: none !important;
+        }
+
+        div[data-testid="stSpinner"] > div::before,
+        div.stSpinner > div::before {
+            content: "" !important;
+            display: inline-block !important;
+            width: 38px !important;
+            height: 38px !important;
+            min-width: 38px !important;
+            min-height: 38px !important;
+            background-image: url("data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxMjAgMTIwIiBmaWxsPSJub25lIj4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0id2F2eUdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMTAwJSIgeTI9IjEwMCUiPgogICAgICA8c3RvcCBvZmZzZXQ9IjAlIiBzdG9wLWNvbG9yPSIjMGI1N2QwIiBzdG9wLW9wYWNpdHk9IjEiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iNDUlIiBzdG9wLWNvbG9yPSIjMWE3M2U4IiBzdG9wLW9wYWNpdHk9IjEiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iNzAlIiBzdG9wLWNvbG9yPSIjNjBhNWZhIiBzdG9wLW9wYWNpdHk9IjAuNSIgLz4KICAgICAgPHN0b3Agb2Zmc2V0PSIxMDAlIiBzdG9wLWNvbG9yPSIjOTNjNWZkIiBzdG9wLW9wYWNpdHk9IjAuMTUiIC8+CiAgICA8L2xpbmVhckdyYWRpZW50PgogIDwvZGVmcz4KICA8cGF0aCBkPSJNIDk2LjAwIDYwLjAwIEwgOTguMjAgNjEuNzIgTCA5OS40NSA2My41NSBMIDk5LjI2IDY1LjMyIEwgOTcuNjIgNjYuODMgTCA5NS4xMCA2OC4wMSBMIDkyLjU1IDY4Ljk4IEwgOTAuODAgNzAuMDEgTCA5MC4zMiA3MS4zOCBMIDkxLjA1IDczLjI3IEwgOTIuNDMgNzUuNjIgTCA5My42NyA3OC4xMiBMIDk0LjAxIDgwLjMyIEwgOTMuMDYgODEuODIgTCA5MC45MyA4Mi40NyBMIDg4LjE1IDgyLjQ1IEwgODUuNDMgODIuMjIgTCA4My40MSA4Mi4zOCBMIDgyLjM4IDgzLjQxIEwgODIuMjIgODUuNDMgTCA4Mi40NSA4OC4xNSBMIDgyLjQ3IDkwLjkzIEwgODEuODIgOTMuMDYgTCA4MC4zMiA5NC4wMSBMIDc4LjEyIDkzLjY3IEwgNzUuNjIgOTIuNDMgTCA3My4yNyA5MS4wNSBMIDcxLjM4IDkwLjMyIEwgNzAuMDEgOTAuODAgTCA2OC45OCA5Mi41NSBMIDY4LjAxIDk1LjEwIEwgNjYuODMgOTcuNjIgTCA2NS4zMiA5OS4yNiBMIDYzLjU1IDk5LjQ1IEwgNjEuNzIgOTguMjAgTCA2MC4wMCA5Ni4wMCBMIDU4LjQ5IDkzLjczIEwgNTcuMTAgOTIuMjYgTCA1NS42NSA5Mi4wOSBMIDUzLjk3IDkzLjIyIEwgNTEuOTkgOTUuMTAgTCA0OS44MyA5Ni44NiBMIDQ3Ljc2IDk3LjY4IEwgNDYuMDggOTcuMDkgTCA0NC45NyA5NS4xNiBMIDQ0LjM4IDkyLjQzIEwgNDQuMDAgODkuNzMgTCA0My4zOSA4Ny44MCBMIDQyLjE2IDg3LjAzIEwgNDAuMTUgODcuMzIgTCAzNy41NSA4OC4xNSBMIDM0Ljg0IDg4Ljc5IEwgMzIuNjIgODguNjMgTCAzMS4zNyA4Ny4zOCBMIDMxLjIxIDg1LjE2IEwgMzEuODUgODIuNDUgTCAzMi42OCA3OS44NSBMIDMyLjk3IDc3Ljg0IEwgMzIuMjAgNzYuNjEgTCAzMC4yNyA3Ni4wMCBMIDI3LjU3IDc1LjYyIEwgMjQuODQgNzUuMDMgTCAyMi45MSA3My45MiBMIDIyLjMyIDcyLjI0IEwgMjMuMTQgNzAuMTcgTCAyNC45MCA2OC4wMSBMIDI2Ljc4IDY2LjAzIEwgMjcuOTEgNjQuMzUgTCAyNy43NCA2Mi45MCBMIDI2LjI3IDYxLjUxIEwgMjQuMDAgNjAuMDAgTCAyMS44MCA1OC4yOCBMIDIwLjU1IDU2LjQ1IEwgMjAuNzQgNTQuNjggTCAyMi4zOCA1My4xNyBMIDI0LjkwIDUxLjk5IEwgMjcuNDUgNTEuMDIgTCAyOS4yMCA0OS45OSBMIDI5LjY4IDQ4LjYyIEwgMjguOTUgNDYuNzMgTCAyNy41NyA0NC4zOCBMIDI2LjMzIDQxLjg4IEwgMjUuOTkgMzkuNjggTCAyNi45NCAzOC4xOCBMIDI5LjA3IDM3LjUzIEwgMzEuODUgMzcuNTUgTCAzNC41NyAzNy43OCBMIDM2LjU5IDM3LjYyIEwgMzcuNjIgMzYuNTkgTCAzNy43OCAzNC41NyBMIDM3LjU1IDMxLjg1IEwgMzcuNTMgMjkuMDcgTCAzOC4xOCAyNi45NCBMIDM5LjY4IDI1Ljk5IEwgNDEuODggMjYuMzMgTCA0NC4zOCAyNy41NyBMIDQ2LjczIDI4Ljk1IEwgNDguNjIgMjkuNjggTCA0OS45OSAyOS4yMCBMIDUxLjAyIDI3LjQ1IEwgNTEuOTkgMjQuOTAgTCA1My4xNyAyMi4zOCBMIDU0LjY4IDIwLjc0IEwgNTYuNDUgMjAuNTUgTCA1OC4yOCAyMS44MCBMIDYwLjAwIDI0LjAwIEwgNjEuNTEgMjYuMjcgTCA2Mi45MCAyNy43NCBMIDY0LjM1IDI3LjkxIEwgNjYuMDMgMjYuNzggTCA2OC4wMSAyNC45MCBMIDcwLjE3IDIzLjE0IEwgNzIuMjQgMjIuMzIgTCA3My45MiAyMi45MSBMIDc1LjAzIDI0Ljg0IEwgNzUuNjIgMjcuNTcgTCA3Ni4wMCAzMC4yNyBMIDc2LjYxIDMyLjIwIEwgNzcuODQgMzIuOTcgTCA3OS44NSAzMi42OCBMIDgyLjQ1IDMxLjg1IEwgODUuMTYgMzEuMjEgTCA4Ny4zOCAzMS4zNyBMIDg4LjYzIDMyLjYyIEwgODguNzkgMzQuODQgTCA4OC4xNSAzNy41NSBMIDg3LjMyIDQwLjE1IEwgODcuMDMgNDIuMTYgTCA4Ny44MCA0My4zOSBMIDg5LjczIDQ0LjAwIEwgOTIuNDMgNDQuMzggTCA5NS4xNiA0NC45NyBMIDk3LjA5IDQ2LjA4IEwgOTcuNjggNDcuNzYgTCA5Ni44NiA0OS44MyBMIDk1LjEwIDUxLjk5IEwgOTMuMjIgNTMuOTcgTCA5Mi4wOSA1NS42NSBMIDkyLjI2IDU3LjEwIEwgOTMuNzMgNTguNDkgWiIgc3Ryb2tlPSJ1cmwoI3dhdnlHcmFkKSIgc3Ryb2tlLXdpZHRoPSI1LjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgZmlsbD0ibm9uZSIgLz4KPC9zdmc+") !important;
+            background-size: contain !important;
+            background-repeat: no-repeat !important;
+            background-position: center !important;
+            animation: custom-wavy-spin 1.1s linear infinite !important;
+        }
+
+        @keyframes custom-wavy-spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
     </style>
     """, unsafe_allow_html=True)
 
