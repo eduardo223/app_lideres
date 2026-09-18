@@ -5771,6 +5771,318 @@ def render_tier_cards_grid(user_sector, grupo=None):
         render_tier_deep_dive_panel(df_cb, nom_upper, tiers_config)
 
 
+def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_nombre, user_sector_nombre=""):
+    """
+    Monitor Ondulado de Estado de Ciclo 360° (Wave Progress Timeline).
+    Reemplaza la barra convencional por una curva matematica organica con Heatmap de Pacing,
+    4 fases oficiales (Despegue, Impulso, Sprint Final, La Ultima Milla) y calibrador en popover.
+    Ajustado para integracion en header superior sin scroll innecesario.
+    """
+    import math
+
+    # 1. Identificacion del Sector y Gerencia Arte
+    gerencia_detectada = "ARTE"
+    col_sec = 'Nombre Setor' if 'Nombre Setor' in df_filtrado.columns else ('Nombre Sector' if 'Nombre Sector' in df_filtrado.columns else ('Sector' if 'Sector' in df_filtrado.columns else ''))
+    sector_detectado = ""
+    if col_sec and not df_filtrado[col_sec].dropna().empty:
+        val_sec = str(df_filtrado[col_sec].dropna().iloc[0]).strip()
+        if val_sec:
+            sector_detectado = val_sec
+    elif user_sector_nombre:
+        sector_detectado = str(user_sector_nombre).strip()
+
+    if sector_detectado:
+        sector_label = sector_detectado.title() if sector_detectado.isupper() else sector_detectado
+    else:
+        sector_label = "Sector General"
+
+    # 2. Facturacion acumulada para calculo de Pacing
+    obj_f = float(df_filtrado['Objetivo Facturación'].sum()) if 'Objetivo Facturación' in df_filtrado.columns else 0.0
+    real_f = float(df_filtrado['Real Facturación'].sum()) if 'Real Facturación' in df_filtrado.columns else 0.0
+    cump_f = (real_f / obj_f * 100.0) if obj_f > 0 else 0.0
+
+    # 3. Conciliación Dinámica del Ciclo (Cómo Vamos vs Tableau por Sector)
+    conciliacion = procesador.conciliar_ciclo_sector(df_cv=df_filtrado, cod_sector=user_sector)
+    ciclo_conciliado = conciliacion['ciclo']
+    alerta_desfase = conciliacion.get('alerta')
+
+    # 4. Datos del ciclo desde procesador sincronizados con el ciclo real
+    info = procesador.obtener_estado_fase_ciclo(gerencia_o_sector=gerencia_detectada, c_fact=cump_f, ciclo_override=ciclo_conciliado)
+    dia_act = info['dia_actual']
+    p_color = info['pacing_color']
+    p_badge = info['pacing_badge']
+    p_msg = info['pacing_msg']
+
+    # 4. Calculo de la curva y el pin
+    x_start = 65.0
+    x_end = 935.0
+
+    def get_x_for_day(day):
+        if day <= 1:
+            return 65.0
+        elif day <= 8:
+            return 65.0 + (day - 1) / 7.0 * (340.0 - 65.0)
+        elif day <= 15:
+            return 340.0 + (day - 8) / 7.0 * (640.0 - 340.0)
+        elif day <= 21:
+            return 640.0 + (day - 15) / 6.0 * (820.0 - 640.0)
+        elif day <= 24:
+            return 820.0 + (day - 21) / 3.0 * (935.0 - 820.0)
+        else:
+            return 935.0
+
+    def get_y_for_x(x):
+        t = (x - x_start) / (x_end - x_start)
+        return 54.0 - 13.5 * math.sin(t * 3.5 * math.pi)
+
+    pts = []
+    for x in range(int(x_start), int(x_end) + 1, 2):
+        pts.append((x, get_y_for_x(x)))
+
+    # Pistas base
+    pts_reg = [p for p in pts if p[0] <= 820.0]
+    d_bg_reg = 'M ' + ' L '.join(f'{x:.1f} {y:.1f}' for x, y in pts_reg)
+
+    pts_res = [p for p in pts if p[0] >= 820.0]
+    d_bg_res = 'M ' + ' L '.join(f'{x:.1f} {y:.1f}' for x, y in pts_res)
+
+    # Curva activa
+    x_hoy = get_x_for_day(dia_act)
+    y_hoy = get_y_for_x(x_hoy)
+
+    pts_activos = [p for p in pts if p[0] <= x_hoy]
+    if not pts_activos or pts_activos[-1][0] < x_hoy:
+        pts_activos.append((x_hoy, y_hoy))
+    d_fg = 'M ' + ' L '.join(f'{x:.1f} {y:.1f}' for x, y in pts_activos)
+
+    # Badges de fase
+    if dia_act <= 7:
+        badge_fase_bg = "rgba(245, 158, 11, 0.12)"
+        badge_fase_txt = "#b45309"
+    elif dia_act <= 14:
+        badge_fase_bg = "rgba(14, 165, 233, 0.12)"
+        badge_fase_txt = "#0369a1"
+    elif dia_act <= 21:
+        badge_fase_bg = "rgba(239, 68, 68, 0.12)"
+        badge_fase_txt = "#b91c1c"
+    else:
+        badge_fase_bg = "rgba(244, 63, 94, 0.12)"
+        badge_fase_txt = "#be123c"
+
+    milestone_x_map = {1: 65.0, 8: 340.0, 15: 640.0, 21: 820.0, 22: 935.0}
+
+    nodes_svg = []
+    for h in info['hitos']:
+        d_val = h['dia']
+        hx = milestone_x_map.get(d_val, 65.0)
+        hy = get_y_for_x(hx)
+        es_alcanzado = dia_act >= d_val
+        es_cierre = (d_val == 21)
+        es_milla = (d_val == 22)
+
+        if es_milla:
+            circ_stroke = "#f43f5e" if es_alcanzado else "#fda4af"
+            circ_fill = "#f43f5e" if es_alcanzado else "#ffffff"
+            tit_fill = "#be123c"
+        elif es_cierre:
+            circ_stroke = "#0f172a"
+            circ_fill = "#10b981" if es_alcanzado else "#ffffff"
+            tit_fill = "#0f172a"
+        elif es_alcanzado:
+            circ_stroke = "#d97706"
+            circ_fill = "#d97706"
+            tit_fill = "#1e293b"
+        else:
+            circ_stroke = "#cbd5e1"
+            circ_fill = "#ffffff"
+            tit_fill = "#64748b"
+
+        # Se excluyen subtitulos secundarios ("siembra", "crecimiento", "remate", "fin de ciclo", "restricta rescate")
+        node_xml = (
+            f'<circle cx="{hx:.1f}" cy="{hy:.1f}" r="6.5" fill="#ffffff" stroke="{circ_stroke}" stroke-width="2.5" />'
+            f'<circle cx="{hx:.1f}" cy="{hy:.1f}" r="3" fill="{circ_fill}" />'
+            f'<text x="{hx:.1f}" y="{hy + 18:.1f}" text-anchor="middle" fill="{tit_fill}" font-family="Inter, -apple-system, sans-serif" font-size="9.2" font-weight="800" letter-spacing="0.2px">{h["nombre"]}</text>'
+            f'<text x="{hx:.1f}" y="{hy + 30:.1f}" text-anchor="middle" fill="#64748b" font-family="Inter, -apple-system, sans-serif" font-size="8.2" font-weight="600">{h["fecha"]}</text>'
+        )
+        nodes_svg.append(node_xml)
+
+    nodes_markup = "".join(nodes_svg)
+
+    # Pin flotante
+    pin_label = f"Día {dia_act}" if dia_act <= 21 else f"Día {dia_act} · Rescate"
+    pin_width = 62 if dia_act <= 21 else 95
+    pin_half_w = pin_width / 2.0
+
+    svg_markup = (
+        f'<svg viewBox="0 0 1000 106" width="100%" height="102" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: 102px; min-height: 95px; display: block; overflow: visible;">'
+        f'<defs>'
+        f'<linearGradient id="waveHeatmapGrad" x1="0%" y1="0%" x2="100%" y2="0%">'
+        f'<stop offset="0%" stop-color="#ea580c"/>'
+        f'<stop offset="40%" stop-color="#f59e0b"/>'
+        f'<stop offset="85%" stop-color="{p_color}"/>'
+        f'<stop offset="100%" stop-color="{p_color}"/>'
+        f'</linearGradient>'
+        f'<filter id="pinShadow" x="-20%" y="-20%" width="140%" height="140%">'
+        f'<feDropShadow dx="0" dy="2.5" stdDeviation="2.5" flood-color="rgba(0,0,0,0.22)"/>'
+        f'</filter>'
+        f'</defs>'
+        f'<path d="{d_bg_reg}" fill="none" stroke="#e2e8f0" stroke-width="4.5" stroke-linecap="round" />'
+        f'<path d="{d_bg_res}" fill="none" stroke="#fda4af" stroke-width="4" stroke-linecap="round" stroke-dasharray="5,4" />'
+        f'<path d="{d_fg}" fill="none" stroke="url(#waveHeatmapGrad)" stroke-width="5.5" stroke-linecap="round" />'
+        f'{nodes_markup}'
+        f'<g transform="translate({x_hoy:.1f}, {y_hoy:.1f})">'
+        f'<circle cx="0" cy="0" r="6" fill="{p_color}" opacity="0.4">'
+        f'<animate attributeName="r" values="6;18" dur="2.2s" repeatCount="indefinite"/>'
+        f'<animate attributeName="opacity" values="0.8;0" dur="2.2s" repeatCount="indefinite"/>'
+        f'</circle>'
+        f'<circle cx="0" cy="0" r="5.5" fill="{p_color}" stroke="#ffffff" stroke-width="2.5" />'
+        f'<g transform="translate(0, -24)" filter="url(#pinShadow)">'
+        f'<rect x="{-pin_half_w}" y="-16" width="{pin_width}" height="18" rx="9" fill="{p_color}" />'
+        f'<text x="0" y="-3" text-anchor="middle" fill="#ffffff" font-family="Inter, -apple-system, sans-serif" font-size="10" font-weight="800">{pin_label}</text>'
+        f'<polygon points="-4,2 4,2 0,6" fill="{p_color}" />'
+        f'</g>'
+        f'</g>'
+        f'</svg>'
+    )
+
+    color_dias_lbl = '#f43f5e' if info['es_restricta'] else '#b45309'
+
+    # CSS para estilizar el contenedor y el boton de engranaje minimalista
+    css_monitor_arte = """<style>
+div[data-testid="stVerticalBlockBorderWrapper"]:has(#monitor-arte-anchor) {
+    background: #ffffff !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 16px !important;
+    padding: 8px 14px 6px 14px !important;
+    box-shadow: 0 4px 14px -2px rgba(0,0,0,0.05) !important;
+    margin-bottom: 0px !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(#monitor-arte-anchor) div[data-testid="stPopover"] {
+    display: flex !important;
+    justify-content: flex-end !important;
+    align-items: center !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(#monitor-arte-anchor) div[data-testid="stPopover"] button {
+    background: #f8fafc !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 50% !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 1.05rem !important;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06) !important;
+    transition: transform 0.25s ease, background-color 0.2s ease !important;
+    cursor: pointer !important;
+}
+div[data-testid="stVerticalBlockBorderWrapper"]:has(#monitor-arte-anchor) div[data-testid="stPopover"] button:hover {
+    background: #f1f5f9 !important;
+    border-color: #cbd5e1 !important;
+    transform: rotate(45deg) scale(1.08) !important;
+}
+</style>"""
+    st.markdown(css_monitor_arte, unsafe_allow_html=True)
+
+    with st.container(border=True):
+        st.markdown('<span id="monitor-arte-anchor" style="display:none;"></span>', unsafe_allow_html=True)
+
+        # Fila Superior: Badges a la izquierda | Contador Dias y Engranaje Calibrador a la derecha
+        if user_rol in ['gerente', 'superadmin']:
+            c_info, c_right = st.columns([0.76, 0.24], vertical_alignment="center")
+            with c_right:
+                c_dias, c_gear = st.columns([0.70, 0.30], vertical_alignment="center")
+                with c_dias:
+                    st.markdown(
+                        f'<div style="text-align: right; line-height: 1.1;">'
+                        f'<div style="font-size: 1.22rem; font-weight: 900; color: {color_dias_lbl};">{info["dias_restantes_lbl"]}</div>'
+                        f'<div style="font-size: 0.62rem; font-weight: 800; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase;">{info["dias_restantes_sub"]}</div>'
+                        f'</div>',
+                        unsafe_allow_html=True
+                    )
+                with c_gear:
+                    with st.popover("⚙️", help="Calibrar Calendario Oficial de Ciclo"):
+                        st.markdown(f"**⚙️ Calibrar Calendario:** `Gerencia Arte`")
+                        st.caption(f"Ajuste oficial para todos los sectores ({sector_label})")
+                        f_nueva = st.date_input("Fecha Oficial de Inicio de Campaña:", value=info['fecha_inicio'], key=f"calib_f_ini_{info['clave_gerencia']}")
+                        c_nuevo = st.number_input("Número de Ciclo:", min_value=1, max_value=25, value=int(info['ciclo']), step=1, key=f"calib_ciclo_{info['clave_gerencia']}")
+                        r_nuevo = st.number_input("Días de Restricta / Rescate:", min_value=1, max_value=10, value=int(info['dias_restricta']), step=1, key=f"calib_rest_{info['clave_gerencia']}")
+                        if st.button("💾 Guardar y Actualizar", key="btn_save_calib_ger", use_container_width=True):
+                            procesador.actualizar_calendario_gerencia(
+                                clave_gerencia=info['clave_gerencia'],
+                                fecha_inicio=str(f_nueva),
+                                ciclo=int(c_nuevo),
+                                dias_restricta=int(r_nuevo)
+                            )
+                            st.success("✅ Calendario calibrado exitosamente.")
+                            st.rerun()
+        else:
+            c_info, c_dias = st.columns([0.80, 0.20], vertical_alignment="center")
+            with c_dias:
+                st.markdown(
+                    f'<div style="text-align: right; line-height: 1.1;">'
+                    f'<div style="font-size: 1.22rem; font-weight: 900; color: {color_dias_lbl};">{info["dias_restantes_lbl"]}</div>'
+                    f'<div style="font-size: 0.62rem; font-weight: 800; color: #64748b; letter-spacing: 0.5px; text-transform: uppercase;">{info["dias_restantes_sub"]}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+
+        with c_info:
+            alerta_badge_html = f'<span style="background: rgba(239, 68, 68, 0.12); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.35); padding: 2px 8px; border-radius: 14px; font-size: 0.68rem; font-weight: 700; display: inline-flex; align-items: center; gap: 3px;" title="{alerta_desfase}">{alerta_desfase}</span>' if alerta_desfase else ''
+            header_badges = (
+                f'<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">'
+                f'<span style="font-size: 0.92rem;">⏱️</span>'
+                f'<span style="font-size: 0.80rem; font-weight: 800; color: #0f172a; letter-spacing: 0.4px; text-transform: uppercase;">ESTADO DE CICLO</span>'
+                f'<span style="font-size: 0.80rem; font-weight: 900; color: #d97706; text-transform: uppercase;">CICLO {info["ciclo"]}</span>'
+                f'<span style="background: {badge_fase_bg}; color: {badge_fase_txt}; padding: 2px 7px; border-radius: 14px; font-size: 0.70rem; font-weight: 800; display: inline-flex; align-items: center; gap: 3px;">'
+                f'{info["fase_nombre"]}'
+                f'</span>'
+                f'<span style="background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 14px; font-size: 0.68rem; font-weight: 700;">'
+                f'🏢 Gerencia Arte'
+                f'</span>'
+                f'<span style="background: rgba(14, 165, 233, 0.12); color: #0369a1; padding: 2px 7px; border-radius: 14px; font-size: 0.68rem; font-weight: 700; display: inline-flex; align-items: center; gap: 3px;">'
+                f'📍 {sector_label}'
+                f'</span>'
+                f'{alerta_badge_html}'
+                f'</div>'
+            )
+            st.markdown(header_badges, unsafe_allow_html=True)
+
+        # Fila Central: Componente SVG de Onda Fluida (renderizado nativo con st.markdown)
+        st.markdown(f'<div style="width: 100%; overflow-x: auto; padding: 2px 0 1px 0;">{svg_markup}</div>', unsafe_allow_html=True)
+
+        # Fila Inferior: Heatmap Pacing enfocado en el Sector
+        pacing_msg_sector = f"Facturación en {sector_label} al {cump_f:.1f}% (+{cump_f - info['pct_esperado_fase']:.1f}% sobre la meta del Día {dia_act})." if cump_f >= info['pct_esperado_fase'] else f"Facturación en {sector_label} al {cump_f:.1f}% vs {info['pct_esperado_fase']:.1f}% proyectado para el Día {dia_act}."
+        pacing_footer = (
+            f'<div style="margin-top: 4px; padding-top: 6px; border-top: 1px solid #f1f5f9; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 6px; font-size: 0.74rem;">'
+            f'<div style="display: flex; align-items: center; gap: 6px;">'
+            f'<span style="background: {p_color}22; color: {p_color}; border: 1px solid {p_color}55; padding: 1px 7px; border-radius: 10px; font-weight: 800; font-size: 0.70rem;">'
+            f'{p_badge}'
+            f'</span>'
+            f'<span style="color: #1e293b; font-weight: 600;">'
+            f'{pacing_msg_sector}'
+            f'</span>'
+            f'</div>'
+            f'<div style="color: #64748b; font-size: 0.70rem;">'
+            f'🎯 Avance {sector_label}: <b>{cump_f:.1f}%</b> | Ritmo esperado Día {dia_act}: <b>{info["pct_esperado_fase"]:.1f}%</b>'
+            f'</div>'
+            f'</div>'
+        )
+        st.markdown(pacing_footer, unsafe_allow_html=True)
+
+
+# 3. FILTRO DE CONTROL Y PREPARACION DE DATOS EN EL CANVAS
+df_filtrado = df.copy()
+lider_seleccionada_sb = "Todas las Líderes"
+
+# Segmentación Privada por Rol (Preservando el código madre intacto)
+if user_rol == 'lider' and user_grupo and not df_filtrado.empty:
+    col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
+    if col_grp_ref and col_grp_ref in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(user_grupo).strip()]
+
 # Header Principal Dinámico según el Rol y Sector del Usuario
 if user_rol == 'superadmin' and not admin_sector_audit:
     st.markdown("<div class='main-header'>🛠️ Panel Corporativo de Administración (Super Admin)</div>", unsafe_allow_html=True)
@@ -5778,12 +6090,62 @@ if user_rol == 'superadmin' and not admin_sector_audit:
 else:
     primer_nombre = user_nombre.split()[0] if user_nombre else "Usuario"
     badge_rol_lbl = f"Grupo {user_grupo}" if (user_rol == 'lider' and user_grupo) else ("Gerencia" if user_rol == 'gerente' else "Consulta")
-    st.markdown(f"""
-    <div class="brand-top-header" style="margin-bottom: 14px;">
-        <div class="brand-greeting">¡Hola, {primer_nombre}! 👋</div>
-        <div class="brand-subgreeting"><b>{user_sector_nombre}</b> • <span class="badge-ciclo">{badge_rol_lbl}</span> • <span class="badge-ciclo">Ciclo Activo</span></div>
-    </div>
-    """, unsafe_allow_html=True)
+
+    c_head_izq, c_head_der = st.columns([0.38, 0.62], gap="medium")
+    with c_head_izq:
+        st.markdown(f"""
+        <div class="brand-top-header" style="margin-bottom: 8px;">
+            <div class="brand-greeting">¡Hola, {primer_nombre}! 👋</div>
+            <div class="brand-subgreeting"><b>{user_sector_nombre}</b> • <span class="badge-ciclo">{badge_rol_lbl}</span> • <span class="badge-ciclo">Ciclo Activo</span></div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        # Filtro Global por Líder / Grupo en el Canvas (Habilitado para Gerencia y SuperAdmin)
+        if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
+            col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
+            if col_grp_ref and col_grp_ref in df_filtrado.columns:
+                grupos_unicos = sorted([str(g).strip() for g in df_filtrado[col_grp_ref].dropna().unique()])
+                mapa_lideres_sb = obtener_mapa_lideres()
+
+                def format_lider_sb(g_val):
+                    if g_val == "Todas las Líderes":
+                        return "🌟 Todas las Líderes (Consolidado)"
+                    nom = mapa_lideres_sb.get(str(g_val).strip())
+                    if nom:
+                        return f"👩‍💼 Gr. {g_val} — {nom}"
+                    return f"👥 Grupo {g_val}"
+
+                lider_seleccionada_sb = st.selectbox(
+                    "👤 Filtrar por Líder / Grupo:",
+                    options=["Todas las Líderes"] + grupos_unicos,
+                    format_func=format_lider_sb,
+                    index=0,
+                    key="filtro_lider_canvas_top"
+                )
+                if lider_seleccionada_sb != "Todas las Líderes":
+                    df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
+
+                st.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
+
+    # Asegurar conversión numérica limpia en df_filtrado para evitar sumar strings
+    columnas_numericas_clave = [
+        'Objetivo Facturación', 'Real Facturación', 'Objetivo Activas', 'Real Activas',
+        'Ganancia estimada', 'Ganancia_Matriz_COP', 'Potencializador_COP', 'Saldo',
+        'Inicios', 'Reinicios', 'Recuperos', 'Disponibles', 'Falta para el 100%', 'Falta para el 110%',
+        'Productividad', 'Cumplimiento Facturación', 'Avance % Facturación', 'Cumplimiento Activas'
+    ]
+    for col in columnas_numericas_clave:
+        if col in df_filtrado.columns:
+            df_filtrado[col] = df_filtrado[col].apply(lambda v: limpiar_numero(v, 0.0))
+
+    with c_head_der:
+        renderizar_monitor_ciclo_ondulado(
+            df_filtrado=df_filtrado,
+            user_rol=user_rol,
+            user_sector=user_sector,
+            user_nombre=user_nombre,
+            user_sector_nombre=user_sector_nombre
+        )
 
 # AVISO PRUDENTE DE SUSCRIPCIÓN (Solo para Gerente en sus últimos 3 días o vencido)
 if user_rol == 'gerente' and not (user_rol == 'superadmin' and not admin_sector_audit):
@@ -5795,7 +6157,7 @@ if user_rol == 'gerente' and not (user_rol == 'superadmin' and not admin_sector_
 if df.empty and (user_rol in ['gerente', 'lider'] or (user_rol == 'superadmin' and admin_sector_audit)):
     if user_rol == 'gerente':
         info_sector_actual = f"**{user_sector_nombre}** (Cód: `{user_sector}`)"
-        
+
         st.info(
             f"ℹ️ **Bienvenida a tu Panel de Control — {info_sector_actual}**\n\n"
             f"Aún no se han cargado las metas del ciclo actual en **'Cómo Vamos'** para tu sector.\n\n"
@@ -5837,58 +6199,6 @@ if 'lideres_creadas_log' in st.session_state and st.session_state['lideres_cread
         if st.button("Entendido / Cerrar Notificación"):
             del st.session_state['lideres_creadas_log']
             st.rerun()
-
-# 3. FILTRO DE CONTROL EN EL CANVAS PRINCIPAL
-df_filtrado = df.copy()
-lider_seleccionada_sb = "Todas las Líderes"
-
-# Segmentación Privada por Rol (Preservando el código madre intacto)
-if user_rol == 'lider' and user_grupo and not df_filtrado.empty:
-    col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
-    if col_grp_ref and col_grp_ref in df_filtrado.columns:
-        df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(user_grupo).strip()]
-
-# Filtro Global por Líder / Grupo en el Canvas (Habilitado para Gerencia y SuperAdmin)
-if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
-    col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
-    if col_grp_ref and col_grp_ref in df_filtrado.columns:
-        grupos_unicos = sorted([str(g).strip() for g in df_filtrado[col_grp_ref].dropna().unique()])
-        mapa_lideres_sb = obtener_mapa_lideres()
-        
-        def format_lider_sb(g_val):
-            if g_val == "Todas las Líderes":
-                return "🌟 Todas las Líderes (Consolidado)"
-            nom = mapa_lideres_sb.get(str(g_val).strip())
-            if nom:
-                return f"👩‍💼 Grupo {g_val} — {nom}"
-            return f"👥 Grupo {g_val}"
-
-        f_col1, f_col2 = st.columns([2.5, 1.5])
-        with f_col1:
-            lider_seleccionada_sb = st.selectbox(
-                "👤 Filtrar por Líder / Grupo:",
-                options=["Todas las Líderes"] + grupos_unicos,
-                format_func=format_lider_sb,
-                index=0,
-                key="filtro_lider_canvas_top"
-            )
-        with f_col2:
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            st.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
-
-        if lider_seleccionada_sb != "Todas las Líderes":
-            df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
-
-# Asegurar conversión numérica limpia en df_filtrado para evitar sumar strings
-columnas_numericas_clave = [
-    'Objetivo Facturación', 'Real Facturación', 'Objetivo Activas', 'Real Activas',
-    'Ganancia estimada', 'Ganancia_Matriz_COP', 'Potencializador_COP', 'Saldo',
-    'Inicios', 'Reinicios', 'Recuperos', 'Disponibles', 'Falta para el 100%', 'Falta para el 110%',
-    'Productividad', 'Cumplimiento Facturación', 'Avance % Facturación', 'Cumplimiento Activas'
-]
-for col in columnas_numericas_clave:
-    if col in df_filtrado.columns:
-        df_filtrado[col] = df_filtrado[col].apply(lambda v: limpiar_numero(v, 0.0))
 
 def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sector, is_dark_theme):
     if is_dark_theme:
@@ -5962,6 +6272,8 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
             pts_tot = int(df_tab_app['Pts Acum'].apply(lambda x: limpiar_numero(x, 0)).sum())
         if 'Deuda Mora' in df_tab_app.columns:
             deuda_tot = float(df_tab_app['Deuda Mora'].apply(lambda x: limpiar_numero(x, 0)).sum())
+
+    renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_nombre, user_sector)
 
     h1, h2, h3, h4 = st.columns(4)
     with h1:
@@ -6109,6 +6421,8 @@ if user_rol in ['lider', 'gerente']:
     mostrar_banner_top = True
 elif user_rol == 'superadmin' and ('lider_seleccionada_sb' in locals() and lider_seleccionada_sb != "Todas las Líderes"):
     mostrar_banner_top = True
+
+# Monitor Ondulado reubicado en el Header superior para optimizar el scroll vertical
 
 # El banner de cumpleaños solo se muestra en la vista de Tableau / Mi Listado
 if mostrar_banner_top and es_tab_tableau_activo:
@@ -7367,7 +7681,7 @@ if tab_tableau is not None:
                                 height=110,
                                 key=f"txt_tpl_tab_{tipo_camp_tab[:2]}"
                             )
-                            st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
+                            st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{sit_comercial}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
 
                         # Flyer opcional compacto para Base Maestra
                         uploaded_flyer_tab = None
@@ -7488,6 +7802,10 @@ if tab_tableau is not None:
                                 .replace("{primer_nombre}", p_nom)
                                 .replace("{nombre}", n_full.title())
                                 .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                                .replace("{sit_comercial}", sit_val)
+                                .replace("{sit.comercial}", sit_val)
+                                .replace("{Sit.comercial}", sit_val)
+                                .replace("{situacion_comercial}", sit_val)
                                 .replace("{nivel}", nivel_val)
                                 .replace("{pts_acum}", pts_val)
                                 .replace("{pedidos}", ped_val)
@@ -8520,7 +8838,7 @@ if tab_tableau is not None:
                         height=125,
                         key=f"plantilla_txt_{plantilla_elegida[:2]}_{tipo_camp[:2]}"
                     )
-                    st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{remitente}`, `{deuda_mora}`, `{deuda_total}`, `{pedidos}`, `{nivel}`, `{pts_acum}`, `{credito_disp}`")
+                    st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{sit_comercial}`, `{remitente}`, `{deuda_mora}`, `{deuda_total}`, `{pedidos}`, `{nivel}`, `{pts_acum}`, `{credito_disp}`")
 
                 # 3. Flyer Opcional Compacto
                 uploaded_flyer = None
@@ -8636,12 +8954,19 @@ if tab_tableau is not None:
                     pts_s = int(limpiar_numero(r_sample_camp.get('Pts Acum', 0)))
                     niv_s = str(r_sample_camp.get('Color', r_sample_camp.get('Nivel / Color', 'Consultora')))
                     rem_s = user_nombre if user_nombre else "Tu Líder"
+                    sit_s = str(r_sample_camp.get('Sit. Comercial', r_sample_camp.get('Situacion', r_sample_camp.get('sit_comercial', '')))).strip()
+                    if sit_s.lower() in ['nan', 'none', '-']:
+                        sit_s = ""
 
                     msg_prev_sim = (
                         plantilla_txt
                         .replace("{primer_nombre}", p_nom_s)
                         .replace("{nombre}", nom_s.title())
                         .replace("{nota}", nota_s if nota_s else "tenemos novedades especiales para ti")
+                        .replace("{sit_comercial}", sit_s)
+                        .replace("{sit.comercial}", sit_s)
+                        .replace("{Sit.comercial}", sit_s)
+                        .replace("{situacion_comercial}", sit_s)
                         .replace("{remitente}", rem_s)
                         .replace("{deuda_mora}", dm_s)
                         .replace("{deuda_total}", dt_s)
@@ -8750,6 +9075,8 @@ if tab_tableau is not None:
                         pts_val = int(limpiar_numero(r.get('Pts Acum', 0)))
                         col_nivel = str(r.get('Color', r.get('Nivel / Color', 'Consultora')))
                         sit_val = str(r.get('Sit. Comercial', ''))
+                        if sit_val.lower() in ['nan', 'none', '-']:
+                            sit_val = ""
                         grp_val = str(r.get('Grupo', ''))
                         remitente_wa = user_nombre if user_nombre else "Tu Líder"
 
@@ -8759,6 +9086,10 @@ if tab_tableau is not None:
                             .replace("{primer_nombre}", primer_n)
                             .replace("{nombre}", nom_full.title())
                             .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                            .replace("{sit_comercial}", sit_val)
+                            .replace("{sit.comercial}", sit_val)
+                            .replace("{Sit.comercial}", sit_val)
+                            .replace("{situacion_comercial}", sit_val)
                             .replace("{remitente}", remitente_wa)
                             .replace("{deuda_mora}", deuda_m)
                             .replace("{deuda_total}", deuda_t)

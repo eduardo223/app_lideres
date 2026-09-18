@@ -1474,7 +1474,7 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                         height=100,
                         key=f"txt_tpl_mob_{tipo_camp_mob[:2]}"
                     )
-                    st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
+                    st.caption("Variables: `{primer_nombre}`, `{nombre}`, `{nota}`, `{sit_comercial}`, `{nivel}`, `{pts_acum}`, `{pedidos}`, `{deuda_mora}`, `{remitente}`")
 
                     # Generar filas de mensajes para todo el grupo filtrado con casillas
                     filas_wa_mob = []
@@ -1501,6 +1501,10 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
                             .replace("{primer_nombre}", p_nom)
                             .replace("{nombre}", n_full.title())
                             .replace("{nota}", nota_val if nota_val else "tenemos novedades especiales para ti")
+                            .replace("{sit_comercial}", sit_val_m)
+                            .replace("{sit.comercial}", sit_val_m)
+                            .replace("{Sit.comercial}", sit_val_m)
+                            .replace("{situacion_comercial}", sit_val_m)
                             .replace("{nivel}", nivel_val)
                             .replace("{pts_acum}", pts_val)
                             .replace("{pedidos}", ped_val)

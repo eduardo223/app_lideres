@@ -6269,14 +6269,60 @@ DEFAULT_PERMISOS_PESTANAS = {
     "tab_detalle": {"nombre": "📑 Generador de Informes", "gerente": True, "lider": True, "asesor": False}
 }
 
+DEFAULT_CALENDARIO_GERENCIAS = {
+    "ARTE": {
+        "nombre_oficial": "Gerencia Arte",
+        "ciclo": 14,
+        "fecha_inicio": "2026-09-13",
+        "dias_ciclo": 21,
+        "dias_restricta": 3
+    },
+    "ARMONÍA": {
+        "nombre_oficial": "Gerencia Armonía",
+        "ciclo": 14,
+        "fecha_inicio": "2026-09-13",
+        "dias_ciclo": 21,
+        "dias_restricta": 3
+    },
+    "PASIÓN": {
+        "nombre_oficial": "Gerencia Pasión",
+        "ciclo": 14,
+        "fecha_inicio": "2026-09-14",
+        "dias_ciclo": 21,
+        "dias_restricta": 3
+    },
+    "ENERGÍA": {
+        "nombre_oficial": "Gerencia Energía",
+        "ciclo": 14,
+        "fecha_inicio": "2026-09-15",
+        "dias_ciclo": 21,
+        "dias_restricta": 3
+    },
+    "LIBERTAD": {
+        "nombre_oficial": "Gerencia Libertad",
+        "ciclo": 14,
+        "fecha_inicio": "2026-09-16",
+        "dias_ciclo": 21,
+        "dias_restricta": 3
+    },
+    "INSPIRACIÓN": {
+        "nombre_oficial": "Gerencia Inspiración",
+        "ciclo": 14,
+        "fecha_inicio": "2026-09-17",
+        "dias_ciclo": 21,
+        "dias_restricta": 3
+    }
+}
+
 def cargar_configuracion():
     """
     Carga la configuración global de la aplicación.
-    Por defecto, incluye los permisos de visibilidad por pestaña con nombres actualizados.
+    Por defecto, incluye los permisos de visibilidad por pestaña y el cronograma oficial de las 6 gerencias.
     """
     config = {
         "permitir_carga_lideres": False,
-        "permisos_pestanas": {k: v.copy() for k, v in DEFAULT_PERMISOS_PESTANAS.items()}
+        "permisos_pestanas": {k: v.copy() for k, v in DEFAULT_PERMISOS_PESTANAS.items()},
+        "calendario_gerencias": {k: v.copy() for k, v in DEFAULT_CALENDARIO_GERENCIAS.items()}
     }
     
     if os.path.exists(RUTA_CONFIG):
@@ -6293,6 +6339,12 @@ def cargar_configuracion():
                                     if r_key in loaded["permisos_pestanas"][tab_key]:
                                         config["permisos_pestanas"][tab_key][r_key] = bool(loaded["permisos_pestanas"][tab_key][r_key])
                             config["permisos_pestanas"][tab_key]["nombre"] = tab_val["nombre"]
+                    if "calendario_gerencias" in loaded and isinstance(loaded["calendario_gerencias"], dict):
+                        for g_key, g_val in loaded["calendario_gerencias"].items():
+                            if g_key in config["calendario_gerencias"] and isinstance(g_val, dict):
+                                config["calendario_gerencias"][g_key].update(g_val)
+                            elif isinstance(g_val, dict):
+                                config["calendario_gerencias"][g_key] = g_val
         except Exception as e:
             print(f"Nota al cargar configuración: {e}")
             
@@ -6310,6 +6362,322 @@ def guardar_configuracion(dict_config):
     except Exception as e:
         print(f"Error al guardar configuración: {e}")
         return False
+
+# --- MOTOR DE CRONOGRAMA DE CICLO & PACING HEATMAP PARA LAS 6 GERENCIAS ---
+import datetime
+
+MESES_ES_CICLO = {
+    1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun',
+    7: 'jul', 8: 'ago', 9: 'sept', 10: 'oct', 11: 'nov', 12: 'dic'
+}
+
+def formato_fecha_ciclo(d):
+    """Retorna fecha legible en español, ej: '13 de sept'"""
+    if isinstance(d, datetime.datetime):
+        d = d.date()
+    return f"{d.day} de {MESES_ES_CICLO.get(d.month, '')}"
+
+def identificar_clave_gerencia(gerencia_o_sector):
+    """Normaliza y mapea un texto de gerencia o sector a una de las 6 gerencias oficiales."""
+    if not gerencia_o_sector:
+        return "ARTE"
+    txt = str(gerencia_o_sector).strip().upper()
+    if "EMOCIONES" in txt or "DOLLY" in txt or "ARMON" in txt:
+        return "ARMONÍA"
+    if "PASI" in txt:
+        return "PASIÓN"
+    if "ENERG" in txt or "FUERZA" in txt:
+        return "ENERGÍA"
+    if "LIBERT" in txt or "ONDA" in txt:
+        return "LIBERTAD"
+    if "INSPIR" in txt or "RAIC" in txt or "RAÍZ" in txt or "ALMA" in txt:
+        return "INSPIRACIÓN"
+    if "ARTE" in txt or "CLERY" in txt or "MATICES" in txt or "700000459" in txt:
+        return "ARTE"
+    # Buscar coincidencia exacta en las llaves configuradas
+    cfg = cargar_configuracion()
+    cals = cfg.get("calendario_gerencias", {})
+    for k in cals:
+        if k in txt:
+            return k
+    return "ARTE"
+
+def conciliar_ciclo_sector(df_cv=None, cod_sector=None):
+    """
+    Concilia y valida dinámicamente la campaña activa entre Cómo Vamos y Tableau.
+    Aplica las reglas oficiales de negocio:
+    1. Si Cómo Vamos == Tableau: Sincronización perfecta (ej: C13 == C13).
+    2. Si Cómo Vamos < Tableau: Desfase por falta de rotación. Se muestra el ciclo de Cómo Vamos
+       (para que los números de facturación coincidan) con una advertencia visible de que en Tableau
+       ya arrancó un ciclo más avanzado.
+    3. Si Cómo Vamos > Tableau: Gana Cómo Vamos (nueva meta subida antes que la data operativa).
+    4. Fallback inteligente si alguna fuente no está cargada.
+    """
+    c_cv = None
+    c_tab = None
+
+    # 1. Extraer ciclo de Cómo Vamos (df_cv)
+    if df_cv is not None and hasattr(df_cv, 'columns') and not df_cv.empty:
+        col_c = next((c for c in df_cv.columns if str(c).strip().lower() in ['ciclo', 'cd_ciclo', 'campana', 'campaña']), None)
+        if not col_c:
+            col_c = next((c for c in df_cv.columns if 'ciclo' in str(c).lower()), None)
+        if col_c and not df_cv[col_c].dropna().empty:
+            raw_val = df_cv[col_c].dropna().iloc[0]
+            try:
+                raw_int = int(float(raw_val))
+                c_cv = raw_int % 100 if raw_int > 100 else raw_int
+            except Exception:
+                pass
+
+    # 2. Extraer ciclo de Tableau (consultoras_tableau) filtrado por cod_sector
+    try:
+        import sqlite3
+        conn = sqlite3.connect(ruta_persistente('base_matices.db'))
+        cur = conn.cursor()
+        if cod_sector:
+            cur.execute('SELECT MAX(ciclo) FROM consultoras_tableau WHERE cod_sector = ?', (str(cod_sector).strip(),))
+            r = cur.fetchone()
+            if r and r[0] is not None:
+                raw_int = int(r[0])
+                c_tab = raw_int % 100 if raw_int > 100 else raw_int
+        if c_tab is None:
+            cur.execute('SELECT MAX(ciclo) FROM consultoras_tableau')
+            r = cur.fetchone()
+            if r and r[0] is not None:
+                raw_int = int(r[0])
+                c_tab = raw_int % 100 if raw_int > 100 else raw_int
+        conn.close()
+    except Exception as e:
+        print(f"Nota: No se pudo consultar ciclo en Tableau: {e}")
+
+    # 3. Conciliación según reglas de negocio
+    if c_cv is not None and c_tab is not None:
+        if c_cv == c_tab:
+            return {
+                'ciclo': c_cv,
+                'estado': 'sincronizado',
+                'ciclo_cv': c_cv,
+                'ciclo_tab': c_tab,
+                'alerta': None
+            }
+        elif c_cv < c_tab:
+            return {
+                'ciclo': c_cv,
+                'estado': 'desfasado',
+                'ciclo_cv': c_cv,
+                'ciclo_tab': c_tab,
+                'alerta': f"⚠️ Viendo metas de Ciclo {c_cv} • En Tableau ya corre Ciclo {c_tab} (Actualiza tu Cómo Vamos)"
+            }
+        else:
+            return {
+                'ciclo': c_cv,
+                'estado': 'cv_avanzado',
+                'ciclo_cv': c_cv,
+                'ciclo_tab': c_tab,
+                'alerta': None
+            }
+    elif c_cv is not None:
+        return {
+            'ciclo': c_cv,
+            'estado': 'cv_solo',
+            'ciclo_cv': c_cv,
+            'ciclo_tab': None,
+            'alerta': None
+        }
+    elif c_tab is not None:
+        return {
+            'ciclo': c_tab,
+            'estado': 'tab_solo',
+            'ciclo_cv': None,
+            'ciclo_tab': c_tab,
+            'alerta': None
+        }
+
+    return {
+        'ciclo': 14,
+        'estado': 'default',
+        'ciclo_cv': None,
+        'ciclo_tab': None,
+        'alerta': None
+    }
+
+def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c_fact=0.0, ciclo_override=None):
+    """
+    Calcula con precisión matemática el estado de ciclo, fase activa, días restantes,
+    hitos temporales y el índice de Pacing (ritmo de facturación vs avance de días).
+    """
+    clave_g = identificar_clave_gerencia(gerencia_o_sector)
+    cfg = cargar_configuracion()
+    cals = cfg.get("calendario_gerencias", DEFAULT_CALENDARIO_GERENCIAS)
+    info_g = cals.get(clave_g, DEFAULT_CALENDARIO_GERENCIAS.get(clave_g, DEFAULT_CALENDARIO_GERENCIAS["ARTE"]))
+    
+    nom_oficial = info_g.get("nombre_oficial", f"Gerencia {clave_g.capitalize()}")
+    ciclo_num = int(ciclo_override) if ciclo_override is not None else info_g.get("ciclo", 14)
+    dias_ciclo = int(info_g.get("dias_ciclo", 21))
+    dias_restricta = int(info_g.get("dias_restricta", 3))
+    dias_totales = dias_ciclo + dias_restricta
+
+    try:
+        f_ini = datetime.datetime.strptime(str(info_g.get("fecha_inicio", "2026-09-13")), "%Y-%m-%d").date()
+    except Exception:
+        f_ini = datetime.date(2026, 9, 13)
+
+    if fecha_referencia:
+        if isinstance(fecha_referencia, datetime.datetime):
+            f_ref = fecha_referencia.date()
+        elif isinstance(fecha_referencia, datetime.date):
+            f_ref = fecha_referencia
+        else:
+            try:
+                f_ref = datetime.datetime.strptime(str(fecha_referencia)[:10], "%Y-%m-%d").date()
+            except Exception:
+                f_ref = datetime.date.today()
+    else:
+        f_ref = datetime.date.today()
+
+    # Cálculo del día actual del ciclo
+    if f_ref < f_ini:
+        dia_actual = 1
+    else:
+        dia_actual = (f_ref - f_ini).days + 1
+
+    # Fechas de las fases e hitos
+    f_despegue = f_ini
+    f_impulso = f_ini + datetime.timedelta(days=7)
+    f_sprint = f_ini + datetime.timedelta(days=14)
+    f_cierre_oficial = f_ini + datetime.timedelta(days=21)
+    f_restricta_fin = f_ini + datetime.timedelta(days=21 + dias_restricta)
+
+    txt_restricta_rango = f"{f_cierre_oficial.day + 1}-{f_restricta_fin.day} de {MESES_ES_CICLO.get(f_restricta_fin.month, '')}"
+
+    # Determinación de Fase Oficial
+    if dia_actual <= 7:
+        fase_id = 1
+        fase_nombre = "Despegue 🚀"
+        fase_subtitulo = "Siembra & Primeros Pedidos"
+        fase_badge_class = "fase-despegue"
+        pct_esperado_fase = round(5.0 + (dia_actual / 7.0) * 20.0, 1)  # 5% a 25%
+    elif dia_actual <= 14:
+        fase_id = 2
+        fase_nombre = "Fase de Impulso 📈"
+        fase_subtitulo = "Crecimiento & Activación"
+        fase_badge_class = "fase-impulso"
+        pct_esperado_fase = round(25.0 + ((dia_actual - 7) / 7.0) * 40.0, 1)  # 25% a 65%
+    elif dia_actual <= 21:
+        fase_id = 3
+        fase_nombre = "Sprint Final 🏃‍♂️💨"
+        fase_subtitulo = "Remate & Cierre Oficial"
+        fase_badge_class = "fase-sprint"
+        pct_esperado_fase = round(65.0 + ((dia_actual - 14) / 7.0) * 35.0, 1)  # 65% a 100%
+    else:
+        fase_id = 4
+        fase_nombre = "La Última Milla 🏁"
+        fase_subtitulo = "Días de Restricta / Rescate & Ajustes"
+        fase_badge_class = "fase-milla"
+        pct_esperado_fase = 100.0
+
+    # Días Restantes
+    es_restricta = False
+    if dia_actual <= dias_ciclo:
+        dias_restantes_oficial = max(0, dias_ciclo - dia_actual)
+        dias_restantes_lbl = f"{dias_restantes_oficial} Días"
+        dias_restantes_sub = "RESTANTES"
+    elif dia_actual <= dias_totales:
+        es_restricta = True
+        dias_restricta_rest = max(0, dias_totales - dia_actual)
+        dias_restantes_lbl = f"{dias_restricta_rest} Días"
+        dias_restantes_sub = "RESTANTE RESTRICTA"
+    else:
+        es_restricta = True
+        dias_restantes_lbl = "0 Días"
+        dias_restantes_sub = "CICLO FINALIZADO"
+
+    # Pacing y Mapa de Calor (Heatmap)
+    c_fact_num = float(c_fact or 0.0)
+    pacing_ratio = (c_fact_num / pct_esperado_fase) if pct_esperado_fase > 0 else 1.0
+
+    if c_fact_num >= pct_esperado_fase * 1.05:
+        pacing_estado = "adelantado"
+        pacing_color = "#10b981"  # Verde Esmeralda
+        pacing_badge = "🌟 RITMO IMPARABLE"
+        pacing_msg = f"¡Gran desempeño! Facturación al {c_fact_num:.1f}% (+{c_fact_num - pct_esperado_fase:.1f}% sobre la meta esperada del Día {dia_actual})."
+    elif c_fact_num >= pct_esperado_fase * 0.85:
+        pacing_estado = "a_tiempo"
+        pacing_color = "#f59e0b"  # Ámbar Dorado
+        pacing_badge = "⚡ RITMO ÓPTIMO"
+        pacing_msg = f"Avance saludable: Facturación al {c_fact_num:.1f}%, alineada con el ritmo de {fase_nombre} (esperado: {pct_esperado_fase:.1f}%)."
+    else:
+        pacing_estado = "rezagado"
+        pacing_color = "#f97316" if c_fact_num >= pct_esperado_fase * 0.65 else "#ef4444"
+        pacing_badge = "⚠️ ALERTA DE ACELERACIÓN"
+        pacing_msg = f"Atención comercial: Facturación al {c_fact_num:.1f}% vs {pct_esperado_fase:.1f}% proyectado para el Día {dia_actual}. Activar plan de reactivación."
+
+    hitos = [
+        {"id": 1, "nombre": "DESPEGUE 🚀", "sub": "SIEMBRA", "dia": 1, "fecha": formato_fecha_ciclo(f_despegue), "completado": dia_actual >= 1},
+        {"id": 2, "nombre": "IMPULSO 📈", "sub": "CRECIMIENTO", "dia": 8, "fecha": formato_fecha_ciclo(f_impulso), "completado": dia_actual >= 8},
+        {"id": 3, "nombre": "SPRINT FINAL 🏃‍♂️💨", "sub": "REMATE", "dia": 15, "fecha": formato_fecha_ciclo(f_sprint), "completado": dia_actual >= 15},
+        {"id": 4, "nombre": "CIERRE OFICIAL 🏁", "sub": "FIN CICLO", "dia": 21, "fecha": formato_fecha_ciclo(f_cierre_oficial), "completado": dia_actual >= 21},
+        {"id": 5, "nombre": "LA ÚLTIMA MILLA 🏁", "sub": "RESTRICTA RESCATE", "dia": 22, "fecha": txt_restricta_rango, "completado": dia_actual >= 22}
+    ]
+
+    return {
+        "clave_gerencia": clave_g,
+        "nombre_gerencia": nom_oficial,
+        "ciclo": ciclo_num,
+        "dia_actual": dia_actual,
+        "dias_ciclo": dias_ciclo,
+        "dias_restricta": dias_restricta,
+        "dias_totales": dias_totales,
+        "fecha_inicio": f_ini,
+        "fecha_referencia": f_ref,
+        "fase_id": fase_id,
+        "fase_nombre": fase_nombre,
+        "fase_subtitulo": fase_subtitulo,
+        "fase_badge_class": fase_badge_class,
+        "es_restricta": es_restricta,
+        "dias_restantes_lbl": dias_restantes_lbl,
+        "dias_restantes_sub": dias_restantes_sub,
+        "pct_esperado_fase": pct_esperado_fase,
+        "pct_facturacion": c_fact_num,
+        "pacing_ratio": pacing_ratio,
+        "pacing_estado": pacing_estado,
+        "pacing_color": pacing_color,
+        "pacing_badge": pacing_badge,
+        "pacing_msg": pacing_msg,
+        "hitos": hitos
+    }
+
+def obtener_cronograma_todas_gerencias(fecha_referencia=None):
+    """Retorna el estado de ciclo y fase para cada una de las 6 gerencias del país."""
+    cfg = cargar_configuracion()
+    cals = cfg.get("calendario_gerencias", DEFAULT_CALENDARIO_GERENCIAS)
+    resultado = {}
+    for g_key in cals:
+        resultado[g_key] = obtener_estado_fase_ciclo(g_key, fecha_referencia=fecha_referencia)
+    return resultado
+
+def actualizar_calendario_gerencia(clave_gerencia, fecha_inicio=None, ciclo=None, dias_restricta=None):
+    """Permite calibrar la fecha o ciclo de una gerencia."""
+    cfg = cargar_configuracion()
+    clave_norm = clave_gerencia.strip().upper()
+    if "calendario_gerencias" not in cfg:
+        cfg["calendario_gerencias"] = {k: v.copy() for k, v in DEFAULT_CALENDARIO_GERENCIAS.items()}
+    if clave_norm not in cfg["calendario_gerencias"]:
+        cfg["calendario_gerencias"][clave_norm] = {
+            "nombre_oficial": f"Gerencia {clave_norm.capitalize()}",
+            "ciclo": 14,
+            "fecha_inicio": "2026-09-13",
+            "dias_ciclo": 21,
+            "dias_restricta": 3
+        }
+    if fecha_inicio:
+        cfg["calendario_gerencias"][clave_norm]["fecha_inicio"] = str(fecha_inicio)
+    if ciclo is not None:
+        cfg["calendario_gerencias"][clave_norm]["ciclo"] = int(ciclo)
+    if dias_restricta is not None:
+        cfg["calendario_gerencias"][clave_norm]["dias_restricta"] = int(dias_restricta)
+    guardar_configuracion(cfg)
+    return True
 
 # --- MOTOR DE BASE DE DATOS RELACIONAL SQLITE (base_matices.db) ---
 import sqlite3
