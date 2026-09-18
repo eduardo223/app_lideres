@@ -7840,12 +7840,168 @@ def sincronizar_excel_metas_a_sqlite(df_metas, conn=None):
             except Exception:
                 pass
 
+def auto_recuperar_sector_tableau(conn=None, sector=None):
+    """
+    Rutina de Auto-Recuperación Inteligente (Self-Healing) Multi-Sector:
+    Garantiza que si un sector específico (ej. Dolly 700000466, Clery 700000459, etc.)
+    no tiene consultoras en la base de datos activa (por reinicio de contenedor,
+    despliegue en Railway o sobreescritura de Excel), se recupere automáticamente:
+    1. Primero desde la base de datos semilla bundled ('base_matices.db' en el repo /app).
+    2. Si no, desde archivos Excel sectorizados ('Base de Datos_{sec}.xlsx').
+    3. Si no, desde 'Base de Datos.xlsx' si corresponde al sector.
+    Retorna el número de consultoras recuperadas (o 0 si no requirió o no encontró).
+    """
+    if not sector:
+        return 0
+    sec_str = str(sector).strip()
+    if not sec_str or sec_str == '__INVALID_SECTOR__':
+        return 0
+
+    close_at_end = False
+    if conn is None:
+        try:
+            conn = obtener_conexion_db(timeout=60.0)
+            close_at_end = True
+        except Exception:
+            return 0
+
+    try:
+        cursor = conn.cursor()
+        vars_sec = list(obtener_variantes_sector(sec_str))
+        conds_cnt = []
+        p_cnt = []
+        for v in vars_sec:
+            conds_cnt.append("cod_sector = ?")
+            p_cnt.append(v)
+            conds_cnt.append("sector LIKE ?")
+            p_cnt.append(f"%{v}%")
+
+        cursor.execute(f"SELECT COUNT(*) FROM consultoras_tableau WHERE {' OR '.join(conds_cnt)}", p_cnt)
+        r_actual = cursor.fetchone()
+        if r_actual and r_actual[0] > 0:
+            return 0
+
+        safe_print(f"🛡️ [Self-Healing Tableau] Sector '{sec_str}' sin consultoras en base activa. Iniciando auto-recuperación...")
+
+        # 1. Estrategia A: Copiar desde base de datos semilla (base_matices.db en la raíz del proyecto o /app)
+        rutas_semilla = [
+            'base_matices.db',
+            '/app/base_matices.db',
+            os.path.join(os.getcwd(), 'base_matices.db'),
+            ruta_persistente('base_matices.db.bak')
+        ]
+        db_activa_abs = os.path.abspath(RUTA_DB_SQLITE)
+        ruta_semilla_encontrada = None
+        for r_sem in rutas_semilla:
+            if r_sem and os.path.exists(r_sem) and os.path.getsize(r_sem) > 100000:
+                if os.path.abspath(r_sem) != db_activa_abs:
+                    ruta_semilla_encontrada = os.path.abspath(r_sem)
+                    break
+
+        if ruta_semilla_encontrada:
+            alias_sem = "seed_db_healing"
+            try:
+                cursor.execute(f"ATTACH DATABASE ? AS {alias_sem}", (ruta_semilla_encontrada,))
+                cursor.execute("PRAGMA table_info(consultoras_tableau)")
+                cols_dest = [r[1] for r in cursor.fetchall()]
+                cursor.execute(f"PRAGMA {alias_sem}.table_info(consultoras_tableau)")
+                cols_orig = [r[1] for r in cursor.fetchall()]
+                cols_comunes = [c for c in cols_dest if c in cols_orig]
+
+                if cols_comunes:
+                    cols_str = ", ".join([f'"{c}"' for c in cols_comunes])
+                    conds_sem = []
+                    p_sem = []
+                    for v in vars_sec:
+                        conds_sem.append("cod_sector = ?")
+                        p_sem.append(v)
+                        conds_sem.append("sector LIKE ?")
+                        p_sem.append(f"%{v}%")
+
+                    query_copy = f"""
+                    INSERT OR IGNORE INTO consultoras_tableau ({cols_str})
+                    SELECT {cols_str} FROM {alias_sem}.consultoras_tableau
+                    WHERE {' OR '.join(conds_sem)}
+                    """
+                    cursor.execute(query_copy, p_sem)
+                    conn.commit()
+
+                cursor.execute(f"DETACH DATABASE {alias_sem}")
+
+                cursor.execute(f"SELECT COUNT(*) FROM consultoras_tableau WHERE {' OR '.join(conds_cnt)}", p_cnt)
+                r_rec = cursor.fetchone()
+                tot_rec = r_rec[0] if r_rec else 0
+                if tot_rec > 0:
+                    safe_print(f"✅ [Self-Healing Tableau] ¡Éxito! Se auto-recuperaron {tot_rec} consultoras para el sector '{sec_str}' desde '{ruta_semilla_encontrada}'.")
+                    return tot_rec
+            except Exception as e_att:
+                safe_print(f"Aviso en attach semilla: {e_att}")
+                try:
+                    cursor.execute(f"DETACH DATABASE {alias_sem}")
+                except Exception:
+                    pass
+
+        # 2. Estrategia B: Buscar archivo Excel sectorizado (ej. Base de Datos_700000466.xlsx)
+        rutas_excel_sec = [
+            f"Base de Datos_{sec_str}.xlsx",
+            ruta_persistente(f"Base de Datos_{sec_str}.xlsx"),
+            os.path.join("data", f"Base de Datos_{sec_str}.xlsx"),
+            os.path.join("/app/data", f"Base de Datos_{sec_str}.xlsx")
+        ]
+        excel_sec_enc = next((e for e in rutas_excel_sec if e and os.path.exists(e) and os.path.getsize(e) > 1000), None)
+        if excel_sec_enc:
+            safe_print(f"🌱 [Self-Healing Tableau] Sincronizando desde Excel de sector '{excel_sec_enc}'...")
+            ok_s = sincronizar_excel_tableau_a_sqlite(excel_sec_enc, conn=conn)
+            if ok_s:
+                cursor.execute(f"SELECT COUNT(*) FROM consultoras_tableau WHERE {' OR '.join(conds_cnt)}", p_cnt)
+                r_rec2 = cursor.fetchone()
+                tot_s = r_rec2[0] if r_rec2 else 0
+                if tot_s > 0:
+                    safe_print(f"✅ [Self-Healing Tableau] Sincronizadas {tot_s} consultoras desde '{excel_sec_enc}'.")
+                    return tot_s
+
+        # 3. Estrategia C: Probar si 'Base de Datos.xlsx' corresponde a este sector
+        rutas_excel_gen = [
+            ruta_persistente("Base de Datos.xlsx"),
+            "Base de Datos.xlsx",
+            os.path.join("data", "Base de Datos.xlsx")
+        ]
+        excel_gen_enc = next((e for e in rutas_excel_gen if e and os.path.exists(e) and os.path.getsize(e) > 1000), None)
+        if excel_gen_enc:
+            try:
+                valido_s, s_found, _, _ = validar_sector_archivo(excel_gen_enc, sec_str)
+                if valido_s or (s_found and any(v in str(s_found) for v in vars_sec)):
+                    safe_print(f"🌱 [Self-Healing Tableau] Sincronizando desde '{excel_gen_enc}'...")
+                    ok_g = sincronizar_excel_tableau_a_sqlite(excel_gen_enc, conn=conn)
+                    if ok_g:
+                        cursor.execute(f"SELECT COUNT(*) FROM consultoras_tableau WHERE {' OR '.join(conds_cnt)}", p_cnt)
+                        r_rec3 = cursor.fetchone()
+                        tot_g = r_rec3[0] if r_rec3 else 0
+                        if tot_g > 0:
+                            safe_print(f"✅ [Self-Healing Tableau] Sincronizadas {tot_g} consultoras desde '{excel_gen_enc}'.")
+                            return tot_g
+            except Exception:
+                pass
+
+        return 0
+    except Exception as e_rec:
+        safe_print(f"Error en auto_recuperar_sector_tableau: {e_rec}")
+        return 0
+    finally:
+        if close_at_end and conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+
 def verificar_seeding_inicial_tableau(conn=None):
     """
-    Verifica automáticamente si la tabla consultoras_tableau en SQLite está vacía (0 registros).
-    Si está vacía, busca 'Base de Datos.xlsx' (en volumen persistente o en la raíz del proyecto)
-    y sincroniza automáticamente los datos a SQLite sin requerir que ninguna gerente ni administrador
-    tenga que subirla manualmente tras un nuevo despliegue en Railway o reinicio de contenedor.
+    Verifica automáticamente la integridad multi-sector de consultoras_tableau en SQLite.
+    1. Si la tabla está vacía, restaura desde la base semilla bundled ('base_matices.db') o 'Base de Datos.xlsx'.
+    2. Audita todos los sectores conocidos (sectores_historico.json / usuarios.json) y auto-recupera
+       inmediatamente cualquier sector que tenga 0 registros.
+    Garantiza que NINGUNA gerente (Dolly, Clery, etc.) pierda jamás sus consultoras tras un despliegue en Railway o reinicio.
     """
     close_at_end = False
     if conn is None:
@@ -7864,6 +8020,37 @@ def verificar_seeding_inicial_tableau(conn=None):
         cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
         row_count = cursor.fetchone()[0]
 
+        # 1. Si la tabla está totalmente vacía: primero intentar copiar desde semilla bundled
+        if row_count == 0:
+            rutas_semilla = ['base_matices.db', '/app/base_matices.db', os.path.join(os.getcwd(), 'base_matices.db')]
+            db_act_abs = os.path.abspath(RUTA_DB_SQLITE)
+            semilla_enc = next((s for s in rutas_semilla if os.path.exists(s) and os.path.getsize(s) > 100000 and os.path.abspath(s) != db_act_abs), None)
+            if semilla_enc:
+                alias_s = "seed_init"
+                try:
+                    cursor.execute(f"ATTACH DATABASE ? AS {alias_s}", (os.path.abspath(semilla_enc),))
+                    cursor.execute("PRAGMA table_info(consultoras_tableau)")
+                    cols_dest = [r[1] for r in cursor.fetchall()]
+                    cursor.execute(f"PRAGMA {alias_s}.table_info(consultoras_tableau)")
+                    cols_orig = [r[1] for r in cursor.fetchall()]
+                    cols_comunes = [c for c in cols_dest if c in cols_orig]
+                    if cols_comunes:
+                        cols_str = ", ".join([f'"{c}"' for c in cols_comunes])
+                        cursor.execute(f"INSERT OR IGNORE INTO consultoras_tableau ({cols_str}) SELECT {cols_str} FROM {alias_s}.consultoras_tableau")
+                        conn.commit()
+                        safe_print(f"✅ [Auto-Seeding Tableau] Restauración completa desde base semilla '{semilla_enc}'.")
+                    cursor.execute(f"DETACH DATABASE {alias_s}")
+                except Exception as e_s:
+                    safe_print(f"Aviso en seeding semilla: {e_s}")
+                    try:
+                        cursor.execute(f"DETACH DATABASE {alias_s}")
+                    except Exception:
+                        pass
+
+            cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
+            row_count = cursor.fetchone()[0]
+
+        # Si aún sigue vacía, recurrir a los archivos Excel
         if row_count == 0:
             rutas_candidatas = [
                 ruta_persistente("Base de Datos.xlsx"),
@@ -7871,7 +8058,6 @@ def verificar_seeding_inicial_tableau(conn=None):
                 os.path.join("data", "Base de Datos.xlsx")
             ]
             ruta_encontrada = next((r for r in rutas_candidatas if r and os.path.exists(r) and os.path.getsize(r) > 1000), None)
-
             if ruta_encontrada:
                 safe_print(f"🌱 [Auto-Seeding Tableau] Tabla vacía detectada. Sincronizando automáticamente desde '{ruta_encontrada}'...")
                 ok = sincronizar_excel_tableau_a_sqlite(ruta_encontrada, conn=conn)
@@ -7883,10 +8069,31 @@ def verificar_seeding_inicial_tableau(conn=None):
                         auto_crear_usuarios_lideres_desde_bases(ruta_tableau=ruta_encontrada)
                     except Exception as e_l:
                         safe_print(f"Nota auto-crear líderes en seeding: {e_l}")
-                    return True
-            else:
-                safe_print("⚠️ [Auto-Seeding Tableau] Tabla vacía y no se encontró 'Base de Datos.xlsx' en disco.")
-        return False
+
+        # 2. Auditar cada sector registrado y auto-recuperar si alguno está en 0
+        sectores_conocidos = set(["700000459", "700000466"])  # Clery y Dolly oficiales
+        try:
+            h_sec = cargar_historico_sectores()
+            for s_id in h_sec.keys():
+                sectores_conocidos.add(str(s_id).strip())
+        except Exception:
+            pass
+        try:
+            usrs = cargar_usuarios()
+            for u_data in usrs.values():
+                sec_c = str(u_data.get("codigo_sector") or "").strip()
+                if sec_c:
+                    sectores_conocidos.add(sec_c)
+        except Exception:
+            pass
+
+        for s_check in sectores_conocidos:
+            if s_check and s_check != '__INVALID_SECTOR__':
+                auto_recuperar_sector_tableau(conn=conn, sector=s_check)
+
+        cursor.execute("SELECT COUNT(*) FROM consultoras_tableau")
+        row_count_final = cursor.fetchone()[0]
+        return row_count_final > 0
     except Exception as e_seed:
         safe_print(f"Error en verificar_seeding_inicial_tableau: {e_seed}")
         return False
@@ -8022,6 +8229,12 @@ def consultar_tableau_sql(grupo=None, sector=None):
     df = pd.DataFrame()
     try:
         df = pd.read_sql_query(query, conn, params=params)
+
+        # Si el resultado viene vacío y se especificó un sector, activar Auto-Recuperación (Self-Healing)
+        if df.empty and sector and str(sector).strip() and str(sector).strip() != '__INVALID_SECTOR__':
+            n_rec = auto_recuperar_sector_tableau(conn=conn, sector=sector)
+            if n_rec > 0:
+                df = pd.read_sql_query(query, conn, params=params)
 
         # Enriquecer con los puntos y la situación comercial del ciclo inmediatamente anterior si existen
         if not df.empty:
@@ -9126,7 +9339,14 @@ def contar_registros_sector_tableau(sector=None):
         where_clause = " OR ".join(condiciones)
         cursor.execute(f"SELECT COUNT(*) FROM consultoras_tableau WHERE {where_clause}", params)
         res = cursor.fetchone()
-        return res[0] if res else 0
+        tot_cnt = res[0] if res else 0
+        if tot_cnt == 0 and sector and str(sector).strip() != '__INVALID_SECTOR__':
+            n_rec = auto_recuperar_sector_tableau(conn=conn, sector=sector)
+            if n_rec > 0:
+                cursor.execute(f"SELECT COUNT(*) FROM consultoras_tableau WHERE {where_clause}", params)
+                res2 = cursor.fetchone()
+                tot_cnt = res2[0] if res2 else 0
+        return tot_cnt
     except Exception:
         return 0
     finally:

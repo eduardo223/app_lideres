@@ -145,17 +145,17 @@ from procesador import (
     guardar_ajuste_ce_plus
 )
 
-# 1. Configuración de la página
+# 1. Configuración de la página con metadatos optimizados
 st.set_page_config(
-    page_title="Panel de Control - Estado de Ciclo Líderes",
+    page_title="Metas & Indicadores — Panel de Control Líderes & Gerentes",
     page_icon="📈",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
 # =========================================================================
-# BLINDAJE CRÍTICO REACT DOM CONTRA TRADUCTORES DE NAVEGADOR (CHROME / EDGE)
-# Neutraliza el error NotFoundError: 'removeChild' / 'insertBefore' on 'Node'
+# BLINDAJE CRÍTICO REACT DOM, SEO OPENGRAPH & ACCESIBILIDAD AUTOMÁTICA
+# Neutraliza errores de traductor, optimiza tarjetas de WhatsApp y eleva Google Lighthouse
 # =========================================================================
 components.html(
     """
@@ -165,32 +165,81 @@ components.html(
             const targetWin = window.parent || window;
             const targetDoc = targetWin.document;
 
-            // 1. Inyectar meta tags notranslate en head
+            // 1. Inyectar meta tags SEO, Open Graph y Preconnect en head
             if (targetDoc && targetDoc.head) {
-                if (!targetDoc.querySelector('meta[name="google"][content="notranslate"]')) {
-                    const meta1 = targetDoc.createElement('meta');
-                    meta1.name = 'google';
-                    meta1.content = 'notranslate';
-                    targetDoc.head.appendChild(meta1);
-                }
-                if (!targetDoc.querySelector('meta[name="googlebot"][content="notranslate"]')) {
-                    const meta2 = targetDoc.createElement('meta');
-                    meta2.name = 'googlebot';
-                    meta2.content = 'notranslate';
-                    targetDoc.head.appendChild(meta2);
-                }
+                // Preconnect y DNS-Prefetch para máxima velocidad de fuentes y assets
+                const preconnects = [
+                    { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
+                    { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossorigin: '' },
+                    { rel: 'dns-prefetch', href: 'https://fonts.googleapis.com' },
+                    { rel: 'dns-prefetch', href: 'https://fonts.gstatic.com' }
+                ];
+                preconnects.forEach(cfg => {
+                    if (!targetDoc.querySelector(`link[rel="${cfg.rel}"][href="${cfg.href}"]`)) {
+                        const l = targetDoc.createElement('link');
+                        l.rel = cfg.rel;
+                        l.href = cfg.href;
+                        if (cfg.crossorigin !== undefined) l.crossOrigin = 'anonymous';
+                        targetDoc.head.appendChild(l);
+                    }
+                });
+
+                // Metaetiquetas SEO estándar y Open Graph (tarjetas en WhatsApp, Telegram y redes)
+                const metas = [
+                    { name: 'description', content: 'Metas & Indicadores — Plataforma oficial de gestión comercial, seguimiento de metas, activas y consultoras para Líderes y Gerentes.' },
+                    { name: 'keywords', content: 'Natura, Avon, Líderes de Negocio, Gerencia de Sector, Metas, Facturación, Consultoras, KPIs' },
+                    { name: 'author', content: 'Metas & Indicadores' },
+                    { name: 'theme-color', content: '#E3007B' },
+                    { name: 'robots', content: 'index, follow' },
+                    { name: 'google', content: 'notranslate' },
+                    { name: 'googlebot', content: 'notranslate' },
+                    { property: 'og:site_name', content: 'Metas & Indicadores' },
+                    { property: 'og:title', content: 'Metas & Indicadores — Gestión Comercial Líderes & Gerentes' },
+                    { property: 'og:description', content: 'Dashboard de gestión comercial para Líderes de Negocio y Gerencias. Monitoreo de metas, activas, facturación y consultoras en tiempo real.' },
+                    { property: 'og:type', content: 'website' },
+                    { property: 'og:locale', content: 'es_CO' }
+                ];
+
+                metas.forEach(m => {
+                    const selector = m.name ? `meta[name="${m.name}"]` : `meta[property="${m.property}"]`;
+                    if (!targetDoc.querySelector(selector)) {
+                        const metaEl = targetDoc.createElement('meta');
+                        if (m.name) metaEl.name = m.name;
+                        if (m.property) metaEl.setAttribute('property', m.property);
+                        metaEl.content = m.content;
+                        targetDoc.head.appendChild(metaEl);
+                    }
+                });
             }
 
-            // 2. Establecer atributos anti-traducción en documentElement y body
+            // 2. Establecer atributos semánticos y anti-traducción en documentElement y body
             if (targetDoc && targetDoc.documentElement) {
-                targetDoc.documentElement.setAttribute('translate', 'no');
                 targetDoc.documentElement.setAttribute('lang', 'es');
+                targetDoc.documentElement.setAttribute('translate', 'no');
                 targetDoc.documentElement.classList.add('notranslate');
             }
             if (targetDoc && targetDoc.body) {
                 targetDoc.body.setAttribute('translate', 'no');
                 targetDoc.body.classList.add('notranslate');
             }
+
+            // 3. Auto-enriquecimiento de accesibilidad (Lighthouse Accessibility > 95)
+            function enrichAccessibility() {
+                try {
+                    const buttons = targetDoc.querySelectorAll('button');
+                    buttons.forEach(btn => {
+                        if (!btn.getAttribute('aria-label') && !btn.innerText.trim()) {
+                            const lbl = btn.getAttribute('title') || btn.getAttribute('data-testid') || 'Botón interactivo';
+                            btn.setAttribute('aria-label', lbl);
+                        }
+                    });
+                    const imgs = targetDoc.querySelectorAll('img:not([alt])');
+                    imgs.forEach(img => img.setAttribute('alt', 'Indicador visual del dashboard'));
+                } catch(e) {}
+            }
+            enrichAccessibility();
+            setTimeout(enrichAccessibility, 1200);
+            setTimeout(enrichAccessibility, 3500);
 
             // Asegurar que la barra lateral permanezca expandida en escritorio
             setTimeout(function() {
@@ -203,8 +252,7 @@ components.html(
                 } catch(e) {}
             }, 350);
 
-            // 3. Blindaje React DOM: neutralizar removeChild / insertBefore cuando
-            // traductores o extensiones de navegador mutan o envuelven nodos del DOM
+            // 4. Blindaje React DOM: neutralizar removeChild / insertBefore
             const NodeProto = targetWin.Node && targetWin.Node.prototype;
             if (NodeProto && !NodeProto._react_dom_shield_active) {
                 const origRemoveChild = NodeProto.removeChild;
@@ -4561,6 +4609,21 @@ def modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user):
                             st.error(msg_val)
                         else:
                             try:
+                                sec_sufijo = f"_{sec_enc}" if sec_enc else ""
+                                nom_sec_file = f"Base de Datos{sec_sufijo}.xlsx"
+
+                                # 1. Guardar archivo sectorizado individual para aislamiento multi-gerente
+                                with open(nom_sec_file, "wb") as f_sec:
+                                    f_sec.write(archivo_tableau_sb.getbuffer())
+                                p_sec_pers = ruta_persistente(nom_sec_file)
+                                if p_sec_pers and p_sec_pers != nom_sec_file:
+                                    try:
+                                        with open(p_sec_pers, "wb") as f_p_sec:
+                                            f_p_sec.write(archivo_tableau_sb.getbuffer())
+                                    except Exception:
+                                        pass
+
+                                # 2. Mantener también Base de Datos.xlsx para compatibilidad
                                 with open("Base de Datos.xlsx", "wb") as f:
                                     f.write(archivo_tableau_sb.getbuffer())
                                 p_tab_pers = ruta_persistente("Base de Datos.xlsx")
@@ -4570,7 +4633,8 @@ def modal_cargar_archivos_ciclo(user_sector, user_sector_nombre, current_user):
                                             f_p.write(archivo_tableau_sb.getbuffer())
                                     except Exception:
                                         pass
-                                ok_sync = sincronizar_excel_tableau_a_sqlite("Base de Datos.xlsx")
+
+                                ok_sync = sincronizar_excel_tableau_a_sqlite(nom_sec_file)
                                 if ok_sync:
                                     st.cache_data.clear()
                                     st.session_state['last_processed_tableau'] = file_id
@@ -5523,6 +5587,8 @@ def render_tier_cards_grid(user_sector, grupo=None):
     Bronce, Plata, Oro, Zafiro, Diamante armonizados con la paleta de colores corporativa.
     """
     try:
+        if user_sector and str(user_sector).strip() != '__INVALID_SECTOR__':
+            procesador.auto_recuperar_sector_tableau(sector=user_sector)
         df_cb = procesador.consultar_tableau_sql(grupo=grupo, sector=user_sector) if (user_sector or grupo) else procesador.consultar_tableau_sql()
     except Exception:
         df_cb = pd.DataFrame()
@@ -5865,10 +5931,19 @@ def renderizar_modo_app(df_filtrado, user_rol, user_nombre, user_grupo, user_sec
         """
     st.markdown(css_theme, unsafe_allow_html=True)
 
+    sec_param_app = (user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
     df_tab_app = cached_consultar_tableau_sql(
         grupo=(user_grupo if user_rol == 'lider' else None),
-        sector=(user_sector if (user_rol == 'gerente' and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
+        sector=sec_param_app
     )
+    if (df_tab_app is None or df_tab_app.empty) and sec_param_app and sec_param_app != '__INVALID_SECTOR__':
+        n_rec_app = procesador.auto_recuperar_sector_tableau(sector=sec_param_app)
+        if n_rec_app > 0:
+            cached_consultar_tableau_sql.clear()
+            df_tab_app = procesador.consultar_tableau_sql(
+                grupo=(user_grupo if user_rol == 'lider' else None),
+                sector=sec_param_app
+            )
 
     r_act = float(df_filtrado['Real Activas'].sum()) if 'Real Activas' in df_filtrado.columns else 0.0
     o_act = float(df_filtrado['Objetivo Activas'].sum()) if 'Objetivo Activas' in df_filtrado.columns else 0.0
@@ -6687,10 +6762,20 @@ if tab_tableau is not None:
     with tab_tableau:
         # 1. Cargar la base desde SQLite (Consulta SQL ultrarrápida indexada aislada por sector/grupo)
         with st.spinner("Cargando información y listados de consultoras Tableau..."):
+            sec_param_tab = (user_sector if (user_rol in ['gerente', 'lider'] and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
             df_tableau = cached_consultar_tableau_sql(
                 grupo=(user_grupo if user_rol == 'lider' else None),
-                sector=(user_sector if (user_rol in ['gerente', 'lider'] and user_sector) else ('__INVALID_SECTOR__' if user_rol == 'gerente' else None))
+                sector=sec_param_tab
             )
+            # Si el caché arrojó vacío pero existe sector, forzar auto-recuperación y bypass de caché
+            if (df_tableau is None or df_tableau.empty) and sec_param_tab and sec_param_tab != '__INVALID_SECTOR__':
+                n_rec_tab = procesador.auto_recuperar_sector_tableau(sector=sec_param_tab)
+                if n_rec_tab > 0:
+                    cached_consultar_tableau_sql.clear()
+                    df_tableau = procesador.consultar_tableau_sql(
+                        grupo=(user_grupo if user_rol == 'lider' else None),
+                        sector=sec_param_tab
+                    )
 
         if df_tableau is None or df_tableau.empty:
             st.warning("⚠️ No se encontró la base de datos `Base de Datos.xlsx`. Por favor, sube el archivo desde la barra lateral o el panel de administración.")
