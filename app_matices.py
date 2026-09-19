@@ -91,6 +91,17 @@ def render_vista_movil(current_user=None, mostrar_salir=False):
         current_user = refrescar_perfil_usuario_en_sesion(current_user)
         st.session_state['user'] = current_user
 
+        # Latido silencioso de Presencia en Vivo (Móvil)
+        now_ts_m = time.time()
+        last_ts_m = st.session_state.get('last_presence_pulse_mobile_ts', 0)
+        if now_ts_m - last_ts_m > 25.0:
+            procesador.actualizar_presencia_usuario(
+                user_info=current_user,
+                modulo_actual="📱 Vista Móvil",
+                dispositivo="📱 Celular / Móvil"
+            )
+            st.session_state['last_presence_pulse_mobile_ts'] = now_ts_m
+
     user_nombre = current_user.get('nombre', 'Líder')
     user_rol = current_user.get('rol', 'lider')
     user_grupo = str(current_user.get('codigo_grupo', '')).strip().split('.')[0] if current_user.get('codigo_grupo') else ""

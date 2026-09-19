@@ -7883,6 +7883,342 @@ def obtener_metricas_usabilidad(dias_atras=30):
         "sectores_alerta": sectores_alerta
     }
 
+def inicializar_tabla_sesiones(conn=None):
+    """Crea la tabla de sesiones_activas si no existe en la base SQLite."""
+    close_at_end = False
+    if conn is None:
+        conn = obtener_conexion_db(timeout=10.0)
+        close_at_end = True
+    try:
+        cursor = conn.cursor()
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS sesiones_activas (
+            username TEXT PRIMARY KEY,
+            nombre TEXT,
+            rol TEXT,
+            codigo_sector TEXT,
+            nombre_sector TEXT,
+            codigo_grupo TEXT,
+            dispositivo TEXT,
+            modulo_actual TEXT,
+            primera_conexion TEXT,
+            ultima_actividad TEXT,
+            estado TEXT
+        )
+        """)
+        conn.commit()
+    except Exception as e:
+        safe_print(f"Nota inicializar_tabla_sesiones: {e}")
+    finally:
+        if close_at_end and conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+def actualizar_presencia_usuario(user_info, modulo_actual="General", dispositivo="🖥️ PC / Escritorio"):
+    """
+    Actualiza el latido (heartbeat) de presencia en vivo de un usuario.
+    Registra en SQLite 'sesiones_activas' con timestamp actual.
+    """
+    if not user_info:
+        return False
+    try:
+        from datetime import datetime
+        now = datetime.now()
+        now_iso = now.isoformat()
+
+        username = ""
+        nombre = ""
+        rol = ""
+        cod_sec = ""
+        nom_sec = ""
+        cod_grp = ""
+
+        if isinstance(user_info, dict):
+            username = str(user_info.get("username") or "").strip()
+            nombre = str(user_info.get("nombre") or username).strip()
+            rol = str(user_info.get("rol") or "").strip()
+            cod_sec = str(user_info.get("codigo_sector") or "").strip()
+            nom_sec = str(user_info.get("nombre_sector") or "").strip()
+            cod_grp = str(user_info.get("codigo_grupo") or "").strip()
+        elif isinstance(user_info, str):
+            username = user_info.strip()
+            nombre = username
+
+        if not username:
+            return False
+
+        if not nom_sec and cod_sec:
+            nom_sec = f"Sector {cod_sec}"
+
+        conn = obtener_conexion_db(timeout=5.0)
+        try:
+            inicializar_tabla_sesiones(conn)
+            cursor = conn.cursor()
+            cursor.execute("""
+            INSERT INTO sesiones_activas (
+                username, nombre, rol, codigo_sector, nombre_sector, codigo_grupo,
+                dispositivo, modulo_actual, primera_conexion, ultima_actividad, estado
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'conectado')
+            ON CONFLICT(username) DO UPDATE SET
+                nombre = excluded.nombre,
+                rol = excluded.rol,
+                codigo_sector = excluded.codigo_sector,
+                nombre_sector = excluded.nombre_sector,
+                codigo_grupo = excluded.codigo_grupo,
+                dispositivo = excluded.dispositivo,
+                modulo_actual = excluded.modulo_actual,
+                ultima_actividad = excluded.ultima_actividad,
+                estado = 'conectado'
+            """, (
+                username, nombre, rol, cod_sec, nom_sec, cod_grp,
+                str(dispositivo), str(modulo_actual), now_iso, now_iso
+            ))
+            conn.commit()
+            return True
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+    except Exception as e:
+        safe_print(f"Error en actualizar_presencia_usuario: {e}")
+        return False
+
+def cerrar_presencia_usuario(username):
+    """Marca la sesión del usuario como desconectada."""
+    if not username:
+        return False
+    try:
+        from datetime import datetime
+        now_iso = datetime.now().isoformat()
+        conn = obtener_conexion_db(timeout=5.0)
+        try:
+            inicializar_tabla_sesiones(conn)
+            cursor = conn.cursor()
+            cursor.execute("""
+            UPDATE sesiones_activas
+            SET estado = 'desconectado', ultima_actividad = ?
+            WHERE username = ?
+            """, (now_iso, str(username).strip()))
+            conn.commit()
+            return True
+        finally:
+            if conn:
+                try:
+                    conn.close()
+                except Exception:
+                    pass
+    except Exception as e:
+        safe_print(f"Error en cerrar_presencia_usuario: {e}")
+        return False
+
+def obtener_usuarios_en_linea(minutos_limite=30):
+    """
+    Retorna la lista de usuarios con presencia activa y métricas en vivo.
+    - Menos de 5 minutos: 🔴 EN VIVO (ON AIR)
+    - Entre 5 y 20 minutos: 🟡 En Pausa
+    - Más de 20 minutos o desconectado: ⚪ Desconectado
+    """
+    try:
+        from datetime import datetime
+        now = datetime.now()
+        conn = obtener_conexion_db(timeout=5.0)
+        inicializar_tabla_sesiones(conn)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM sesiones_activas ORDER BY ultima_actividad DESC")
+        filas = cursor.fetchall()
+        conn.close()
+
+        total_en_vivo = 0
+        gerentes_en_vivo = 0
+        lideres_en_vivo = 0
+        total_en_pausa = 0
+
+        registros = []
+        for r in filas:
+            u_dict = dict(r)
+            ult_act_str = u_dict.get('ultima_actividad', '')
+            estado_raw = u_dict.get('estado', 'conectado')
+
+            diff_min = 999.0
+            diff_seg = 9999.0
+            if ult_act_str:
+                try:
+                    dt_ult = datetime.fromisoformat(ult_act_str)
+                    diff_seg = (now - dt_ult).total_seconds()
+                    diff_min = diff_seg / 60.0
+                except Exception:
+                    diff_seg = 9999.0
+                    diff_min = 999.0
+
+            # Determinación de estado semafórico
+            if estado_raw == 'desconectado' or diff_min > minutos_limite:
+                estado_lbl = "⚪ Desconectado"
+                badge_color = "#94a3b8"
+                es_activo = False
+            elif diff_min <= 5.0:
+                estado_lbl = "🔴 EN VIVO"
+                badge_color = "#ef4444"
+                es_activo = True
+                total_en_vivo += 1
+                if u_dict.get('rol') == 'gerente':
+                    gerentes_en_vivo += 1
+                elif u_dict.get('rol') == 'lider':
+                    lideres_en_vivo += 1
+            else:
+                estado_lbl = "🟡 En Pausa"
+                badge_color = "#f59e0b"
+                es_activo = True
+                total_en_pausa += 1
+
+            # Tiempo relativo legible
+            if diff_min < 1.0:
+                t_rel = f"Hace {max(1, int(diff_seg))} s"
+            elif diff_min < 60.0:
+                t_rel = f"Hace {int(diff_min)} min"
+            else:
+                t_rel = f"Hace {int(diff_min/60.0)} h"
+
+            # Formateo de sector / grupo
+            rol_u = str(u_dict.get('rol') or 'consultora').capitalize()
+            if u_dict.get('rol') == 'gerente':
+                ambito_u = f"{u_dict.get('nombre_sector', '')} (Cód: {u_dict.get('codigo_sector', '')})"
+            elif u_dict.get('rol') == 'lider':
+                ambito_u = f"Grupo {u_dict.get('codigo_grupo', '')} • {u_dict.get('nombre_sector', '')}"
+            else:
+                ambito_u = "Administración Global"
+
+            # Formateo de módulo
+            mod_raw = u_dict.get('modulo_actual', 'General')
+            mod_map = {
+                'tab_tableau': '📊 Informes',
+                'tab_geral': '💰 Crédito & Cobranza',
+                'tab_resumen': '⚡ KPIs',
+                'tab_ganancia': '🧮 Simuladores',
+                'tab_diagnostico': '👥 Mis Líderes',
+                'tab_metas': '🎯 Metas CE+',
+                'tab_detalle': '📑 Generador',
+                'tab_lideres_gerente': '📇 Directorio Líderes',
+                'tab_usuarios': '🔑 Gestión Usuarios'
+            }
+            mod_display = mod_map.get(mod_raw, mod_raw)
+
+            registros.append({
+                "Estado": estado_lbl,
+                "Usuario": u_dict.get('username', ''),
+                "Nombre": u_dict.get('nombre', ''),
+                "Rol": rol_u,
+                "Sector / Grupo": ambito_u,
+                "Módulo Actual": mod_display,
+                "Dispositivo": u_dict.get('dispositivo', '🖥️ PC'),
+                "Última Señal": t_rel,
+                "_es_activo": es_activo,
+                "_diff_min": diff_min
+            })
+
+        df_res = pd.DataFrame(registros)
+        return {
+            "total_en_vivo": total_en_vivo,
+            "gerentes_en_vivo": gerentes_en_vivo,
+            "lideres_en_vivo": lideres_en_vivo,
+            "total_en_pausa": total_en_pausa,
+            "df_usuarios": df_res
+        }
+    except Exception as e:
+        safe_print(f"Error en obtener_usuarios_en_linea: {e}")
+        return {
+            "total_en_vivo": 0,
+            "gerentes_en_vivo": 0,
+            "lideres_en_vivo": 0,
+            "total_en_pausa": 0,
+            "df_usuarios": pd.DataFrame()
+        }
+
+def obtener_trafico_por_hora_del_dia(dias_atras=30):
+    """
+    Analiza los eventos de auditoría y calcula el volumen de accesos y actividad por hora del día (00:00 a 23:00).
+    Identifica la hora pico de conexiones y la distribución por franjas horarias.
+    """
+    try:
+        from datetime import datetime, timedelta
+        conn = obtener_conexion_db(timeout=10.0)
+        cursor = conn.cursor()
+        
+        # Consultar eventos agrupados por hora del día
+        query = """
+        SELECT 
+            CAST(strftime('%H', fecha_hora) AS INTEGER) as hora_num,
+            rol,
+            COUNT(*) as total_eventos,
+            COUNT(DISTINCT username) as usuarios_unicos
+        FROM auditoria_eventos
+        WHERE fecha >= date('now', ?)
+        GROUP BY hora_num, rol
+        ORDER BY hora_num ASC
+        """
+        cursor.execute(query, (f"-{dias_atras} days",))
+        filas = cursor.fetchall()
+        conn.close()
+
+        # Construir matriz de las 24 horas (0 a 23)
+        horas_data = {h: {"hora_lbl": f"{h:02d}:00", "gerentes": 0, "lideres": 0, "otros": 0, "total": 0} for h in range(24)}
+
+        for f in filas:
+            h = f["hora_num"]
+            r = str(f["rol"] or "").lower()
+            tot = int(f["total_eventos"] or 0)
+            if h in horas_data:
+                horas_data[h]["total"] += tot
+                if r == "gerente":
+                    horas_data[h]["gerentes"] += tot
+                elif r == "lider":
+                    horas_data[h]["lideres"] += tot
+                else:
+                    horas_data[h]["otros"] += tot
+
+        df_horas = pd.DataFrame(list(horas_data.values()))
+
+        # Determinar hora pico
+        if not df_horas.empty and df_horas["total"].sum() > 0:
+            idx_pico = df_horas["total"].idxmax()
+            h_pico_val = df_horas.loc[idx_pico, "hora_lbl"]
+            tot_pico = df_horas.loc[idx_pico, "total"]
+            hora_pico_lbl = f"{h_pico_val} a {int(h_pico_val.split(':')[0])+1:02d}:00 ({tot_pico} interacciones)"
+        else:
+            hora_pico_lbl = "Sin datos suficientes"
+
+        # Franjas horarias
+        madrugada = df_horas[(df_horas.index >= 0) & (df_horas.index <= 5)]["total"].sum()
+        manana = df_horas[(df_horas.index >= 6) & (df_horas.index <= 11)]["total"].sum()
+        tarde = df_horas[(df_horas.index >= 12) & (df_horas.index <= 17)]["total"].sum()
+        noche = df_horas[(df_horas.index >= 18) & (df_horas.index <= 23)]["total"].sum()
+        gran_total = df_horas["total"].sum() or 1
+
+        franjas = {
+            "Madrugada (12am - 6am)": f"{madrugada} ({madrugada/gran_total*100:.1f}%)",
+            "Mañana (6am - 12pm)": f"{manana} ({manana/gran_total*100:.1f}%)",
+            "Tarde (12pm - 6pm)": f"{tarde} ({tarde/gran_total*100:.1f}%)",
+            "Noche (6pm - 12am)": f"{noche} ({noche/gran_total*100:.1f}%)"
+        }
+
+        return {
+            "df_horas": df_horas,
+            "hora_pico": hora_pico_lbl,
+            "franjas": franjas,
+            "gran_total": int(gran_total)
+        }
+    except Exception as e:
+        safe_print(f"Error en obtener_trafico_por_hora_del_dia: {e}")
+        return {
+            "df_horas": pd.DataFrame(),
+            "hora_pico": "Sin datos",
+            "franjas": {},
+            "gran_total": 0
+        }
+
 def archivar_cierre_ciclo_actual(cod_sector=None, ciclo_origen=None, conn=None):
     """
     Resguarda el estado final de las consultoras (Pts Natura, Pts AVON y Sit. Comercial)

@@ -122,6 +122,8 @@ from procesador import (
     registrar_evento_auditoria,
     consultar_auditoria_df,
     obtener_metricas_usabilidad,
+    obtener_usuarios_en_linea,
+    obtener_trafico_por_hora_del_dia,
     contar_registros_sector_geral,
     eliminar_cartera_geral_sector,
     contar_metas_sector_arte,
@@ -4032,6 +4034,20 @@ if current_user and current_user.get('username'):
     current_user = refrescar_perfil_usuario_en_sesion(current_user)
     st.session_state['user'] = current_user
 
+    # Latido silencioso de Presencia en Vivo (Heartbeat ON AIR)
+    now_ts_pres = time.time()
+    last_ts_pres = st.session_state.get('last_presence_pulse_ts', 0)
+    cur_mod_pres = st.session_state.get('modulo_activo', 'tab_tableau')
+    last_mod_pres = st.session_state.get('last_presence_mod', '')
+    if (now_ts_pres - last_ts_pres > 25.0) or (cur_mod_pres != last_mod_pres):
+        procesador.actualizar_presencia_usuario(
+            user_info=current_user,
+            modulo_actual=cur_mod_pres,
+            dispositivo="🖥️ PC / Escritorio"
+        )
+        st.session_state['last_presence_pulse_ts'] = now_ts_pres
+        st.session_state['last_presence_mod'] = cur_mod_pres
+
 user_nombre = current_user.get('nombre', 'Usuario')
 user_rol = current_user.get('rol', 'asesor')
 user_grupo = str(current_user.get('codigo_grupo', '')).strip() if current_user.get('codigo_grupo') else ""
@@ -5908,13 +5924,59 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
 
     nodes_markup = "".join(nodes_svg)
 
-    # Pin flotante
-    pin_label = f"Día {dia_act}" if dia_act <= 21 else f"Día {dia_act} · Rescate"
-    pin_width = 62 if dia_act <= 21 else 95
+    # 5. Configuración Dinámica de la Consultora / Muñequito según la etapa
+    if dia_act <= 7:
+        etapa_modo = "camina"
+        anim_dur = "1.35s"
+        anim_dur_half = "0.675s"
+        leg_angle = 22
+        arm_angle = 18
+        body_tilt = 4
+        etapa_lbl = "Paso Firme"
+    elif dia_act <= 14:
+        etapa_modo = "trota"
+        anim_dur = "0.85s"
+        anim_dur_half = "0.425s"
+        leg_angle = 36
+        arm_angle = 32
+        body_tilt = 9
+        etapa_lbl = "En Trote"
+    elif dia_act <= 21:
+        etapa_modo = "corre"
+        anim_dur = "0.52s"
+        anim_dur_half = "0.26s"
+        leg_angle = 50
+        arm_angle = 45
+        body_tilt = 16
+        etapa_lbl = "A Toda Marcha"
+    else:
+        etapa_modo = "rescate"
+        anim_dur = "0.44s"
+        anim_dur_half = "0.22s"
+        leg_angle = 54
+        arm_angle = 50
+        body_tilt = 18
+        etapa_lbl = "Sprint Rescate"
+
+    pin_label = f"Día {dia_act} · {etapa_lbl}"
+    pin_width = 98 if len(pin_label) <= 17 else 108
     pin_half_w = pin_width / 2.0
 
+    speed_lines_svg = ""
+    if dia_act > 14:
+        speed_lines_svg = (
+            f'<g opacity="0.65">'
+            f'<line x1="-15" y1="-14" x2="-8" y2="-14" stroke="{p_color}" stroke-width="1.6" stroke-linecap="round">'
+            f'<animate attributeName="x1" values="-10;-18;-10" dur="{anim_dur}" repeatCount="indefinite"/>'
+            f'</line>'
+            f'<line x1="-13" y1="-9" x2="-6" y2="-9" stroke="{p_color}" stroke-width="1.2" stroke-linecap="round">'
+            f'<animate attributeName="x1" values="-8;-15;-8" dur="{anim_dur_half}" repeatCount="indefinite"/>'
+            f'</line>'
+            f'</g>'
+        )
+
     svg_markup = (
-        f'<svg viewBox="0 0 1000 106" width="100%" height="102" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: 102px; min-height: 95px; display: block; overflow: visible;">'
+        f'<svg viewBox="0 0 1000 106" width="100%" height="auto" preserveAspectRatio="xMidYMid meet" style="width: 100%; height: auto; max-height: 120px; display: block; overflow: visible;">'
         f'<defs>'
         f'<linearGradient id="waveHeatmapGrad" x1="0%" y1="0%" x2="100%" y2="0%">'
         f'<stop offset="0%" stop-color="#ea580c"/>'
@@ -5931,15 +5993,44 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
         f'<path d="{d_fg}" fill="none" stroke="url(#waveHeatmapGrad)" stroke-width="5.5" stroke-linecap="round" />'
         f'{nodes_markup}'
         f'<g transform="translate({x_hoy:.1f}, {y_hoy:.1f})">'
-        f'<circle cx="0" cy="0" r="6" fill="{p_color}" opacity="0.4">'
-        f'<animate attributeName="r" values="6;18" dur="2.2s" repeatCount="indefinite"/>'
-        f'<animate attributeName="opacity" values="0.8;0" dur="2.2s" repeatCount="indefinite"/>'
-        f'</circle>'
-        f'<circle cx="0" cy="0" r="5.5" fill="{p_color}" stroke="#ffffff" stroke-width="2.5" />'
-        f'<g transform="translate(0, -24)" filter="url(#pinShadow)">'
-        f'<rect x="{-pin_half_w}" y="-16" width="{pin_width}" height="18" rx="9" fill="{p_color}" />'
-        f'<text x="0" y="-3" text-anchor="middle" fill="#ffffff" font-family="Inter, -apple-system, sans-serif" font-size="10" font-weight="800">{pin_label}</text>'
-        f'<polygon points="-4,2 4,2 0,6" fill="{p_color}" />'
+        f'<ellipse cx="1" cy="1" rx="8" ry="2.2" fill="{p_color}" opacity="0.25">'
+        f'<animate attributeName="rx" values="6.5;9;6.5" dur="{anim_dur_half}" repeatCount="indefinite"/>'
+        f'</ellipse>'
+        f'<circle cx="0" cy="0" r="3.5" fill="#ffffff" stroke="{p_color}" stroke-width="2" />'
+        f'{speed_lines_svg}'
+        f'<g transform="translate(0, -32)" filter="url(#pinShadow)">'
+        f'<rect x="{-pin_half_w}" y="-15" width="{pin_width}" height="17" rx="8.5" fill="{p_color}" stroke="#ffffff" stroke-width="1.2" />'
+        f'<text x="0" y="-3" text-anchor="middle" fill="#ffffff" font-family="Inter, -apple-system, sans-serif" font-size="9" font-weight="800" letter-spacing="0.2px">{pin_label}</text>'
+        f'<polygon points="-3,2 3,2 0,5.5" fill="{p_color}" />'
+        f'</g>'
+        f'<g transform="rotate({body_tilt} 0 0)">'
+        f'<g transform="translate(0, -10)">'
+        f'<animateTransform attributeName="transform" type="rotate" values="{-leg_angle} 0 0; {leg_angle} 0 0; {-leg_angle} 0 0" dur="{anim_dur}" repeatCount="indefinite" />'
+        f'<path d="M0 0 L 1.8 5 L 1.0 10 L 3.6 10" fill="none" stroke="#334155" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />'
+        f'</g>'
+        f'<g transform="translate(0, -10)">'
+        f'<animateTransform attributeName="transform" type="rotate" values="{leg_angle} 0 0; {-leg_angle} 0 0; {leg_angle} 0 0" dur="{anim_dur}" repeatCount="indefinite" />'
+        f'<path d="M0 0 L 2.4 5 L 1.6 10 L 4.6 10" fill="none" stroke="{p_color}" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />'
+        f'</g>'
+        f'<g>'
+        f'<animateTransform attributeName="transform" type="translate" values="0,0; 0,-2.2; 0,0" dur="{anim_dur_half}" repeatCount="indefinite" />'
+        f'<g transform="translate(0, -17)">'
+        f'<animateTransform attributeName="transform" type="rotate" values="{arm_angle} 0 0; {-arm_angle} 0 0; {arm_angle} 0 0" dur="{anim_dur}" repeatCount="indefinite" />'
+        f'<path d="M0 0 L -2.2 3.5 L -4.5 4.5" fill="none" stroke="#64748b" stroke-width="1.8" stroke-linecap="round" />'
+        f'</g>'
+        f'<path d="M-1.8 -18 L 2.4 -18 L 1.8 -10 L -1.2 -10 Z" fill="{p_color}" />'
+        f'<line x1="-1.8" y1="-18" x2="2.2" y2="-12" stroke="#ffffff" stroke-width="1.1" opacity="0.85" />'
+        f'<rect x="1.5" y="-13.5" width="3.5" height="4.2" rx="1" fill="#f59e0b" stroke="#ffffff" stroke-width="0.6" />'
+        f'<circle cx="1" cy="-22" r="3.4" fill="#fed7aa" stroke="{p_color}" stroke-width="1" />'
+        f'<circle cx="2.5" cy="-22" r="0.6" fill="#1e293b" />'
+        f'<path d="M-0.5 -23 C-3.5 -24 -5.5 -22 -6.5 -20" fill="none" stroke="#78350f" stroke-width="2" stroke-linecap="round">'
+        f'<animateTransform attributeName="transform" type="rotate" values="-6 0 -22; 7 0 -22; -6 0 -22" dur="{anim_dur_half}" repeatCount="indefinite"/>'
+        f'</path>'
+        f'<g transform="translate(0, -17)">'
+        f'<animateTransform attributeName="transform" type="rotate" values="{-arm_angle} 0 0; {arm_angle} 0 0; {-arm_angle} 0 0" dur="{anim_dur}" repeatCount="indefinite" />'
+        f'<path d="M0 0 L 2.5 3.5 L 5 2.5" fill="none" stroke="{p_color}" stroke-width="2.2" stroke-linecap="round" />'
+        f'</g>'
+        f'</g>'
         f'</g>'
         f'</g>'
         f'</svg>'
@@ -6091,41 +6182,50 @@ else:
     primer_nombre = user_nombre.split()[0] if user_nombre else "Usuario"
     badge_rol_lbl = f"Grupo {user_grupo}" if (user_rol == 'lider' and user_grupo) else ("Gerencia" if user_rol == 'gerente' else "Consulta")
 
-    c_head_izq, c_head_der = st.columns([0.38, 0.62], gap="medium")
-    with c_head_izq:
-        st.markdown(f"""
-        <div class="brand-top-header" style="margin-bottom: 8px;">
-            <div class="brand-greeting">¡Hola, {primer_nombre}! 👋</div>
-            <div class="brand-subgreeting"><b>{user_sector_nombre}</b> • <span class="badge-ciclo">{badge_rol_lbl}</span> • <span class="badge-ciclo">Ciclo Activo</span></div>
+    # Filtro Global por Líder / Grupo en el Panel Lateral (Sidebar) (Habilitado para Gerencia y SuperAdmin)
+    if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
+        col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
+        if col_grp_ref and col_grp_ref in df_filtrado.columns:
+            grupos_unicos = sorted([str(g).strip() for g in df_filtrado[col_grp_ref].dropna().unique()])
+            mapa_lideres_sb = obtener_mapa_lideres()
+
+            def format_lider_sb(g_val):
+                if g_val == "Todas las Líderes":
+                    return "🌟 Todas las Líderes (Consolidado)"
+                nom = mapa_lideres_sb.get(str(g_val).strip())
+                if nom:
+                    return f"👩‍💼 Gr. {g_val} — {nom}"
+                return f"👥 Grupo {g_val}"
+
+            st.sidebar.markdown("""
+            <div style="font-size: 0.74rem; font-weight: 800; color: #475569; text-transform: uppercase; letter-spacing: 0.06em; margin-top: 10px; margin-bottom: 4px; padding-left: 2px;">
+                👤 Filtrar por Líder / Grupo
+            </div>
+            """, unsafe_allow_html=True)
+
+            lider_seleccionada_sb = st.sidebar.selectbox(
+                "👤 Filtrar por Líder / Grupo:",
+                options=["Todas las Líderes"] + grupos_unicos,
+                format_func=format_lider_sb,
+                index=0,
+                key="filtro_lider_canvas_top",
+                label_visibility="collapsed"
+            )
+            if lider_seleccionada_sb != "Todas las Líderes":
+                df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
+
+            st.sidebar.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
+            st.sidebar.markdown("<div style='margin-bottom: 8px;'></div>", unsafe_allow_html=True)
+
+    # Header de saludo compacto y limpio en el lienzo central
+    st.markdown(f"""
+    <div class="brand-top-header" style="margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+        <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+            <div class="brand-greeting" style="font-size: 1.50rem; font-weight: 800; color: #0f172a; margin: 0; line-height: 1.2;">¡Hola, {primer_nombre}! 👋</div>
+            <div class="brand-subgreeting" style="font-size: 0.88rem; color: #64748b; margin: 0;"><b>{user_sector_nombre}</b> • <span class="badge-ciclo">{badge_rol_lbl}</span> • <span class="badge-ciclo">Ciclo Activo</span></div>
         </div>
-        """, unsafe_allow_html=True)
-
-        # Filtro Global por Líder / Grupo en el Canvas (Habilitado para Gerencia y SuperAdmin)
-        if user_rol in ['gerente', 'superadmin'] and not df_filtrado.empty:
-            col_grp_ref = 'Código de grupo' if 'Código de grupo' in df_filtrado.columns else ''
-            if col_grp_ref and col_grp_ref in df_filtrado.columns:
-                grupos_unicos = sorted([str(g).strip() for g in df_filtrado[col_grp_ref].dropna().unique()])
-                mapa_lideres_sb = obtener_mapa_lideres()
-
-                def format_lider_sb(g_val):
-                    if g_val == "Todas las Líderes":
-                        return "🌟 Todas las Líderes (Consolidado)"
-                    nom = mapa_lideres_sb.get(str(g_val).strip())
-                    if nom:
-                        return f"👩‍💼 Gr. {g_val} — {nom}"
-                    return f"👥 Grupo {g_val}"
-
-                lider_seleccionada_sb = st.selectbox(
-                    "👤 Filtrar por Líder / Grupo:",
-                    options=["Todas las Líderes"] + grupos_unicos,
-                    format_func=format_lider_sb,
-                    index=0,
-                    key="filtro_lider_canvas_top"
-                )
-                if lider_seleccionada_sb != "Todas las Líderes":
-                    df_filtrado = df_filtrado[df_filtrado[col_grp_ref].astype(str).str.strip() == str(lider_seleccionada_sb).strip()]
-
-                st.caption(f"📊 Mostrando **{len(df_filtrado)}** de **{len(df)}** registros")
+    </div>
+    """, unsafe_allow_html=True)
 
     # Asegurar conversión numérica limpia en df_filtrado para evitar sumar strings
     columnas_numericas_clave = [
@@ -6138,7 +6238,9 @@ else:
         if col in df_filtrado.columns:
             df_filtrado[col] = df_filtrado[col].apply(lambda v: limpiar_numero(v, 0.0))
 
-    with c_head_der:
+    # Monitor Ondulado Panorámico a Ancho Completo (100% Canvas) - Exclusivo para la pestaña de Informes
+    modulo_activo_header = st.session_state.get('modulo_activo', 'tab_tableau')
+    if modulo_activo_header == 'tab_tableau':
         renderizar_monitor_ciclo_ondulado(
             df_filtrado=df_filtrado,
             user_rol=user_rol,
@@ -7046,6 +7148,8 @@ else:
 
     # Posición 2: Salir / Cerrar Sesión
     if st.sidebar.button("🚪 Cerrar Sesión", key="sb_btn_logout", use_container_width=True, help="Cerrar sesión de forma segura"):
+        if current_user and current_user.get('username'):
+            procesador.cerrar_presencia_usuario(current_user.get('username'))
         st.session_state['user'] = None
         st.query_params.clear()
         st.rerun()
@@ -12666,12 +12770,280 @@ if tab_usuarios is not None and user_rol == 'superadmin':
         st.subheader("🔑 Panel Corporativo de Administración Global (Super Admin)")
         st.markdown("Gestión centralizada de suscripciones, directorio de cuentas, analítica de usabilidad, permisos de pestañas y mantenimiento del sistema.")
 
-        sub_tab_sub, sub_tab_users, sub_tab_audit, sub_tab_perm = st.tabs([
+        sub_tab_onair, sub_tab_sub, sub_tab_users, sub_tab_audit, sub_tab_perm = st.tabs([
+            "🔴 EN VIVO (ON AIR)",
             "💳 Suscripciones & Sectores",
             "👥 Cuentas & Contraseñas",
             "📊 Telemetría & Usabilidad",
             "🎛️ Permisos & Mantenimiento"
         ])
+
+        with sub_tab_onair:
+            # Header Corporativo ON AIR con animación de pulso
+            st.markdown("""
+            <style>
+            @keyframes pulse-red-radar {
+                0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); transform: scale(1); }
+                50% { box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); transform: scale(1.06); }
+                100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); transform: scale(1); }
+            }
+            .onair-badge-head {
+                display: inline-flex;
+                align-items: center;
+                gap: 9px;
+                background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%);
+                color: #ffffff;
+                padding: 7px 16px;
+                border-radius: 30px;
+                font-weight: 800;
+                font-size: 0.88rem;
+                letter-spacing: 0.05em;
+                border: 1px solid rgba(239, 68, 68, 0.45);
+                box-shadow: 0 4px 14px rgba(239, 68, 68, 0.2);
+            }
+            .onair-dot-live {
+                width: 11px;
+                height: 11px;
+                background-color: #ef4444;
+                border-radius: 50%;
+                animation: pulse-red-radar 1.8s infinite;
+            }
+            .stat-card-radar {
+                background: #ffffff;
+                border-radius: 14px;
+                padding: 16px 20px;
+                border: 1px solid #e2e8f0;
+                box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }
+            .stat-card-radar:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+            }
+            </style>
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom: 20px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); padding: 18px 24px; border-radius: 16px; border: 1px solid #e2e8f0; box-shadow: 0 2px 8px rgba(0,0,0,0.02);">
+                <div style="display:flex; align-items:center; gap: 14px;">
+                    <span class="onair-badge-head"><span class="onair-dot-live"></span> 🔴 ON AIR EN VIVO</span>
+                    <div>
+                        <h3 style="margin:0; font-size:1.25rem; font-weight:800; color:#0f172a;">Radar de Presencia & Tráfico por Hora</h3>
+                        <p style="margin:3px 0 0 0; font-size:0.86rem; color:#64748b;">Monitoreo en vivo de Gerentes y Líderes activas en la herramienta y distribución de conexiones en 24 horas.</p>
+                    </div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Obtener datos de sesiones en vivo
+            datos_radar = obtener_usuarios_en_linea(minutos_limite=30)
+            tot_vivo = datos_radar.get("total_en_vivo", 0)
+            ger_vivo = datos_radar.get("gerentes_en_vivo", 0)
+            lid_vivo = datos_radar.get("lideres_en_vivo", 0)
+            tot_pausa = datos_radar.get("total_en_pausa", 0)
+            df_usuarios_radar = datos_radar.get("df_usuarios", pd.DataFrame())
+
+            # 4 KPIs de impacto visual
+            k1, k2, k3, k4 = st.columns(4)
+            with k1:
+                st.markdown(f"""
+                <div class="stat-card-radar" style="border-top: 4px solid #ef4444;">
+                    <div style="font-size:0.8rem; font-weight:700; color:#ef4444; text-transform:uppercase; letter-spacing:0.04em;">🔴 En Vivo Ahora</div>
+                    <div style="font-size:2.2rem; font-weight:900; color:#0f172a; line-height:1.2; margin:4px 0;">{tot_vivo} <span style="font-size:0.9rem; font-weight:500; color:#64748b;">usuarios</span></div>
+                    <div style="font-size:0.75rem; color:#64748b;">Actividad &le; 5 minutos</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with k2:
+                st.markdown(f"""
+                <div class="stat-card-radar" style="border-top: 4px solid #f97316;">
+                    <div style="font-size:0.8rem; font-weight:700; color:#f97316; text-transform:uppercase; letter-spacing:0.04em;">🏢 Gerentes en Línea</div>
+                    <div style="font-size:2.2rem; font-weight:900; color:#0f172a; line-height:1.2; margin:4px 0;">{ger_vivo} <span style="font-size:0.9rem; font-weight:500; color:#64748b;">en vivo</span></div>
+                    <div style="font-size:0.75rem; color:#64748b;">Gerencias de Sector activas</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with k3:
+                st.markdown(f"""
+                <div class="stat-card-radar" style="border-top: 4px solid #8b5cf6;">
+                    <div style="font-size:0.8rem; font-weight:700; color:#8b5cf6; text-transform:uppercase; letter-spacing:0.04em;">👥 Líderes en Línea</div>
+                    <div style="font-size:2.2rem; font-weight:900; color:#0f172a; line-height:1.2; margin:4px 0;">{lid_vivo} <span style="font-size:0.9rem; font-weight:500; color:#64748b;">en vivo</span></div>
+                    <div style="font-size:0.75rem; color:#64748b;">Líderes de Grupo operando</div>
+                </div>
+                """, unsafe_allow_html=True)
+            with k4:
+                st.markdown(f"""
+                <div class="stat-card-radar" style="border-top: 4px solid #f59e0b;">
+                    <div style="font-size:0.8rem; font-weight:700; color:#f59e0b; text-transform:uppercase; letter-spacing:0.04em;">🟡 En Pausa</div>
+                    <div style="font-size:2.2rem; font-weight:900; color:#0f172a; line-height:1.2; margin:4px 0;">{tot_pausa} <span style="font-size:0.9rem; font-weight:500; color:#64748b;">en espera</span></div>
+                    <div style="font-size:0.75rem; color:#64748b;">Inactividad entre 5 - 20 min</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+            # Barra de control y filtros
+            col_radar_ctrl1, col_radar_ctrl2 = st.columns([3, 1])
+            with col_radar_ctrl1:
+                filtro_radar = st.radio(
+                    "Filtrar Radar de Presencia:",
+                    options=["🌟 Todos", "🔴 Solo en Vivo", "🏢 Solo Gerentes", "👥 Solo Líderes", "🟡 En Pausa"],
+                    horizontal=True,
+                    key="radio_filtro_onair"
+                )
+            with col_radar_ctrl2:
+                st.markdown("<div style='height:14px;'></div>", unsafe_allow_html=True)
+                if st.button("🔄 Refrescar Radar Ahora", use_container_width=True, key="btn_refresh_radar"):
+                    st.rerun()
+
+            # Filtrar dataframe según selección
+            if not df_usuarios_radar.empty:
+                df_filtrado_radar = df_usuarios_radar.copy()
+                if filtro_radar == "🔴 Solo en Vivo":
+                    df_filtrado_radar = df_filtrado_radar[df_filtrado_radar["Estado"].str.contains("EN VIVO", na=False)]
+                elif filtro_radar == "🏢 Solo Gerentes":
+                    df_filtrado_radar = df_filtrado_radar[df_filtrado_radar["Rol"].str.contains("Gerente", case=False, na=False)]
+                elif filtro_radar == "👥 Solo Líderes":
+                    df_filtrado_radar = df_filtrado_radar[df_filtrado_radar["Rol"].str.contains("Lider|Líder", case=False, na=False)]
+                elif filtro_radar == "🟡 En Pausa":
+                    df_filtrado_radar = df_filtrado_radar[df_filtrado_radar["Estado"].str.contains("Pausa", na=False)]
+
+                cols_display_radar = ["Estado", "Nombre", "Rol", "Sector / Grupo", "Módulo Actual", "Dispositivo", "Última Señal"]
+                cols_presentes = [c for c in cols_display_radar if c in df_filtrado_radar.columns]
+
+                if not df_filtrado_radar.empty:
+                    st.dataframe(
+                        df_filtrado_radar[cols_presentes],
+                        use_container_width=True,
+                        hide_index=True
+                    )
+                else:
+                    st.info(f"ℹ️ No hay usuarios en la categoría '{filtro_radar}' en este momento.")
+            else:
+                st.info("ℹ️ No hay registros de presencia recientes en este momento.")
+
+            st.markdown("---")
+
+            # =========================================================================
+            # SECCIÓN 2: DISTRIBUCIÓN DE CONEXIONES POR HORA DEL DÍA (CURVA DE 24 HORAS)
+            # =========================================================================
+            st.markdown("""
+            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; margin-bottom: 12px;">
+                <div>
+                    <h4 style="margin:0; font-size:1.15rem; font-weight:800; color:#0f172a;">📊 Distribución de Tráfico & Conexiones por Hora del Día (24 Horas)</h4>
+                    <p style="margin:2px 0 0 0; font-size:0.85rem; color:#64748b;">Descubre a qué horas del día se conectan más tus Gerentes y Líderes para optimizar campañas, despachos y cierres.</p>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            col_tf1, col_tf2 = st.columns([1.2, 2.8])
+            with col_tf1:
+                periodo_trafico = st.selectbox(
+                    "📅 Periodo de Análisis:",
+                    options=[7, 15, 30, 60],
+                    index=2,
+                    format_func=lambda d: f"Últimos {d} días",
+                    key="sel_periodo_trafico"
+                )
+
+            datos_trafico = obtener_trafico_por_hora_del_dia(dias_atras=periodo_trafico)
+            df_horas = datos_trafico.get("df_horas", pd.DataFrame())
+            h_pico = datos_trafico.get("hora_pico", "Sin datos")
+            franjas = datos_trafico.get("franjas", {})
+
+            # Banner de Franja Pico
+            st.markdown(f"""
+            <div style="background: linear-gradient(135deg, rgba(249, 115, 22, 0.09) 0%, rgba(234, 88, 12, 0.04) 100%); border: 1px solid rgba(249, 115, 22, 0.3); border-radius: 12px; padding: 14px 20px; margin-bottom: 16px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+                <div style="display:flex; align-items:center; gap:14px;">
+                    <span style="font-size:1.8rem;">🔥</span>
+                    <div>
+                        <div style="font-size:0.8rem; font-weight:700; color:#ea580c; text-transform:uppercase; letter-spacing:0.04em;">Hora Pico de Conexión en la Plataforma</div>
+                        <div style="font-size:1.15rem; font-weight:900; color:#0f172a;">{h_pico}</div>
+                    </div>
+                </div>
+                <div style="font-size:0.82rem; color:#64748b; text-align:right;">
+                    Basado en auditoría de actividad de los últimos <b>{periodo_trafico} días</b>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+            # Tarjetas de las 4 franjas horarias
+            f_col1, f_col2, f_col3, f_col4 = st.columns(4)
+            franjas_meta = [
+                ("🌅 Madrugada", "Madrugada (12am - 6am)", f_col1, "#64748b"),
+                ("☀️ Mañana", "Mañana (6am - 12pm)", f_col2, "#0284c7"),
+                ("🌤️ Tarde", "Tarde (12pm - 6pm)", f_col3, "#ea580c"),
+                ("🌙 Noche", "Noche (6pm - 12am)", f_col4, "#7c3aed")
+            ]
+            for icon_title, k_name, col_f, b_color in franjas_meta:
+                val_f = franjas.get(k_name, "0 (0%)")
+                with col_f:
+                    st.markdown(f"""
+                    <div style="background:#ffffff; border:1px solid #e2e8f0; border-top: 3px solid {b_color}; border-radius:10px; padding:12px 14px; text-align:center; box-shadow: 0 2px 6px rgba(0,0,0,0.02);">
+                        <div style="font-size:0.78rem; font-weight:700; color:{b_color};">{icon_title}</div>
+                        <div style="font-size:1.15rem; font-weight:800; color:#0f172a; margin:4px 0;">{val_f}</div>
+                        <div style="font-size:0.72rem; color:#94a3b8;">{k_name.split('(')[1].replace(')', '')}</div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            st.markdown("<div style='height:16px;'></div>", unsafe_allow_html=True)
+
+            # Gráfico interactivo de barras 24 Horas
+            if not df_horas.empty and df_horas["total"].sum() > 0:
+                fig_horas = go.Figure()
+
+                fig_horas.add_trace(go.Bar(
+                    x=df_horas["hora_lbl"],
+                    y=df_horas["gerentes"],
+                    name="Gerentes",
+                    marker_color="#f97316",
+                    hovertemplate="<b>%{x}</b><br>🏢 Gerentes: %{y} accesos<extra></extra>"
+                ))
+
+                fig_horas.add_trace(go.Bar(
+                    x=df_horas["hora_lbl"],
+                    y=df_horas["lideres"],
+                    name="Líderes",
+                    marker_color="#8b5cf6",
+                    hovertemplate="<b>%{x}</b><br>👥 Líderes: %{y} accesos<extra></extra>"
+                ))
+
+                fig_horas.add_trace(go.Bar(
+                    x=df_horas["hora_lbl"],
+                    y=df_horas["otros"],
+                    name="SuperAdmin / Otros",
+                    marker_color="#94a3b8",
+                    hovertemplate="<b>%{x}</b><br>⚙️ Otros: %{y} accesos<extra></extra>"
+                ))
+
+                fig_horas.update_layout(
+                    barmode="stack",
+                    title=dict(
+                        text="<b>Curva de Actividad por Hora del Día (00:00 a 23:00)</b>",
+                        font=dict(size=15, color="#0f172a")
+                    ),
+                    xaxis=dict(
+                        title="Hora del Día",
+                        tickmode="linear",
+                        tick0=0,
+                        dtick=1,
+                        gridcolor="#f1f5f9"
+                    ),
+                    yaxis=dict(
+                        title="Volumen de Actividad",
+                        gridcolor="#f1f5f9"
+                    ),
+                    legend=dict(
+                        orientation="h",
+                        yanchor="bottom",
+                        y=1.02,
+                        xanchor="right",
+                        x=1
+                    ),
+                    plot_bgcolor="white",
+                    paper_bgcolor="white",
+                    margin=dict(l=20, r=20, t=60, b=30),
+                    height=380
+                )
+
+                st.plotly_chart(fig_horas, use_container_width=True)
+            else:
+                st.info("ℹ️ No hay registros suficientes de eventos en el periodo seleccionado para trazar la curva horaria.")
 
         with sub_tab_sub:
             st.markdown("#### 💳 Control de Suscripciones, Pruebas Gratuitas y Desbloqueos en 1 Clic")
