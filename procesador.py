@@ -9,7 +9,7 @@ import time
 import hmac
 import hashlib
 import base64
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import requests
 
 if sys.stdout and hasattr(sys.stdout, 'reconfigure'):
@@ -6364,7 +6364,6 @@ def guardar_configuracion(dict_config):
         return False
 
 # --- MOTOR DE CRONOGRAMA DE CICLO & PACING HEATMAP PARA LAS 6 GERENCIAS ---
-import datetime
 
 MESES_ES_CICLO = {
     1: 'ene', 2: 'feb', 3: 'mar', 4: 'abr', 5: 'may', 6: 'jun',
@@ -6373,7 +6372,7 @@ MESES_ES_CICLO = {
 
 def formato_fecha_ciclo(d):
     """Retorna fecha legible en español, ej: '13 de sept'"""
-    if isinstance(d, datetime.datetime):
+    if isinstance(d, datetime):
         d = d.date()
     return f"{d.day} de {MESES_ES_CICLO.get(d.month, '')}"
 
@@ -6518,22 +6517,22 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
     dias_totales = dias_ciclo + dias_restricta
 
     try:
-        f_ini = datetime.datetime.strptime(str(info_g.get("fecha_inicio", "2026-09-13")), "%Y-%m-%d").date()
+        f_ini = datetime.strptime(str(info_g.get("fecha_inicio", "2026-09-13")), "%Y-%m-%d").date()
     except Exception:
-        f_ini = datetime.date(2026, 9, 13)
+        f_ini = date(2026, 9, 13)
 
     if fecha_referencia:
-        if isinstance(fecha_referencia, datetime.datetime):
+        if isinstance(fecha_referencia, datetime):
             f_ref = fecha_referencia.date()
-        elif isinstance(fecha_referencia, datetime.date):
+        elif isinstance(fecha_referencia, date):
             f_ref = fecha_referencia
         else:
             try:
-                f_ref = datetime.datetime.strptime(str(fecha_referencia)[:10], "%Y-%m-%d").date()
+                f_ref = datetime.strptime(str(fecha_referencia)[:10], "%Y-%m-%d").date()
             except Exception:
-                f_ref = datetime.date.today()
+                f_ref = date.today()
     else:
-        f_ref = datetime.date.today()
+        f_ref = date.today()
 
     # Cálculo del día actual del ciclo
     if f_ref < f_ini:
@@ -6543,10 +6542,10 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
 
     # Fechas de las fases e hitos
     f_despegue = f_ini
-    f_impulso = f_ini + datetime.timedelta(days=7)
-    f_sprint = f_ini + datetime.timedelta(days=14)
-    f_cierre_oficial = f_ini + datetime.timedelta(days=21)
-    f_restricta_fin = f_ini + datetime.timedelta(days=21 + dias_restricta)
+    f_impulso = f_ini + timedelta(days=7)
+    f_sprint = f_ini + timedelta(days=14)
+    f_cierre_oficial = f_ini + timedelta(days=21)
+    f_restricta_fin = f_ini + timedelta(days=21 + dias_restricta)
 
     txt_restricta_rango = f"{f_cierre_oficial.day + 1}-{f_restricta_fin.day} de {MESES_ES_CICLO.get(f_restricta_fin.month, '')}"
 
@@ -9084,6 +9083,7 @@ def sincronizar_excel_geral_a_sqlite(origen_file="Geral.xlsx", sector_esperado=N
     Retorna (exito: bool, num_registros: int, mensaje: str).
     """
     import unicodedata
+    from datetime import datetime
     
     if origen_file is None:
         return False, 0, "No se proporcionó ningún archivo para procesar."
