@@ -6540,14 +6540,24 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
     else:
         dia_actual = (f_ref - f_ini).days + 1
 
-    # Fechas de las fases e hitos
+    # Fechas de las fases e hitos (el ciclo es inclusivo: el día 1 es f_ini, por lo que el día 21 es f_ini + 20 días)
     f_despegue = f_ini
     f_impulso = f_ini + timedelta(days=7)
     f_sprint = f_ini + timedelta(days=14)
-    f_cierre_oficial = f_ini + timedelta(days=21)
-    f_restricta_fin = f_ini + timedelta(days=21 + dias_restricta)
+    f_cierre_oficial = f_ini + timedelta(days=max(0, dias_ciclo - 1))
 
-    txt_restricta_rango = f"{f_cierre_oficial.day + 1}-{f_restricta_fin.day} de {MESES_ES_CICLO.get(f_restricta_fin.month, '')}"
+    if dias_restricta > 0:
+        f_restricta_ini = f_cierre_oficial + timedelta(days=1)
+        f_restricta_fin = f_cierre_oficial + timedelta(days=dias_restricta)
+        if dias_restricta == 1:
+            txt_restricta_rango = f"{f_restricta_ini.day} de {MESES_ES_CICLO.get(f_restricta_ini.month, '')}"
+        elif f_restricta_ini.month == f_restricta_fin.month:
+            txt_restricta_rango = f"{f_restricta_ini.day}-{f_restricta_fin.day} de {MESES_ES_CICLO.get(f_restricta_fin.month, '')}"
+        else:
+            txt_restricta_rango = f"{f_restricta_ini.day} de {MESES_ES_CICLO.get(f_restricta_ini.month, '')} - {f_restricta_fin.day} de {MESES_ES_CICLO.get(f_restricta_fin.month, '')}"
+    else:
+        f_restricta_fin = f_cierre_oficial
+        txt_restricta_rango = "Sin Restricta"
 
     # Determinación de Fase Oficial
     if dia_actual <= 7:
@@ -6562,16 +6572,22 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
         fase_subtitulo = "Crecimiento & Activación"
         fase_badge_class = "fase-impulso"
         pct_esperado_fase = round(25.0 + ((dia_actual - 7) / 7.0) * 40.0, 1)  # 25% a 65%
-    elif dia_actual <= 21:
+    elif dia_actual <= dias_ciclo:
         fase_id = 3
         fase_nombre = "Sprint Final 🏃‍♂️💨"
         fase_subtitulo = "Remate & Cierre Oficial"
         fase_badge_class = "fase-sprint"
-        pct_esperado_fase = round(65.0 + ((dia_actual - 14) / 7.0) * 35.0, 1)  # 65% a 100%
-    else:
+        pct_esperado_fase = round(65.0 + ((dia_actual - 14) / float(max(1, dias_ciclo - 14))) * 35.0, 1)  # 65% a 100%
+    elif dias_restricta > 0 and dia_actual <= dias_totales:
         fase_id = 4
         fase_nombre = "La Última Milla 🏁"
         fase_subtitulo = "Días de Restricta / Rescate & Ajustes"
+        fase_badge_class = "fase-milla"
+        pct_esperado_fase = 100.0
+    else:
+        fase_id = 4
+        fase_nombre = "Ciclo Finalizado 🏁"
+        fase_subtitulo = "Cierre Oficial Completado"
         fase_badge_class = "fase-milla"
         pct_esperado_fase = 100.0
 
@@ -6581,13 +6597,13 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
         dias_restantes_oficial = max(0, dias_ciclo - dia_actual)
         dias_restantes_lbl = f"{dias_restantes_oficial} Días"
         dias_restantes_sub = "RESTANTES"
-    elif dia_actual <= dias_totales:
+    elif dias_restricta > 0 and dia_actual <= dias_totales:
         es_restricta = True
         dias_restricta_rest = max(0, dias_totales - dia_actual)
         dias_restantes_lbl = f"{dias_restricta_rest} Días"
         dias_restantes_sub = "RESTANTE RESTRICTA"
     else:
-        es_restricta = True
+        es_restricta = False
         dias_restantes_lbl = "0 Días"
         dias_restantes_sub = "CICLO FINALIZADO"
 
@@ -6615,9 +6631,12 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
         {"id": 1, "nombre": "DESPEGUE 🚀", "sub": "SIEMBRA", "dia": 1, "fecha": formato_fecha_ciclo(f_despegue), "completado": dia_actual >= 1},
         {"id": 2, "nombre": "IMPULSO 📈", "sub": "CRECIMIENTO", "dia": 8, "fecha": formato_fecha_ciclo(f_impulso), "completado": dia_actual >= 8},
         {"id": 3, "nombre": "SPRINT FINAL 🏃‍♂️💨", "sub": "REMATE", "dia": 15, "fecha": formato_fecha_ciclo(f_sprint), "completado": dia_actual >= 15},
-        {"id": 4, "nombre": "CIERRE OFICIAL 🏁", "sub": "FIN CICLO", "dia": 21, "fecha": formato_fecha_ciclo(f_cierre_oficial), "completado": dia_actual >= 21},
-        {"id": 5, "nombre": "LA ÚLTIMA MILLA 🏁", "sub": "RESTRICTA RESCATE", "dia": 22, "fecha": txt_restricta_rango, "completado": dia_actual >= 22}
+        {"id": 4, "nombre": "CIERRE OFICIAL 🏁", "sub": "FIN CICLO", "dia": 21, "fecha": formato_fecha_ciclo(f_cierre_oficial), "completado": dia_actual >= 21}
     ]
+    if dias_restricta > 0:
+        hitos.append(
+            {"id": 5, "nombre": "LA ÚLTIMA MILLA 🏁", "sub": "RESTRICTA RESCATE", "dia": 22, "fecha": txt_restricta_rango, "completado": dia_actual >= 22}
+        )
 
     return {
         "clave_gerencia": clave_g,

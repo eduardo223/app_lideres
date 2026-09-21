@@ -5832,6 +5832,7 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
     # 4. Calculo de la curva y el pin
     x_start = 65.0
     x_end = 935.0
+    has_restricta = (info['dias_restricta'] > 0)
 
     def get_x_for_day(day):
         if day <= 1:
@@ -5842,10 +5843,10 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
             return 340.0 + (day - 8) / 7.0 * (640.0 - 340.0)
         elif day <= 21:
             return 640.0 + (day - 15) / 6.0 * (820.0 - 640.0)
-        elif day <= 24:
-            return 820.0 + (day - 21) / 3.0 * (935.0 - 820.0)
+        elif has_restricta and day <= info['dias_totales']:
+            return 820.0 + (day - 21) / float(max(1, info['dias_restricta'])) * (935.0 - 820.0)
         else:
-            return 935.0
+            return 935.0 if has_restricta else 820.0
 
     def get_y_for_x(x):
         t = (x - x_start) / (x_end - x_start)
@@ -5861,6 +5862,7 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
 
     pts_res = [p for p in pts if p[0] >= 820.0]
     d_bg_res = 'M ' + ' L '.join(f'{x:.1f} {y:.1f}' for x, y in pts_res)
+    path_res_svg = f'<path d="{d_bg_res}" fill="none" stroke="#fda4af" stroke-width="4" stroke-linecap="round" stroke-dasharray="5,4" />' if has_restricta else ''
 
     # Curva activa
     x_hoy = get_x_for_day(dia_act)
@@ -5989,7 +5991,7 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
         f'</filter>'
         f'</defs>'
         f'<path d="{d_bg_reg}" fill="none" stroke="#e2e8f0" stroke-width="4.5" stroke-linecap="round" />'
-        f'<path d="{d_bg_res}" fill="none" stroke="#fda4af" stroke-width="4" stroke-linecap="round" stroke-dasharray="5,4" />'
+        f'{path_res_svg}'
         f'<path d="{d_fg}" fill="none" stroke="url(#waveHeatmapGrad)" stroke-width="5.5" stroke-linecap="round" />'
         f'{nodes_markup}'
         f'<g transform="translate({x_hoy:.1f}, {y_hoy:.1f})">'
@@ -6099,7 +6101,7 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(#monitor-arte-anchor) div[da
                         st.caption(f"Ajuste oficial para todos los sectores ({sector_label})")
                         f_nueva = st.date_input("Fecha Oficial de Inicio de Campaña:", value=info['fecha_inicio'], key=f"calib_f_ini_{info['clave_gerencia']}")
                         c_nuevo = st.number_input("Número de Ciclo:", min_value=1, max_value=25, value=int(info['ciclo']), step=1, key=f"calib_ciclo_{info['clave_gerencia']}")
-                        r_nuevo = st.number_input("Días de Restricta / Rescate:", min_value=1, max_value=10, value=int(info['dias_restricta']), step=1, key=f"calib_rest_{info['clave_gerencia']}")
+                        r_nuevo = st.number_input("Días de Restricta / Rescate:", min_value=0, max_value=10, value=int(info['dias_restricta']), step=1, key=f"calib_rest_{info['clave_gerencia']}")
                         if st.button("💾 Guardar y Actualizar", key="btn_save_calib_ger", use_container_width=True):
                             procesador.actualizar_calendario_gerencia(
                                 clave_gerencia=info['clave_gerencia'],
