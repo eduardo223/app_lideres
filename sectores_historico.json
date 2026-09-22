@@ -22,14 +22,5 @@
     "correo_gerente": "dolly.parra@natura.net",
     "telefono_gerente": "3113201145",
     "nombre_gerente": "Dolly Parra"
-  },
-  "__TEST_SEC_CUM__": {
-    "codigo_sector": "__TEST_SEC_CUM__",
-    "nombre_sector": "Sector __TEST_SEC_CUM__",
-    "primera_prueba_fecha": "2026-09-15T22:48:29.462234",
-    "ha_consumido_prueba": true,
-    "ha_pagado": true,
-    "estado": "activo",
-    "fecha_vencimiento": "2026-10-15T22:48:29.462234"
   }
 }

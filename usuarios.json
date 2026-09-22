@@ -185,7 +185,7 @@
   },
   "lider9400": {
     "nombre": "MARIA CRISTINA RUBIO",
-    "password_hash": "cfc05a6f1105571746e3da4a5fb3f36735fa913eb3df055a58b974ea41acba8e",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "lider",
     "codigo_grupo": "9400",
     "debe_cambiar_password": false,
@@ -491,5 +491,16 @@
     "estado_suscripcion": "activo",
     "fecha_vencimiento": null,
     "nombre_sector": "SECTOR COLORES"
+  },
+  "lider10309": {
+    "nombre": "LUISA MARÍA GONZALEZ DUQUE",
+    "password_hash": "6001180e424f868e77b8b757630063a2746ec55ba34286490168b0b6eba9c680",
+    "rol": "lider",
+    "codigo_grupo": "10309",
+    "debe_cambiar_password": true,
+    "codigo_sector": "700000459",
+    "nombre_sector": "MATICES CLERY",
+    "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
   }
 }
