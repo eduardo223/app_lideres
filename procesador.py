@@ -4313,20 +4313,6 @@ def verificar_estado_suscripcion(user_info_o_sector):
     try:
         dt_vence = datetime.fromisoformat(str(vence_iso))
         dt_now = datetime.now()
-        
-        # Si está en modo prueba, garantizar que la prueba sea de máximo DIAS_PRUEBA_GRATIS (5 días)
-        if estado == "prueba":
-            reg_iso = sec_info.get("primera_prueba_fecha") or (user_info_o_sector.get("fecha_registro") if isinstance(user_info_o_sector, dict) else None)
-            if reg_iso:
-                try:
-                    dt_reg = datetime.fromisoformat(str(reg_iso))
-                    max_prueba = dt_reg + timedelta(days=DIAS_PRUEBA_GRATIS)
-                    if dt_vence > max_prueba:
-                        dt_vence = max_prueba
-                except Exception:
-                    pass
-            elif (dt_vence - dt_now).total_seconds() > (DIAS_PRUEBA_GRATIS * 86400):
-                dt_vence = dt_now + timedelta(days=DIAS_PRUEBA_GRATIS)
 
         diff = (dt_vence - dt_now).total_seconds()
         dias_restantes = max(0, int(diff // 86400) + 1)
@@ -4348,13 +4334,13 @@ def verificar_estado_suscripcion(user_info_o_sector):
                 "fecha_vencimiento_str": fecha_str,
                 "motivo": f"Tu periodo de {'prueba de ' + str(DIAS_PRUEBA_GRATIS) + ' días' if estado == 'prueba' else 'suscripción'} ha finalizado el {fecha_str}."
             }
-    except Exception as e:
+    except Exception:
         return {
             "permitido": True,
             "estado": "activo",
             "dias_restantes": 9999,
             "fecha_vencimiento_str": "Activo",
-            "motivo": f"Vigente ({e})"
+            "motivo": "Suscripción activa"
         }
 
 # --- CATÁLOGO CORPORATIVO DE SECTORES Y AUTO-APROVISIONAMIENTO DE LÍDERES ---
@@ -4628,7 +4614,7 @@ def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es
     """
     Permite al Super Administrador:
     - Activar plan pagado (+30, +90, +365 días o permanente)
-    - Dar prórroga de prueba (+5 días)
+    - Dar prórroga o activar prueba manual (+5 días)
     - Suspender o desbloquear un sector
     Aplica el cambio en cascada a la Gerente y a todas sus Líderes en usuarios.json y sectores_historico.json.
     """
@@ -4641,11 +4627,17 @@ def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es
     now = datetime.now()
 
     if sec_clean not in historico:
+        nom_sec_found = f"Sector {sec_clean}"
+        for u in usuarios.values():
+            if str(u.get("codigo_sector") or "").strip() == sec_clean:
+                if u.get("nombre_sector"):
+                    nom_sec_found = u.get("nombre_sector")
+                    break
         historico[sec_clean] = {
             "codigo_sector": sec_clean,
-            "nombre_sector": f"Sector {sec_clean}",
+            "nombre_sector": nom_sec_found,
             "primera_prueba_fecha": now.isoformat(),
-            "ha_consumido_prueba": True,
+            "ha_consumido_prueba": False if nuevo_estado == "prueba" else True,
             "ha_pagado": es_pago or (nuevo_estado == "activo"),
             "estado": nuevo_estado
         }
@@ -4653,14 +4645,18 @@ def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es
     vence_iso = None
     if dias_extension > 0:
         dt_base = now
-        curr_vence = historico[sec_clean].get("fecha_vencimiento")
-        if curr_vence:
-            try:
-                dt_curr = datetime.fromisoformat(curr_vence)
-                if dt_curr > now:
-                    dt_base = dt_curr
-            except Exception:
-                pass
+        if es_pago:
+            curr_vence = historico[sec_clean].get("fecha_vencimiento")
+            if curr_vence:
+                try:
+                    dt_curr = datetime.fromisoformat(curr_vence)
+                    if dt_curr > now:
+                        dt_base = dt_curr
+                except Exception:
+                    pass
+        else:
+            dt_base = now
+        
         vence_iso = (dt_base + timedelta(days=dias_extension)).isoformat()
     elif dias_extension == -1:
         vence_iso = None
@@ -4669,8 +4665,14 @@ def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es
 
     historico[sec_clean]["estado"] = nuevo_estado
     historico[sec_clean]["fecha_vencimiento"] = vence_iso
-    if es_pago or nuevo_estado == "activo":
+
+    if nuevo_estado == "prueba":
+        historico[sec_clean]["primera_prueba_fecha"] = now.isoformat()
+        historico[sec_clean]["ha_consumido_prueba"] = False
+        historico[sec_clean]["ha_pagado"] = False
+    elif es_pago or nuevo_estado == "activo":
         historico[sec_clean]["ha_pagado"] = True
+
     guardar_historico_sectores(historico)
 
     cambiados = 0
@@ -4684,6 +4686,99 @@ def actualizar_suscripcion_sector(cod_sector, nuevo_estado, dias_extension=0, es
     sincronizar_usuarios_a_sqlite()
     return True, f"Sector {sec_clean} actualizado a '{nuevo_estado}'. {cambiados} cuentas asociadas actualizadas."
 
+def activar_prueba_manual_gerente(identificador, dias=5):
+    """
+    Permite al Super Administrador activar manualmente un periodo de prueba
+    de N días (por defecto 5 días) para cualquier Gerente o Sector.
+    Actualiza en cascada:
+    - Cuenta de la Gerente
+    - Cuentas de todas sus Líderes de grupo
+    - Registro en sectores_historico.json
+    - SQLite y sincronización global
+    """
+    from datetime import datetime, timedelta
+    now = datetime.now()
+    dias_num = max(1, int(dias))
+    dt_vence = now + timedelta(days=dias_num)
+    vence_iso = dt_vence.isoformat()
+
+    usuarios = cargar_usuarios()
+    historico = cargar_historico_sectores()
+
+    ident_clean = str(identificador).strip()
+    if not ident_clean:
+        return False, "Debes indicar un usuario de Gerente o un Código de Sector."
+
+    cod_sector = None
+    u_gerente_key = None
+    nom_gerente = ""
+    nom_sector = ""
+
+    # 1. Si coincide directamente con una clave de usuario
+    if ident_clean.lower() in usuarios:
+        u_gerente_key = ident_clean.lower()
+        u_data = usuarios[u_gerente_key]
+        cod_sector = str(u_data.get("codigo_sector") or "").strip()
+        nom_gerente = u_data.get("nombre", "")
+        nom_sector = u_data.get("nombre_sector", "")
+    else:
+        # Buscar por código de sector en usuarios o en historico
+        cod_sector = ident_clean
+        for u_k, u_v in usuarios.items():
+            if str(u_v.get("codigo_sector") or "").strip() == cod_sector:
+                if u_v.get("rol") == "gerente":
+                    u_gerente_key = u_k
+                    nom_gerente = u_v.get("nombre", "")
+                    if not nom_sector:
+                        nom_sector = u_v.get("nombre_sector", "")
+                    break
+
+    if not cod_sector:
+        return False, f"No se encontró un sector ni una cuenta asociada a '{ident_clean}'."
+
+    if not nom_sector and cod_sector in historico:
+        nom_sector = historico[cod_sector].get("nombre_sector", f"Sector {cod_sector}")
+    elif not nom_sector:
+        nom_sector = f"Sector {cod_sector}"
+
+    # 2. Actualizar registro en historico
+    if cod_sector not in historico:
+        historico[cod_sector] = {
+            "codigo_sector": cod_sector,
+            "nombre_sector": nom_sector
+        }
+
+    historico[cod_sector]["estado"] = "prueba"
+    historico[cod_sector]["fecha_vencimiento"] = vence_iso
+    historico[cod_sector]["primera_prueba_fecha"] = now.isoformat()
+    historico[cod_sector]["ha_consumido_prueba"] = False
+    historico[cod_sector]["ha_pagado"] = False
+    historico[cod_sector]["nombre_sector"] = nom_sector
+    if u_gerente_key:
+        historico[cod_sector]["correo_gerente"] = u_gerente_key
+    if nom_gerente:
+        historico[cod_sector]["nombre_gerente"] = nom_gerente
+
+    guardar_historico_sectores(historico)
+
+    # 3. Actualizar en cascada a Gerente y todas sus Líderes
+    cambiados = 0
+    total_lideres = 0
+    for u_k, u_v in usuarios.items():
+        sec_u = str(u_v.get("codigo_sector") or "").strip()
+        if sec_u == cod_sector or (u_gerente_key and u_k == u_gerente_key):
+            u_v["estado_suscripcion"] = "prueba"
+            u_v["fecha_vencimiento"] = vence_iso
+            cambiados += 1
+            if u_v.get("rol") == "lider":
+                total_lideres += 1
+
+    guardar_usuarios(usuarios)
+    sincronizar_usuarios_a_sqlite()
+
+    fecha_fmt = dt_vence.strftime("%d/%m/%Y a las %H:%M")
+    return True, f"¡Activación Exitosa! Se han otorgado {dias_num} días de prueba al Sector {cod_sector} ({nom_sector}). Válido hasta el {fecha_fmt}. Se habilitaron {cambiados} cuentas ({'Gerente ' + nom_gerente if nom_gerente else 'Gerente'} y {total_lideres} Líderes)."
+
 def obtener_resumen_suscripciones():
     """
     Retorna un DataFrame con todos los sectores registrados y el estado de sus suscripciones para el panel de Super Admin.
@@ -4691,6 +4786,20 @@ def obtener_resumen_suscripciones():
     from datetime import datetime
     historico = cargar_historico_sectores()
     usuarios = cargar_usuarios()
+
+    # Garantizar que todos los sectores presentes en usuarios (especialmente gerentes) existan en historico
+    for u_id, u_data in usuarios.items():
+        sec_id_u = str(u_data.get("codigo_sector") or "").strip()
+        if sec_id_u and sec_id_u not in historico:
+            historico[sec_id_u] = {
+                "codigo_sector": sec_id_u,
+                "nombre_sector": u_data.get("nombre_sector") or f"Sector {sec_id_u}",
+                "estado": u_data.get("estado_suscripcion", "activo"),
+                "fecha_vencimiento": u_data.get("fecha_vencimiento"),
+                "correo_gerente": u_id if u_data.get("rol") == "gerente" else "",
+                "telefono_gerente": u_data.get("telefono", ""),
+                "ha_pagado": (u_data.get("estado_suscripcion") == "activo")
+            }
 
     filas = []
     now = datetime.now()
@@ -4723,28 +4832,15 @@ def obtener_resumen_suscripciones():
         if vence_iso:
             try:
                 dt_vence = datetime.fromisoformat(vence_iso)
-                if estado == "prueba":
-                    reg_iso = info.get("primera_prueba_fecha")
-                    if reg_iso:
-                        try:
-                            dt_reg = datetime.fromisoformat(str(reg_iso))
-                            max_prueba = dt_reg + timedelta(days=DIAS_PRUEBA_GRATIS)
-                            if dt_vence > max_prueba:
-                                dt_vence = max_prueba
-                        except Exception:
-                            pass
-                    elif (dt_vence - now).total_seconds() > (DIAS_PRUEBA_GRATIS * 86400):
-                        dt_vence = now + timedelta(days=DIAS_PRUEBA_GRATIS)
-
                 diff = (dt_vence - now).total_seconds()
                 dias_num = max(0, int(diff // 86400) + 1)
-                vence_str = dt_vence.strftime("%d/%m/%Y")
+                vence_str = dt_vence.strftime("%d/%m/%Y a las %H:%M")
                 
                 if estado == "bloqueado":
                     estado_label = "⛔ Suspendido / Bloqueado"
                     dias_rest = "0 días"
                 elif diff < 0:
-                    estado_label = "🔴 Vencido (Requiere Pago)"
+                    estado_label = "🔴 Vencido (Requiere Activación / Pago)"
                     dias_rest = "0 días (Expirado)"
                 elif estado == "prueba":
                     estado_label = f"⏳ En Prueba ({dias_num} días)"

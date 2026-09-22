@@ -97,6 +97,7 @@ from procesador import (
     refrescar_perfil_usuario_en_sesion,
     registrar_nueva_gerente,
     actualizar_suscripcion_sector,
+    activar_prueba_manual_gerente,
     obtener_resumen_suscripciones,
     obtener_tarifa_gerente,
     obtener_codigo_referido_gerente,
@@ -13049,7 +13050,7 @@ if tab_usuarios is not None and user_rol == 'superadmin':
 
         with sub_tab_sub:
             st.markdown("#### 💳 Control de Suscripciones, Pruebas Gratuitas y Desbloqueos en 1 Clic")
-            st.caption("Visualiza el estado de cada Sector registrado y desbloquea o activa planes pagados en tiempo real:")
+            st.caption("Visualiza el estado de cada Sector registrado y desbloquea o activa planes pagados y pruebas en tiempo real:")
 
             df_res_sub = obtener_resumen_suscripciones()
             if not df_res_sub.empty:
@@ -13058,8 +13059,83 @@ if tab_usuarios is not None and user_rol == 'superadmin':
 
                 col_acc1, col_acc2 = st.columns([1.2, 1])
                 with col_acc1:
-                    st.markdown("##### ⚡ Gestión de Suscripción por Sector")
+                    # =========================================================================
+                    # MÓDULO DESTACADO: ACTIVACIÓN MANUAL DE 5 DÍAS DE PRUEBA (1 CLIC)
+                    # =========================================================================
+                    st.markdown("""
+                    <div style="background: linear-gradient(135deg, rgba(249, 115, 22, 0.09) 0%, rgba(234, 88, 12, 0.03) 100%);
+                                border: 1.5px solid rgba(249, 115, 22, 0.4); border-radius: 14px; padding: 16px 18px; margin-bottom: 20px;">
+                        <div style="display:flex; align-items:center; gap:10px; margin-bottom:4px;">
+                            <span style="font-size:1.4rem;">🎁</span>
+                            <h5 style="margin:0; color:#ea580c; font-weight:800; font-size:1.1rem;">Activación Manual de Prueba (5 Días)</h5>
+                        </div>
+                        <p style="margin:0; font-size:0.85rem; color:#64748b;">Habilita o renueva inmediatamente 5 días de acceso para cualquier Gerente y todo su equipo de líderes:</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
                     lista_sec_opciones = df_res_sub["Código Sector"].tolist()
+
+                    c_pr_sel, c_pr_days = st.columns([2.5, 1])
+                    with c_pr_sel:
+                        sel_sec_prueba_quick = st.selectbox(
+                            "Gerente / Sector a Activar:",
+                            options=lista_sec_opciones,
+                            format_func=lambda s: f"Sector {s} — {df_res_sub[df_res_sub['Código Sector'] == s]['Nombre Sector'].iloc[0]} ({df_res_sub[df_res_sub['Código Sector'] == s]['Gerente Responsable'].iloc[0]})",
+                            key="sel_sec_prueba_quick"
+                        )
+                    with c_pr_days:
+                        dias_prueba_quick = st.number_input("Días:", min_value=1, max_value=60, value=5, step=1, key="num_dias_prueba_quick")
+
+                    if st.button("🎁 Activar 5 Días de Prueba Ahora", type="primary", use_container_width=True, key="btn_act_prueba_quick"):
+                        ok_p, msg_p = activar_prueba_manual_gerente(sel_sec_prueba_quick, dias=dias_prueba_quick)
+                        if ok_p:
+                            registrar_evento_auditoria(
+                                current_user,
+                                categoria="💳 Suscripción",
+                                accion="Activación Manual de Prueba",
+                                detalle=f"Sector {sel_sec_prueba_quick}: {dias_prueba_quick} días otorgados",
+                                dispositivo="🖥️ PC / Escritorio"
+                            )
+                            st.session_state['ultima_activacion_prueba_sub'] = {
+                                'sector': sel_sec_prueba_quick,
+                                'nombre_sector': df_res_sub[df_res_sub['Código Sector'] == sel_sec_prueba_quick]['Nombre Sector'].iloc[0],
+                                'gerente': df_res_sub[df_res_sub['Código Sector'] == sel_sec_prueba_quick]['Gerente Responsable'].iloc[0],
+                                'telefono': df_res_sub[df_res_sub['Código Sector'] == sel_sec_prueba_quick]['Contacto (WhatsApp)'].iloc[0],
+                                'dias': dias_prueba_quick,
+                                'mensaje': msg_p
+                            }
+                            st.success(f"{msg_p}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {msg_p}")
+
+                    # Bloque WhatsApp si se acaba de activar prueba
+                    ult_p_sub = st.session_state.get('ultima_activacion_prueba_sub')
+                    if ult_p_sub and ult_p_sub.get('sector') == sel_sec_prueba_quick:
+                        st.markdown("""
+                        <div style="background:#f0fdf4; border:1px solid #86efac; border-radius:10px; padding:12px 14px; margin-top:12px;">
+                            <div style="color:#16a34a; font-weight:700; font-size:0.88rem; margin-bottom:4px;">📲 Notificar Activación por WhatsApp</div>
+                            <div style="font-size:0.82rem; color:#475569;">Puedes enviar un mensaje directo a la Gerente con 1 clic:</div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        tel_notif = st.text_input("WhatsApp de la Gerente:", value=ult_p_sub.get('telefono', '').replace('N/D', ''), placeholder="ej. 3057939537", key="tel_notif_sub")
+                        msg_notif_wa = (
+                            f"🌸 ¡Hola {ult_p_sub['gerente'].split()[0].title() if ult_p_sub['gerente'] and ult_p_sub['gerente'] != 'N/D' else 'Gerente'}! Te confirmamos que tu cuenta de Gerente y todo tu equipo de Líderes ({ult_p_sub['nombre_sector']}) tienen habilitados *{ult_p_sub['dias']} días de prueba* en la plataforma.\n\n"
+                            f"🌐 *Ingresa aquí:* https://metaseindicadores.up.railway.app\n\n"
+                            f"¡Muchos éxitos en la gestión de tu ciclo! ✨"
+                        )
+                        st.text_area("Mensaje:", msg_notif_wa, height=100, key="txt_msg_notif_wa")
+                        if tel_notif and len(re.sub(r'\D', '', tel_notif)) >= 10:
+                            num_clean_wa = re.sub(r'\D', '', tel_notif)[-10:]
+                            link_notif_wa = f"https://api.whatsapp.com/send?phone=57{num_clean_wa}&text={urllib.parse.quote(msg_notif_wa)}"
+                            st.link_button("📲 Enviar Notificación por WhatsApp a la Gerente", url=link_notif_wa, use_container_width=True)
+
+                    st.markdown("---")
+
+                    # =========================================================================
+                    # GESTIÓN DETALLADA DE PLANES Y SUSCRIPCIÓN
+                    # =========================================================================
+                    st.markdown("##### ⚡ Gestión Avanzada de Planes por Sector")
 
                     with st.form("form_gestion_suscripcion_sector"):
                         sel_sec_id = st.selectbox(
@@ -13071,17 +13147,17 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                         accion_sub = st.selectbox(
                             "Acción a Realizar:",
                             options=[
+                                "🎁 Activar / Renovar Prueba (+5 Días Manuales)",
                                 "🟢 Activar Plan Pagado (+30 Días / 1 Mes)",
                                 "🟢 Activar Plan Pagado (+90 Días / Trimestral)",
                                 "🟢 Activar Plan Pagado (+365 Días / Anual)",
                                 "👑 Activar Suscripción Permanente (Sin Vencimiento)",
-                                "⏳ Dar Prórroga de Prueba (+5 Días de Cortesía)",
                                 "⛔ Suspender / Bloquear Acceso a este Sector",
-                                "🔓 Desbloquear Acceso al Sector"
+                                "🔓 Desbloquear Acceso al Sector (+30 Días)"
                             ]
                         )
 
-                        btn_aplicar_sub = st.form_submit_button("🚀 Aplicar Cambio al Sector", type="primary", use_container_width=True)
+                        btn_aplicar_sub = st.form_submit_button("🚀 Aplicar Cambio al Sector", type="secondary", use_container_width=True)
 
                         if btn_aplicar_sub:
                             if "30 Días" in accion_sub:
@@ -13092,8 +13168,8 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                                 ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="activo", dias_extension=365, es_pago=True)
                             elif "Permanente" in accion_sub:
                                 ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="activo", dias_extension=-1, es_pago=True)
-                            elif "Prórroga" in accion_sub:
-                                ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="prueba", dias_extension=5, es_pago=False)
+                            elif "Prueba" in accion_sub or "Prórroga" in accion_sub:
+                                ok_s, msg_s = activar_prueba_manual_gerente(sel_sec_id, dias=5)
                             elif "Suspender" in accion_sub:
                                 ok_s, msg_s = actualizar_suscripcion_sector(sel_sec_id, nuevo_estado="bloqueado", dias_extension=0, es_pago=False)
                             elif "Desbloquear" in accion_sub:
@@ -13115,12 +13191,14 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                 with col_acc2:
                     st.markdown("##### ℹ️ Información de Ayuda")
                     st.info(
-                        "💡 **¿Cómo funciona el desbloqueo?**\n\n"
-                        "- Al seleccionar **Activar Plan Pagado**, la Gerente y **todas sus líderes** recuperan acceso inmediato.\n"
-                        "- Toda la data previa, comentarios y notas de consultoras quedan disponibles al instante.\n"
-                        "- El sistema audita y actualiza las cuentas en cascada.\n"
-                        "- **Fechas Acumulativas:** Si apruebas un pago antes de que venza el ciclo, los 30 días se suman a partir de la fecha de vencimiento actual."
+                        "💡 **¿Cómo funciona la activación manual de prueba?**\n\n"
+                        "- **5 Días de Prueba:** Al pulsar el botón naranja **🎁 Activar 5 Días de Prueba**, la Gerente y **todas sus líderes** quedan habilitadas de inmediato con 5 días completos contados a partir de hoy.\n"
+                        "- **Recuperación Total:** Al reactivar la prueba o plan, recuperan acceso a toda su información previa, metas cargadas y notas de consultoras sin perder nada.\n"
+                        "- **Plan Pagado:** Si apruebas un pago o seleccionas Activar Plan (+30 días), los días se suman de forma acumulativa a la fecha existente.\n"
+                        "- **WhatsApp Directo:** Puedes notificar a la Gerente al instante con el botón de WhatsApp preconfigurado."
                     )
+            else:
+                st.info("ℹ️ No hay sectores registrados todavía en el sistema.")
 
             # =========================================================================
             # BANDEJA DE APROBACIÓN DE PAGOS REPORTADOS (SUPER ADMIN)
@@ -13238,7 +13316,12 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                 )
 
             with col_u2:
-                tab_reseteo_u, tab_crear_u, tab_eliminar_u = st.tabs(["⚡ Reseteo Rápido & WA", "➕ Crear / Editar", "🗑️ Eliminar"])
+                tab_reseteo_u, tab_prueba_u, tab_crear_u, tab_eliminar_u = st.tabs([
+                    "⚡ Reseteo Rápido & WA",
+                    "🎁 Activar 5 Días Prueba",
+                    "➕ Crear / Editar",
+                    "🗑️ Eliminar"
+                ])
 
                 with tab_reseteo_u:
                     st.markdown("##### ⚡ Restablecer Contraseña")
@@ -13291,6 +13374,66 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                             link_wa_a = f"https://api.whatsapp.com/send?phone=57{tel_a_in.strip()}&text={urllib.parse.quote(msg_wa_admin)}"
                             st.link_button("📲 Enviar Credenciales por WhatsApp", url=link_wa_a, use_container_width=True)
 
+                with tab_prueba_u:
+                    st.markdown("##### 🎁 Activación Manual de Prueba (5 Días)")
+                    st.caption("Otorga o renueva 5 días de acceso a cualquier Gerente y a todas sus líderes en 1 clic:")
+
+                    gerentes_disponibles = [u for u, d in users_dict.items() if d.get("rol") == "gerente"]
+
+                    if gerentes_disponibles:
+                        with st.form("form_activar_prueba_gerente_tab"):
+                            g_sel_prueba = st.selectbox(
+                                "Selecciona la Gerente:",
+                                options=gerentes_disponibles,
+                                format_func=lambda u: f"🏢 {users_dict[u].get('nombre', u)} ({u}) — Sector {users_dict[u].get('codigo_sector', 'N/D')} [Estado: {users_dict[u].get('estado_suscripcion', 'activo')}]"
+                            )
+                            dias_prueba_in = st.number_input("Días de prueba a otorgar:", min_value=1, max_value=60, value=5, step=1, key="num_dias_prueba_tab_u")
+                            btn_run_prueba_admin = st.form_submit_button("🎁 Activar Prueba Manual Ahora", type="primary", use_container_width=True)
+
+                            if btn_run_prueba_admin:
+                                ok_p_a, msg_p_a = activar_prueba_manual_gerente(g_sel_prueba, dias=dias_prueba_in)
+                                if ok_p_a:
+                                    registrar_evento_auditoria(
+                                        current_user,
+                                        categoria="💳 Suscripción",
+                                        accion="Activación Manual de Prueba",
+                                        detalle=f"Gerente {g_sel_prueba}: {dias_prueba_in} días otorgados",
+                                        dispositivo="🖥️ PC / Escritorio"
+                                    )
+                                    st.session_state['ultima_prueba_otorgada'] = {
+                                        'usuario': g_sel_prueba,
+                                        'nombre': users_dict[g_sel_prueba].get('nombre', ''),
+                                        'telefono': users_dict[g_sel_prueba].get('telefono', ''),
+                                        'sector': users_dict[g_sel_prueba].get('codigo_sector', ''),
+                                        'nombre_sector': users_dict[g_sel_prueba].get('nombre_sector', ''),
+                                        'dias': dias_prueba_in,
+                                        'mensaje': msg_p_a
+                                    }
+                                    st.success(f"{msg_p_a}")
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {msg_p_a}")
+
+                        ult_p = st.session_state.get('ultima_prueba_otorgada')
+                        if ult_p:
+                            st.markdown("---")
+                            st.markdown("###### 📲 Compartir Notificación de Activación por WhatsApp")
+                            tel_p_in = st.text_input("Número celular (10 dígitos):", value=ult_p.get('telefono', '').replace('N/D', ''), placeholder="ej. 3057939537", key="tel_p_in_box")
+                            nom_g_p = ult_p['nombre'].split()[0].title() if ult_p['nombre'] else 'Gerente'
+                            msg_wa_prueba = (
+                                f"🌸 ¡Hola {nom_g_p}! Te confirmamos que tu cuenta de Gerente y todo tu equipo de Líderes tienen activados *{ult_p['dias']} días de acceso de prueba* en la plataforma.\n\n"
+                                f"👤 *Usuario:* `{ult_p['usuario']}`\n"
+                                f"🌐 *Ingresa aquí:* https://metaseindicadores.up.railway.app\n\n"
+                                f"¡Muchos éxitos en la gestión de tu ciclo! ✨"
+                            )
+                            st.text_area("Mensaje listo para enviar a la Gerente:", msg_wa_prueba, height=120, key="txt_wa_prueba_box")
+                            if tel_p_in and len(re.sub(r'\D', '', tel_p_in)) >= 10:
+                                num_clean_p = re.sub(r'\D', '', tel_p_in)[-10:]
+                                link_wa_p = f"https://api.whatsapp.com/send?phone=57{num_clean_p}&text={urllib.parse.quote(msg_wa_prueba)}"
+                                st.link_button("📲 Enviar Notificación por WhatsApp", url=link_wa_p, use_container_width=True)
+                    else:
+                        st.info("ℹ️ No hay cuentas con rol de 'Gerente' registradas en este momento.")
+
                 with tab_crear_u:
                     st.markdown("##### 👤 Crear o Modificar Cuenta")
                     with st.form("form_nuevo_usuario"):
@@ -13301,6 +13444,7 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                         nu_grupo = st.text_input("Código de Grupo (Para Líderes)", placeholder="ej. 9334")
                         nu_sector = st.text_input("Código de Sector (Para Gerentes)", placeholder="ej. 700000466")
                         nu_nom_sec = st.text_input("Nombre del Sector (Para Gerentes/Líderes)", placeholder="ej. EMOCIONES DOLLY")
+                        chk_act_5d_nuevo = st.checkbox("🎁 Activar 5 Días de Prueba Inicial automáticamente (para Gerentes)", value=False)
 
                         btn_save_u = st.form_submit_button("💾 Guardar / Actualizar Usuario", type="primary", use_container_width=True)
                         if btn_save_u:
@@ -13308,6 +13452,8 @@ if tab_usuarios is not None and user_rol == 'superadmin':
                                 nu_username, nu_nombre, nu_pass, nu_rol, nu_grupo, nu_sector, nombre_sector=nu_nom_sec
                             )
                             if ok_u:
+                                if chk_act_5d_nuevo and nu_rol == "gerente":
+                                    activar_prueba_manual_gerente(nu_username, dias=5)
                                 registrar_evento_auditoria(
                                     current_user,
                                     categoria="👥 Usuarios",
