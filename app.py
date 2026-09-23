@@ -9957,7 +9957,43 @@ if tab_geral is not None:
                     st.rerun()
 
             # Configuración de Plantilla de Mensaje
-            col_cfg1, col_cfg2 = st.columns([1.2, 1.8])
+            plantillas_cobranza_def = {
+                'hoy': (
+                    "🚨 ¡Hola {primer_nombre}! Te recordamos que *HOY ({vencimiento})* es la fecha límite para el pago de tu factura *N° {factura}* por un valor de *{saldo_total}*.\n\n"
+                    "Evita recargos financieros y bloqueos en tus próximos pedidos pagando hoy antes de las 9:00 PM. ✨\n\n"
+                    "Cualquier duda con tu pago, con gusto te apoyo. — {remitente} 📲"
+                ),
+                'manana': (
+                    "🌸 ¡Hola {primer_nombre}! Te saluda {remitente} de Natura & Avon.\n\n"
+                    "Queremos recordarte con mucho cariño que el día de *mañana ({vencimiento})* vence tu factura *N° {factura}* (Pedido #{pedido}) por un valor de *{saldo_total}*.\n\n"
+                    "💡 *Recuerda:* Realizar tu pago a tiempo te permite mantener tu crédito activo y seguir recibiendo tus pedidos sin retrasos. ✨\n\n"
+                    "Puedes cancelar fácilmente por Nequi, Daviplata o PSE. ¡Que tengas un excelente día! 💕"
+                ),
+                'ayer': (
+                    "🌸 ¡Hola {primer_nombre}! Te saluda {remitente} de Natura & Avon.\n\n"
+                    "Te escribo con mucho cariño porque {vencimiento} fue la fecha de pago de tu factura *N° {factura}* por un valor de *{saldo_total}*.\n\n"
+                    "💡 ¿Tuviste algún inconveniente con el pago o necesitas que te comparta los canales de Nequi, Daviplata o PSE para apoyarte hoy mismo? ✨\n\n"
+                    "Quedo muy atenta para ayudarte a normalizar tu pedido y mantener tu crédito activo. ¡Un abrazo! — {remitente} 📲"
+                ),
+                'mora': (
+                    "⚠️ Estimada {primer_nombre}, te informamos que tu factura *N° {factura}* presenta *{dias_retraso} días de vencida* con un saldo pendiente de *{saldo_total}*.\n\n"
+                    "📌 *Detalle de la obligación:*\n"
+                    "• Saldo Capital: {saldo_capital}\n"
+                    "• Saldo Financiero: {saldo_financiero}\n"
+                    "• Saldo Total a Pagar: *{saldo_total}*\n\n"
+                    "Por favor reporta tu comprobante de pago a la brevedad para normalizar tu estado de cuenta. Estamos para apoyarte. — {remitente} 📲"
+                ),
+                'general': (
+                    "🌸 ¡Hola {primer_nombre}! Te recordamos que tienes una factura programada para vencer el *{vencimiento}* (Factura N° {factura}) por valor de *{saldo_total}*.\n\n"
+                    "¡Muchos éxitos en tu negocio! ✨ — {remitente}"
+                ),
+                'auto': (
+                    "⚡ [Modo Automático Activo]: El sistema asigna inteligentemente la plantilla según los días de vencimiento (Hoy, Mañana, Ayer o Mora).\n\n"
+                    "Si deseas enviar un texto personalizado propio a todas las consultoras seleccionadas, puedes escribirlo o pegarlo aquí sustituyendo este mensaje."
+                )
+            }
+
+            col_cfg1, col_cfg2 = st.columns([1.1, 1.9])
             with col_cfg1:
                 tipo_camp_sel = st.selectbox(
                     "Tipo de Plantilla de Mensaje:",
@@ -9974,9 +10010,8 @@ if tab_geral is not None:
                 )
                 nombre_remit_masivo = st.text_input("Nombre de la Líder / Remitente:", value=user_nombre if user_nombre else "Tu Líder", key="in_remit_masivo")
 
-            with col_cfg2:
                 uploaded_flyer_geral = st.file_uploader(
-                    "🖼️ Adjuntar Imagen o Recordatorio de Pago (Opcional):",
+                    "🖼️ Adjuntar Imagen / Flyer (Opcional):",
                     type=["png", "jpg", "jpeg", "webp"],
                     key="uploader_flyer_geral_cobranza",
                     help="Sube un flyer de medios de pago, QR de Bancolombia/Efecty o recordatorio comercial."
@@ -9988,8 +10023,36 @@ if tab_geral is not None:
                     b64_flyer_geral = base64.b64encode(uploaded_flyer_geral.getvalue()).decode('utf-8')
                     mime_flyer_geral = uploaded_flyer_geral.type or "image/png"
                     st.success(f"🖼️ Flyer listo: **{uploaded_flyer_geral.name}** ({len(uploaded_flyer_geral.getvalue())//1024} KB)")
-                else:
-                    st.caption("💡 Variables automáticas: `{primer_nombre}`, `{nombre}`, `{factura}`, `{saldo_total}`, `{vencimiento}`. Puedes adjuntar un flyer con convenios de pago (Efecty, Bancolombia, PSE).")
+
+            with col_cfg2:
+                default_tpl_txt = plantillas_cobranza_def.get(tipo_camp_sel, plantillas_cobranza_def['general'])
+                key_tpl_geral = f"txt_tpl_geral_{tipo_camp_sel}"
+
+                c_sub1, c_sub2 = st.columns([3, 1.2])
+                with c_sub1:
+                    st.markdown("**✏️ Personalizar Plantilla de Mensaje:**")
+                with c_sub2:
+                    if st.button("🔄 Restaurar", key=f"btn_rst_geral_tpl_{tipo_camp_sel}", help="Restablecer al texto original sugerido"):
+                        st.session_state[key_tpl_geral] = default_tpl_txt
+                        st.rerun()
+
+                txt_plantilla_activa = st.text_area(
+                    "✏️ Personalizar Plantilla de Mensaje:",
+                    value=default_tpl_txt,
+                    height=145,
+                    key=key_tpl_geral,
+                    label_visibility="collapsed",
+                    help="Puedes modificar el texto libremente. Las variables se reemplazarán automáticamente con los datos de cada consultora."
+                )
+                st.caption("💡 **Variables:** `{primer_nombre}`, `{nombre}`, `{factura}`, `{pedido}`, `{vencimiento}`, `{saldo_total}`, `{saldo_capital}`, `{saldo_financiero}`, `{dias_retraso}`, `{remitente}`")
+
+            # Determinar si hay plantilla personalizada activa para aplicar
+            custom_tpl_aplicar = None
+            if tipo_camp_sel != 'auto':
+                custom_tpl_aplicar = txt_plantilla_activa
+            else:
+                if txt_plantilla_activa and txt_plantilla_activa.strip() != plantillas_cobranza_def['auto'].strip():
+                    custom_tpl_aplicar = txt_plantilla_activa
 
             # Generar tabla con casillas interactivas
             filas_campana = []
@@ -10011,7 +10074,12 @@ if tab_geral is not None:
                     else:
                         t_msg = 'general'
 
-                msg_ind = generar_mensaje_whatsapp_cobranza(r, tipo=t_msg, nombre_remitente=nombre_remit_masivo)
+                msg_ind = generar_mensaje_whatsapp_cobranza(
+                    r, 
+                    tipo=t_msg, 
+                    nombre_remitente=nombre_remit_masivo, 
+                    plantilla_custom=custom_tpl_aplicar
+                )
                 cel = str(r.get('telefono_movil', '')).strip()
                 cel_raw = cel.replace(' ', '').replace('-', '').replace('+', '')
                 cel_clean = cel_raw.split('.')[0] if '.' in cel_raw else cel_raw
@@ -10055,7 +10123,7 @@ if tab_geral is not None:
                     expanded=(uploaded_flyer_geral is not None)
                 )
 
-            st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para marcar o desmarcar a cada consultora, o pulsa **'Abrir WhatsApp'** para chatear directamente.")
+            st.caption("👇 **Haz clic en las casillas '✅ Enviar'** para seleccionar consultoras, haz doble clic en **'✏️ Mensaje Personalizado'** si deseas retocar el texto de una consultora específica, o pulsa **'Abrir WhatsApp'** para chatear.")
 
             df_editado_geral = st.data_editor(
                 df_campana_out[[
@@ -10072,21 +10140,28 @@ if tab_geral is not None:
                     '📲 Enviar WhatsApp': st.column_config.LinkColumn(
                         "📲 Enviar WhatsApp",
                         display_text="Abrir WhatsApp"
+                    ),
+                    'Mensaje Personalizado': st.column_config.TextColumn(
+                        "✏️ Mensaje Personalizado",
+                        help="Haz doble clic para editar manualmente el mensaje de esta consultora",
+                        width="large"
                     )
                 },
                 disabled=[
                     'Consultora', 'Código CB', 'Grupo', 'Sit. Comercial', 
                     'Nivel / Color', 'Celular', 'Factura', 'Vencimiento', 'Días Restantes', 
-                    'Saldo Total', '📲 Enviar WhatsApp', 'Mensaje Personalizado'
+                    'Saldo Total', '📲 Enviar WhatsApp'
                 ],
                 use_container_width=True,
                 hide_index=True,
                 key=f"editor_campana_geral_{st.session_state.get('editor_ver_geral', 0)}"
             )
 
-            # Extraer las consultoras marcadas
+            # Extraer las consultoras marcadas sincronizando cualquier edición manual del mensaje en la tabla
             indices_marcados = df_editado_geral.index[df_editado_geral['✅ Enviar'] == True].tolist()
             df_marcadas = df_campana_out.iloc[indices_marcados].copy()
+            if 'Mensaje Personalizado' in df_editado_geral.columns:
+                df_marcadas['Mensaje Personalizado'] = df_editado_geral.iloc[indices_marcados]['Mensaje Personalizado'].values
             n_marcadas = len(df_marcadas)
             monto_marcado = df_marcadas['saldo_num'].sum() if not df_marcadas.empty else 0
             n_mora = len(df_marcadas[df_marcadas['Días Restantes'] < 0]) if not df_marcadas.empty else 0

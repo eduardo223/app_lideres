@@ -9967,23 +9967,48 @@ def procesar_analisis_geral_cobranza(df_geral, fecha_base=None):
         'heatmap_data': heatmap_data
     }
 
-def generar_mensaje_whatsapp_cobranza(row, tipo='manana', nombre_remitente='Tu Líder'):
+def generar_mensaje_whatsapp_cobranza(row, tipo='manana', nombre_remitente='Tu Líder', plantilla_custom=None):
     """
     Genera el texto formateado para el mensaje de WhatsApp de recordatorio de cobro.
+    Soporta plantilla personalizada (plantilla_custom) con sustitución dinámica de variables.
     """
-    nombre = str(row.get('nombre', 'Consultora')).split()[0].title()
-    factura = str(row.get('numero_factura', '')).split('.')[0]
-    pedido = str(row.get('numero_pedido', '')).split('.')[0]
-    f_venc = str(row.get('fecha_vencimiento', ''))[:10]
-    saldo_tot = float(row.get('saldo_total', 0.0))
-    saldo_prin = float(row.get('saldo_principal', saldo_tot))
-    saldo_fin = float(row.get('saldo_financiero', 0.0))
-    dias_ret = int(row.get('dias_retraso', 0)) if pd.notna(row.get('dias_retraso')) else 0
+    nombre_completo = str(row.get('nombre', 'Consultora')).strip()
+    nombre = nombre_completo.split()[0].title() if nombre_completo else 'Consultora'
+    factura = str(row.get('numero_factura', '')).split('.')[0].strip()
+    pedido = str(row.get('numero_pedido', '')).split('.')[0].strip()
+    f_venc = str(row.get('fecha_vencimiento', ''))[:10].strip()
+    saldo_tot = float(row.get('saldo_total', 0.0) or 0.0)
+    saldo_prin = float(row.get('saldo_principal', saldo_tot) or saldo_tot)
+    saldo_fin = float(row.get('saldo_financiero', 0.0) or 0.0)
+    d_venc_calc = int(row.get('dias_para_vencer', 0)) if pd.notna(row.get('dias_para_vencer')) else 0
+    if pd.notna(row.get('dias_retraso')) and int(row.get('dias_retraso', 0)) != 0:
+        dias_ret = abs(int(row.get('dias_retraso', 0)))
+    elif d_venc_calc < 0:
+        dias_ret = abs(d_venc_calc)
+    else:
+        dias_ret = 0
     saldo_fmt = f"${saldo_tot:,.0f} COP".replace(",", ".")
+    saldo_prin_fmt = f"${saldo_prin:,.0f} COP".replace(",", ".")
+    saldo_fin_fmt = f"${saldo_fin:,.0f} COP".replace(",", ".")
+    remit = str(nombre_remitente).strip() if nombre_remitente else "Tu Líder"
+
+    if plantilla_custom and str(plantilla_custom).strip():
+        msg = str(plantilla_custom)
+        msg = msg.replace("{primer_nombre}", nombre)
+        msg = msg.replace("{nombre}", nombre_completo.title())
+        msg = msg.replace("{factura}", factura)
+        msg = msg.replace("{pedido}", pedido)
+        msg = msg.replace("{vencimiento}", f_venc)
+        msg = msg.replace("{saldo_total}", saldo_fmt)
+        msg = msg.replace("{saldo_capital}", saldo_prin_fmt)
+        msg = msg.replace("{saldo_financiero}", saldo_fin_fmt)
+        msg = msg.replace("{dias_retraso}", str(dias_ret))
+        msg = msg.replace("{remitente}", remit)
+        return msg
     
     if tipo == 'manana':
         msg = (
-            f"🌸 ¡Hola {nombre}! Te saluda {nombre_remitente} de Natura & Avon.\n\n"
+            f"🌸 ¡Hola {nombre}! Te saluda {remit} de Natura & Avon.\n\n"
             f"Queremos recordarte con mucho cariño que el día de *mañana ({f_venc})* vence tu factura *N° {factura}* (Pedido #{pedido}) por un valor de *{saldo_fmt}*.\n\n"
             f"💡 *Recuerda:* Realizar tu pago a tiempo te permite mantener tu crédito activo y seguir recibiendo tus pedidos sin retrasos. ✨\n\n"
             f"Puedes cancelar fácilmente por Nequi, Daviplata o PSE. ¡Que tengas un excelente día! 💕"
@@ -9992,30 +10017,30 @@ def generar_mensaje_whatsapp_cobranza(row, tipo='manana', nombre_remitente='Tu L
         msg = (
             f"🚨 ¡Hola {nombre}! Te recordamos que *HOY ({f_venc})* es la fecha límite para el pago de tu factura *N° {factura}* por un valor de *{saldo_fmt}*.\n\n"
             f"Evita recargos financieros y bloqueos en tus próximos pedidos pagando hoy antes de las 9:00 PM. ✨\n\n"
-            f"Cualquier duda con tu pago, con gusto te apoyo. — {nombre_remitente} 📲"
+            f"Cualquier duda con tu pago, con gusto te apoyo. — {remit} 📲"
         )
     elif tipo in ['ayer', 'reciente']:
         dias_abs = abs(dias_ret) if dias_ret != 0 else 1
         msg_tiempo = "el día de ayer" if dias_abs == 1 else f"hace {dias_abs} días"
         msg = (
-            f"🌸 ¡Hola {nombre}! Te saluda {nombre_remitente} de Natura & Avon.\n\n"
+            f"🌸 ¡Hola {nombre}! Te saluda {remit} de Natura & Avon.\n\n"
             f"Te escribo con mucho cariño porque {msg_tiempo} ({f_venc}) fue la fecha de pago de tu factura *N° {factura}* por un valor de *{saldo_fmt}*.\n\n"
             f"💡 ¿Tuviste algún inconveniente con el pago o necesitas que te comparta los canales de Nequi, Daviplata o PSE para apoyarte hoy mismo? ✨\n\n"
-            f"Quedo muy atenta para ayudarte a normalizar tu pedido y mantener tu crédito activo. ¡Un abrazo! — {nombre_remitente} 📲"
+            f"Quedo muy atenta para ayudarte a normalizar tu pedido y mantener tu crédito activo. ¡Un abrazo! — {remit} 📲"
         )
     elif tipo == 'mora':
         msg = (
             f"⚠️ Estimada {nombre}, te informamos que tu factura *N° {factura}* presenta *{dias_ret} días de vencida* con un saldo pendiente de *{saldo_fmt}*.\n\n"
             f"📌 *Detalle de la obligación:*\n"
-            f"• Saldo Capital: ${saldo_prin:,.0f} COP\n"
-            f"• Saldo Financiero: ${saldo_fin:,.0f} COP\n"
+            f"• Saldo Capital: {saldo_prin_fmt}\n"
+            f"• Saldo Financiero: {saldo_fin_fmt}\n"
             f"• Saldo Total a Pagar: *{saldo_fmt}*\n\n"
-            f"Por favor reporta tu comprobante de pago a la brevedad para normalizar tu estado de cuenta. Estamos para apoyarte. — {nombre_remitente} 📲"
+            f"Por favor reporta tu comprobante de pago a la brevedad para normalizar tu estado de cuenta. Estamos para apoyarte. — {remit} 📲"
         )
     else: # preventivo general
         msg = (
             f"🌸 ¡Hola {nombre}! Te recordamos que tienes una factura programada para vencer el *{f_venc}* (Factura N° {factura}) por valor de *{saldo_fmt}*.\n\n"
-            f"¡Muchos éxitos en tu negocio! ✨ — {nombre_remitente}"
+            f"¡Muchos éxitos en tu negocio! ✨ — {remit}"
         )
     return msg
 
