@@ -11,7 +11,7 @@
   },
   "gerente": {
     "nombre": "Clery Cuellar",
-    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
     "rol": "gerente",
     "codigo_grupo": null,
     "codigo_sector": "700000459",
@@ -93,7 +93,8 @@
     "codigo_sector": "700000459",
     "nombre_sector": "MATICES CLERY",
     "estado_suscripcion": "activo",
-    "fecha_vencimiento": null
+    "fecha_vencimiento": null,
+    "telefono": "3202062287"
   },
   "lider9291": {
     "nombre": "LUZ MARY LUNA LEON",
@@ -137,7 +138,8 @@
     "codigo_sector": "700000459",
     "nombre_sector": "MATICES CLERY",
     "estado_suscripcion": "activo",
-    "fecha_vencimiento": null
+    "fecha_vencimiento": null,
+    "telefono": "3219731200"
   },
   "lider8481": {
     "nombre": "LUZ ADRIANA PAEZ VIGOYA",
@@ -501,6 +503,114 @@
     "codigo_sector": "700000459",
     "nombre_sector": "MATICES CLERY",
     "estado_suscripcion": "activo",
+    "fecha_vencimiento": null
+  },
+  "nayibe.pulido@natura.net": {
+    "nombre": "Nayibe Esmeralda Pulido",
+    "password_hash": "240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9",
+    "rol": "gerente",
+    "codigo_grupo": null,
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN NAYIBE",
+    "telefono": "",
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": "2026-10-30T00:00:00",
+    "debe_cambiar_password": false
+  },
+  "ana.manjarres@gmail.com": {
+    "nombre": "ANA MARIA MANJARRES VILLANUEVA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "8927",
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": null
+  },
+  "tatianamcasallashurtado@gmail.com": {
+    "nombre": "TATIANA MILENA CASALLAS HURTADO",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "8831",
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": null
+  },
+  "ramirezquevedobeatriz@gmail.com": {
+    "nombre": "BEATRIZ RAMIREZ QUEVEDO",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9374",
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": null
+  },
+  "leydygiraldo2014@gmail.com": {
+    "nombre": "LEIDY JOHANA GIRALDO VALENCIA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "9616",
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": null
+  },
+  "saenzmaritza78@gmail.com": {
+    "nombre": "MARITZA SAENZ VILLAMIL",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10217",
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": null
+  },
+  "paula.026@hotmail.com": {
+    "nombre": "PAULA ANDREA CASTRO PULIDO",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10320",
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": null
+  },
+  "lider10138": {
+    "nombre": "LUZ VIVIANA CAMACHO SOLER",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10138",
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "prueba",
+    "fecha_vencimiento": null
+  },
+  "esli.hm@gmail.com": {
+    "nombre": "ESLY YULIETH HERRERA MOSQUERA",
+    "password_hash": "f2499f5bd15335d3fd9ef979ea072a8e6eb32990f7c6fe54dd08cdd6792309af",
+    "rol": "lider",
+    "codigo_grupo": "10038",
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN",
+    "telefono": "",
+    "debe_cambiar_password": false,
+    "estado_suscripcion": "prueba",
     "fecha_vencimiento": null
   }
 }

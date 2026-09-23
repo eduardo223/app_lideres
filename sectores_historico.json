@@ -22,5 +22,17 @@
     "correo_gerente": "dolly.parra@natura.net",
     "telefono_gerente": "3113201145",
     "nombre_gerente": "Dolly Parra"
+  },
+  "700000232": {
+    "codigo_sector": "700000232",
+    "nombre_sector": "SECTOR EXPRESIÓN NAYIBE",
+    "primera_prueba_fecha": "2026-09-20T00:00:00",
+    "ha_consumido_prueba": true,
+    "ha_pagado": false,
+    "estado": "prueba",
+    "fecha_vencimiento": "2026-10-30T00:00:00",
+    "correo_gerente": "nayibe.pulido@natura.net",
+    "telefono_gerente": "",
+    "nombre_gerente": "Nayibe Esmeralda Pulido"
   }
 }

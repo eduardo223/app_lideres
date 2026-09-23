@@ -3745,6 +3745,106 @@ def reconciliar_usuarios_sectores(usuarios_dict, persistir=True):
 
     cambios = False
 
+    # Saneamiento y Reconciliación Integral del Sector 700000232 (Sector Expresión - Nayibe)
+    CUENTAS_ERRONEAS_700000232 = {
+        "miscelaniaparaiso@gmail.com",
+        "soniavasquez0317@gmail.com",
+        "lupederengifo@gmail.com",
+        "lucyrufran@hotmail.com",
+        "mimacaceres07@gmail.com",
+        "nonatohoyos1721@gmail.com",
+        "lider9374",
+        "lider9616",
+        "lider10217",
+        "lider8831",
+        "lider8927",
+        "lider10038"
+    }
+
+    # 1. Purgar cuentas duplicadas o con correos de consultoras ajenas
+    for bad_u in CUENTAS_ERRONEAS_700000232:
+        if bad_u in usuarios_dict:
+            del usuarios_dict[bad_u]
+            cambios = True
+
+    try:
+        conn_del_700 = obtener_conexion_db()
+        cur_del_700 = conn_del_700.cursor()
+        for bad_u in CUENTAS_ERRONEAS_700000232:
+            cur_del_700.execute("DELETE FROM usuarios WHERE LOWER(username) = ?", (bad_u.lower(),))
+        conn_del_700.commit()
+        conn_del_700.close()
+    except Exception:
+        pass
+
+    # 2. Consolidar las cuentas oficiales de las Líderes del Sector 700000232
+    LIDERES_OFICIALES_700000232 = {
+        "ana.manjarres@gmail.com": {
+            "nombre": "ANA MARIA MANJARRES VILLANUEVA",
+            "codigo_grupo": "8927"
+        },
+        "tatianamcasallashurtado@gmail.com": {
+            "nombre": "TATIANA MILENA CASALLAS HURTADO",
+            "codigo_grupo": "8831"
+        },
+        "ramirezquevedobeatriz@gmail.com": {
+            "nombre": "BEATRIZ RAMIREZ QUEVEDO",
+            "codigo_grupo": "9374"
+        },
+        "leydygiraldo2014@gmail.com": {
+            "nombre": "LEIDY JOHANA GIRALDO VALENCIA",
+            "codigo_grupo": "9616"
+        },
+        "saenzmaritza78@gmail.com": {
+            "nombre": "MARITZA SAENZ VILLAMIL",
+            "codigo_grupo": "10217"
+        },
+        "esli.hm@gmail.com": {
+            "nombre": "ESLY YULIETH HERRERA MOSQUERA",
+            "codigo_grupo": "10038"
+        },
+        "paula.026@hotmail.com": {
+            "nombre": "PAULA ANDREA CASTRO PULIDO",
+            "codigo_grupo": "10320"
+        },
+        "lider10138": {
+            "nombre": "LUZ VIVIANA CAMACHO SOLER",
+            "codigo_grupo": "10138"
+        }
+    }
+
+    pass_def_lider = hashlib_sha256("lider123")
+    for cor_u, cor_d in LIDERES_OFICIALES_700000232.items():
+        grp_c = str(cor_d["codigo_grupo"]).strip()
+        # Verificar si este grupo ya está cubierto por alguna cuenta de líder activa (incluyendo si fue renombrada)
+        usr_grp = next((u for u, d in usuarios_dict.items() if str(d.get("codigo_grupo") or "").strip() == grp_c and d.get("rol") == "lider"), None)
+
+        if usr_grp is None:
+            usuarios_dict[cor_u] = {
+                "nombre": cor_d["nombre"],
+                "password_hash": pass_def_lider,
+                "rol": "lider",
+                "codigo_grupo": grp_c,
+                "codigo_sector": "700000232",
+                "nombre_sector": "SECTOR EXPRESIÓN",
+                "telefono": "",
+                "debe_cambiar_password": False,
+                "estado_suscripcion": "prueba",
+                "fecha_vencimiento": None
+            }
+            cambios = True
+        else:
+            u_obj = usuarios_dict[usr_grp]
+            if u_obj.get("codigo_sector") != "700000232":
+                u_obj["codigo_sector"] = "700000232"
+                cambios = True
+            if u_obj.get("nombre_sector") != "SECTOR EXPRESIÓN":
+                u_obj["nombre_sector"] = "SECTOR EXPRESIÓN"
+                cambios = True
+            if u_obj.get("debe_cambiar_password") is True:
+                u_obj["debe_cambiar_password"] = False
+                cambios = True
+
     for uname, udata in usuarios_dict.items():
         if not isinstance(udata, dict):
             continue
@@ -4058,6 +4158,10 @@ def cargar_usuarios():
     # Sincronización silenciosa atómica al disco si hay usuarios válidos
     if usuarios_consolidados:
         guardar_usuarios(usuarios_consolidados)
+        try:
+            sincronizar_usuarios_a_sqlite(dict_usuarios=usuarios_consolidados)
+        except Exception:
+            pass
 
     return usuarios_consolidados
 
@@ -4495,6 +4599,19 @@ def auto_aprovisionar_lideres_sector(cod_sector, nombre_sector=""):
             nom_sec_real = "EMOCIONES DOLLY"
         elif not nom_sec_real:
             nom_sec_real = sec_info.get('nombre_sector', f'Sector {sec_clean}')
+
+        # Verificar primero si ya existe alguna líder registrada para este grupo
+        user_existente = next((u for u, d in usuarios.items() if str(d.get("codigo_grupo") or "").strip() == g and d.get("rol") == "lider"), None)
+        if user_existente:
+            user_u = usuarios[user_existente]
+            if not user_u.get('codigo_sector') or user_u.get('codigo_sector') != sec_clean:
+                user_u['codigo_sector'] = sec_clean
+                user_u['nombre_sector'] = nom_sec_real
+                cambios = True
+            elif user_u.get('nombre_sector') != nom_sec_real:
+                user_u['nombre_sector'] = nom_sec_real
+                cambios = True
+            continue
 
         username = f"lider{g}".lower()
         if username not in usuarios:
@@ -5611,6 +5728,64 @@ def registrar_o_actualizar_usuario(username, nombre, password=None, rol="lider",
         return True, f"Usuario '{u_clean}' guardado exitosamente."
     return False, "Error al guardar el archivo de usuarios."
 
+def modificar_o_renombrar_usuario(antiguo_username, nuevo_username, nuevo_nombre=None, nueva_pass=None, nuevo_grupo=None, nuevo_telefono=None):
+    """
+    Permite renombrar el login/correo de un usuario y actualizar su nombre, grupo, teléfono o contraseña.
+    Garantiza que la clave antigua se elimine de usuarios.json, del disco persistente y de SQLite,
+    evitando cuentas duplicadas o huérfanas.
+    """
+    u_old = str(antiguo_username).strip().lower()
+    u_new = str(nuevo_username).strip().lower() if nuevo_username else u_old
+
+    if not u_old:
+        return False, "El usuario de origen no es válido."
+    if not u_new:
+        return False, "El nuevo usuario o correo no puede estar vacío."
+
+    usuarios = cargar_usuarios()
+    if u_old not in usuarios:
+        return False, f"El usuario '{u_old}' no existe en el sistema."
+
+    # Si se cambia el login/correo, verificar que no colisione con otro usuario existente
+    if u_new != u_old and u_new in usuarios:
+        return False, f"Ya existe una cuenta registrada con el usuario/correo '{u_new}'."
+
+    u_data = usuarios[u_old].copy()
+
+    if nuevo_nombre is not None and str(nuevo_nombre).strip():
+        u_data["nombre"] = str(nuevo_nombre).strip()
+    if nuevo_grupo is not None:
+        u_data["codigo_grupo"] = str(nuevo_grupo).strip() if str(nuevo_grupo).strip() else None
+    if nuevo_telefono is not None:
+        u_data["telefono"] = str(nuevo_telefono).strip()
+    if nueva_pass and len(str(nueva_pass).strip()) >= 4:
+        u_data["password_hash"] = hashlib_sha256(str(nueva_pass).strip())
+        u_data["debe_cambiar_password"] = False
+
+    # Eliminar cuenta antigua de SQLite directamente
+    try:
+        conn = obtener_conexion_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM usuarios WHERE LOWER(username) = ?", (u_old,))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+    # Si cambió de nombre/login
+    if u_new != u_old:
+        del usuarios[u_old]
+
+    usuarios[u_new] = u_data
+
+    # Guardar en json
+    guardar_usuarios(usuarios)
+
+    # Sincronizar en SQLite
+    sincronizar_usuarios_a_sqlite(dict_usuarios=usuarios)
+
+    return True, f"¡Líder '{u_new}' actualizada exitosamente!"
+
 def eliminar_usuario_perfil(username, eliminar_sector_asociado=False):
     """
     Elimina la cuenta de un usuario de usuarios.json y sincroniza con SQLite.
@@ -5632,9 +5807,20 @@ def eliminar_usuario_perfil(username, eliminar_sector_asociado=False):
     sec_id = u_data.get("codigo_sector")
     rol = u_data.get("rol")
 
+    # 1. Purgar de SQLite primero para evitar que una lectura concurrente lo reviva
+    try:
+        conn = obtener_conexion_db()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM usuarios WHERE LOWER(username) = ?", (u_clean,))
+        conn.commit()
+        conn.close()
+    except Exception:
+        pass
+
+    # 2. Purgar del diccionario y sincronizar atómicamente
     del usuarios[u_clean]
     guardar_usuarios(usuarios)
-    sincronizar_usuarios_a_sqlite()
+    sincronizar_usuarios_a_sqlite(dict_usuarios=usuarios)
 
     # Si se solicitó eliminar el registro del sector en el histórico
     if eliminar_sector_asociado and sec_id and rol == "gerente":
@@ -6244,13 +6430,11 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
                         nom_sec_lider = val_nm
                         break
 
-        # 3. Buscar en df_tab por grupo
+        # 3. Buscar en df_tab por grupo (sector y nombre de sector)
         if df_tab is not None:
             mask_g = (df_tab['Grupo'].astype(str).str.strip() == g_str) if 'Grupo' in df_tab.columns else pd.Series(False, index=df_tab.index)
             if mask_g.any():
                 df_g = df_tab[mask_g]
-                if 'Correo' in df_g.columns and not df_g.dropna(subset=['Correo']).empty:
-                    correo_lider = str(df_g['Correo'].dropna().iloc[0]).strip().lower()
                 col_s_g = next((c for c in ['Cod. Sector', 'cod_sector'] if c in df_g.columns), None)
                 if col_s_g and not df_g[col_s_g].dropna().empty:
                     sec_lider = str(df_g[col_s_g].dropna().iloc[0]).split('.')[0].strip()
@@ -6266,13 +6450,20 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
             nom_sec_lider = "MATICES CLERY"
         elif sec_lider == "700000466":
             nom_sec_lider = "EMOCIONES DOLLY"
+        elif sec_lider == "700000232":
+            nom_sec_lider = "SECTOR EXPRESIÓN"
 
-        username = correo_lider if (correo_lider and '@' in correo_lider) else f"lider{g_str}"
-        ya_existe = (username in usuarios_existentes)
+        # Verificar si ya existe alguna cuenta de líder para este código de grupo
+        username_existente = None
+        for u_chk, d_chk in usuarios_existentes.items():
+            if str(d_chk.get("codigo_grupo") or "").strip() == g_str and d_chk.get("rol") == "lider":
+                username_existente = u_chk
+                break
 
-        if ya_existe:
+        if username_existente:
+            # Mantener la cuenta que ya tiene la líder y actualizar datos si aplica
             registrar_o_actualizar_usuario(
-                username=username,
+                username=username_existente,
                 nombre=nom_lider,
                 password=None,
                 rol="lider",
@@ -6281,7 +6472,9 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
                 nombre_sector=nom_sec_lider
             )
         else:
-            pass_gen = generar_password_aleatoria()
+            # Si el grupo no tiene cuenta previa, crear con el login canónico lider{g_str}
+            username = f"lider{g_str}".lower()
+            pass_gen = "lider123"
             exito, msg = registrar_o_actualizar_usuario(
                 username=username,
                 nombre=nom_lider,
@@ -6289,9 +6482,17 @@ def auto_crear_usuarios_lideres_desde_bases(ruta_tableau='Base de Datos.xlsx', r
                 rol="lider",
                 codigo_grupo=g_str,
                 codigo_sector=sec_lider,
-                nombre_sector=nom_sec_lider
+                nombre_sector=nom_sec_lider,
+                debe_cambiar_password=False
             )
             if exito:
+                usuarios_existentes[username] = {
+                    "nombre": nom_lider,
+                    "rol": "lider",
+                    "codigo_grupo": g_str,
+                    "codigo_sector": sec_lider,
+                    "nombre_sector": nom_sec_lider
+                }
                 creados.append({
                     "Código Grupo": g_str,
                     "Nombre Líder": nom_lider,
@@ -7110,13 +7311,13 @@ def inicializar_db_sqlite(conn=None, forzar=False):
         except Exception:
             pass
 
-def sincronizar_usuarios_a_sqlite(conn=None):
+def sincronizar_usuarios_a_sqlite(conn=None, dict_usuarios=None):
     close_at_end = False
     if conn is None:
         conn = obtener_conexion_db()
         close_at_end = True
     
-    usuarios = cargar_usuarios()
+    usuarios = dict_usuarios if (dict_usuarios is not None and isinstance(dict_usuarios, dict)) else cargar_usuarios()
     cursor = conn.cursor()
     
     try:

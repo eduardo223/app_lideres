@@ -543,7 +543,7 @@
     "codigo_sector": "700000232",
     "nombre_sector": "SECTOR EXPRESIÓN",
     "nombre_sector_original": "SECTOR EXPRESIÓN NAYIBE",
-    "total_lideres": 6,
+    "total_lideres": 8,
     "lideres": [
       {
         "codigo_grupo": "8831",
@@ -570,6 +570,12 @@
         "nombre_original": "9616 - LEIDY JOHANA GIRALDO VALENCIA"
       },
       {
+        "codigo_grupo": "10038",
+        "codigo_consultora": "",
+        "nombre_lider": "ESLY YULIETH HERRERA MOSQUERA",
+        "nombre_original": "10038 - ESLY YULIETH HERRERA MOSQUERA"
+      },
+      {
         "codigo_grupo": "10138",
         "codigo_consultora": "1724395",
         "nombre_lider": "LUZ VIVIANA CAMACHO SOLER",
@@ -580,6 +586,12 @@
         "codigo_consultora": "4376",
         "nombre_lider": "MARITZA SAENZ VILLAMIL",
         "nombre_original": "10217 - MARITZA SAENZ VILLAMIL"
+      },
+      {
+        "codigo_grupo": "10320",
+        "codigo_consultora": "",
+        "nombre_lider": "PAULA ANDREA CASTRO PULIDO",
+        "nombre_original": "10320 - PAULA ANDREA CASTRO PULIDO"
       }
     ]
   },

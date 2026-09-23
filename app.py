@@ -42,6 +42,7 @@ from procesador import (
     enviar_otp_recuperacion,
     cargar_usuarios,
     registrar_o_actualizar_usuario,
+    modificar_o_renombrar_usuario,
     cambiar_password_usuario,
     restablecer_password_usuario,
     cargar_configuracion,
@@ -13877,66 +13878,140 @@ if tab_lideres_gerente is not None and user_rol == 'gerente':
                     st.info(f"No hay cuentas de líderes registradas asociadas al código de sector {user_sector}.")
 
             with col_ger_u2:
-                st.markdown("##### ⚡ Restablecer Contraseña de una Líder")
-                st.caption("Si una líder olvidó su contraseña o perdió sus datos, selecciónala y restablécela a **'lider123'** de inmediato:")
-
+                st.markdown("##### ⚙️ Gestión & Accesos de Líderes")
                 if lideres_sector:
-                    with st.form("form_reset_gerente"):
-                        u_sel_ger = st.selectbox(
-                            "Selecciona la Líder a gestionar:",
-                            options=[l["Usuario (Login)"] for l in lideres_sector],
-                            format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} (Grupo {users_dict[u].get('codigo_grupo', '')})"
-                        )
-                        pass_nueva_ger = st.text_input("Nueva Contraseña:", value="lider123")
-                        btn_reset_ger = st.form_submit_button("🔄 Restablecer Contraseña", type="primary", use_container_width=True)
+                    tab_g_reset, tab_g_edit, tab_g_del = st.tabs([
+                        "⚡ Claves & WhatsApp",
+                        "✏️ Editar Líder",
+                        "🗑️ Eliminar"
+                    ])
 
-                        if btn_reset_ger:
-                            ok_r_g, msg_r_g = restablecer_password_usuario(u_sel_ger, pass_nueva_ger, debe_cambiar=False)
-                            if ok_r_g:
-                                registrar_evento_auditoria(
-                                    current_user,
-                                    categoria="🔑 Seguridad",
-                                    accion="Restablecimiento Clave Líder",
-                                    detalle=f"Gerente {user_nombre} restableció clave de {u_sel_ger}",
-                                    dispositivo="🖥️ PC / Escritorio"
-                                )
-                                st.success(f"✅ ¡Listo! La contraseña de **{u_sel_ger}** ahora es: `{pass_nueva_ger}`")
-                                st.session_state['ultimo_reseteo_gerente'] = {
-                                    'usuario': u_sel_ger,
-                                    'nombre': users_dict[u_sel_ger].get('nombre', ''),
-                                    'grupo': users_dict[u_sel_ger].get('codigo_grupo', ''),
-                                    'password': pass_nueva_ger
-                                }
-                                st.rerun()
+                    with tab_g_reset:
+                        st.caption("Si una líder olvidó su contraseña o perdió sus datos, selecciónala y restablécela a **'lider123'** de inmediato:")
+                        with st.form("form_reset_gerente"):
+                            u_sel_ger = st.selectbox(
+                                "Selecciona la Líder a gestionar:",
+                                options=[l["Usuario (Login)"] for l in lideres_sector],
+                                format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} (Grupo {users_dict[u].get('codigo_grupo', '')})"
+                            )
+                            pass_nueva_ger = st.text_input("Nueva Contraseña:", value="lider123")
+                            btn_reset_ger = st.form_submit_button("🔄 Restablecer Contraseña", type="primary", use_container_width=True)
+
+                            if btn_reset_ger:
+                                ok_r_g, msg_r_g = restablecer_password_usuario(u_sel_ger, pass_nueva_ger, debe_cambiar=False)
+                                if ok_r_g:
+                                    registrar_evento_auditoria(
+                                        current_user,
+                                        categoria="🔑 Seguridad",
+                                        accion="Restablecimiento Clave Líder",
+                                        detalle=f"Gerente {user_nombre} restableció clave de {u_sel_ger}",
+                                        dispositivo="🖥️ PC / Escritorio"
+                                    )
+                                    st.success(f"✅ ¡Listo! La contraseña de **{u_sel_ger}** ahora es: `{pass_nueva_ger}`")
+                                    st.session_state['ultimo_reseteo_gerente'] = {
+                                        'usuario': u_sel_ger,
+                                        'nombre': users_dict[u_sel_ger].get('nombre', ''),
+                                        'grupo': users_dict[u_sel_ger].get('codigo_grupo', ''),
+                                        'password': pass_nueva_ger
+                                    }
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {msg_r_g}")
+
+                        # Sub-panel de WhatsApp directo
+                        ult_g = st.session_state.get('ultimo_reseteo_gerente')
+                        if ult_g:
+                            st.markdown("---")
+                            st.markdown("###### 📲 Enviar Credenciales a la Líder por WhatsApp")
+                            cel_auto = ""
+                            if 'df_tableau' in locals() and df_tableau is not None and not df_tableau.empty:
+                                match_l = df_tableau[df_tableau['Grupo'].astype(str) == str(ult_g['grupo'])]
+                                if not match_l.empty and 'celular' in match_l.columns:
+                                    cel_val = str(match_l['celular'].iloc[0]).replace('.0', '').strip()
+                                    cel_auto = "".join(ch for ch in cel_val if ch.isdigit())
+
+                            tel_ger_in = st.text_input("Número celular de la líder (10 dígitos):", value=cel_auto, key="tel_ger_reset_in")
+                            msg_wa_ger = (
+                                f"🌸 ¡Hola {ult_g['nombre'].split()[0].title() if ult_g['nombre'] else 'Líder'}! Te comparto tus credenciales de acceso al Sistema de Gestión Natura & Avon:\n\n"
+                                f"👤 *Usuario:* `{ult_g['usuario']}`\n"
+                                f"🔑 *Contraseña:* `{ult_g['password']}`\n\n"
+                                f"🌐 *Enlace de Ingreso:* https://metaseindicadores.up.railway.app\n\n"
+                                f"¡Muchos éxitos! ✨ — Tu Gerente {user_nombre}"
+                            )
+                            st.text_area("Mensaje listo para WhatsApp:", msg_wa_ger, height=120, key="txt_wa_ger_msg")
+                            if tel_ger_in and len(tel_ger_in.strip()) >= 10:
+                                link_wa_g = f"https://api.whatsapp.com/send?phone=57{tel_ger_in.strip()}&text={urllib.parse.quote(msg_wa_ger)}"
+                                st.link_button("📲 Enviar Datos por WhatsApp a la Líder", url=link_wa_g, use_container_width=True)
                             else:
-                                st.error(f"❌ {msg_r_g}")
+                                st.caption("💡 Ingresa el número celular para habilitar el botón de WhatsApp.")
 
-                    # Sub-panel de WhatsApp directo
-                    ult_g = st.session_state.get('ultimo_reseteo_gerente')
-                    if ult_g:
-                        st.markdown("---")
-                        st.markdown("###### 📲 Enviar Credenciales a la Líder por WhatsApp")
-                        cel_auto = ""
-                        if 'df_tableau' in locals() and df_tableau is not None and not df_tableau.empty:
-                            match_l = df_tableau[df_tableau['Grupo'].astype(str) == str(ult_g['grupo'])]
-                            if not match_l.empty and 'celular' in match_l.columns:
-                                cel_val = str(match_l['celular'].iloc[0]).replace('.0', '').strip()
-                                cel_auto = "".join(ch for ch in cel_val if ch.isdigit())
-
-                        tel_ger_in = st.text_input("Número celular de la líder (10 dígitos):", value=cel_auto, key="tel_ger_reset_in")
-                        msg_wa_ger = (
-                            f"🌸 ¡Hola {ult_g['nombre'].split()[0].title() if ult_g['nombre'] else 'Líder'}! Te comparto tus credenciales de acceso al Sistema de Gestión Natura & Avon:\n\n"
-                            f"👤 *Usuario:* `{ult_g['usuario']}`\n"
-                            f"🔑 *Contraseña:* `{ult_g['password']}`\n\n"
-                            f"🌐 *Enlace de Ingreso:* https://metaseindicadores.up.railway.app\n\n"
-                            f"¡Muchos éxitos! ✨ — Tu Gerente {user_nombre}"
+                    with tab_g_edit:
+                        st.caption("Modifica el nombre oficial o cambia el correo/usuario de acceso de cualquier líder de tu sector:")
+                        u_edit_sel = st.selectbox(
+                            "Selecciona la Líder a editar:",
+                            options=[l["Usuario (Login)"] for l in lideres_sector],
+                            format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} (Grupo {users_dict[u].get('codigo_grupo', '')})",
+                            key="sel_lider_edit_gerente"
                         )
-                        st.text_area("Mensaje listo para WhatsApp:", msg_wa_ger, height=120, key="txt_wa_ger_msg")
-                        if tel_ger_in and len(tel_ger_in.strip()) >= 10:
-                            link_wa_g = f"https://api.whatsapp.com/send?phone=57{tel_ger_in.strip()}&text={urllib.parse.quote(msg_wa_ger)}"
-                            st.link_button("📲 Enviar Datos por WhatsApp a la Líder", url=link_wa_g, use_container_width=True)
-                        else:
-                            st.caption("💡 Ingresa el número celular para habilitar el botón de WhatsApp.")
+                        u_ed_data = users_dict.get(u_edit_sel, {})
+                        with st.form("form_editar_lider_gerente"):
+                            e_nombre = st.text_input("Nombre Completo de la Líder:", value=u_ed_data.get("nombre", ""))
+                            e_login = st.text_input("Usuario / Correo (Login de Acceso):", value=u_edit_sel)
+                            e_cel = st.text_input("Teléfono Celular (WhatsApp):", value=u_ed_data.get("telefono", ""))
+                            e_pass = st.text_input("Nueva Contraseña (opcional):", placeholder="Dejar vacío para mantener la contraseña actual", type="password")
+                            
+                            btn_save_lid = st.form_submit_button("💾 Guardar Cambios de la Líder", type="primary", use_container_width=True)
+                            if btn_save_lid:
+                                ok_e, msg_e = modificar_o_renombrar_usuario(
+                                    antiguo_username=u_edit_sel,
+                                    nuevo_username=e_login,
+                                    nuevo_nombre=e_nombre,
+                                    nueva_pass=e_pass if e_pass.strip() else None,
+                                    nuevo_telefono=e_cel
+                                )
+                                if ok_e:
+                                    registrar_evento_auditoria(
+                                        current_user,
+                                        categoria="👥 Usuarios",
+                                        accion="Edición Datos Líder",
+                                        detalle=f"Gerente {user_nombre} actualizó líder {u_edit_sel} -> {e_login} ({e_nombre})",
+                                        dispositivo="🖥️ PC / Escritorio"
+                                    )
+                                    st.success(f"✅ {msg_e}")
+                                    st.rerun()
+                                else:
+                                    st.error(f"❌ {msg_e}")
+
+                    with tab_g_del:
+                        st.caption("Remueve cuentas duplicadas o líderes inactivas de tu directorio:")
+                        u_del_sel = st.selectbox(
+                            "Selecciona la cuenta a eliminar:",
+                            options=[l["Usuario (Login)"] for l in lideres_sector],
+                            format_func=lambda u: f"👤 {u} — {users_dict[u].get('nombre', '')} (Grupo {users_dict[u].get('codigo_grupo', '')})",
+                            key="sel_lider_del_gerente"
+                        )
+                        with st.form("form_eliminar_lider_gerente"):
+                            chk_conf_lid_del = st.checkbox(f"🔒 Confirmo que deseo eliminar la cuenta '{u_del_sel}' de mi sector permanentemente", value=False)
+                            btn_del_lid = st.form_submit_button("🚨 Eliminar Cuenta de Líder", type="secondary", use_container_width=True)
+                            if btn_del_lid:
+                                if not chk_conf_lid_del:
+                                    st.warning("⚠️ Debes marcar la casilla de confirmación para eliminar la cuenta.")
+                                else:
+                                    ok_d, msg_d = eliminar_usuario_perfil(u_del_sel)
+                                    if ok_d:
+                                        registrar_evento_auditoria(
+                                            current_user,
+                                            categoria="👥 Usuarios",
+                                            accion="Eliminación Líder Duplicada",
+                                            detalle=f"Gerente {user_nombre} eliminó cuenta {u_del_sel}",
+                                            dispositivo="🖥️ PC / Escritorio"
+                                        )
+                                        st.success(f"✅ {msg_d}")
+                                        st.rerun()
+                                    else:
+                                        st.error(f"❌ {msg_d}")
+                else:
+                    st.info("No hay líderes registradas para gestionar.")
 
         with sub_tab_bitacora_archivos:
             st.markdown("#### 📜 Bitácora de Movimientos de Archivos")
