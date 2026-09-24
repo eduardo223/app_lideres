@@ -7404,6 +7404,110 @@ if tab_tableau is not None:
             if portal_sel_init and portal_sel_init != "Base Principal (Todas)":
                 df_tab_filt = filtrar_consultoras_portal_especial(df_tab_filt, portal_sel_init)
 
+            # Filtro Dinámico de Puntos y Situación Ciclo Anterior (C-13) - Específico para Gerencia Dolly / Supervisión
+            col_nat_c13 = next((c for c in df_tab_filt.columns if 'pts natura' in c.lower() and any(k in c.lower() for k in ['(c-', 'cierre', 'ant'])), None)
+            col_avo_c13 = next((c for c in df_tab_filt.columns if 'pts avon' in c.lower() and any(k in c.lower() for k in ['(c-', 'cierre', 'ant'])), None)
+            col_sit_c13 = next((c for c in df_tab_filt.columns if ('sit' in c.lower() or 'situacion' in c.lower()) and any(k in c.lower() for k in ['(c-', 'cierre', 'ant'])), None)
+
+            c13_modo_init = st.session_state.get("filt_c13_modo", "Todos (Sin filtro C-13)")
+
+            if (col_nat_c13 or col_avo_c13) and c13_modo_init != "Todos (Sin filtro C-13)":
+                s_nat_s = pd.to_numeric(df_tab_filt[col_nat_c13], errors='coerce').fillna(0) if col_nat_c13 else pd.Series(0, index=df_tab_filt.index)
+                s_avo_s = pd.to_numeric(df_tab_filt[col_avo_c13], errors='coerce').fillna(0) if col_avo_c13 else pd.Series(0, index=df_tab_filt.index)
+
+                mask_c13 = None
+
+                if c13_modo_init == "🟢 Con Pedido C-13 (> 0 pts en Natura o AVON)":
+                    mask_c13 = (s_nat_s > 0) | (s_avo_s > 0)
+                elif c13_modo_init == "🌸 Solo Natura (> 0 pts)":
+                    mask_c13 = (s_nat_s > 0) & (s_avo_s <= 0)
+                elif c13_modo_init == "💄 Solo AVON (> 0 pts)":
+                    mask_c13 = (s_avo_s > 0) & (s_nat_s <= 0)
+                elif c13_modo_init == "⭐ Bimarca (Puntos en Natura Y AVON)":
+                    mask_c13 = (s_nat_s > 0) & (s_avo_s > 0)
+                elif c13_modo_init == "🎯 Pedido Significativo (≥ 30 pts)":
+                    mask_c13 = (s_nat_s >= 30) | (s_avo_s >= 30) | ((s_nat_s + s_avo_s) >= 30)
+                elif c13_modo_init == "⚙️ Filtro Personalizado (Rango N Puntos / Y - O / Situación)":
+                    op_log = st.session_state.get("c13_op_logico", "O (Natura Ó AVON)")
+
+                    if "Suma Total" in op_log:
+                        s_tot_s = s_nat_s + s_avo_s
+                        p_min_tot = st.session_state.get("c13_pts_tot_min", 0)
+                        p_max_tot = st.session_state.get("c13_pts_tot_max", 9999)
+                        mask_c13 = (s_tot_s >= p_min_tot) & (s_tot_s <= p_max_tot)
+                    else:
+                        cond_nat = st.session_state.get("c13_cond_nat", "Cualquiera")
+                        val_nat_min = st.session_state.get("c13_pts_nat_min", 0)
+                        val_nat_max = st.session_state.get("c13_pts_nat_max", 9999)
+
+                        cond_avo = st.session_state.get("c13_cond_avo", "Cualquiera")
+                        val_avo_min = st.session_state.get("c13_pts_avo_min", 0)
+                        val_avo_max = st.session_state.get("c13_pts_avo_max", 9999)
+
+                        m_n = None
+                        if cond_nat == "≥ Mayor o igual":
+                            m_n = s_nat_s >= val_nat_min
+                        elif cond_nat == "≤ Menor o igual":
+                            m_n = s_nat_s <= val_nat_min
+                        elif cond_nat == "Entre rango":
+                            m_n = (s_nat_s >= val_nat_min) & (s_nat_s <= val_nat_max)
+                        elif cond_nat == "> 0 pts":
+                            m_n = s_nat_s > 0
+                        elif cond_nat == "= 0 pts":
+                            m_n = s_nat_s <= 0
+
+                        m_a = None
+                        if cond_avo == "≥ Mayor o igual":
+                            m_a = s_avo_s >= val_avo_min
+                        elif cond_avo == "≤ Menor o igual":
+                            m_a = s_avo_s <= val_avo_min
+                        elif cond_avo == "Entre rango":
+                            m_a = (s_avo_s >= val_avo_min) & (s_avo_s <= val_avo_max)
+                        elif cond_avo == "> 0 pts":
+                            m_a = s_avo_s > 0
+                        elif cond_avo == "= 0 pts":
+                            m_a = s_avo_s <= 0
+
+                        if "Y (" in op_log:
+                            if m_n is not None and m_a is not None:
+                                mask_c13 = m_n & m_a
+                            elif m_n is not None:
+                                mask_c13 = m_n
+                            elif m_a is not None:
+                                mask_c13 = m_a
+                        else:  # "O ("
+                            if m_n is not None and m_a is not None:
+                                mask_c13 = m_n | m_a
+                            elif m_n is not None:
+                                mask_c13 = m_n
+                            elif m_a is not None:
+                                mask_c13 = m_a
+
+                    # Situación comercial combinada
+                    sits_c13_in = st.session_state.get("c13_sits_sel", [])
+                    if sits_c13_in:
+                        target_sit = st.session_state.get("c13_sit_target", "Situación C-13")
+                        m_sit = pd.Series(False, index=df_tab_filt.index)
+                        col_sit_act = 'Sit. Comercial' if 'Sit. Comercial' in df_tab_filt.columns else ('Situación' if 'Situación' in df_tab_filt.columns else None)
+
+                        if target_sit == "Situación C-13" and col_sit_c13:
+                            m_sit = df_tab_filt[col_sit_c13].astype(str).str.strip().isin(sits_c13_in)
+                        elif target_sit == "Situación Actual" and col_sit_act:
+                            m_sit = df_tab_filt[col_sit_act].astype(str).str.strip().isin(sits_c13_in)
+                        else:
+                            if col_sit_c13:
+                                m_sit = m_sit | df_tab_filt[col_sit_c13].astype(str).str.strip().isin(sits_c13_in)
+                            if col_sit_act:
+                                m_sit = m_sit | df_tab_filt[col_sit_act].astype(str).str.strip().isin(sits_c13_in)
+
+                        if mask_c13 is not None:
+                            mask_c13 = mask_c13 & m_sit
+                        else:
+                            mask_c13 = m_sit
+
+                if mask_c13 is not None:
+                    df_tab_filt = df_tab_filt[mask_c13]
+
             # 1. Las 5 ventanitas (Tarjetas KPI de Tableau)
             tc1, tc2, tc3, tc4, tc5 = st.columns(5)
             with tc1:
@@ -7524,6 +7628,98 @@ if tab_tableau is not None:
                         key="filt_notas_opt"
                     )
 
+                # FILTRO DINÁMICO DE PUNTOS Y SITUACIÓN CICLO ANTERIOR (C-13) — GERENCIA DOLLY
+                col_nat_cierre_g = next((c for c in df_tableau.columns if 'pts natura' in c.lower() and any(k in c.lower() for k in ['(c-', 'cierre', 'ant'])), None)
+                col_avo_cierre_g = next((c for c in df_tableau.columns if 'pts avon' in c.lower() and any(k in c.lower() for k in ['(c-', 'cierre', 'ant'])), None)
+                col_sit_cierre_g = next((c for c in df_tableau.columns if ('sit' in c.lower() or 'situacion' in c.lower()) and any(k in c.lower() for k in ['(c-', 'cierre', 'ant'])), None)
+
+                if col_nat_cierre_g or col_avo_cierre_g:
+                    tag_cierre_label = col_nat_cierre_g.split('(')[-1].replace(')', '').strip() if (col_nat_cierre_g and '(' in col_nat_cierre_g) else "C-13"
+                    es_dolly_check = ('dolly' in user_nombre.lower() or str(user_sector).strip() == '700000466')
+                    titulo_c13_exp = f"🎯 Filtro Dinámico de Puntos Ciclo Anterior ({tag_cierre_label}) — Gerencia Dolly" if es_dolly_check else f"🎯 Filtro Dinámico de Puntos Ciclo Anterior ({tag_cierre_label})"
+
+                    hay_filtro_c13_activo = st.session_state.get("filt_c13_modo", "Todos (Sin filtro C-13)") != "Todos (Sin filtro C-13)"
+
+                    with st.expander(titulo_c13_exp, expanded=hay_filtro_c13_activo):
+                        st.markdown(f"""
+                        <div style="background: linear-gradient(135deg, rgba(255,106,0,0.06) 0%, rgba(222,0,82,0.06) 100%);
+                                    border: 1px solid rgba(255,106,0,0.25); border-radius: 10px; padding: 10px 14px; margin-bottom: 12px;">
+                            <span style="font-weight: 700; color: #EA580C;">🌸 Puntos Natura & 💄 Puntos AVON ({tag_cierre_label}):</span>
+                            <span style="font-size: 0.85rem; color: #475569;">
+                                Filtra consultoras por cantidad de puntos en cada marca (individual o combinadas con <b>Y / O</b>) y cruza con su situación comercial.
+                            </span>
+                        </div>
+                        """, unsafe_allow_html=True)
+
+                        opciones_modo_c13 = [
+                            "Todos (Sin filtro C-13)",
+                            "🟢 Con Pedido C-13 (> 0 pts en Natura o AVON)",
+                            "🌸 Solo Natura (> 0 pts)",
+                            "💄 Solo AVON (> 0 pts)",
+                            "⭐ Bimarca (Puntos en Natura Y AVON)",
+                            "🎯 Pedido Significativo (≥ 30 pts)",
+                            "⚙️ Filtro Personalizado (Rango N Puntos / Y - O / Situación)"
+                        ]
+
+                        c_modo_1, c_modo_2 = st.columns([3, 1])
+                        with c_modo_1:
+                            sel_modo_c13 = st.selectbox(
+                                "⚡ Selección de Filtro / Atajo Rápido:",
+                                options=opciones_modo_c13,
+                                key="filt_c13_modo"
+                            )
+                        with c_modo_2:
+                            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
+                            if st.button("✖️ Restablecer C-13", key="btn_reset_c13_top", use_container_width=True):
+                                st.session_state['filt_c13_modo'] = "Todos (Sin filtro C-13)"
+                                st.session_state['c13_sits_sel'] = []
+                                st.rerun()
+
+                        if sel_modo_c13 == "⚙️ Filtro Personalizado (Rango N Puntos / Y - O / Situación)":
+                            st.markdown("---")
+                            col_c13_1, col_c13_2, col_c13_3, col_c13_4 = st.columns([1.1, 1.3, 1.3, 1.5])
+
+                            with col_c13_1:
+                                st.markdown("##### 🔀 Combinación")
+                                op_log_val = st.radio(
+                                    "Condición entre Marcas:",
+                                    ["O (Natura Ó AVON)", "Y (Natura Y AVON)", "Suma Total (Natura + AVON)"],
+                                    key="c13_op_logico",
+                                    help="O: Cumple condición en al menos una marca. Y: Cumple condición en ambas simultáneamente. Suma: Evalúa la suma total de puntos Natura + AVON."
+                                )
+
+                            if "Suma Total" in op_log_val:
+                                with col_c13_2:
+                                    st.markdown(f"##### 🔢 Suma ({tag_cierre_label})")
+                                    st.number_input("Mínimo Pts Suma (Nat + Avo):", min_value=0, value=30, step=5, key="c13_pts_tot_min")
+                                with col_c13_3:
+                                    st.markdown("##### 🏁 Límite Máximo")
+                                    st.number_input("Máximo Pts Suma (Opcional):", min_value=0, value=9999, step=10, key="c13_pts_tot_max")
+                            else:
+                                with col_c13_2:
+                                    st.markdown(f"##### 🌸 Pts Natura ({tag_cierre_label})")
+                                    c_nat_sel = st.selectbox("Condición Natura:", ["Cualquiera", "≥ Mayor o igual", "≤ Menor o igual", "Entre rango", "> 0 pts", "= 0 pts"], key="c13_cond_nat")
+                                    if c_nat_sel in ["≥ Mayor o igual", "≤ Menor o igual", "Entre rango"]:
+                                        st.number_input("Pts Mínimo Natura:", min_value=0, value=20, step=5, key="c13_pts_nat_min")
+                                    if c_nat_sel == "Entre rango":
+                                        st.number_input("Pts Máximo Natura:", min_value=0, value=100, step=5, key="c13_pts_nat_max")
+
+                                with col_c13_3:
+                                    st.markdown(f"##### 💄 Pts AVON ({tag_cierre_label})")
+                                    c_avo_sel = st.selectbox("Condición AVON:", ["Cualquiera", "≥ Mayor o igual", "≤ Menor o igual", "Entre rango", "> 0 pts", "= 0 pts"], key="c13_cond_avo")
+                                    if c_avo_sel in ["≥ Mayor o igual", "≤ Menor o igual", "Entre rango"]:
+                                        st.number_input("Pts Mínimo AVON:", min_value=0, value=20, step=5, key="c13_pts_avo_min")
+                                    if c_avo_sel == "Entre rango":
+                                        st.number_input("Pts Máximo AVON:", min_value=0, value=100, step=5, key="c13_pts_avo_max")
+
+                            with col_c13_4:
+                                sits_c13_disp = []
+                                if col_sit_cierre_g:
+                                    sits_c13_disp = sorted([str(s).strip() for s in df_tableau[col_sit_cierre_g].dropna().unique() if str(s).strip() and str(s).strip().lower() not in ['none', 'nan', '']])
+                                sits_totales_disp = sorted(list(set(sits_c13_disp + sits_disponibles)))
+                                st.multiselect("Filtrar por Situación:", options=sits_totales_disp, default=[], key="c13_sits_sel", help="Opcional: Cruza el puntaje con una o más situaciones comerciales específicas.")
+                                st.radio("Aplicar a:", ["Situación C-13", "Situación Actual", "Cualquiera de las dos"], horizontal=True, key="c13_sit_target")
+
             else:
                 lider_sel_t = str(user_grupo).strip() if user_grupo else ""
 
@@ -7631,6 +7827,15 @@ if tab_tableau is not None:
 
                 if "Notas / Comentarios Líder" in df_edit_view.columns:
                     col_config["Notas / Comentarios Líder"] = st.column_config.TextColumn("Notas / Comentarios Líder", disabled=False)
+
+                if (cols_pts_hist or cols_sit_hist) and st.session_state.get("filt_c13_modo", "Todos (Sin filtro C-13)") != "Todos (Sin filtro C-13)":
+                    c_banner1, c_banner2 = st.columns([5, 1])
+                    with c_banner1:
+                        st.info(f"🎯 **Filtro C-13 Activo:** Mostrando **{len(df_tab_filt):,}** consultoras que cumplen el criterio: `{st.session_state.get('filt_c13_modo')}`.")
+                    with c_banner2:
+                        if st.button("✖️ Quitar", key="btn_clear_banner_c13", use_container_width=True):
+                            st.session_state['filt_c13_modo'] = "Todos (Sin filtro C-13)"
+                            st.rerun()
 
                 es_consolidado = (user_rol in ['gerente', 'superadmin'] and ('lider_seleccionada_sb' not in locals() or lider_seleccionada_sb == "Todas las Líderes"))
                 limite_render = 100 if es_consolidado else 350

@@ -9453,10 +9453,21 @@ def consultar_tableau_sql(grupo=None, sector=None):
                 try:
                     ciclo_act = int(df['Ciclo'].max())
                     cur_ant = conn.cursor()
-                    cur_ant.execute("SELECT MAX(ciclo) FROM historico_puntos_cierre WHERE ciclo < ?", (ciclo_act,))
-                    r_c_ant = cur_ant.fetchone()
-                    if r_c_ant and r_c_ant[0]:
-                        ciclo_ant_val = int(r_c_ant[0])
+                    if sector and str(sector).strip() and str(sector).strip() != '__INVALID_SECTOR__':
+                        cur_ant.execute("SELECT MAX(ciclo) FROM historico_puntos_cierre WHERE cod_sector = ?", (str(sector).strip(),))
+                        r_c_sec = cur_ant.fetchone()
+                        if r_c_sec and r_c_sec[0]:
+                            ciclo_ant_val = int(r_c_sec[0])
+                    if ciclo_ant_val == 0:
+                        cur_ant.execute("SELECT MAX(ciclo) FROM historico_puntos_cierre WHERE ciclo < ?", (ciclo_act,))
+                        r_c_ant = cur_ant.fetchone()
+                        if r_c_ant and r_c_ant[0]:
+                            ciclo_ant_val = int(r_c_ant[0])
+                        else:
+                            cur_ant.execute("SELECT MAX(ciclo) FROM historico_puntos_cierre")
+                            r_c_max = cur_ant.fetchone()
+                            if r_c_max and r_c_max[0]:
+                                ciclo_ant_val = int(r_c_max[0])
                 except Exception:
                     pass
 
@@ -9467,8 +9478,14 @@ def consultar_tableau_sql(grupo=None, sector=None):
                     need_sit = ('__sit_comercial_ant__' not in df.columns) or (df['__sit_comercial_ant__'].astype(str).str.strip() == '').all()
                     if need_pts or need_sit:
                         cur_ant = conn.cursor()
-                        cur_ant.execute("SELECT codigo_cb, pts_natura, pts_avon, sit_comercial FROM historico_puntos_cierre WHERE ciclo = ?", (ciclo_ant_val,))
+                        if sector and str(sector).strip() and str(sector).strip() != '__INVALID_SECTOR__':
+                            cur_ant.execute("SELECT codigo_cb, pts_natura, pts_avon, sit_comercial FROM historico_puntos_cierre WHERE ciclo = ? AND cod_sector = ?", (ciclo_ant_val, str(sector).strip()))
+                        else:
+                            cur_ant.execute("SELECT codigo_cb, pts_natura, pts_avon, sit_comercial FROM historico_puntos_cierre WHERE ciclo = ?", (ciclo_ant_val,))
                         dict_ant = {str(r[0]).strip(): (int(r[1] or 0), int(r[2] or 0), str(r[3] or '')) for r in cur_ant.fetchall()}
+                        if not dict_ant:
+                            cur_ant.execute("SELECT codigo_cb, pts_natura, pts_avon, sit_comercial FROM historico_puntos_cierre WHERE ciclo = ?", (ciclo_ant_val,))
+                            dict_ant = {str(r[0]).strip(): (int(r[1] or 0), int(r[2] or 0), str(r[3] or '')) for r in cur_ant.fetchall()}
                         if need_pts:
                             df['__pts_natura_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0, ''))[0])
                             df['__pts_avon_ant__'] = df['Código CB'].astype(str).str.strip().map(lambda k: dict_ant.get(k, (0, 0, ''))[1])
