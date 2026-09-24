@@ -5793,13 +5793,12 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
     """
     Monitor Ondulado de Estado de Ciclo 360° (Wave Progress Timeline).
     Reemplaza la barra convencional por una curva matematica organica con Heatmap de Pacing,
-    4 fases oficiales (Despegue, Impulso, Sprint Final, La Ultima Milla) y calibrador en popover.
-    Ajustado para integracion en header superior sin scroll innecesario.
+    fases oficiales adaptativas (Despegue, Impulso, Sprint Final y opcionalmente La Última Milla)
+    con calibrador avanzado por Gerencia o Sector.
     """
     import math
 
-    # 1. Identificacion del Sector y Gerencia Arte
-    gerencia_detectada = "ARTE"
+    # 1. Identificación Dinámica del Sector y Gerencia
     col_sec = 'Nombre Setor' if 'Nombre Setor' in df_filtrado.columns else ('Nombre Sector' if 'Nombre Sector' in df_filtrado.columns else ('Sector' if 'Sector' in df_filtrado.columns else ''))
     sector_detectado = ""
     if col_sec and not df_filtrado[col_sec].dropna().empty:
@@ -5808,13 +5807,17 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
             sector_detectado = val_sec
     elif user_sector_nombre:
         sector_detectado = str(user_sector_nombre).strip()
+    elif user_sector:
+        sector_detectado = str(user_sector).strip()
 
     if sector_detectado:
         sector_label = sector_detectado.title() if sector_detectado.isupper() else sector_detectado
     else:
         sector_label = "Sector General"
 
-    # 2. Facturacion acumulada para calculo de Pacing
+    gerencia_detectada = procesador.identificar_clave_gerencia(sector_detectado or user_sector or user_sector_nombre)
+
+    # 2. Facturación acumulada para cálculo de Pacing
     obj_f = float(df_filtrado['Objetivo Facturación'].sum()) if 'Objetivo Facturación' in df_filtrado.columns else 0.0
     real_f = float(df_filtrado['Real Facturación'].sum()) if 'Real Facturación' in df_filtrado.columns else 0.0
     cump_f = (real_f / obj_f * 100.0) if obj_f > 0 else 0.0
@@ -5824,31 +5827,56 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
     ciclo_conciliado = conciliacion['ciclo']
     alerta_desfase = conciliacion.get('alerta')
 
-    # 4. Datos del ciclo desde procesador sincronizados con el ciclo real
-    info = procesador.obtener_estado_fase_ciclo(gerencia_o_sector=gerencia_detectada, c_fact=cump_f, ciclo_override=ciclo_conciliado)
+    # 4. Datos del ciclo con resolución jerárquica (Sector override -> Gerencia)
+    info = procesador.obtener_estado_fase_ciclo(
+        gerencia_o_sector=gerencia_detectada,
+        c_fact=cump_f,
+        ciclo_override=ciclo_conciliado,
+        cod_sector=user_sector
+    )
     dia_act = info['dia_actual']
+    d_ciclo = info['dias_ciclo']
+    has_restricta = bool(info['tiene_ultima_milla'] and info['dias_restricta'] > 0)
     p_color = info['pacing_color']
     p_badge = info['pacing_badge']
     p_msg = info['pacing_msg']
 
-    # 4. Calculo de la curva y el pin
+    # 5. Cálculo Adaptativo de la Curva SVG según si maneja o no La Última Milla
     x_start = 65.0
     x_end = 935.0
-    has_restricta = (info['dias_restricta'] > 0)
 
-    def get_x_for_day(day):
-        if day <= 1:
-            return 65.0
-        elif day <= 8:
-            return 65.0 + (day - 1) / 7.0 * (340.0 - 65.0)
-        elif day <= 15:
-            return 340.0 + (day - 8) / 7.0 * (640.0 - 340.0)
-        elif day <= 21:
-            return 640.0 + (day - 15) / 6.0 * (820.0 - 640.0)
-        elif has_restricta and day <= info['dias_totales']:
-            return 820.0 + (day - 21) / float(max(1, info['dias_restricta'])) * (935.0 - 820.0)
-        else:
-            return 935.0 if has_restricta else 820.0
+    if has_restricta:
+        x_cierre = 820.0
+        milestone_x_map = {1: 65.0, 8: 340.0, 15: 640.0, d_ciclo: 820.0, (d_ciclo + 1): 935.0}
+
+        def get_x_for_day(day):
+            if day <= 1:
+                return 65.0
+            elif day <= 8:
+                return 65.0 + (day - 1) / 7.0 * (340.0 - 65.0)
+            elif day <= 15:
+                return 340.0 + (day - 8) / 7.0 * (640.0 - 340.0)
+            elif day <= d_ciclo:
+                return 640.0 + (day - 15) / float(max(1, d_ciclo - 15)) * (820.0 - 640.0)
+            elif day <= info['dias_totales']:
+                return 820.0 + (day - d_ciclo) / float(max(1, info['dias_restricta'])) * (935.0 - 820.0)
+            else:
+                return 935.0
+    else:
+        x_cierre = 935.0
+        milestone_x_map = {1: 65.0, 8: 355.0, 15: 645.0, d_ciclo: 935.0}
+
+        def get_x_for_day(day):
+            if day <= 1:
+                return 65.0
+            elif day <= 8:
+                return 65.0 + (day - 1) / 7.0 * (355.0 - 65.0)
+            elif day <= 15:
+                return 355.0 + (day - 8) / 7.0 * (645.0 - 355.0)
+            elif day <= d_ciclo:
+                return 645.0 + (day - 15) / float(max(1, d_ciclo - 15)) * (935.0 - 645.0)
+            else:
+                return 935.0
 
     def get_y_for_x(x):
         t = (x - x_start) / (x_end - x_start)
@@ -5859,12 +5887,15 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
         pts.append((x, get_y_for_x(x)))
 
     # Pistas base
-    pts_reg = [p for p in pts if p[0] <= 820.0]
+    pts_reg = [p for p in pts if p[0] <= x_cierre]
     d_bg_reg = 'M ' + ' L '.join(f'{x:.1f} {y:.1f}' for x, y in pts_reg)
 
-    pts_res = [p for p in pts if p[0] >= 820.0]
-    d_bg_res = 'M ' + ' L '.join(f'{x:.1f} {y:.1f}' for x, y in pts_res)
-    path_res_svg = f'<path d="{d_bg_res}" fill="none" stroke="#fda4af" stroke-width="4" stroke-linecap="round" stroke-dasharray="5,4" />' if has_restricta else ''
+    if has_restricta:
+        pts_res = [p for p in pts if p[0] >= x_cierre]
+        d_bg_res = 'M ' + ' L '.join(f'{x:.1f} {y:.1f}' for x, y in pts_res)
+        path_res_svg = f'<path d="{d_bg_res}" fill="none" stroke="#fda4af" stroke-width="4" stroke-linecap="round" stroke-dasharray="5,4" />'
+    else:
+        path_res_svg = ''
 
     # Curva activa
     x_hoy = get_x_for_day(dia_act)
@@ -5882,14 +5913,12 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
     elif dia_act <= 14:
         badge_fase_bg = "rgba(14, 165, 233, 0.12)"
         badge_fase_txt = "#0369a1"
-    elif dia_act <= 21:
+    elif dia_act <= d_ciclo:
         badge_fase_bg = "rgba(239, 68, 68, 0.12)"
         badge_fase_txt = "#b91c1c"
     else:
         badge_fase_bg = "rgba(244, 63, 94, 0.12)"
         badge_fase_txt = "#be123c"
-
-    milestone_x_map = {1: 65.0, 8: 340.0, 15: 640.0, 21: 820.0, 22: 935.0}
 
     nodes_svg = []
     for h in info['hitos']:
@@ -5897,8 +5926,8 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
         hx = milestone_x_map.get(d_val, 65.0)
         hy = get_y_for_x(hx)
         es_alcanzado = dia_act >= d_val
-        es_cierre = (d_val == 21)
-        es_milla = (d_val == 22)
+        es_cierre = (d_val == d_ciclo)
+        es_milla = (has_restricta and d_val > d_ciclo)
 
         if es_milla:
             circ_stroke = "#f43f5e" if es_alcanzado else "#fda4af"
@@ -5917,7 +5946,6 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
             circ_fill = "#ffffff"
             tit_fill = "#64748b"
 
-        # Se excluyen subtitulos secundarios ("siembra", "crecimiento", "remate", "fin de ciclo", "restricta rescate")
         node_xml = (
             f'<circle cx="{hx:.1f}" cy="{hy:.1f}" r="6.5" fill="#ffffff" stroke="{circ_stroke}" stroke-width="2.5" />'
             f'<circle cx="{hx:.1f}" cy="{hy:.1f}" r="3" fill="{circ_fill}" />'
@@ -5928,7 +5956,7 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
 
     nodes_markup = "".join(nodes_svg)
 
-    # 5. Configuración Dinámica de la Consultora / Muñequito según la etapa
+    # 6. Configuración Dinámica de la Consultora / Muñequito según la etapa
     if dia_act <= 7:
         etapa_modo = "camina"
         anim_dur = "1.35s"
@@ -5945,7 +5973,7 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
         arm_angle = 32
         body_tilt = 9
         etapa_lbl = "En Trote"
-    elif dia_act <= 21:
+    elif dia_act <= d_ciclo:
         etapa_modo = "corre"
         anim_dur = "0.52s"
         anim_dur_half = "0.26s"
@@ -5954,20 +5982,29 @@ def renderizar_monitor_ciclo_ondulado(df_filtrado, user_rol, user_sector, user_n
         body_tilt = 16
         etapa_lbl = "A Toda Marcha"
     else:
-        etapa_modo = "rescate"
-        anim_dur = "0.44s"
-        anim_dur_half = "0.22s"
-        leg_angle = 54
-        arm_angle = 50
-        body_tilt = 18
-        etapa_lbl = "Sprint Rescate"
+        if has_restricta:
+            etapa_modo = "rescate"
+            anim_dur = "0.44s"
+            anim_dur_half = "0.22s"
+            leg_angle = 54
+            arm_angle = 50
+            body_tilt = 18
+            etapa_lbl = "Sprint Rescate"
+        else:
+            etapa_modo = "cumplido"
+            anim_dur = "1.2s"
+            anim_dur_half = "0.6s"
+            leg_angle = 12
+            arm_angle = 12
+            body_tilt = 0
+            etapa_lbl = "Ciclo Cumplido"
 
     pin_label = f"Día {dia_act} · {etapa_lbl}"
     pin_width = 98 if len(pin_label) <= 17 else 108
     pin_half_w = pin_width / 2.0
 
     speed_lines_svg = ""
-    if dia_act > 14:
+    if (dia_act > 14 and dia_act <= d_ciclo) or (dia_act > d_ciclo and has_restricta):
         speed_lines_svg = (
             f'<g opacity="0.65">'
             f'<line x1="-15" y1="-14" x2="-8" y2="-14" stroke="{p_color}" stroke-width="1.6" stroke-linecap="round">'
@@ -6098,21 +6135,107 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(#monitor-arte-anchor) div[da
                         unsafe_allow_html=True
                     )
                 with c_gear:
-                    with st.popover("⚙️", help="Calibrar Calendario Oficial de Ciclo"):
-                        st.markdown(f"**⚙️ Calibrar Calendario:** `Gerencia Arte`")
-                        st.caption(f"Ajuste oficial para todos los sectores ({sector_label})")
-                        f_nueva = st.date_input("Fecha Oficial de Inicio de Campaña:", value=info['fecha_inicio'], key=f"calib_f_ini_{info['clave_gerencia']}")
-                        c_nuevo = st.number_input("Número de Ciclo:", min_value=1, max_value=25, value=int(info['ciclo']), step=1, key=f"calib_ciclo_{info['clave_gerencia']}")
-                        r_nuevo = st.number_input("Días de Restricta / Rescate:", min_value=0, max_value=10, value=int(info['dias_restricta']), step=1, key=f"calib_rest_{info['clave_gerencia']}")
-                        if st.button("💾 Guardar y Actualizar", key="btn_save_calib_ger", use_container_width=True):
-                            procesador.actualizar_calendario_gerencia(
-                                clave_gerencia=info['clave_gerencia'],
-                                fecha_inicio=str(f_nueva),
-                                ciclo=int(c_nuevo),
-                                dias_restricta=int(r_nuevo)
+                    with st.popover("⚙️", help="Calibrar Calendario Oficial de Ciclo y Última Milla"):
+                        st.markdown("### ⚙️ Calibrar Línea de Tiempo")
+                        st.caption("Personaliza las fechas y la activación de 'La Última Milla' por Gerencia o por Sector.")
+                        
+                        sec_actual_val = str(user_sector).strip() if user_sector else ""
+                        opciones_ambito = ["🏢 Por Gerencia"]
+                        if sec_actual_val:
+                            opciones_ambito.append("📍 Por Sector Específico")
+                            
+                        ambito_sel = st.radio(
+                            "Nivel de personalización:",
+                            options=opciones_ambito,
+                            horizontal=True,
+                            key=f"calib_radio_ambito_{info['clave_gerencia']}"
+                        )
+                        
+                        if ambito_sel == "🏢 Por Gerencia":
+                            ger_keys = list(procesador.DEFAULT_CALENDARIO_GERENCIAS.keys())
+                            def_g_idx = ger_keys.index(info['clave_gerencia']) if info['clave_gerencia'] in ger_keys else 0
+                            ger_sel = st.selectbox(
+                                "Gerencia a calibrar:",
+                                options=ger_keys,
+                                index=def_g_idx,
+                                format_func=lambda x: f"Gerencia {x.capitalize()}",
+                                key=f"calib_sel_ger_{info['clave_gerencia']}"
                             )
-                            st.success("✅ Calendario calibrado exitosamente.")
-                            st.rerun()
+                            st.caption(f"Ajuste oficial para todos los sectores que pertenezcan a Gerencia {ger_sel.capitalize()}.")
+                            calib_act = procesador.obtener_calendario_activo(gerencia_o_sector=ger_sel)
+                            
+                            try:
+                                from datetime import datetime, date
+                                f_def_g = datetime.strptime(str(calib_act.get('fecha_inicio', '2026-09-13')), '%Y-%m-%d').date()
+                            except Exception:
+                                f_def_g = date.today()
+                                
+                            f_nueva = st.date_input("Fecha Oficial de Inicio de Campaña:", value=f_def_g, key=f"f_ini_ger_{ger_sel}")
+                            c_nuevo = st.number_input("Número de Ciclo:", min_value=1, max_value=25, value=int(calib_act.get('ciclo', 14)), step=1, key=f"ciclo_ger_{ger_sel}")
+                            d_nuevo = st.number_input("Días de Ciclo Regular:", min_value=14, max_value=35, value=int(calib_act.get('dias_ciclo', 21)), step=1, key=f"dciclo_ger_{ger_sel}")
+                            
+                            tiene_milla = st.checkbox("✨ Manejar 'La Última Milla' (Días de Rescate / Restricta)", value=bool(calib_act.get('tiene_ultima_milla', True)), key=f"chk_milla_ger_{ger_sel}")
+                            if tiene_milla:
+                                r_dias = st.number_input("Días de Restricta / Rescate:", min_value=1, max_value=10, value=max(1, int(calib_act.get('dias_restricta', 3))), step=1, key=f"rdias_ger_{ger_sel}")
+                                st.caption("ℹ️ Se activará la fase 'La Última Milla' con línea punteada de rescate.")
+                            else:
+                                r_dias = 0
+                                st.info("ℹ️ **Cierre Directo**: El ciclo concluye en el Cierre Oficial sin fase de Última Milla.")
+                                
+                            if st.button("💾 Guardar y Actualizar Gerencia", key=f"btn_save_ger_{ger_sel}", use_container_width=True):
+                                procesador.actualizar_calendario_gerencia(
+                                    clave_gerencia=ger_sel,
+                                    fecha_inicio=str(f_nueva),
+                                    ciclo=int(c_nuevo),
+                                    dias_restricta=int(r_dias),
+                                    dias_ciclo=int(d_nuevo),
+                                    tiene_ultima_milla=bool(tiene_milla)
+                                )
+                                st.success(f"✅ Calendario de Gerencia {ger_sel.capitalize()} calibrado exitosamente.")
+                                st.rerun()
+                                
+                        else: # Por Sector Específico
+                            st.markdown(f"**Sector:** `{sector_label}` (Cód: `{sec_actual_val}`)")
+                            st.caption("Esta configuración aplicará exclusivamente para este sector, sobreescribiendo el calendario de su gerencia.")
+                            calib_act = procesador.obtener_calendario_activo(gerencia_o_sector=gerencia_detectada, cod_sector=sec_actual_val)
+                            
+                            try:
+                                from datetime import datetime, date
+                                f_def_s = datetime.strptime(str(calib_act.get('fecha_inicio', '2026-09-13')), '%Y-%m-%d').date()
+                            except Exception:
+                                f_def_s = date.today()
+                                
+                            f_nueva = st.date_input("Fecha Oficial de Inicio de Campaña:", value=f_def_s, key=f"f_ini_sec_{sec_actual_val}")
+                            c_nuevo = st.number_input("Número de Ciclo:", min_value=1, max_value=25, value=int(calib_act.get('ciclo', 14)), step=1, key=f"ciclo_sec_{sec_actual_val}")
+                            d_nuevo = st.number_input("Días de Ciclo Regular:", min_value=14, max_value=35, value=int(calib_act.get('dias_ciclo', 21)), step=1, key=f"dciclo_sec_{sec_actual_val}")
+                            
+                            tiene_milla = st.checkbox("✨ Manejar 'La Última Milla' (Días de Rescate / Restricta)", value=bool(calib_act.get('tiene_ultima_milla', True)), key=f"chk_milla_sec_{sec_actual_val}")
+                            if tiene_milla:
+                                r_dias = st.number_input("Días de Restricta / Rescate:", min_value=1, max_value=10, value=max(1, int(calib_act.get('dias_restricta', 3))), step=1, key=f"rdias_sec_{sec_actual_val}")
+                                st.caption("ℹ️ Se activará la fase 'La Última Milla' con línea punteada de rescate.")
+                            else:
+                                r_dias = 0
+                                st.info("ℹ️ **Cierre Directo**: El ciclo concluye en el Cierre Oficial sin fase de Última Milla.")
+                                
+                            if st.button("💾 Guardar y Actualizar Sector", key=f"btn_save_sec_{sec_actual_val}", use_container_width=True):
+                                procesador.actualizar_calendario_sector(
+                                    cod_sector=sec_actual_val,
+                                    nombre_sector=sector_label,
+                                    clave_gerencia=gerencia_detectada,
+                                    fecha_inicio=str(f_nueva),
+                                    ciclo=int(c_nuevo),
+                                    dias_restricta=int(r_dias),
+                                    dias_ciclo=int(d_nuevo),
+                                    tiene_ultima_milla=bool(tiene_milla)
+                                )
+                                st.success(f"✅ Calendario personalizado guardado para {sector_label}.")
+                                st.rerun()
+                                
+                            if calib_act.get('es_override_sector', False):
+                                if st.button("🔄 Restablecer a Calendario de Gerencia", key=f"btn_rst_sec_{sec_actual_val}", use_container_width=True):
+                                    procesador.eliminar_calendario_sector(sec_actual_val)
+                                    st.info(f"✅ Personalización eliminada. Ahora este sector hereda el calendario de Gerencia {gerencia_detectada.capitalize()}.")
+                                    st.rerun()
         else:
             c_info, c_dias = st.columns([0.80, 0.20], vertical_alignment="center")
             with c_dias:
@@ -6126,6 +6249,9 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(#monitor-arte-anchor) div[da
 
         with c_info:
             alerta_badge_html = f'<span style="background: rgba(239, 68, 68, 0.12); color: #b91c1c; border: 1px solid rgba(239, 68, 68, 0.35); padding: 2px 8px; border-radius: 14px; font-size: 0.68rem; font-weight: 700; display: inline-flex; align-items: center; gap: 3px;" title="{alerta_desfase}">{alerta_desfase}</span>' if alerta_desfase else ''
+            tag_custom = '<span style="background: rgba(168, 85, 247, 0.12); color: #7e22ce; padding: 2px 7px; border-radius: 14px; font-size: 0.68rem; font-weight: 700;">⚙️ Personalizado</span>' if info.get('es_override_sector') else ''
+            tag_milla = '<span style="background: rgba(244, 63, 94, 0.12); color: #be123c; padding: 2px 7px; border-radius: 14px; font-size: 0.68rem; font-weight: 700;">🏁 Con Última Milla</span>' if has_restricta else '<span style="background: rgba(100, 116, 139, 0.12); color: #475569; padding: 2px 7px; border-radius: 14px; font-size: 0.68rem; font-weight: 700;">🏁 Sin Última Milla</span>'
+
             header_badges = (
                 f'<div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">'
                 f'<span style="font-size: 0.92rem;">⏱️</span>'
@@ -6135,11 +6261,13 @@ div[data-testid="stVerticalBlockBorderWrapper"]:has(#monitor-arte-anchor) div[da
                 f'{info["fase_nombre"]}'
                 f'</span>'
                 f'<span style="background: #f1f5f9; color: #475569; padding: 2px 7px; border-radius: 14px; font-size: 0.68rem; font-weight: 700;">'
-                f'🏢 Gerencia Arte'
+                f'🏢 {info["nombre_gerencia"]}'
                 f'</span>'
                 f'<span style="background: rgba(14, 165, 233, 0.12); color: #0369a1; padding: 2px 7px; border-radius: 14px; font-size: 0.68rem; font-weight: 700; display: inline-flex; align-items: center; gap: 3px;">'
                 f'📍 {sector_label}'
                 f'</span>'
+                f'{tag_custom}'
+                f'{tag_milla}'
                 f'{alerta_badge_html}'
                 f'</div>'
             )

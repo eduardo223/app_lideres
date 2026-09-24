@@ -6652,54 +6652,62 @@ DEFAULT_CALENDARIO_GERENCIAS = {
         "ciclo": 14,
         "fecha_inicio": "2026-09-13",
         "dias_ciclo": 21,
-        "dias_restricta": 3
+        "dias_restricta": 3,
+        "tiene_ultima_milla": True
     },
     "ARMONÍA": {
         "nombre_oficial": "Gerencia Armonía",
         "ciclo": 14,
         "fecha_inicio": "2026-09-13",
         "dias_ciclo": 21,
-        "dias_restricta": 3
+        "dias_restricta": 3,
+        "tiene_ultima_milla": True
     },
     "PASIÓN": {
         "nombre_oficial": "Gerencia Pasión",
         "ciclo": 14,
         "fecha_inicio": "2026-09-14",
         "dias_ciclo": 21,
-        "dias_restricta": 3
+        "dias_restricta": 3,
+        "tiene_ultima_milla": True
     },
     "ENERGÍA": {
         "nombre_oficial": "Gerencia Energía",
         "ciclo": 14,
         "fecha_inicio": "2026-09-15",
         "dias_ciclo": 21,
-        "dias_restricta": 3
+        "dias_restricta": 3,
+        "tiene_ultima_milla": True
     },
     "LIBERTAD": {
         "nombre_oficial": "Gerencia Libertad",
         "ciclo": 14,
         "fecha_inicio": "2026-09-16",
         "dias_ciclo": 21,
-        "dias_restricta": 3
+        "dias_restricta": 3,
+        "tiene_ultima_milla": True
     },
     "INSPIRACIÓN": {
         "nombre_oficial": "Gerencia Inspiración",
         "ciclo": 14,
         "fecha_inicio": "2026-09-17",
         "dias_ciclo": 21,
-        "dias_restricta": 3
+        "dias_restricta": 3,
+        "tiene_ultima_milla": True
     }
 }
 
 def cargar_configuracion():
     """
     Carga la configuración global de la aplicación.
-    Por defecto, incluye los permisos de visibilidad por pestaña y el cronograma oficial de las 6 gerencias.
+    Por defecto, incluye los permisos de visibilidad por pestaña, el cronograma oficial de las 6 gerencias
+    y las personalizaciones individuales por sector.
     """
     config = {
         "permitir_carga_lideres": False,
         "permisos_pestanas": {k: v.copy() for k, v in DEFAULT_PERMISOS_PESTANAS.items()},
-        "calendario_gerencias": {k: v.copy() for k, v in DEFAULT_CALENDARIO_GERENCIAS.items()}
+        "calendario_gerencias": {k: v.copy() for k, v in DEFAULT_CALENDARIO_GERENCIAS.items()},
+        "calendario_sectores": {}
     }
     
     if os.path.exists(RUTA_CONFIG):
@@ -6722,6 +6730,8 @@ def cargar_configuracion():
                                 config["calendario_gerencias"][g_key].update(g_val)
                             elif isinstance(g_val, dict):
                                 config["calendario_gerencias"][g_key] = g_val
+                    if "calendario_sectores" in loaded and isinstance(loaded["calendario_sectores"], dict):
+                        config["calendario_sectores"] = loaded["calendario_sectores"]
         except Exception as e:
             print(f"Nota al cargar configuración: {e}")
             
@@ -6877,20 +6887,54 @@ def conciliar_ciclo_sector(df_cv=None, cod_sector=None):
         'alerta': None
     }
 
-def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c_fact=0.0, ciclo_override=None):
+def obtener_calendario_activo(gerencia_o_sector="ARTE", cod_sector=None):
+    """
+    Retorna la configuración activa de calendario aplicando resolución jerárquica:
+    1. Si existe personalización para el sector específico (en calendario_sectores), gana el sector.
+    2. Si no, utiliza el calendario de la Gerencia correspondiente.
+    3. Fallback a Gerencia ARTE.
+    """
+    cfg = cargar_configuracion()
+    s_key = str(cod_sector).strip() if cod_sector else ""
+    cals_sec = cfg.get("calendario_sectores", {})
+    if s_key and s_key in cals_sec:
+        cal = cals_sec[s_key].copy()
+        cal["es_override_sector"] = True
+        cal["codigo_sector"] = s_key
+        if "tiene_ultima_milla" not in cal:
+            cal["tiene_ultima_milla"] = int(cal.get("dias_restricta", 3)) > 0
+        if not cal["tiene_ultima_milla"]:
+            cal["dias_restricta"] = 0
+        return cal
+
+    clave_g = identificar_clave_gerencia(gerencia_o_sector)
+    cals_ger = cfg.get("calendario_gerencias", DEFAULT_CALENDARIO_GERENCIAS)
+    base_g = cals_ger.get(clave_g, DEFAULT_CALENDARIO_GERENCIAS.get(clave_g, DEFAULT_CALENDARIO_GERENCIAS["ARTE"])).copy()
+    base_g["es_override_sector"] = False
+    base_g["clave_gerencia"] = clave_g
+    base_g["codigo_sector"] = s_key if s_key else None
+    if "tiene_ultima_milla" not in base_g:
+        base_g["tiene_ultima_milla"] = int(base_g.get("dias_restricta", 3)) > 0
+    if not base_g["tiene_ultima_milla"]:
+        base_g["dias_restricta"] = 0
+    return base_g
+
+def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c_fact=0.0, ciclo_override=None, cod_sector=None):
     """
     Calcula con precisión matemática el estado de ciclo, fase activa, días restantes,
     hitos temporales y el índice de Pacing (ritmo de facturación vs avance de días).
+    Soporta personalización adaptativa por Gerencia o por Sector (con o sin Última Milla).
     """
-    clave_g = identificar_clave_gerencia(gerencia_o_sector)
-    cfg = cargar_configuracion()
-    cals = cfg.get("calendario_gerencias", DEFAULT_CALENDARIO_GERENCIAS)
-    info_g = cals.get(clave_g, DEFAULT_CALENDARIO_GERENCIAS.get(clave_g, DEFAULT_CALENDARIO_GERENCIAS["ARTE"]))
-    
+    info_g = obtener_calendario_activo(gerencia_o_sector=gerencia_o_sector, cod_sector=cod_sector)
+    clave_g = info_g.get("clave_gerencia", identificar_clave_gerencia(gerencia_o_sector))
     nom_oficial = info_g.get("nombre_oficial", f"Gerencia {clave_g.capitalize()}")
-    ciclo_num = int(ciclo_override) if ciclo_override is not None else info_g.get("ciclo", 14)
+    ciclo_num = int(ciclo_override) if ciclo_override is not None else int(info_g.get("ciclo", 14))
     dias_ciclo = int(info_g.get("dias_ciclo", 21))
-    dias_restricta = int(info_g.get("dias_restricta", 3))
+    tiene_ultima_milla = bool(info_g.get("tiene_ultima_milla", True))
+    dias_restricta = int(info_g.get("dias_restricta", 3)) if tiene_ultima_milla else 0
+    if dias_restricta <= 0:
+        tiene_ultima_milla = False
+        dias_restricta = 0
     dias_totales = dias_ciclo + dias_restricta
 
     try:
@@ -6923,7 +6967,7 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
     f_sprint = f_ini + timedelta(days=14)
     f_cierre_oficial = f_ini + timedelta(days=max(0, dias_ciclo - 1))
 
-    if dias_restricta > 0:
+    if tiene_ultima_milla and dias_restricta > 0:
         f_restricta_ini = f_cierre_oficial + timedelta(days=1)
         f_restricta_fin = f_cierre_oficial + timedelta(days=dias_restricta)
         if dias_restricta == 1:
@@ -6955,7 +6999,7 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
         fase_subtitulo = "Remate & Cierre Oficial"
         fase_badge_class = "fase-sprint"
         pct_esperado_fase = round(65.0 + ((dia_actual - 14) / float(max(1, dias_ciclo - 14))) * 35.0, 1)  # 65% a 100%
-    elif dias_restricta > 0 and dia_actual <= dias_totales:
+    elif tiene_ultima_milla and dias_restricta > 0 and dia_actual <= dias_totales:
         fase_id = 4
         fase_nombre = "La Última Milla 🏁"
         fase_subtitulo = "Días de Restricta / Rescate & Ajustes"
@@ -6974,7 +7018,7 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
         dias_restantes_oficial = max(0, dias_ciclo - dia_actual)
         dias_restantes_lbl = f"{dias_restantes_oficial} Días"
         dias_restantes_sub = "RESTANTES"
-    elif dias_restricta > 0 and dia_actual <= dias_totales:
+    elif tiene_ultima_milla and dias_restricta > 0 and dia_actual <= dias_totales:
         es_restricta = True
         dias_restricta_rest = max(0, dias_totales - dia_actual)
         dias_restantes_lbl = f"{dias_restricta_rest} Días"
@@ -7008,20 +7052,23 @@ def obtener_estado_fase_ciclo(gerencia_o_sector="ARTE", fecha_referencia=None, c
         {"id": 1, "nombre": "DESPEGUE 🚀", "sub": "SIEMBRA", "dia": 1, "fecha": formato_fecha_ciclo(f_despegue), "completado": dia_actual >= 1},
         {"id": 2, "nombre": "IMPULSO 📈", "sub": "CRECIMIENTO", "dia": 8, "fecha": formato_fecha_ciclo(f_impulso), "completado": dia_actual >= 8},
         {"id": 3, "nombre": "SPRINT FINAL 🏃‍♂️💨", "sub": "REMATE", "dia": 15, "fecha": formato_fecha_ciclo(f_sprint), "completado": dia_actual >= 15},
-        {"id": 4, "nombre": "CIERRE OFICIAL 🏁", "sub": "FIN CICLO", "dia": 21, "fecha": formato_fecha_ciclo(f_cierre_oficial), "completado": dia_actual >= 21}
+        {"id": 4, "nombre": "CIERRE OFICIAL 🏁", "sub": "FIN CICLO", "dia": dias_ciclo, "fecha": formato_fecha_ciclo(f_cierre_oficial), "completado": dia_actual >= dias_ciclo}
     ]
-    if dias_restricta > 0:
+    if tiene_ultima_milla and dias_restricta > 0:
         hitos.append(
-            {"id": 5, "nombre": "LA ÚLTIMA MILLA 🏁", "sub": "RESTRICTA RESCATE", "dia": 22, "fecha": txt_restricta_rango, "completado": dia_actual >= 22}
+            {"id": 5, "nombre": "LA ÚLTIMA MILLA 🏁", "sub": "RESTRICTA RESCATE", "dia": dias_ciclo + 1, "fecha": txt_restricta_rango, "completado": dia_actual >= (dias_ciclo + 1)}
         )
 
     return {
         "clave_gerencia": clave_g,
         "nombre_gerencia": nom_oficial,
+        "es_override_sector": info_g.get("es_override_sector", False),
+        "codigo_sector": info_g.get("codigo_sector", cod_sector),
         "ciclo": ciclo_num,
         "dia_actual": dia_actual,
         "dias_ciclo": dias_ciclo,
         "dias_restricta": dias_restricta,
+        "tiene_ultima_milla": tiene_ultima_milla,
         "dias_totales": dias_totales,
         "fecha_inicio": f_ini,
         "fecha_referencia": f_ref,
@@ -7051,8 +7098,8 @@ def obtener_cronograma_todas_gerencias(fecha_referencia=None):
         resultado[g_key] = obtener_estado_fase_ciclo(g_key, fecha_referencia=fecha_referencia)
     return resultado
 
-def actualizar_calendario_gerencia(clave_gerencia, fecha_inicio=None, ciclo=None, dias_restricta=None):
-    """Permite calibrar la fecha o ciclo de una gerencia."""
+def actualizar_calendario_gerencia(clave_gerencia, fecha_inicio=None, ciclo=None, dias_restricta=None, dias_ciclo=None, tiene_ultima_milla=None):
+    """Permite calibrar la fecha, ciclo, duración y última milla de una gerencia."""
     cfg = cargar_configuracion()
     clave_norm = clave_gerencia.strip().upper()
     if "calendario_gerencias" not in cfg:
@@ -7063,16 +7110,78 @@ def actualizar_calendario_gerencia(clave_gerencia, fecha_inicio=None, ciclo=None
             "ciclo": 14,
             "fecha_inicio": "2026-09-13",
             "dias_ciclo": 21,
-            "dias_restricta": 3
+            "dias_restricta": 3,
+            "tiene_ultima_milla": True
         }
     if fecha_inicio:
         cfg["calendario_gerencias"][clave_norm]["fecha_inicio"] = str(fecha_inicio)
     if ciclo is not None:
         cfg["calendario_gerencias"][clave_norm]["ciclo"] = int(ciclo)
+    if dias_ciclo is not None:
+        cfg["calendario_gerencias"][clave_norm]["dias_ciclo"] = int(dias_ciclo)
+    if tiene_ultima_milla is not None:
+        cfg["calendario_gerencias"][clave_norm]["tiene_ultima_milla"] = bool(tiene_ultima_milla)
+        if not cfg["calendario_gerencias"][clave_norm]["tiene_ultima_milla"]:
+            cfg["calendario_gerencias"][clave_norm]["dias_restricta"] = 0
     if dias_restricta is not None:
-        cfg["calendario_gerencias"][clave_norm]["dias_restricta"] = int(dias_restricta)
+        r_val = int(dias_restricta)
+        cfg["calendario_gerencias"][clave_norm]["dias_restricta"] = r_val
+        cfg["calendario_gerencias"][clave_norm]["tiene_ultima_milla"] = (r_val > 0)
     guardar_configuracion(cfg)
     return True
+
+def actualizar_calendario_sector(cod_sector, nombre_sector="", clave_gerencia="ARTE", fecha_inicio=None, ciclo=None, dias_restricta=None, dias_ciclo=None, tiene_ultima_milla=None):
+    """Permite calibrar de forma personalizada el calendario oficial de un sector específico."""
+    cfg = cargar_configuracion()
+    s_key = str(cod_sector).strip()
+    if "calendario_sectores" not in cfg:
+        cfg["calendario_sectores"] = {}
+    
+    if s_key not in cfg["calendario_sectores"]:
+        clave_g_norm = identificar_clave_gerencia(clave_gerencia or nombre_sector)
+        base_g = cfg.get("calendario_gerencias", {}).get(clave_g_norm, DEFAULT_CALENDARIO_GERENCIAS.get(clave_g_norm, DEFAULT_CALENDARIO_GERENCIAS["ARTE"]))
+        cfg["calendario_sectores"][s_key] = {
+            "nombre_oficial": nombre_sector if nombre_sector else f"Sector {s_key}",
+            "clave_gerencia": clave_g_norm,
+            "ciclo": int(base_g.get("ciclo", 14)),
+            "fecha_inicio": str(base_g.get("fecha_inicio", "2026-09-13")),
+            "dias_ciclo": int(base_g.get("dias_ciclo", 21)),
+            "dias_restricta": int(base_g.get("dias_restricta", 3)),
+            "tiene_ultima_milla": bool(base_g.get("tiene_ultima_milla", True))
+        }
+
+    sec_data = cfg["calendario_sectores"][s_key]
+    if nombre_sector:
+        sec_data["nombre_oficial"] = str(nombre_sector).strip()
+    if clave_gerencia:
+        sec_data["clave_gerencia"] = identificar_clave_gerencia(clave_gerencia)
+    if fecha_inicio:
+        sec_data["fecha_inicio"] = str(fecha_inicio)
+    if ciclo is not None:
+        sec_data["ciclo"] = int(ciclo)
+    if dias_ciclo is not None:
+        sec_data["dias_ciclo"] = int(dias_ciclo)
+    if tiene_ultima_milla is not None:
+        sec_data["tiene_ultima_milla"] = bool(tiene_ultima_milla)
+        if not sec_data["tiene_ultima_milla"]:
+            sec_data["dias_restricta"] = 0
+    if dias_restricta is not None:
+        r_val = int(dias_restricta)
+        sec_data["dias_restricta"] = r_val
+        sec_data["tiene_ultima_milla"] = (r_val > 0)
+        
+    guardar_configuracion(cfg)
+    return True
+
+def eliminar_calendario_sector(cod_sector):
+    """Elimina la personalización de un sector para que vuelva a heredar el calendario de su gerencia."""
+    cfg = cargar_configuracion()
+    s_key = str(cod_sector).strip()
+    if "calendario_sectores" in cfg and s_key in cfg["calendario_sectores"]:
+        del cfg["calendario_sectores"][s_key]
+        guardar_configuracion(cfg)
+        return True
+    return False
 
 # --- MOTOR DE BASE DE DATOS RELACIONAL SQLITE (base_matices.db) ---
 import sqlite3
