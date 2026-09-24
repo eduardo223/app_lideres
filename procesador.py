@@ -3845,6 +3845,55 @@ def reconciliar_usuarios_sectores(usuarios_dict, persistir=True):
                 u_obj["debe_cambiar_password"] = False
                 cambios = True
 
+    # Saneamiento autoritativo de la cuenta principal de Gerente del Sector 700000459 (Clery Cuellar)
+    if "gerente" in usuarios_dict:
+        u_clery = usuarios_dict["gerente"]
+        if u_clery.get("nombre") != "Clery Cuellar":
+            u_clery["nombre"] = "Clery Cuellar"
+            cambios = True
+        if u_clery.get("rol") != "gerente":
+            u_clery["rol"] = "gerente"
+            cambios = True
+        if u_clery.get("codigo_sector") != "700000459":
+            u_clery["codigo_sector"] = "700000459"
+            cambios = True
+        if u_clery.get("nombre_sector") != "MATICES CLERY":
+            u_clery["nombre_sector"] = "MATICES CLERY"
+            cambios = True
+        if not u_clery.get("telefono"):
+            u_clery["telefono"] = "3057939537"
+            cambios = True
+    else:
+        usuarios_dict["gerente"] = {
+            "nombre": "Clery Cuellar",
+            "password_hash": hashlib_sha256("admin123"),
+            "rol": "gerente",
+            "codigo_grupo": None,
+            "codigo_sector": "700000459",
+            "nombre_sector": "MATICES CLERY",
+            "telefono": "3057939537",
+            "estado_suscripcion": "activo",
+            "fecha_vencimiento": None,
+            "debe_cambiar_password": False
+        }
+        cambios = True
+
+    # Saneamiento de la Líder Yenny Coromoto Díaz Pérez (Grupo 9640)
+    if "lider9640" in usuarios_dict:
+        u_yenny = usuarios_dict["lider9640"]
+        if u_yenny.get("rol") != "lider":
+            u_yenny["rol"] = "lider"
+            cambios = True
+        if u_yenny.get("codigo_grupo") != "9640":
+            u_yenny["codigo_grupo"] = "9640"
+            cambios = True
+        if u_yenny.get("codigo_sector") != "700000459":
+            u_yenny["codigo_sector"] = "700000459"
+            cambios = True
+        if u_yenny.get("nombre_sector") != "MATICES CLERY":
+            u_yenny["nombre_sector"] = "MATICES CLERY"
+            cambios = True
+
     for uname, udata in usuarios_dict.items():
         if not isinstance(udata, dict):
             continue
@@ -3864,12 +3913,19 @@ def reconciliar_usuarios_sectores(usuarios_dict, persistir=True):
 
         if rol == "gerente":
             if sec == "700000459" or "clery" in uname or uname == "gerente":
-                if udata.get("codigo_sector") != "700000459":
-                    udata["codigo_sector"] = "700000459"
+                if uname not in ["gerente", "clery.cuellar@natura.net"] and "clery" not in uname:
+                    udata["rol"] = "lider"
                     cambios = True
-                if udata.get("nombre_sector") != "MATICES CLERY":
-                    udata["nombre_sector"] = "MATICES CLERY"
-                    cambios = True
+                else:
+                    if udata.get("codigo_sector") != "700000459":
+                        udata["codigo_sector"] = "700000459"
+                        cambios = True
+                    if udata.get("nombre_sector") != "MATICES CLERY":
+                        udata["nombre_sector"] = "MATICES CLERY"
+                        cambios = True
+                    if udata.get("nombre") != "Clery Cuellar":
+                        udata["nombre"] = "Clery Cuellar"
+                        cambios = True
             elif sec == "700000466" or "dolly" in uname:
                 if udata.get("codigo_sector") != "700000466":
                     udata["codigo_sector"] = "700000466"
@@ -4199,6 +4255,14 @@ def cargar_historico_sectores():
                 with open(r, 'r', encoding='utf-8') as f:
                     data = json.load(f)
                     if data and isinstance(data, dict):
+                        # Garantizar integridad del Sector 700000459 oficial de Clery Cuellar
+                        if "700000459" in data:
+                            s459 = data["700000459"]
+                            s459["nombre_sector"] = "SECTOR MATICES CLERY"
+                            s459["nombre_gerente"] = "Clery Cuellar"
+                            s459["correo_gerente"] = "gerente"
+                            if not s459.get("telefono_gerente"):
+                                s459["telefono_gerente"] = "3057939537"
                         return data
             except Exception:
                 pass
@@ -4672,8 +4736,16 @@ def registrar_nueva_gerente(nombre, correo, password, telefono, cod_sector, nomb
     if u_clean in usuarios:
         return False, f"El correo '{u_clean}' ya está registrado. Por favor inicia sesión o recupera tu contraseña.", None
 
-    # Candado Anti-Fraude: Verificar si el sector ya disfrutó de su prueba gratis
+    # Candado Anti-Fraude & Protección de Sectores Oficiales Asignados
     historico = cargar_historico_sectores()
+    if sec_clean in ["700000459", "700000466", "700000232"] or (sec_clean in historico and historico[sec_clean].get("correo_gerente")):
+        ger_act = "Clery Cuellar" if sec_clean == "700000459" else ("Dolly Parra" if sec_clean == "700000466" else ("Nayibe Pulido" if sec_clean == "700000232" else historico.get(sec_clean, {}).get("nombre_gerente", "la Gerente oficial")))
+        return False, (
+            f"⚠️ **El Código de Sector {sec_clean} ya cuenta con una Gerente oficial registrada ({ger_act}).**\n\n"
+            f"Por motivos de seguridad corporativa, no es posible registrar otra cuenta de Gerente para este sector. "
+            f"Si requieres recuperar tus credenciales de acceso, comunícate con Soporte al WhatsApp **3057939537**."
+        ), None
+
     if sec_clean in historico:
         sec_reg = historico[sec_clean]
         if sec_reg.get("ha_consumido_prueba", False) and not sec_reg.get("ha_pagado", False):
@@ -4929,18 +5001,26 @@ def obtener_resumen_suscripciones():
         tel_g = info.get("telefono_gerente", "")
         ha_pagado = info.get("ha_pagado", False)
 
-        nom_gerente = ""
+        nom_gerente = info.get("nombre_gerente", "")
         total_lideres = 0
         for u_id, u_data in usuarios.items():
             if str(u_data.get("codigo_sector") or "").strip() == str(sec_id).strip():
                 if u_data.get("rol") == "gerente":
-                    nom_gerente = u_data.get("nombre", "")
+                    if not nom_gerente or u_id in ["gerente", correo_g]:
+                        nom_gerente = u_data.get("nombre", "")
                     if not correo_g:
                         correo_g = u_id
                     if not tel_g:
                         tel_g = u_data.get("telefono", "")
                 elif u_data.get("rol") == "lider":
                     total_lideres += 1
+
+        # Blindaje autoritativo exclusivo para Sector 700000459 (Clery Cuellar - Matices Clery)
+        if str(sec_id).strip() == "700000459":
+            nom_sec = "SECTOR MATICES CLERY"
+            nom_gerente = "Clery Cuellar"
+            correo_g = "gerente"
+            tel_g = "3057939537"
 
         dias_rest = "Indefinido"
         vence_str = "Permanente"
