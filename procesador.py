@@ -10110,11 +10110,9 @@ def generar_mensaje_whatsapp_cobranza(row, tipo='manana', nombre_remitente='Tu L
         )
     elif tipo == 'mora':
         msg = (
-            f"⚠️ Estimada {nombre}, te informamos que tu factura *N° {factura}* presenta *{dias_ret} días de vencida* con un saldo pendiente de *{saldo_fmt}*.\n\n"
+            f"⚠️ Estimad@ {nombre}, te informamos que tu factura *N° {factura}* presenta *{dias_ret} días de vencida* con un saldo pendiente de *{saldo_fmt}*.\n\n"
             f"📌 *Detalle de la obligación:*\n"
-            f"• Saldo Capital: {saldo_prin_fmt}\n"
-            f"• Saldo Financiero: {saldo_fin_fmt}\n"
-            f"• Saldo Total a Pagar: *{saldo_fmt}*\n\n"
+            f"• Saldo Capital: {saldo_prin_fmt}\n\n"
             f"Por favor reporta tu comprobante de pago a la brevedad para normalizar tu estado de cuenta. Estamos para apoyarte. — {remit} 📲"
         )
     else: # preventivo general

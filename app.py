@@ -9976,11 +9976,9 @@ if tab_geral is not None:
                     "Quedo muy atenta para ayudarte a normalizar tu pedido y mantener tu crédito activo. ¡Un abrazo! — {remitente} 📲"
                 ),
                 'mora': (
-                    "⚠️ Estimada {primer_nombre}, te informamos que tu factura *N° {factura}* presenta *{dias_retraso} días de vencida* con un saldo pendiente de *{saldo_total}*.\n\n"
+                    "⚠️ Estimad@ {primer_nombre}, te informamos que tu factura *N° {factura}* presenta *{dias_retraso} días de vencida* con un saldo pendiente de *{saldo_total}*.\n\n"
                     "📌 *Detalle de la obligación:*\n"
-                    "• Saldo Capital: {saldo_capital}\n"
-                    "• Saldo Financiero: {saldo_financiero}\n"
-                    "• Saldo Total a Pagar: *{saldo_total}*\n\n"
+                    "• Saldo Capital: {saldo_capital}\n\n"
                     "Por favor reporta tu comprobante de pago a la brevedad para normalizar tu estado de cuenta. Estamos para apoyarte. — {remitente} 📲"
                 ),
                 'general': (
